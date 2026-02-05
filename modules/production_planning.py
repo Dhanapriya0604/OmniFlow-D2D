@@ -157,14 +157,17 @@ def production_planning(forecast_df, inventory_df, manufacturing_df):
     )
 
     df = demand.merge(inv, on="product_id", how="left")     
-    buffer_days = 5  # safety production buffer
-
-    target_stock = df["avg_daily_demand"] * (30 + buffer_days)
+    lead_time_days = 7
+    buffer_days = 5
+    
+    reorder_point = df["avg_daily_demand"] * lead_time_days
+    target_stock = reorder_point + df["avg_daily_demand"] * buffer_days
     
     df["production_required"] = np.maximum(
         0,
         target_stock - df["current_stock"]
     )
+
     mfg_agg = (
         manufacturing_df
         .groupby("product_id", as_index=False)
@@ -332,7 +335,7 @@ def production_profiling(df):
         "Total Products": df["product_id"].nunique(),
         "Total Production Required": int(df["production_required"].sum()),
         "Avg Production Days": int(df["days_required"].mean()),
-        "Products Needing Production":
+        "Products Below Reorder":
             int((df["production_required"] > 0).sum())
     }
 
