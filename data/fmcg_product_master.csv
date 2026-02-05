@@ -1,0 +1,301 @@
+product_id,product_name,category,brand,unit_weight_kg,shelf_life_days,mrp,launch_date
+P00001,Snack Bar,Personal Care,,1.31,540,111.6,2023-07-06
+P00002,Shampoo,Home Care,BrandA,1.74,-30,111.6,2021-09-23
+P00003,Detergent,FOOD ,,4.14,365,111.6,2020-02-09
+P00004,Detergent,,BrandC,3.12,,111.6,2020-08-22
+P00005,Snack Bar,Home Care,BrandA,1.36,-30,111.6,2021-10-11
+P00006,Shampoo,FOOD ,Brand-A,2.27,180,111.6,2022-06-27
+P00007,Soap,Personal Care,Brand-A,4.29,,111.6,2022-04-07
+P00008,Shampoo,,BrandB,0.05,180,111.6,2019-02-04
+P00009,Toothpaste,personal care,BrandA,4.96,,111.6,2023-01-04
+P00010,Toothpaste,personal care,BrandA,2.85,-30,111.6,2020-01-04
+P00011,Soap,Personal Care,Brand-A,0.95,,111.6,2019-11-23
+P00012,Snack Bar,FOOD ,,4.01,-30,111.6,2021-08-11
+P00013,Soap,,Brand-A,0.43,180,111.6,2020-08-07
+P00014,Snack Bar,Personal Care,BrandA,2.08,180,111.6,2023-03-16
+P00015,Soap,,BrandC,2.89,540,111.6,2021-03-04
+P00016,Detergent,Food,BrandB,1.27,-30,111.6,2022-03-23
+P00017,Toothpaste,FOOD ,Brand-A,4.43,540,111.6,2019-06-29
+P00018,Detergent,Home Care,BrandC,3.5,540,111.6,2023-02-20
+P00019,Snack Bar,,Brand-A,0.85,,111.6,2023-03-11
+P00020,Snack Bar,Food,BrandB,0.81,365,111.6,2022-03-20
+P00021,,Food,BrandC,0.36,,111.6,2022-08-06
+P00022,Soap,personal care,,2.88,365,111.6,2022-11-25
+P00023,Soap,FOOD ,,0.98,180,111.6,2019-11-07
+P00024,,Personal Care,BrandC,2.74,540,111.6,2019-09-27
+P00025,Soap,personal care,BrandB,4.11,180,111.6,2021-10-22
+P00026,Detergent,,BrandB,4.4,180,111.6,2022-03-06
+P00027,,FOOD ,,0.63,540,111.6,2023-06-17
+P00028,Soap,Personal Care,BrandB,1.69,180,111.6,2023-06-13
+P00029,Toothpaste,FOOD ,BrandC,2.12,,111.6,2020-12-21
+P00030,Soap,Food,BrandB,1.95,-30,111.6,2021-03-14
+P00031,Shampoo,,BrandB,2.12,540,111.6,2020-12-05
+P00032,Snack Bar,Home Care,BrandC,2.33,540,111.6,2019-04-28
+P00033,Shampoo,personal care,BrandA,3.79,,111.6,2022-05-11
+P00034,Detergent,personal care,BrandA,1.56,,111.6,2019-08-15
+P00035,Detergent,FOOD ,Brand-A,1.75,365,111.6,2020-02-25
+P00036,Soap,Personal Care,BrandC,1.98,-30,111.6,2021-03-11
+P00037,Detergent,,BrandB,0.8,180,111.6,2021-08-21
+P00038,Soap,personal care,BrandA,3.17,365,111.6,2023-11-17
+P00039,Shampoo,,,2.03,365,111.6,2023-04-24
+P00040,Soap,,Brand-A,4.58,,111.6,2019-03-13
+P00041,Soap,,,4.12,,111.6,2021-12-21
+P00042,,personal care,,1.19,,111.6,2020-06-22
+P00043,Snack Bar,,,1.25,-30,111.6,2023-07-13
+P00044,Snack Bar,Home Care,BrandA,3.92,180,111.6,2020-11-14
+P00045,Snack Bar,personal care,BrandC,2.82,180,111.6,2023-07-09
+P00046,Toothpaste,Food,BrandB,0.1,-30,111.6,2022-02-01
+P00047,Shampoo,Food,Brand-A,3.17,,111.6,2019-07-18
+P00048,Detergent,Personal Care,,2.0,365,111.6,2021-07-02
+P00049,Soap,FOOD ,BrandC,3.94,365,111.6,2021-07-30
+P00050,,Home Care,BrandA,3.75,540,111.6,2021-12-25
+P00051,Snack Bar,Home Care,Brand-A,4.62,365,111.6,2022-04-26
+P00052,Soap,personal care,BrandA,3.51,540,111.6,2021-03-21
+P00053,,personal care,Brand-A,4.57,540,111.6,2021-08-31
+P00054,Snack Bar,Food,Brand-A,1.46,540,111.6,2023-02-17
+P00055,Detergent,Home Care,BrandA,1.73,,111.6,2019-05-02
+P00056,Shampoo,Personal Care,BrandA,0.34,-30,111.6,2019-03-06
+P00057,Detergent,Personal Care,BrandA,4.34,,111.6,2021-06-03
+P00058,Detergent,,,0.81,,111.6,2020-05-23
+P00059,Detergent,Personal Care,BrandC,2.78,365,111.6,2020-10-23
+P00060,Shampoo,FOOD ,,2.57,,111.6,2019-11-20
+P00061,Detergent,Food,BrandC,4.08,180,111.6,2021-02-03
+P00062,Detergent,Home Care,BrandA,1.97,365,111.6,2022-05-01
+P00063,Snack Bar,personal care,BrandA,0.76,365,111.6,2019-02-10
+P00064,Detergent,FOOD ,Brand-A,1.95,540,111.6,2019-01-24
+P00065,Shampoo,Personal Care,Brand-A,0.29,-30,111.6,2020-10-02
+P00066,Detergent,Home Care,BrandC,1.54,365,111.6,2019-03-04
+P00067,Shampoo,Food,,3.17,180,111.6,2023-12-23
+P00068,,personal care,Brand-A,0.33,365,111.6,2019-05-05
+P00069,Shampoo,Food,,4.95,540,111.6,2021-08-06
+P00070,,,BrandA,2.7,-30,111.6,2023-05-08
+P00071,Shampoo,,BrandC,1.54,180,111.6,2020-06-21
+P00072,Toothpaste,Personal Care,Brand-A,4.18,180,111.6,2022-05-30
+P00073,Detergent,Food,BrandA,0.73,-30,111.6,2020-12-20
+P00074,Toothpaste,personal care,BrandB,1.64,365,111.6,2019-08-03
+P00075,Toothpaste,personal care,Brand-A,4.69,180,111.6,2020-01-01
+P00076,,personal care,BrandA,1.24,365,111.6,2022-02-04
+P00077,Detergent,Home Care,BrandB,3.68,180,111.6,2019-01-14
+P00078,Detergent,FOOD ,BrandC,0.45,180,111.6,2020-03-03
+P00079,Toothpaste,Home Care,BrandC,2.69,540,111.6,2022-11-02
+P00080,Soap,Personal Care,Brand-A,3.31,540,111.6,2021-01-07
+P00081,Snack Bar,Home Care,,1.09,540,111.6,2022-12-07
+P00082,,FOOD ,,1.67,,111.6,2019-04-26
+P00083,Detergent,Food,BrandA,2.78,,111.6,2019-06-15
+P00084,Shampoo,Personal Care,BrandC,2.97,-30,111.6,2022-04-14
+P00085,Shampoo,Home Care,,0.81,,111.6,2023-06-14
+P00086,Snack Bar,Personal Care,Brand-A,2.08,540,111.6,2023-11-18
+P00087,Detergent,Home Care,BrandC,5.0,180,111.6,2020-04-20
+P00088,Snack Bar,,,1.65,-30,111.6,2022-11-01
+P00089,Snack Bar,Home Care,BrandB,3.94,365,111.6,2022-12-03
+P00090,,FOOD ,Brand-A,1.05,180,111.6,2023-06-11
+P00091,Snack Bar,personal care,BrandA,2.33,365,111.6,2021-04-30
+P00092,Detergent,Food,BrandC,2.61,365,111.6,2023-08-08
+P00093,Detergent,FOOD ,BrandB,3.0,365,111.6,2020-05-20
+P00094,Soap,,BrandB,3.6,,111.6,2021-09-17
+P00095,Snack Bar,FOOD ,,3.99,180,111.6,2020-04-17
+P00096,Detergent,,BrandC,3.52,,111.6,2022-03-04
+P00097,Soap,Food,Brand-A,4.05,-30,111.6,2021-04-20
+P00098,Toothpaste,Food,,4.44,-30,111.6,2020-11-01
+P00099,Toothpaste,Food,Brand-A,1.66,365,111.6,2022-03-16
+P00100,Detergent,FOOD ,BrandA,4.15,540,111.6,2020-09-29
+P00101,,Personal Care,,2.62,-30,111.6,2021-06-19
+P00102,Toothpaste,FOOD ,Brand-A,1.33,365,111.6,2022-03-03
+P00103,Detergent,Home Care,BrandA,0.91,-30,111.6,2023-12-30
+P00104,,FOOD ,BrandB,3.83,180,111.6,2023-08-30
+P00105,Snack Bar,,,3.2,540,111.6,2020-08-01
+P00106,Snack Bar,personal care,BrandC,0.4,-30,111.6,2021-01-29
+P00107,,personal care,Brand-A,2.96,540,111.6,2022-05-23
+P00108,Soap,,BrandA,0.27,-30,111.6,2019-11-25
+P00109,,Home Care,Brand-A,1.99,540,111.6,2021-08-03
+P00110,,FOOD ,BrandA,2.88,180,111.6,2022-04-30
+P00111,Snack Bar,personal care,BrandC,3.27,,111.6,2019-10-23
+P00112,Detergent,Home Care,BrandB,0.83,-30,111.6,2020-08-15
+P00113,Shampoo,FOOD ,BrandA,0.27,,111.6,2019-06-02
+P00114,Toothpaste,,BrandB,2.9,180,111.6,2019-06-01
+P00115,,Food,BrandB,4.1,540,111.6,2019-05-09
+P00116,Snack Bar,,Brand-A,3.99,180,111.6,2020-07-29
+P00117,Snack Bar,Personal Care,Brand-A,1.83,540,111.6,2023-09-20
+P00118,Shampoo,personal care,,2.91,-30,111.6,2021-01-02
+P00119,Shampoo,Home Care,BrandB,3.61,180,111.6,2022-07-26
+P00120,,,BrandB,4.37,-30,111.6,2023-01-03
+P00121,Toothpaste,Home Care,BrandC,2.48,180,111.6,2022-04-02
+P00122,Soap,Personal Care,BrandB,4.38,365,111.6,2021-04-18
+P00123,Snack Bar,Food,Brand-A,1.62,-30,111.6,2022-12-25
+P00124,Toothpaste,personal care,BrandB,1.14,540,111.6,2023-09-17
+P00125,Snack Bar,Home Care,BrandB,1.51,365,111.6,2021-06-25
+P00126,Soap,Home Care,BrandB,3.66,180,111.6,2022-03-13
+P00127,Toothpaste,Home Care,BrandC,4.43,540,111.6,2019-11-02
+P00128,Detergent,FOOD ,BrandB,2.38,365,111.6,2022-06-11
+P00129,Toothpaste,personal care,Brand-A,3.49,-30,111.6,2022-03-20
+P00130,Snack Bar,FOOD ,BrandC,0.74,,111.6,2021-05-26
+P00131,Shampoo,Personal Care,BrandA,2.56,-30,111.6,2023-11-28
+P00132,,Home Care,BrandB,2.2,540,111.6,2022-07-24
+P00133,Toothpaste,Home Care,BrandA,2.19,180,111.6,2023-12-16
+P00134,Shampoo,Personal Care,BrandA,0.98,540,111.6,2019-10-10
+P00135,,Home Care,BrandB,3.13,365,111.6,2022-02-21
+P00136,Shampoo,Personal Care,,3.38,,111.6,2022-12-22
+P00137,Snack Bar,Home Care,,3.2,-30,111.6,2022-04-16
+P00138,Shampoo,Personal Care,,3.73,180,111.6,2020-06-26
+P00139,Soap,,BrandC,2.32,365,111.6,2020-03-15
+P00140,Snack Bar,FOOD ,,4.27,540,111.6,2019-04-18
+P00141,,Personal Care,BrandB,2.88,365,111.6,2019-09-16
+P00142,Shampoo,FOOD ,Brand-A,4.41,180,111.6,2023-02-28
+P00143,,Food,BrandA,2.08,-30,111.6,2022-11-07
+P00144,Snack Bar,FOOD ,BrandA,3.52,365,111.6,2021-10-31
+P00145,Detergent,FOOD ,BrandB,1.02,,111.6,2023-11-11
+P00146,Snack Bar,,BrandC,0.46,540,111.6,2021-04-13
+P00147,Shampoo,Food,BrandA,4.66,540,111.6,2022-07-17
+P00148,Detergent,Personal Care,BrandB,1.89,-30,111.6,2019-11-04
+P00149,Soap,Food,BrandA,0.28,540,111.6,2020-12-12
+P00150,Shampoo,Personal Care,Brand-A,3.11,-30,111.6,2022-05-07
+P00151,,Home Care,Brand-A,4.67,540,111.6,2021-12-27
+P00152,,Home Care,BrandC,3.86,365,111.6,2020-03-22
+P00153,Detergent,Personal Care,Brand-A,4.94,540,111.6,2019-10-09
+P00154,Snack Bar,Home Care,BrandC,4.68,540,111.6,2020-02-29
+P00155,Soap,FOOD ,,2.3,180,111.6,2019-11-06
+P00156,Detergent,FOOD ,BrandC,1.21,,111.6,2021-06-07
+P00157,Shampoo,Food,BrandB,0.37,365,111.6,2022-12-28
+P00158,Snack Bar,Home Care,BrandA,1.4,540,111.6,2020-08-13
+P00159,Snack Bar,Personal Care,BrandB,3.18,,111.6,2019-01-07
+P00160,,Personal Care,,4.56,365,111.6,2023-08-29
+P00161,Snack Bar,Home Care,BrandA,0.06,365,111.6,2020-05-16
+P00162,,personal care,Brand-A,4.1,180,111.6,2020-02-26
+P00163,Toothpaste,FOOD ,,3.83,-30,111.6,2020-03-11
+P00164,Shampoo,Food,BrandC,3.47,365,111.6,2023-11-04
+P00165,Detergent,personal care,BrandC,0.68,,111.6,2021-09-20
+P00166,Detergent,,BrandC,0.31,180,111.6,2020-05-30
+P00167,Toothpaste,,,3.7,180,111.6,2022-10-05
+P00168,Snack Bar,Personal Care,Brand-A,3.22,365,111.6,2021-05-25
+P00169,Soap,FOOD ,BrandC,1.88,,111.6,2021-10-29
+P00170,,FOOD ,,1.76,,111.6,2022-05-05
+P00171,Detergent,personal care,Brand-A,0.21,365,111.6,2022-07-03
+P00172,,personal care,BrandB,4.97,540,111.6,2022-01-23
+P00173,Soap,Personal Care,BrandA,4.19,,111.6,2022-06-10
+P00174,,personal care,BrandA,4.87,180,111.6,2021-12-03
+P00175,Shampoo,,BrandA,4.1,-30,111.6,2022-08-31
+P00176,,FOOD ,BrandA,2.32,365,111.6,2022-10-16
+P00177,Soap,FOOD ,BrandC,4.23,365,111.6,2023-06-21
+P00178,Snack Bar,Home Care,Brand-A,1.03,180,111.6,2020-07-12
+P00179,Detergent,,Brand-A,3.38,365,111.6,2022-03-13
+P00180,,Food,BrandB,1.22,540,111.6,2023-05-24
+P00181,Shampoo,Home Care,BrandA,1.99,-30,111.6,2023-06-16
+P00182,Toothpaste,Home Care,BrandC,4.36,365,111.6,2022-06-15
+P00183,Soap,Personal Care,BrandB,2.15,540,111.6,2020-03-06
+P00184,Toothpaste,Home Care,BrandA,4.47,180,111.6,2023-11-19
+P00185,Soap,Food,BrandB,3.02,180,111.6,2023-06-25
+P00186,Toothpaste,Personal Care,BrandC,1.5,540,111.6,2020-03-21
+P00187,Shampoo,Personal Care,BrandC,1.34,,111.6,2019-01-14
+P00188,Shampoo,,BrandB,0.07,180,111.6,2020-08-26
+P00189,,FOOD ,BrandA,2.88,540,111.6,2023-08-31
+P00190,,personal care,,4.2,540,111.6,2023-03-11
+P00191,Detergent,Personal Care,,1.16,180,111.6,2019-01-04
+P00192,Shampoo,FOOD ,,2.42,365,111.6,2021-02-10
+P00193,Soap,FOOD ,BrandA,4.92,-30,111.6,2023-08-02
+P00194,Soap,FOOD ,,2.0,365,111.6,2023-12-06
+P00195,Shampoo,Personal Care,BrandB,4.7,180,111.6,2020-03-28
+P00196,Shampoo,Personal Care,BrandC,4.14,180,111.6,2020-08-20
+P00197,Shampoo,Home Care,BrandA,2.5,365,111.6,2021-07-25
+P00198,,,BrandC,3.2,365,111.6,2020-09-11
+P00199,Detergent,personal care,Brand-A,0.37,180,111.6,2022-06-24
+P00200,Toothpaste,Personal Care,Brand-A,2.61,540,111.6,2023-08-14
+P00201,Soap,FOOD ,BrandB,3.81,,111.6,2019-04-04
+P00202,,personal care,BrandA,1.19,-30,111.6,2023-02-26
+P00203,Toothpaste,Home Care,BrandC,0.3,540,111.6,2019-09-11
+P00204,Toothpaste,,,0.2,365,111.6,2022-01-23
+P00205,Snack Bar,FOOD ,BrandA,0.84,-30,111.6,2022-12-22
+P00206,Toothpaste,Food,BrandB,1.23,,111.6,2023-08-08
+P00207,Detergent,,Brand-A,4.04,180,111.6,2023-10-03
+P00208,Snack Bar,Food,,2.32,-30,111.6,2020-07-12
+P00209,Soap,FOOD ,BrandC,2.7,-30,111.6,2019-07-23
+P00210,Shampoo,Food,BrandA,1.6,-30,111.6,2021-05-14
+P00211,Snack Bar,Food,BrandB,1.53,-30,111.6,2022-05-02
+P00212,Shampoo,Home Care,,2.79,-30,111.6,2020-07-30
+P00213,Snack Bar,,BrandC,3.74,,111.6,2020-05-24
+P00214,Detergent,personal care,BrandC,0.94,365,111.6,2021-04-14
+P00215,Toothpaste,Personal Care,BrandA,2.2,540,111.6,2021-11-12
+P00216,Snack Bar,,BrandA,3.24,-30,111.6,2021-02-06
+P00217,Shampoo,Food,BrandC,4.8,365,111.6,2021-09-13
+P00218,Soap,FOOD ,BrandB,1.38,,111.6,2021-03-21
+P00219,Toothpaste,,BrandB,1.99,,111.6,2023-06-03
+P00220,Snack Bar,Personal Care,BrandB,2.87,,111.6,2020-03-05
+P00221,Soap,Home Care,,0.75,540,111.6,2021-12-25
+P00222,Soap,Home Care,BrandA,3.08,,111.6,2021-12-16
+P00223,Snack Bar,,BrandB,4.87,180,111.6,2021-09-11
+P00224,Shampoo,personal care,BrandC,1.4,-30,111.6,2020-10-07
+P00225,Soap,Food,BrandB,2.43,,111.6,2020-02-22
+P00226,Toothpaste,Personal Care,Brand-A,0.63,180,111.6,2022-06-28
+P00227,Soap,Personal Care,BrandC,2.61,540,111.6,2023-06-16
+P00228,Detergent,FOOD ,BrandA,4.86,540,111.6,2019-06-27
+P00229,,Personal Care,BrandB,2.73,180,111.6,2022-04-07
+P00230,,Home Care,BrandA,1.11,540,111.6,2020-10-30
+P00231,Soap,Food,BrandA,1.59,540,111.6,2020-05-14
+P00232,Shampoo,Food,BrandA,3.15,180,111.6,2023-01-04
+P00233,Detergent,Home Care,Brand-A,4.29,-30,111.6,2022-04-26
+P00234,Toothpaste,Home Care,Brand-A,2.29,540,111.6,2020-08-12
+P00235,Soap,Personal Care,Brand-A,2.48,365,111.6,2019-09-18
+P00236,Soap,,BrandC,4.06,,111.6,2023-04-02
+P00237,Snack Bar,FOOD ,BrandA,0.57,540,111.6,2021-07-21
+P00238,,Food,,4.76,365,111.6,2019-08-05
+P00239,Snack Bar,Home Care,BrandA,2.35,365,111.6,2020-01-26
+P00240,Detergent,Home Care,Brand-A,1.69,,111.6,2019-09-22
+P00241,,FOOD ,BrandA,3.9,365,111.6,2022-06-07
+P00242,Shampoo,FOOD ,BrandC,1.32,365,111.6,2022-07-21
+P00243,,FOOD ,BrandC,0.77,-30,111.6,2021-02-16
+P00244,Toothpaste,personal care,BrandA,1.33,-30,111.6,2023-11-07
+P00245,Snack Bar,Food,BrandB,3.38,180,111.6,2020-08-18
+P00246,Soap,,,0.55,540,111.6,2019-02-14
+P00247,Snack Bar,Food,,2.28,540,111.6,2021-08-01
+P00248,Toothpaste,Personal Care,BrandB,1.22,540,111.6,2021-07-05
+P00249,Toothpaste,Food,,2.75,-30,111.6,2020-01-21
+P00250,Soap,Personal Care,BrandB,0.73,,111.6,2021-07-04
+P00251,,Home Care,BrandC,3.88,540,111.6,2021-04-04
+P00252,Detergent,FOOD ,BrandA,4.62,,111.6,2021-01-06
+P00253,Shampoo,Home Care,BrandB,1.63,365,111.6,2020-09-09
+P00254,,personal care,BrandC,1.8,180,111.6,2022-03-13
+P00255,Soap,Food,Brand-A,3.01,180,111.6,2023-02-10
+P00256,Detergent,FOOD ,BrandA,3.71,365,111.6,2023-11-12
+P00257,Shampoo,Personal Care,BrandA,0.34,540,111.6,2019-11-25
+P00258,Toothpaste,personal care,BrandB,3.39,365,111.6,2023-03-31
+P00259,Soap,,BrandB,4.08,,111.6,2022-12-01
+P00260,Shampoo,personal care,BrandA,3.97,,111.6,2020-06-22
+P00261,Detergent,personal care,BrandA,2.22,365,111.6,2021-04-19
+P00262,Detergent,FOOD ,BrandB,4.12,540,111.6,2022-08-06
+P00263,Snack Bar,Food,BrandB,2.76,365,111.6,2020-06-14
+P00264,,,,0.97,540,111.6,2020-12-12
+P00265,Detergent,,BrandA,1.46,540,111.6,2021-07-04
+P00266,Shampoo,Food,BrandC,2.98,540,111.6,2021-10-29
+P00267,,Home Care,BrandC,2.78,-30,111.6,2020-09-17
+P00268,Snack Bar,FOOD ,BrandB,4.02,180,111.6,2021-01-12
+P00269,Detergent,Food,Brand-A,3.59,540,111.6,2021-12-25
+P00270,Snack Bar,,BrandC,1.1,540,111.6,2021-09-02
+P00271,Soap,Food,Brand-A,2.02,,111.6,2019-04-30
+P00272,Shampoo,Personal Care,BrandC,3.9,180,111.6,2021-03-01
+P00273,Toothpaste,personal care,BrandA,2.32,-30,111.6,2023-08-07
+P00274,Toothpaste,Personal Care,BrandA,1.16,180,111.6,2020-08-28
+P00275,Soap,personal care,Brand-A,4.69,180,111.6,2019-02-15
+P00276,Snack Bar,Home Care,BrandA,2.27,540,111.6,2019-03-21
+P00277,Detergent,Home Care,Brand-A,1.58,180,111.6,2019-05-18
+P00278,Shampoo,Home Care,BrandB,2.58,,111.6,2020-04-22
+P00279,Soap,personal care,BrandC,1.54,180,111.6,2021-07-04
+P00280,Snack Bar,,Brand-A,1.39,365,111.6,2021-01-11
+P00281,Shampoo,Food,BrandC,3.32,180,111.6,2020-03-13
+P00282,Soap,FOOD ,BrandC,3.99,-30,111.6,2019-02-24
+P00283,,Food,BrandC,2.07,540,111.6,2022-08-01
+P00284,Toothpaste,FOOD ,BrandB,0.85,,111.6,2019-01-23
+P00285,Snack Bar,Food,BrandC,2.41,,111.6,2019-03-29
+P00286,Snack Bar,,BrandB,2.04,-30,111.6,2022-11-13
+P00287,Snack Bar,personal care,BrandC,2.21,-30,111.6,2019-10-29
+P00288,Snack Bar,,BrandC,1.24,-30,111.6,2020-12-20
+P00289,Detergent,Home Care,BrandA,3.86,365,111.6,2022-05-04
+P00290,Shampoo,personal care,,1.05,-30,111.6,2022-04-27
+P00291,Toothpaste,,BrandA,0.24,365,111.6,2019-08-13
+P00292,Soap,,BrandA,3.52,-30,111.6,2023-05-24
+P00293,,Personal Care,BrandA,3.73,365,111.6,2022-05-12
+P00294,Toothpaste,Personal Care,BrandB,1.23,,111.6,2021-11-06
+P00295,Shampoo,Home Care,BrandB,0.91,,111.6,2023-07-09
+P00296,Toothpaste,FOOD ,BrandC,2.92,180,111.6,2023-11-14
+P00297,,Personal Care,BrandA,4.6,180,111.6,2020-09-01
+P00298,,FOOD ,BrandB,1.31,540,111.6,2023-11-18
+P00299,,,Brand-A,2.72,540,111.6,2022-07-11
+P00300,,FOOD ,BrandC,1.36,-30,111.6,2020-06-14
