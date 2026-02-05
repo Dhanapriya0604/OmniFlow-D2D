@@ -224,7 +224,7 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
 
     # Fill missing safely
     df["avg_delay_rate"].fillna(region_stats["avg_delay_rate"].mean(), inplace=True)
-        df["avg_transit_days"] = df["avg_transit_days"].fillna(
+    df["avg_transit_days"] = df["avg_transit_days"].fillna(
         logistics_df["actual_delivery_days"].median()
     )
     
