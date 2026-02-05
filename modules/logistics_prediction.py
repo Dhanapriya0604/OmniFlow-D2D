@@ -197,12 +197,18 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
     # Warehouse → Region
     region_map = (
         logistics_df
-        .groupby("product_id")["destination_region"]
+        .dropna(subset=["source_warehouse", "destination_region"])
+        .groupby("source_warehouse")["destination_region"]
         .agg(lambda x: x.mode().iloc[0])
         .reset_index()
     )
     
-    df = df.merge(region_map, on="product_id", how="left")
+    df = df.merge(
+        region_map,
+        left_on="warehouse_id",
+        right_on="source_warehouse",
+        how="left"
+    ).drop(columns=["source_warehouse"])
 
     # Region performance
     region_stats = (
