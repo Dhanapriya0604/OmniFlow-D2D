@@ -124,10 +124,15 @@ def load_logistics():
     # clean column names
     df.columns = (
         df.columns
-        .str.lower()
-        .str.strip()
-        .str.replace(" ", "_")
+            .str.lower()
+            .str.strip()
+            .str.replace(" ", "_")
+            .str.replace("-", "_")
     )
+    # Fix warehouse column naming differences
+    if "warehouse_id" in df.columns and "source_warehouse" not in df.columns:
+        df["source_warehouse"] = df["warehouse_id"]
+
     df = clean_text_column(df, "source_warehouse", remove_dash=True)
     df = clean_text_column(df, "destination_region")
     df = clean_text_column(df, "carrier")
