@@ -169,7 +169,7 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
     stock = (
         inventory_df.groupby("product_id", as_index=False)
         .agg(
-            current_stock=("on_hand_qty", "mean"),
+            current_stock=("on_hand_qty", "sum"),
             warehouse_id=("warehouse_id", "first")
         )
     )
@@ -197,18 +197,12 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
     # Warehouse → Region
     region_map = (
         logistics_df
-        .dropna(subset=["source_warehouse","destination_region"])
-        .groupby("source_warehouse")["destination_region"]
+        .groupby("product_id")["destination_region"]
         .agg(lambda x: x.mode().iloc[0])
         .reset_index()
     )
-
-    df = df.merge(
-        region_map,
-        left_on="warehouse_id",
-        right_on="source_warehouse",
-        how="left"
-    ).drop(columns=["source_warehouse"])
+    
+    df = df.merge(region_map, on="product_id", how="left")
 
     # Region performance
     region_stats = (
@@ -224,9 +218,11 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
 
     # Fill missing safely
     df["avg_delay_rate"].fillna(region_stats["avg_delay_rate"].mean(), inplace=True)
-    df["avg_transit_days"] = df["avg_transit_days"].fillna(
-        logistics_df["actual_delivery_days"].median()
-    )
+    median_days = logistics_df["actual_delivery_days"].median()
+    if pd.isna(median_days):
+        median_days = 5
+    
+    df["avg_transit_days"] = df["avg_transit_days"].fillna(median_days)
     
     df["avg_shipping_cost"] = df["avg_shipping_cost"].fillna(
         logistics_df["logistics_cost"].median()
@@ -275,11 +271,18 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
     df["shipping_priority"] = (
         df["weekly_shipping_need"] * (1 + df["avg_delay_rate"])
     )
-
+    df["weekly_shipping_need"] = df["weekly_shipping_need"].clip(lower=0)
     df = df.sort_values("shipping_priority", ascending=False)
    
     # ================= FINAL CLEANUP =================
-    df["destination_region"] = df["destination_region"].fillna("UNKNOWN")
+    df["warehouse_id"] = df["warehouse_id"].fillna("UNKNOWN")
+    df["destination_region"] = (
+        df["destination_region"]
+        .fillna("UNKNOWN")
+        .astype(str)
+        .str.upper()
+    )
+
     df["recommended_carrier"] = df["recommended_carrier"].fillna("STANDARD")
     
     df["avg_delay_rate"] = df["avg_delay_rate"].fillna(0)
@@ -291,8 +294,12 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
     ) 
     df["production_required"] = df["production_required"].fillna(0)   
     df = df.replace([np.inf, -np.inf], 0)
+    df["avg_daily_demand"] = df["avg_daily_demand"].round().astype(int)
+    df["weekly_shipping_need"] = df["weekly_shipping_need"].round().astype(int)
+    df["avg_shipping_cost"] = df["avg_shipping_cost"].round(2)
 
     return df
+    
 def logistics_optimization_page():
 
     inject_css()
