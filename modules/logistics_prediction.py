@@ -177,10 +177,9 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
     df = demand.merge(stock, on="product_id", how="left")
 
     # Shipping need
-    df["weekly_shipping_need"] = np.maximum(
-        df["weekly_demand"] * 0.2,
+    df["weekly_shipping_need"] = (
         df["weekly_demand"] - df["current_stock"] * 0.25
-    )
+    ).clip(lower=0)
 
     # Production link
     if not production_df.empty:
@@ -197,10 +196,10 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
     # Warehouse → Region
     region_map = (
         logistics_df
-        .dropna(subset=["source_warehouse", "destination_region"])
-        .groupby("source_warehouse")["destination_region"]
-        .agg(lambda x: x.mode().iloc[0])
-        .reset_index()
+            .dropna(subset=["source_warehouse", "destination_region"])
+            .groupby("source_warehouse")["destination_region"]
+            .agg(lambda x: x.mode().iloc[0] if not x.mode().empty else "UNKNOWN")
+            .reset_index()
     )
     
     df = df.merge(
@@ -303,6 +302,7 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
     df["avg_daily_demand"] = df["avg_daily_demand"].round().astype(int)
     df["weekly_shipping_need"] = df["weekly_shipping_need"].round().astype(int)
     df["avg_shipping_cost"] = df["avg_shipping_cost"].round(2)
+    df["avg_transit_days"] = df["avg_transit_days"].round().astype(int)
 
     return df
     
@@ -388,7 +388,7 @@ def logistics_optimization_page():
                     <div class="metric-value">{v}</div>
                 </div>
                 """, unsafe_allow_html=True)
-        st.write(logistics_df["destination_region"].value_counts())
+        
         # -------- Charts --------
         st.markdown(
             '<div class="section-title">Shipping Need by Product</div>',
