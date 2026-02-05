@@ -382,7 +382,7 @@ def logistics_optimization_page():
                     <div class="metric-value">{v}</div>
                 </div>
                 """, unsafe_allow_html=True)
-
+        st.write(logistics_df["destination_region"].value_counts())
         # -------- Charts --------
         st.markdown(
             '<div class="section-title">Shipping Need by Product</div>',
