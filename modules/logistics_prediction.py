@@ -92,7 +92,11 @@ def clean_text_column(df, col, remove_dash=False):
 # ======================================================================================
 @st.cache_data
 def load_forecasts():
-    df = pd.read_csv(FORECAST_PATH)
+    if "all_forecasts" in st.session_state:
+        df = st.session_state["all_forecasts"].copy()
+    else:
+        df = pd.read_csv(FORECAST_PATH)
+
     df.columns = df.columns.str.lower()
     df = clean_text_column(df, "product_id")
     return df
@@ -192,7 +196,9 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
 
     # Warehouse → Region
     region_map = (
-        logistics_df.groupby("source_warehouse")["destination_region"]
+        logistics_df
+        .dropna(subset=["source_warehouse","destination_region"])
+        .groupby("source_warehouse")["destination_region"]
         .agg(lambda x: x.mode().iloc[0])
         .reset_index()
     )
@@ -218,12 +224,19 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
 
     # Fill missing safely
     df["avg_delay_rate"].fillna(region_stats["avg_delay_rate"].mean(), inplace=True)
-    df["avg_transit_days"].fillna(region_stats["avg_transit_days"].median(), inplace=True)
-    df["avg_shipping_cost"].fillna(region_stats["avg_shipping_cost"].median(), inplace=True)
+        df["avg_transit_days"] = df["avg_transit_days"].fillna(
+        logistics_df["actual_delivery_days"].median()
+    )
+    
+    df["avg_shipping_cost"] = df["avg_shipping_cost"].fillna(
+        logistics_df["logistics_cost"].median()
+    )
 
     # Carrier recommendation
     carrier_perf = (
-        logistics_df.groupby(["source_warehouse","carrier"], as_index=False)
+        logistics_df
+        .dropna(subset=["source_warehouse","carrier"])
+        .groupby(["source_warehouse","carrier"], as_index=False)
         .agg(carrier_delay=("delay_flag","mean"))
     )
 
@@ -246,11 +259,14 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
         "carrier_delay":"carrier_delay_rate"
     }, inplace=True)
 
+    df["recommended_carrier"] = df["recommended_carrier"].fillna("Standard Carrier")
     df["carrier_delay_rate"].fillna(df["avg_delay_rate"], inplace=True)
 
     # Risk
+    threshold = df["avg_delay_rate"].quantile(0.7)
+
     df["logistics_risk"] = np.where(
-        df["avg_delay_rate"] > df["avg_delay_rate"].median(),
+        df["avg_delay_rate"] > threshold,
         "High Delay Risk",
         "Logistics Stable"
     )
@@ -261,6 +277,20 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
     )
 
     df = df.sort_values("shipping_priority", ascending=False)
+   
+    # ================= FINAL CLEANUP =================
+    df["destination_region"] = df["destination_region"].fillna("UNKNOWN")
+    df["recommended_carrier"] = df["recommended_carrier"].fillna("STANDARD")
+    
+    df["avg_delay_rate"] = df["avg_delay_rate"].fillna(0)
+    df["avg_transit_days"] = df["avg_transit_days"].fillna(
+        logistics_df["actual_delivery_days"].median()
+    ) 
+    df["avg_shipping_cost"] = df["avg_shipping_cost"].fillna(
+        logistics_df["logistics_cost"].median()
+    ) 
+    df["production_required"] = df["production_required"].fillna(0)   
+    df = df.replace([np.inf, -np.inf], 0)
 
     return df
 def logistics_optimization_page():
