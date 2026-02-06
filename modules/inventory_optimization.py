@@ -434,55 +434,6 @@ def inventory_optimization_page():
         )
         
         st.plotly_chart(stock_fig, use_container_width=True)
-
-        st.markdown(
-            '<div class="section-title">EOQ Distribution Across Products</div>',
-            unsafe_allow_html=True
-        )
-        
-        eoq_fig = px.histogram(
-            view_df,
-            x="EOQ",
-            nbins=30,
-            template="plotly_white",
-            labels={"EOQ": "Economic Order Quantity"}
-        )
-        
-        st.plotly_chart(eoq_fig, use_container_width=True)
-
-        st.markdown(
-            '<div class="section-title">Safety Stock vs Demand Variability</div>',
-            unsafe_allow_html=True
-        )
-        
-        ss_fig = px.scatter(
-            view_df,
-            x="demand_std",
-            y="safety_stock",
-            hover_data=["product_id"],
-            template="plotly_white",
-            labels={
-                "demand_std": "Demand Std Deviation",
-                "safety_stock": "Safety Stock"
-            }
-        )
-        
-        st.plotly_chart(ss_fig, use_container_width=True)
-
-        st.markdown(
-            '<div class="section-title">Inventory Risk Breakdown</div>',
-            unsafe_allow_html=True
-        )
-        
-        status_fig = px.pie(
-            view_df,
-            names="stock_status",
-            template="plotly_white",
-            hole=0.4
-        )
-        
-        st.plotly_chart(status_fig, use_container_width=True)
-
         
         # -------- OUTPUT PREVIEW --------
         st.markdown('<div class="section-title">Inventory Plan Preview</div>', unsafe_allow_html=True)
