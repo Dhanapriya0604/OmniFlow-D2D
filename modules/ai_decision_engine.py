@@ -70,15 +70,20 @@ LOGISTICS_PATH = os.path.join(DATA_DIR, "logistics_plan.csv")
 # ======================================================================================
 @st.cache_data
 def load_data():
-    forecast = pd.read_csv(FORECAST_PATH)
-    inventory = pd.read_csv(INVENTORY_PATH)
-    production = pd.read_csv(PRODUCTION_PATH)
-    logistics = pd.read_csv(LOGISTICS_PATH)
 
-    forecast.columns = forecast.columns.str.lower()
-    inventory.columns = inventory.columns.str.lower()
-    production.columns = production.columns.str.lower()
-    logistics.columns = logistics.columns.str.lower()
+    def safe_read(path):
+        if os.path.exists(path):
+            return pd.read_csv(path)
+        return pd.DataFrame()
+
+    forecast = st.session_state.get(
+        "all_forecasts",
+        safe_read(FORECAST_PATH)
+    )
+
+    inventory = safe_read(INVENTORY_PATH)
+    production = safe_read(PRODUCTION_PATH)
+    logistics = safe_read(LOGISTICS_PATH)
 
     return forecast, inventory, production, logistics
 
