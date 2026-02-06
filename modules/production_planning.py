@@ -153,21 +153,16 @@ def production_planning(forecast_df, inventory_df, manufacturing_df):
 
     inv = (
         inventory_df.groupby("product_id", as_index=False)
-        .agg(current_stock=("on_hand_qty", "mean"))
+        .agg(current_stock=("on_hand_qty", "sum"))
     )
 
     df = demand.merge(inv, on="product_id", how="left")     
-    lead_time_days = 7
-    buffer_days = 5
-    
-    reorder_point = df["avg_daily_demand"] * lead_time_days
-    target_stock = reorder_point + df["avg_daily_demand"] * buffer_days
-    
+    monthly_need = df["avg_daily_demand"] * 30
+
     df["production_required"] = np.maximum(
         0,
-        target_stock - df["current_stock"]
+        monthly_need - df["current_stock"]
     )
-
     mfg_agg = (
         manufacturing_df
         .groupby("product_id", as_index=False)
@@ -189,7 +184,7 @@ def production_planning(forecast_df, inventory_df, manufacturing_df):
     df["production_required"] *= 0.9
 
     df["production_required"] = np.where(
-        df["production_required"] < df["batch_size"],
+        df["production_required"] < df["batch_size"] * 0.6,
         0,
         df["production_required"]
     )
