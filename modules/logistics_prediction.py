@@ -420,8 +420,10 @@ def logistics_optimization_page():
         )
         st.dataframe(opt_df, use_container_width=True)
 
-        st.download_button(
-            "Download Logistics Plan",
-            opt_df.to_csv(index=False),
-            "logistics_plan.csv"
-        )
+        c1, c2, c3 = st.columns(3)
+        with c2:
+            st.download_button(
+                "⬇ Download Logistics Plan",
+                opt_df.to_csv(index=False),
+                "logistics_plan.csv"
+            )
