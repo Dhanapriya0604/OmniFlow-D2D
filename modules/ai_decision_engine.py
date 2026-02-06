@@ -177,9 +177,7 @@ def decision_engine(forecast_df, inv_df, prod_df):
         f"🤖 Best forecasting model: {best_model}",
         "🚚 Recommendation: Increase supply for high-demand and risky stock items."
     ]
-
     return insights
-
 
 # ======================================================================================
 # PAGE
