@@ -458,8 +458,11 @@ def inventory_optimization_page():
                 unsafe_allow_html=True
             )
 
-        st.download_button(
-            "⬇ Download Inventory Optimization Output",
-            view_df.to_csv(index=False),
-            file_name="inventory_optimization.csv"
-        )
+        c1, c2, c3 = st.columns(3)
+        with c2:
+            st.download_button(
+                "⬇ Download Inventory Output",
+                view_df.to_csv(index=False),
+                "inventory_optimization.csv"
+            )
+
