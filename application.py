@@ -19,7 +19,7 @@ from modules.demand_forecasting import demand_forecasting_page
 from modules.inventory_optimization import inventory_optimization_page
 from modules.production_planning import production_planning_page
 from modules.logistics_prediction import logistics_optimization_page
-from modules.ai_decision_engine import ai_insights
+from modules.ai_decision_engine import decision_intelligence_page
 
 # --------------------------------------------------
 # GLOBAL UI THEME (CONSISTENT WITH MODULES)
