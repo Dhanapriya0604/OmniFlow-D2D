@@ -423,34 +423,6 @@ def production_planning_page():
         )
         
         st.plotly_chart(fig_ds, use_container_width=True)
-        
-        st.markdown(
-            '<div class="section-title">Production Days Required per Product</div>',
-            unsafe_allow_html=True
-        )
-        
-        fig_days = px.bar(
-            prod_df,
-            x="product_id",
-            y="days_required",
-            template="plotly_white"
-        )
-        
-        st.plotly_chart(fig_days, use_container_width=True)
-
-        st.markdown(
-            '<div class="section-title">Production Status Split</div>',
-            unsafe_allow_html=True
-        )
-        
-        fig_status = px.pie(
-            prod_df,
-            names="production_status",
-            hole=0.4,
-            template="plotly_white"
-        )
-        
-        st.plotly_chart(fig_status, use_container_width=True)
 
         st.markdown('<div class="section-title">Production Requirement</div>', unsafe_allow_html=True)
         st.plotly_chart(
@@ -461,24 +433,6 @@ def production_planning_page():
                    template="plotly_white"),
             use_container_width=True
         )
-
-        st.markdown('<div class="section-title">Capacity Usage</div>', unsafe_allow_html=True)
-        st.plotly_chart(
-            px.scatter(
-                prod_df,
-                x="daily_capacity",
-                y="production_required",
-                color="production_status",
-                color_discrete_map={
-                    "⚠ Production Needed": "red",
-                    "✅ Stock Sufficient": "green"
-                },
-                hover_data=["product_id"],
-                template="plotly_white"
-            ),
-            use_container_width=True
-        )
-
         st.markdown('<div class="section-title">Production Plan Output</div>', unsafe_allow_html=True)
         st.dataframe(
             prod_df[[
@@ -489,17 +443,7 @@ def production_planning_page():
                 "production_status"
             ]],
             use_container_width=True
-        )
-        st.markdown(
-            '<div class="section-title">Auto Production Schedule</div>',
-            unsafe_allow_html=True
-        )
-        st.dataframe(schedule_df, use_container_width=True)
-        st.markdown(
-            '<div class="section-title">Production Line Allocation</div>',
-            unsafe_allow_html=True
-        )
-        
+        )      
         st.dataframe(line_schedule_df, use_container_width=True)
         # Output
         st.download_button(
