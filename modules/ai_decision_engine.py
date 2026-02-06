@@ -15,28 +15,44 @@ st.set_page_config(page_title="Decision Intelligence", layout="wide")
 def inject_css():
     st.markdown("""
     <style>
-    .section-title {
+    :root {
+        --bg:#f8fafc;
+        --text:#0f172a;
+        --primary:#0ea5e9;
+        --border:#e5e7eb;
+    }
+
+    section.main > div {
+        animation: fadeIn .4s ease-in-out;
+    }
+
+    @keyframes fadeIn {
+        from {opacity:0; transform:translateY(6px);}
+        to {opacity:1; transform:translateY(0);}
+    }
+
+    .metric-card {
+        background:white;
+        border-radius:16px;
+        padding:18px;
+        text-align:center;
+        border:1px solid var(--border);
+        box-shadow:0 6px 18px rgba(0,0,0,0.08);
+    }
+
+    .metric-value {
         font-size:28px;
+        font-weight:900;
+        color:var(--primary);
+    }
+
+    .section-title {
+        font-size:26px;
         font-weight:800;
-        margin:20px 0;
-    }
-
-    .insight-card {
-        background:linear-gradient(180deg,#eef2ff,#ffffff);
-        padding:20px;
-        border-radius:14px;
-        box-shadow:0 8px 20px rgba(0,0,0,0.08);
-        margin-bottom:12px;
-        transition:0.2s;
-    }
-
-    .insight-card:hover {
-        transform:translateY(-3px);
-        box-shadow:0 14px 30px rgba(0,0,0,0.15);
+        margin:24px 0 12px;
     }
     </style>
     """, unsafe_allow_html=True)
-
 
 # ======================================================================================
 # PATHS
@@ -45,139 +61,93 @@ BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 DATA_DIR = os.path.join(BASE_DIR, "data")
 
 FORECAST_PATH = os.path.join(DATA_DIR, "forecast_output.csv")
-INVENTORY_PATH = os.path.join(DATA_DIR, "retail_inventory_snapshot.csv")
+INVENTORY_PATH = os.path.join(DATA_DIR, "inventory_optimization.csv")
 PRODUCTION_PATH = os.path.join(DATA_DIR, "production_plan.csv")
-
+LOGISTICS_PATH = os.path.join(DATA_DIR, "logistics_plan.csv")
 
 # ======================================================================================
 # LOADERS
 # ======================================================================================
-def load_forecasts():
-    if "all_forecasts" in st.session_state:
-        return st.session_state["all_forecasts"]
-    return pd.read_csv(FORECAST_PATH)
+@st.cache_data
+def load_data():
+    forecast = pd.read_csv(FORECAST_PATH)
+    inventory = pd.read_csv(INVENTORY_PATH)
+    production = pd.read_csv(PRODUCTION_PATH)
+    logistics = pd.read_csv(LOGISTICS_PATH)
 
+    forecast.columns = forecast.columns.str.lower()
+    inventory.columns = inventory.columns.str.lower()
+    production.columns = production.columns.str.lower()
+    logistics.columns = logistics.columns.str.lower()
 
-def load_inventory():
-    df = pd.read_csv(INVENTORY_PATH)
-    df.columns = df.columns.str.lower()
-    return df
-
-
-def load_production():
-    if os.path.exists(PRODUCTION_PATH):
-        df = pd.read_csv(PRODUCTION_PATH)
-        df.columns = df.columns.str.lower()
-        return df
-    return pd.DataFrame()
-
+    return forecast, inventory, production, logistics
 
 # ======================================================================================
-# DECISION ENGINE
+# INSIGHT ENGINE
 # ======================================================================================
-def decision_engine(forecast_df, inv_df, prod_df):
+def compute_insights(forecast, inventory, production, logistics):
 
-    # ---- Product name mapping ----
-    if "product_name" in inv_df.columns:
-        product_map = inv_df[
-            ["product_id", "product_name"]
-        ].drop_duplicates()
-    else:
-        product_map = forecast_df[
-            ["product_id"]
-        ].drop_duplicates()
-        product_map["product_name"] = product_map["product_id"]
+    avg_forecast = forecast["forecast"].mean()
 
-    # ---- Demand analysis ----
-    demand_avg = (
-        forecast_df.groupby("product_id")["forecast"]
+    high_demand_products = (
+        forecast.groupby("product_id")["forecast"]
         .mean()
-        .reset_index(name="avg_forecast")
+        .nlargest(3)
+        .index.tolist()
     )
 
-    demand_avg = demand_avg.merge(
-        product_map,
-        on="product_id",
-        how="left"
+    risk_products = inventory[
+        inventory["stock_status"].isin(
+            ["🔴 Critical", "🟠 Reorder Required"]
+        )
+    ]["product_id"].tolist()
+
+    production_needed = production[
+        production["production_required"] > 0
+    ]["product_id"].tolist()
+
+    high_delay_regions = logistics[
+        logistics["logistics_risk"] == "High Delay Risk"
+    ]["destination_region"].unique().tolist()
+
+    return {
+        "avg_forecast": avg_forecast,
+        "high_demand_products": high_demand_products,
+        "risk_products": risk_products,
+        "production_needed": production_needed,
+        "delay_regions": high_delay_regions,
+    }
+
+# ======================================================================================
+# NLP ASSISTANT
+# ======================================================================================
+def decision_nlp(insights, q):
+
+    q = q.lower()
+
+    if "high demand" in q:
+        return f"High demand products: {', '.join(insights['high_demand_products'])}"
+
+    if "risk" in q or "stock" in q:
+        return f"Products at stock risk: {', '.join(insights['risk_products'])}"
+
+    if "production" in q:
+        return f"Products needing production: {', '.join(insights['production_needed'])}"
+
+    if "delay" in q or "logistics" in q:
+        return f"High delay risk regions: {', '.join(insights['delay_regions'])}"
+
+    if "average forecast" in q:
+        return f"Average demand forecast is {insights['avg_forecast']:.0f} units."
+
+    return (
+        "Ask questions like:\n"
+        "- high demand products\n"
+        "- stock risk products\n"
+        "- production needed\n"
+        "- logistics delay regions\n"
+        "- average forecast"
     )
-
-    high = demand_avg.sort_values(
-        "avg_forecast", ascending=False
-    ).iloc[0]
-
-    low = demand_avg.sort_values(
-        "avg_forecast"
-    ).iloc[0]
-
-    # Demand category
-    demand_avg["category"] = pd.qcut(
-        demand_avg["avg_forecast"],
-        3,
-        labels=["Low", "Medium", "High"]
-    )
-
-    # ---- Inventory risk ----
-    if "stock_status" in inv_df.columns:
-        risk_products = inv_df[
-            inv_df["stock_status"].isin(
-                ["🔴 Critical", "🟠 Reorder Required"]
-            )
-        ][["product_id"]].drop_duplicates()
-
-        risk_products = risk_products.merge(
-            product_map,
-            on="product_id",
-            how="left"
-        )
-
-        risk_products = (
-            risk_products["product_name"]
-            + " (" + risk_products["product_id"] + ")"
-        ).tolist()
-    else:
-        risk_products = []
-
-    # ---- Production need ----
-    if not prod_df.empty:
-        prod_needed = prod_df[
-            prod_df["production_required"] > 0
-        ][["product_id"]]
-
-        prod_needed = prod_needed.merge(
-            product_map,
-            on="product_id",
-            how="left"
-        )
-
-        prod_needed = (
-            prod_needed["product_name"]
-            + " (" + prod_needed["product_id"] + ")"
-        ).tolist()
-    else:
-        prod_needed = []
-
-    # ---- Model metrics ----
-    if {"model", "rmse"}.issubset(forecast_df.columns):
-        model_perf = (
-            forecast_df.groupby("model")["rmse"]
-            .mean()
-            .reset_index()
-        )
-        best_model = model_perf.sort_values(
-            "rmse"
-        ).iloc[0]["model"]
-    else:
-        best_model = "Random Forest"
-
-    insights = [
-        f"📈 Highest demand expected for {high['product_name']} ({high['product_id']})",
-        f"📉 Lowest demand observed for {low['product_name']} ({low['product_id']})",
-        f"⚠ Stock risk products: {', '.join(risk_products[:5]) if risk_products else 'None'}",
-        f"🏭 Production required for: {', '.join(prod_needed[:5]) if prod_needed else 'None'}",
-        f"🤖 Best forecasting model: {best_model}",
-        "🚚 Recommendation: Increase supply for high-demand and risky stock items."
-    ]
-    return insights
 
 # ======================================================================================
 # PAGE
@@ -187,22 +157,66 @@ def decision_intelligence_page():
     inject_css()
 
     st.markdown(
-        '<div class="section-title">Decision Intelligence</div>',
+        '<div class="section-title">Decision Intelligence Dashboard</div>',
         unsafe_allow_html=True
     )
 
-    forecast_df = load_forecasts()
-    inv_df = load_inventory()
-    prod_df = load_production()
-
-    insights = decision_engine(
-        forecast_df,
-        inv_df,
-        prod_df
+    forecast, inventory, production, logistics = load_data()
+    insights = compute_insights(
+        forecast, inventory, production, logistics
     )
 
-    for text in insights:
-        st.markdown(
-            f"<div class='insight-card'>{text}</div>",
-            unsafe_allow_html=True
-        )
+    # ================= KPIs =================
+    c1, c2, c3, c4 = st.columns(4)
+
+    metrics = [
+        ("Avg Forecast",
+         int(insights["avg_forecast"])),
+
+        ("Products at Risk",
+         len(insights["risk_products"])),
+
+        ("Production Needed",
+         len(insights["production_needed"])),
+
+        ("Delay Regions",
+         len(insights["delay_regions"]))
+    ]
+
+    for col, (k, v) in zip([c1, c2, c3, c4], metrics):
+        with col:
+            st.markdown(f"""
+            <div class="metric-card">
+                <div>{k}</div>
+                <div class="metric-value">{v}</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+    # ================= INSIGHTS =================
+    st.markdown(
+        '<div class="section-title">System Insights</div>',
+        unsafe_allow_html=True
+    )
+
+    st.write("### High Demand Products")
+    st.write(insights["high_demand_products"])
+
+    st.write("### Inventory Risk Products")
+    st.write(insights["risk_products"])
+
+    st.write("### Production Required")
+    st.write(insights["production_needed"])
+
+    st.write("### Logistics Delay Regions")
+    st.write(insights["delay_regions"])
+
+    # ================= NLP =================
+    st.markdown(
+        '<div class="section-title">AI Decision Assistant</div>',
+        unsafe_allow_html=True
+    )
+
+    q = st.text_input("Ask supply-chain questions")
+
+    if q:
+        st.success(decision_nlp(insights, q))
