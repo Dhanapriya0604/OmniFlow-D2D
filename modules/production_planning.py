@@ -444,22 +444,24 @@ def production_planning_page():
             ]],
             use_container_width=True
         )      
-        st.dataframe(line_schedule_df, use_container_width=True)
+        
         # Output
-        st.download_button(
-            "Download Production Plan",
-            prod_df.to_csv(index=False),
-            "production_plan.csv"
-        )
-        st.download_button(
-            "Download Production Schedule",
-            schedule_df.to_csv(index=False),
-            "production_schedule.csv"
-        )
-        st.download_button(
-            "Download Line Allocation",
-            line_schedule_df.to_csv(index=False),
-            "line_allocation.csv"
-        )
-
-
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            st.download_button(
+                "⬇ Production Plan",
+                prod_df.to_csv(index=False),
+                "production_plan.csv"
+            )     
+        with c2:
+            st.download_button(
+                "⬇ Production Schedule",
+                schedule_df.to_csv(index=False),
+                "production_schedule.csv"
+            )     
+        with c3:
+            st.download_button(
+                "⬇ Line Allocation",
+                line_schedule_df.to_csv(index=False),
+                "line_allocation.csv"
+            )
