@@ -349,29 +349,7 @@ def logistics_optimization_page():
             production_df,
             logistics_df
         )
-        # ---------------- EDA ----------------
-        st.markdown(
-            '<div class="section-title">Logistics Data Overview</div>',
-            unsafe_allow_html=True
-        )
-        
-        with st.expander("Dataset Summary"):
-        
-            c1, c2, c3 = st.columns(3)
-        
-            c1.metric("Total Shipments", len(logistics_df))
-            c2.metric("Warehouses",
-                      logistics_df["source_warehouse"].nunique())
-            c3.metric("Regions",
-                      logistics_df["destination_region"].nunique())
-        
-            st.write("### Missing Values")
-            st.dataframe(
-                logistics_df.isna().sum().reset_index(
-                ).rename(columns={"index": "Column", 0: "Missing Count"}),
-                use_container_width=True
-            )
-
+       
         # -------- KPIs --------
         st.markdown('<div class="section-title">Logistics KPIs</div>',
                     unsafe_allow_html=True)
@@ -403,7 +381,6 @@ def logistics_optimization_page():
             '<div class="section-title">Shipping Need by Product</div>',
             unsafe_allow_html=True
         )
-
         st.plotly_chart(
             px.bar(
                 opt_df,
@@ -419,13 +396,11 @@ def logistics_optimization_page():
             '<div class="section-title">Shipping Demand by Region</div>',
             unsafe_allow_html=True
         )
-
         region_ship = (
             opt_df.groupby("destination_region")["weekly_shipping_need"]
             .sum()
             .reset_index()
         )
-
         st.plotly_chart(
             px.bar(region_ship,
                    x="destination_region",
@@ -437,42 +412,10 @@ def logistics_optimization_page():
             '<div class="section-title">Delay Risk Split</div>',
             unsafe_allow_html=True
         )
-
         st.plotly_chart(
             px.pie(opt_df,
                    names="logistics_risk",
                    hole=0.4),
-            use_container_width=True
-        )
-
-        st.markdown(
-            '<div class="section-title">Transit Time vs Delay Risk</div>',
-            unsafe_allow_html=True
-        )
-
-        st.plotly_chart(
-            px.scatter(
-                opt_df,
-                x="avg_transit_days",
-                y="avg_delay_rate",
-                color="logistics_risk",
-                color_discrete_map={
-                    "High Delay Risk": "red",
-                    "Logistics Stable": "green"
-                },
-                hover_data=["product_id"]
-            ),
-            use_container_width=True
-        )
-
-        st.markdown(
-            '<div class="section-title">Top Shipping Risks</div>',
-            unsafe_allow_html=True
-        )
-        
-        st.dataframe(
-            opt_df.sort_values("avg_delay_rate",
-                               ascending=False).head(5),
             use_container_width=True
         )
 
@@ -481,7 +424,6 @@ def logistics_optimization_page():
             '<div class="section-title">Logistics Output Preview</div>',
             unsafe_allow_html=True
         )
-
         st.dataframe(opt_df, use_container_width=True)
 
         st.download_button(
