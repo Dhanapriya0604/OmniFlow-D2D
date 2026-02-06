@@ -81,7 +81,6 @@ def clean_text_column(df, col, remove_dash=False):
             .str.strip()
             .str.upper()
         )
-
         if remove_dash:
             df[col] = df[col].str.replace("-", "", regex=False)
 
@@ -167,7 +166,6 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
         .mean()
         .reset_index(name="avg_daily_demand")
     )
-
     demand["weekly_demand"] = demand["avg_daily_demand"] * 7
 
     # Inventory with warehouse
@@ -184,8 +182,7 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
     # Shipping need
     df["weekly_shipping_need"] = (
         df["weekly_demand"] - df["current_stock"] * 0.25
-    )
-    
+    )    
     df["weekly_shipping_need"] = df["weekly_shipping_need"].clip(
         lower=df["weekly_demand"] * 0.15
     )
@@ -209,8 +206,7 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
             .groupby("source_warehouse")["destination_region"]
             .agg(lambda x: x.value_counts().idxmax())
             .reset_index()
-    )
-    
+    )   
     df = df.merge(
         region_map,
         left_on="warehouse_id",
@@ -227,7 +223,6 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
             avg_shipping_cost=("logistics_cost","mean")
         )
     )
-
     df = df.merge(region_stats, on="destination_region", how="left")
 
     # Fill missing safely
@@ -235,9 +230,8 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
     median_days = logistics_df["actual_delivery_days"].median()
     if pd.isna(median_days):
         median_days = 5
-    
-    df["avg_transit_days"] = df["avg_transit_days"].fillna(median_days)
-    
+        
+    df["avg_transit_days"] = df["avg_transit_days"].fillna(median_days)  
     df["avg_shipping_cost"] = df["avg_shipping_cost"].fillna(
         logistics_df["logistics_cost"].median()
     )
