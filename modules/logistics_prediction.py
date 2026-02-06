@@ -158,8 +158,8 @@ def load_logistics():
 # ======================================================================================
 def logistics_optimization(forecast_df, inventory_df, production_df, logistics_df):
 
-    forecast_df = forecast_df.sort_values("date")
-
+    if "date" in forecast_df.columns:
+        forecast_df = forecast_df.sort_values("date")
     demand = (
         forecast_df.groupby("product_id")
         .head(14)
@@ -178,13 +178,17 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
             warehouse_id=("warehouse_id", "first")
         )
     )
-
     df = demand.merge(stock, on="product_id", how="left")
+    df["current_stock"] = df["current_stock"].fillna(0)
 
     # Shipping need
     df["weekly_shipping_need"] = (
         df["weekly_demand"] - df["current_stock"] * 0.25
-    ).clip(lower=0)
+    )
+    
+    df["weekly_shipping_need"] = df["weekly_shipping_need"].clip(
+        lower=df["weekly_demand"] * 0.15
+    )
 
     # Production link
     if not production_df.empty:
@@ -203,7 +207,7 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
         logistics_df
             .dropna(subset=["source_warehouse", "destination_region"])
             .groupby("source_warehouse")["destination_region"]
-            .agg(lambda x: x.mode().iloc[0] if not x.mode().empty else "UNKNOWN")
+            .agg(lambda x: x.value_counts().idxmax())
             .reset_index()
     )
     
@@ -227,7 +231,7 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
     df = df.merge(region_stats, on="destination_region", how="left")
 
     # Fill missing safely
-    df["avg_delay_rate"].fillna(region_stats["avg_delay_rate"].mean(), inplace=True)
+    df["avg_delay_rate"] = df["avg_delay_rate"].fillna(0.05)
     median_days = logistics_df["actual_delivery_days"].median()
     if pd.isna(median_days):
         median_days = 5
