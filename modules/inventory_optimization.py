@@ -422,9 +422,7 @@ def inventory_optimization_page():
                 "current_stock": "Current Stock"
             },
             template="plotly_white"
-        )
-
-        
+        )      
         stock_fig.add_shape(
             type="line",
             x0=0, y0=0,
