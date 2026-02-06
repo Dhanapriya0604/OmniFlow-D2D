@@ -276,4 +276,4 @@ elif menu == "Predictive Logistics":
 
 elif menu == "AI Insights":
     st.header("🤖 AI Decision Engine")
-    ai_insights()
+    decision_intelligence_page()
