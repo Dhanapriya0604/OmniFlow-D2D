@@ -352,6 +352,7 @@ def inventory_optimization_page():
 
         opt_df = inventory_optimization(forecast_df, inventory_df)
         opt_df["weekly_demand"] = opt_df["avg_daily_demand"] * 7
+        st.session_state["inventory_optimized"] = opt_df.copy()
 
         # ---------------- VIEW MODE ----------------
         view_mode = st.radio(
