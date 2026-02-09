@@ -217,21 +217,21 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
 
     logistics_df["delay_flag"] = logistics_df.get("delay_flag", 0)
     
-    # ---------- REGION FIX ----------
-    forecast_df["region"] = forecast_df["region"].astype(str).str.strip()
+    # ---------- REGION CLEAN ----------
+    forecast_df["region"] = (
+        forecast_df["region"]
+            .astype(str)
+            .str.strip()
+            .str.upper()
+    )
     
-    # If numeric regions exist, convert to labels
-    region_lookup = {
-        "0": "NORTH",
-        "1": "NORTH",
-        "2": "SOUTH",
-        "3": "WEST",
-        "4": "EAST"
-    }
+    # Replace invalid text
+    forecast_df["region"] = forecast_df["region"].replace(
+        ["", "NAN", "NONE"],
+        "UNKNOWN"
+    )
     
-    forecast_df["region"] = forecast_df["region"].replace(region_lookup)
-    forecast_df["region"] = forecast_df["region"].str.upper()
-    
+    # Product → region mapping
     region_map = (
         forecast_df.groupby("product_id")["region"]
         .agg(lambda x: x.mode().iloc[0] if not x.mode().empty else "UNKNOWN")
@@ -240,13 +240,11 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
     
     df = df.merge(region_map, on="product_id", how="left")
     df.rename(columns={"region": "destination_region"}, inplace=True)
-    
-    df["destination_region"] = df["destination_region"].fillna("UNASSIGNED")
 
     
     df["destination_region"] = (
         df["destination_region"]
-            .fillna("UNASSIGNED")
+            .fillna("UNKNOWN")
             .astype(str)
             .str.strip()
             .str.upper()
@@ -257,8 +255,7 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
             .str.strip()
             .str.upper()
     )
-    df["destination_region"] = df["destination_region"].fillna("UNASSIGNED")
-
+    
     # Region performance
     region_stats = (
         logistics_df.groupby("destination_region", as_index=False)
@@ -485,6 +482,8 @@ def logistics_optimization_page():
                 "avg_delay_rate"
             ]]
         )
+        st.write(forecast_df["region"].value_counts())
+
         # -------- Output Preview --------
         st.markdown(
             '<div class="section-title">Logistics Output Preview</div>',
