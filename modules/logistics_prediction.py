@@ -217,28 +217,14 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
 
     logistics_df["delay_flag"] = logistics_df.get("delay_flag", 0)
     
-    # ---------- REGION CLEAN ----------
+    # ---------- REGION FROM FORECAST (ORIGINAL) ----------
     forecast_df["region"] = (
         forecast_df["region"]
             .astype(str)
             .str.strip()
+            .str.upper()
     )
     
-    # Map numeric codes if present
-    region_map_dict = {
-        "0": "NORTH",
-        "1": "NORTH",
-        "2": "SOUTH",
-        "3": "WEST",
-        "4": "EAST",
-    }
-    
-    forecast_df["region"] = forecast_df["region"].replace(region_map_dict)
-    
-    # Force uppercase
-    forecast_df["region"] = forecast_df["region"].str.upper()
-    
-    # Product → region mapping
     region_map = (
         forecast_df
             .groupby("product_id")["region"]
@@ -251,18 +237,19 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
     
     df["destination_region"] = (
         df["destination_region"]
+            .fillna("UNASSIGNED")
             .astype(str)
             .str.strip()
             .str.upper()
-            .replace({"NAN": "UNASSIGNED"})
     )
-
+    
     logistics_df["destination_region"] = (
         logistics_df["destination_region"]
             .astype(str)
             .str.strip()
             .str.upper()
     )
+
     df["destination_region"] = df["destination_region"].fillna("UNASSIGNED")
 
     # Region performance
