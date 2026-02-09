@@ -188,8 +188,10 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
     # Shipping need
     # ---------------- STOCK COVERAGE LOGIC ----------------
     df["stock_cover_days"] = (
-        df["current_stock"] / df["avg_daily_demand"]
-    ).replace([np.inf, -np.inf], 0)
+        df["current_stock"] /
+        df["avg_daily_demand"].replace(0, 1)
+    )
+
     
     df["weekly_shipping_need"] = np.select(
         [
@@ -221,19 +223,16 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
 
     # Warehouse → Region
     region_map = (
-        logistics_df
-            .dropna(subset=["source_warehouse", "destination_region"])
-            .groupby("source_warehouse")["destination_region"]
+        forecast_df
+            .groupby("product_id")["region"]
             .agg(lambda x: x.mode().iloc[0])
             .reset_index()
     )
+
      
-    df = df.merge(
-        region_map,
-        left_on="warehouse_id",
-        right_on="source_warehouse",
-        how="left"
-    ).drop(columns=["source_warehouse"])
+    df = df.merge(region_map, on="product_id", how="left")
+    df.rename(columns={"region": "destination_region"}, inplace=True)
+
     df["destination_region"] = df["destination_region"].fillna("UNASSIGNED")
 
     # Region performance
