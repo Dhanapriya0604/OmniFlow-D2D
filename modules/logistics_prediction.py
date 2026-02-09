@@ -186,10 +186,26 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
     df["warehouse_id"] = df["warehouse_id"].fillna("WH_UNKNOWN")
 
     # Shipping need
-    df["weekly_shipping_need"] = (
-        df["weekly_demand"] - df["current_stock"] * 0.5
+    # ---------------- STOCK COVERAGE LOGIC ----------------
+    df["stock_cover_days"] = (
+        df["current_stock"] / df["avg_daily_demand"]
+    ).replace([np.inf, -np.inf], 0)
+    
+    df["weekly_shipping_need"] = np.select(
+        [
+            df["stock_cover_days"] > 21,                 # very safe
+            df["stock_cover_days"].between(7, 21),       # moderate
+            df["stock_cover_days"] < 7                   # risky
+        ],
+        [
+            0,                                           # no shipping
+            df["weekly_demand"] * 0.5,                   # partial refill
+            df["weekly_demand"]                           # full refill
+        ],
+        default=df["weekly_demand"] * 0.5
     )
-    df["weekly_shipping_need"] = df["weekly_shipping_need"].clip(lower=0)
+    
+    df["weekly_shipping_need"] = df["weekly_shipping_need"].round().astype(int)
 
     # Production link
     if not production_df.empty:
