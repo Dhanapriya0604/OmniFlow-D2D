@@ -363,7 +363,6 @@ def logistics_optimization_page():
                     unsafe_allow_html=True)
 
         c1, c2, c3 = st.columns(3)
-
         metrics = [
             ("Avg Delay Rate",
              round(opt_df["avg_delay_rate"].mean(),2)),
