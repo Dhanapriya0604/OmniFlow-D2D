@@ -439,12 +439,12 @@ def logistics_optimization_page():
                    y="weekly_shipping_need"),
             use_container_width=True
         )
+        
         region_delay = (
             opt_df.groupby("destination_region")["avg_delay_rate"]
             .mean()
             .reset_index()
         )
-        
         st.plotly_chart(
             px.bar(region_delay,
                    x="destination_region",
