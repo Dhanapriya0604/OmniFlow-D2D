@@ -232,15 +232,13 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
             .astype(str)
             .str.strip()
             .str.upper()
-    )
-    
+    )    
     logistics_df["destination_region"] = (
         logistics_df["destination_region"]
             .astype(str)
             .str.strip()
             .str.upper()
     )
-
     df["destination_region"] = df["destination_region"].fillna("UNASSIGNED")
 
     # Region performance
@@ -252,13 +250,11 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
             avg_transit_days=("actual_delivery_days","mean"),
             avg_shipping_cost=("logistics_cost","mean")
         )
-    )
-    
+    )   
     region_stats["avg_delay_rate"] = (
         region_stats["delayed_shipments"] /
         region_stats["total_shipments"].replace(0, 1)
     )
-
     df = df.merge(region_stats, on="destination_region", how="left")
 
     # Fill missing safely
@@ -280,14 +276,12 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
         .groupby(["source_warehouse","carrier"], as_index=False)
         .agg(carrier_delay=("delay_flag","mean"))
     )
-
     best_carrier = (
         carrier_perf.sort_values("carrier_delay")
         .groupby("source_warehouse")
         .first()
         .reset_index()
     )
-
     df = df.merge(
         best_carrier,
         left_on="warehouse_id",
