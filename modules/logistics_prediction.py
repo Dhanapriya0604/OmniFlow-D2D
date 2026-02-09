@@ -466,7 +466,6 @@ def logistics_optimization_page():
                 "avg_delay_rate"
             ]]
         )
-
         # -------- Output Preview --------
         st.markdown(
             '<div class="section-title">Logistics Output Preview</div>',
