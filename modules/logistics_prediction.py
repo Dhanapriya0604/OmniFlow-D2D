@@ -416,6 +416,11 @@ def logistics_optimization_page():
                 """, unsafe_allow_html=True)
         
         # -------- Charts --------
+        opt_df = opt_df.sort_values(
+            "weekly_shipping_need",
+            ascending=False
+        )
+
         st.markdown(
             '<div class="section-title">Shipping Need by Product</div>',
             unsafe_allow_html=True
