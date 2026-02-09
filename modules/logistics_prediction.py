@@ -82,7 +82,6 @@ def clean_text_column(df, col, remove_dash=False):
         )
         if remove_dash:
             df[col] = df[col].str.replace("-", "", regex=False)
-
     return df
 
 # ======================================================================================
