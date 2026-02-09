@@ -106,6 +106,12 @@ def load_inventory():
     df.columns = df.columns.str.lower()
     df = clean_text_column(df, "warehouse_id", remove_dash=True)
     df = clean_text_column(df, "product_id")
+    df["on_hand_qty"] = pd.to_numeric(df["on_hand_qty"], errors="coerce")
+    df["on_hand_qty"] = df["on_hand_qty"].fillna(0)
+    
+    # FIX
+    df["on_hand_qty"] = df["on_hand_qty"].clip(lower=0)
+
     return df
 
 @st.cache_data
@@ -157,7 +163,7 @@ def load_logistics():
 def logistics_optimization(forecast_df, inventory_df, production_df, logistics_df):
 
     if "date" in forecast_df.columns:
-        forecast_df = forecast_df.sort_values("date")
+        forecast_df = forecast_df.sort_values(["product_id","date"])
     demand = (
         forecast_df.groupby("product_id")
         .head(14)
@@ -177,14 +183,13 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
     )
     df = demand.merge(stock, on="product_id", how="left")
     df["current_stock"] = df["current_stock"].fillna(0)
+    df["warehouse_id"] = df["warehouse_id"].fillna("WH_UNKNOWN")
 
     # Shipping need
     df["weekly_shipping_need"] = (
-        df["weekly_demand"] - df["current_stock"] * 0.25
-    )    
-    df["weekly_shipping_need"] = df["weekly_shipping_need"].clip(
-        lower=df["weekly_demand"] * 0.15
+        df["weekly_demand"] - df["current_stock"] * 0.5
     )
+    df["weekly_shipping_need"] = df["weekly_shipping_need"].clip(lower=0)
 
     # Production link
     if not production_df.empty:
@@ -203,15 +208,17 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
         logistics_df
             .dropna(subset=["source_warehouse", "destination_region"])
             .groupby("source_warehouse")["destination_region"]
-            .agg(lambda x: x.value_counts().idxmax())
+            .agg(lambda x: x.mode().iloc[0])
             .reset_index()
-    )   
+    )
+     
     df = df.merge(
         region_map,
         left_on="warehouse_id",
         right_on="source_warehouse",
         how="left"
     ).drop(columns=["source_warehouse"])
+    df["destination_region"] = df["destination_region"].fillna("UNASSIGNED")
 
     # Region performance
     region_stats = (
@@ -226,7 +233,7 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
     
     region_stats["avg_delay_rate"] = (
         region_stats["delayed_shipments"] /
-        region_stats["total_shipments"]
+        region_stats["total_shipments"].replace(0, 1)
     )
 
     df = df.merge(region_stats, on="destination_region", how="left")
@@ -238,9 +245,10 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
         median_days = 5
         
     df["avg_transit_days"] = df["avg_transit_days"].fillna(median_days)  
-    df["avg_shipping_cost"] = df["avg_shipping_cost"].fillna(
-        logistics_df["logistics_cost"].median()
-    )
+    cost_med = logistics_df["logistics_cost"].median()
+    if pd.isna(cost_med):
+        cost_med = 0
+    df["avg_shipping_cost"] = df["avg_shipping_cost"].fillna(cost_med)
 
     # Carrier recommendation
     carrier_perf = (
@@ -269,7 +277,7 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
         "carrier_delay":"carrier_delay_rate"
     }, inplace=True)
 
-    df["recommended_carrier"] = df["recommended_carrier"].fillna("Standard Carrier")
+    df["recommended_carrier"] = df["recommended_carrier"].fillna("STANDARD")
     df["carrier_delay_rate"].fillna(df["avg_delay_rate"], inplace=True)
 
     # Risk
@@ -287,7 +295,7 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
     df = df.sort_values("shipping_priority", ascending=False)
    
     # ================= FINAL CLEANUP =================
-    df["warehouse_id"] = df["warehouse_id"].fillna("UNKNOWN")
+    df["warehouse_id"] = df["warehouse_id"].fillna("WH_UNKNOWN")
     df["destination_region"] = (
         df["destination_region"]
         .fillna("UNKNOWN")
@@ -310,6 +318,8 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
     df["weekly_shipping_need"] = df["weekly_shipping_need"].round().astype(int)
     df["avg_shipping_cost"] = df["avg_shipping_cost"].round(2)
     df["avg_transit_days"] = df["avg_transit_days"].round().astype(int)
+    df = df.replace([np.inf, -np.inf], 0)
+    df.fillna(0, inplace=True)
 
     return df
     
