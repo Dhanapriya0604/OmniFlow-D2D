@@ -473,7 +473,6 @@ def logistics_optimization_page():
         risk_df = opt_df[
             opt_df["logistics_risk"] == "High Delay Risk"
         ]
-        
         st.dataframe(
             risk_df[[
                 "product_id",
