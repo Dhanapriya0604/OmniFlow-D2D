@@ -157,12 +157,18 @@ def production_planning(forecast_df, inventory_df, manufacturing_df):
     )
 
     df = demand.merge(inv, on="product_id", how="left")     
-    monthly_need = df["avg_daily_demand"] * 30
+    planning_days = 14
 
-    df["production_required"] = np.maximum(
-        0,
-        monthly_need - df["current_stock"]
+    planning_need = df["avg_daily_demand"] * planning_days
+    
+    base_requirement = planning_need - df["current_stock"]
+    
+    df["production_required"] = np.where(
+        df["current_stock"] < planning_need,
+        np.maximum(0, base_requirement),
+        0
     )
+
     mfg_agg = (
         manufacturing_df
         .groupby("product_id", as_index=False)
