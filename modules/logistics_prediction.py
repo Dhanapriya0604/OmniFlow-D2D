@@ -218,18 +218,21 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
     logistics_df["delay_flag"] = logistics_df.get("delay_flag", 0)
     
     # ---------- REGION CLEAN ----------
-    forecast_df["region"] = (
-        forecast_df["region"]
-            .astype(str)
-            .str.strip()
-            .str.upper()
-    )
+    # Convert to string first
+    forecast_df["region"] = forecast_df["region"].astype(str).str.strip()
     
-    # Replace invalid text
-    forecast_df["region"] = forecast_df["region"].replace(
-        ["", "NAN", "NONE"],
-        "UNKNOWN"
-    )
+    # Numeric → text mapping
+    region_lookup = {
+        "1": "NORTH",
+        "2": "SOUTH",
+        "3": "WEST",
+        "4": "EAST"
+    }
+    
+    forecast_df["region"] = forecast_df["region"].replace(region_lookup)
+    
+    # Force uppercase
+    forecast_df["region"] = forecast_df["region"].str.upper()
     
     # Product → region mapping
     region_map = (
@@ -238,17 +241,14 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
         .reset_index()
     )
     
+    # Merge into logistics dataframe
     df = df.merge(region_map, on="product_id", how="left")
     df.rename(columns={"region": "destination_region"}, inplace=True)
-
     
-    df["destination_region"] = (
-        df["destination_region"]
-            .fillna("UNKNOWN")
-            .astype(str)
-            .str.strip()
-            .str.upper()
-    ) 
+    # Fill missing regions
+    df["destination_region"] = df["destination_region"].fillna("UNKNOWN")
+    
+    # Clean logistics dataset region also
     logistics_df["destination_region"] = (
         logistics_df["destination_region"]
             .astype(str)
