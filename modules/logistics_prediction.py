@@ -420,7 +420,6 @@ def logistics_optimization_page():
             "weekly_shipping_need",
             ascending=False
         )
-
         st.markdown(
             '<div class="section-title">Shipping Need by Product</div>',
             unsafe_allow_html=True
