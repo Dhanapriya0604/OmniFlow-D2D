@@ -94,11 +94,11 @@ def load_forecasts():
     else:
         df = pd.read_csv(FORECAST_PATH)
     
-    # REGION BALANCE
-    regions = ["NORTH", "SOUTH", "WEST", "EAST"]
-    df["region"] = [regions[i % 4] for i in range(len(df))]
     df.columns = df.columns.str.lower()
     df = clean_text_column(df, "product_id")
+    if "region" not in df.columns:
+        df["region"] = "UNKNOWN"
+    
     return df
 
 @st.cache_data
@@ -165,12 +165,16 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
     if "date" in forecast_df.columns:
         forecast_df = forecast_df.sort_values(["product_id","date"])
     demand = (
-        forecast_df.groupby("product_id")
-        .head(14)
-        .groupby("product_id")["forecast"]
-        .mean()
-        .reset_index(name="avg_daily_demand")
+        forecast_df
+            .sort_values(["product_id","date"])
+            .groupby("product_id")
+            .apply(lambda x: x.head(14))
+            .reset_index(drop=True)
+            .groupby("product_id")["forecast"]
+            .mean()
+            .reset_index(name="avg_daily_demand")
     )
+
     demand["weekly_demand"] = demand["avg_daily_demand"] * 7
 
     # Inventory with warehouse
@@ -192,19 +196,16 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
         df["avg_daily_demand"].replace(0, 1)
     )
 
-    df["weekly_shipping_need"] = np.select(
-        [
-            df["stock_cover_days"] > 21,                 
-            df["stock_cover_days"].between(7, 21),       
-            df["stock_cover_days"] < 7                   
-        ],
-        [
-            0,                                          
-            df["weekly_demand"] * 0.5,                   
-            df["weekly_demand"]                          
-        ],
-        default=df["weekly_demand"] * 0.5
-    )    
+    df["weekly_shipping_need"] = np.where(
+        df["stock_cover_days"] > 21,
+        0,
+        np.where(
+            df["stock_cover_days"] > 7,
+            df["weekly_demand"] * 0.5,
+            df["weekly_demand"]
+        )
+    )
+
     df["weekly_shipping_need"] = df["weekly_shipping_need"].round().astype(int)
 
     # Production link
