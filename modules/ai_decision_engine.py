@@ -3,7 +3,6 @@
 # ======================================================================================
 
 import os
-import numpy as np
 import pandas as pd
 import streamlit as st
 
@@ -92,7 +91,7 @@ def load_data():
 # ======================================================================================
 def compute_insights(forecast, inventory, production, logistics):
 
-    if "forecast" in forecast.columns:
+    if not forecast.empty and "forecast" in forecast.columns:
         avg_forecast = forecast["forecast"].mean()
     
         high_demand_products = (
@@ -143,14 +142,61 @@ def compute_insights(forecast, inventory, production, logistics):
         ]["destination_region"].unique().tolist()
     else:
         high_delay_regions = []
+    
+    if "product_id" in forecast.columns:
+        total_products = forecast["product_id"].nunique()
+    else:
+        total_products = 0
 
+    risk_ratio = (
+        len(risk_products) / total_products
+        if total_products else 0
+    )
+    
+    production_load = (
+        production["production_required"].sum()
+        if "production_required" in production.columns else 0
+    )  
+    shipping_load = (
+        logistics["weekly_shipping_need"].sum()
+        if "weekly_shipping_need" in logistics.columns else 0
+    )
+    health_score = max(
+        0,
+        100 - (risk_ratio * 60 + len(high_delay_regions) * 5)
+    )
+    
     return {
         "avg_forecast": avg_forecast,
         "high_demand_products": high_demand_products,
         "risk_products": risk_products,
         "production_needed": production_needed,
         "delay_regions": high_delay_regions,
+    
+        # API metrics
+        "total_products": total_products,
+        "risk_ratio": risk_ratio,
+        "production_load": production_load,
+        "shipping_load": shipping_load,
+        "health_score": health_score
     }
+def predict_future_risk(insights):
+
+    future_risk = []
+
+    if insights["risk_ratio"] > 0.2:
+        future_risk.append("Inventory risk likely to increase")
+
+    if insights["production_load"] > 50000:
+        future_risk.append("Production overload risk")
+
+    if insights["shipping_load"] > 20000:
+        future_risk.append("Logistics congestion risk")
+
+    if not future_risk:
+        future_risk.append("Supply chain stable")
+
+    return future_risk
 
 # ======================================================================================
 # NLP ASSISTANT
@@ -159,28 +205,88 @@ def decision_nlp(insights, q):
 
     q = q.lower()
 
+    # ---- demand ----
     if "high demand" in q:
         return f"High demand products: {', '.join(insights['high_demand_products'])}"
 
+    # ---- inventory ----
     if "risk" in q or "stock" in q:
+        if len(insights["risk_products"]) == 0:
+            return "No products currently at stock risk."
         return f"Products at stock risk: {', '.join(insights['risk_products'])}"
 
+    # ---- production ----
     if "production" in q:
-        return f"Products needing production: {', '.join(insights['production_needed'])}"
+        if len(insights["production_needed"]) == 0:
+            return "Production is sufficient. No products require production."
+        return f"Production required for: {', '.join(insights['production_needed'])}"
 
+    # ---- logistics ----
     if "delay" in q or "logistics" in q:
+        if len(insights["delay_regions"]) == 0:
+            return "No logistics delay risks detected."
         return f"High delay risk regions: {', '.join(insights['delay_regions'])}"
+    
+    if "improve" in q:
+        return (
+            "Improvement Areas:\n"
+            "- Optimize safety stock levels\n"
+            "- Improve forecast accuracy\n"
+            "- Reduce carrier delay risks\n"
+            "- Balance warehouse stock\n"
+        )
 
-    if "average forecast" in q:
-        return f"Average demand forecast is {insights['avg_forecast']:.0f} units."
+    # ---- action recommendation ----
+    if "action" in q or "recommend" in q:
+        actions = []
+    
+        if insights["risk_products"]:
+            actions.append("Replenish stock for critical items.")
+    
+        if insights["production_needed"]:
+            actions.append("Increase production capacity.")
+    
+        if insights["delay_regions"]:
+            actions.append("Switch carriers or routes in delay regions.")
+    
+        if insights["health_score"] < 70:
+            actions.append("System health below safe threshold.")
+    
+        if not actions:
+            actions.append("Operations running smoothly.")
+    
+        return "Recommended Actions:\n- " + "\n- ".join(actions)
+  
+    # ---- summary ----
+    if "summary" in q:
+        return (
+            f"Avg forecast demand: {insights['avg_forecast']:.0f}. "
+            f"{len(insights['risk_products'])} products at risk, "
+            f"{len(insights['production_needed'])} need production."
+        )
+    for product in insights["risk_products"]:
+        if product.lower() in q:
+            return f"{product} is at stock risk and requires action."
+    
+    for product in insights["production_needed"]:
+        if product.lower() in q:
+            return f"{product} requires production scheduling."
+    if "executive summary" in q:
+        return (
+            f"System health score is {insights['health_score']}/100. "
+            f"{len(insights['risk_products'])} products at risk. "
+            f"{len(insights['production_needed'])} need production. "
+            f"Logistics delays in {len(insights['delay_regions'])} regions."
+        )
 
     return (
-        "Ask questions like:\n"
+        "Try asking:\n"
         "- high demand products\n"
-        "- stock risk products\n"
+        "- stock risk\n"
         "- production needed\n"
-        "- logistics delay regions\n"
-        "- average forecast"
+        "- logistics delay\n"
+        "- recommended action\n"
+        "- summary"
     )
 
 # ======================================================================================
@@ -199,6 +305,14 @@ def decision_intelligence_page():
     insights = compute_insights(
         forecast, inventory, production, logistics
     )
+    future_risk = predict_future_risk(insights)
+
+    st.markdown("### Future Risk Prediction")
+    
+    st.write(future_risk)
+    st.markdown("### Recommended Management Actions")
+    actions = decision_nlp(insights, "recommend")
+    st.info(actions)
 
     # ================= KPIs =================
     c1, c2, c3, c4 = st.columns(4)
@@ -227,6 +341,18 @@ def decision_intelligence_page():
             """, unsafe_allow_html=True)
 
     # ================= INSIGHTS =================
+    st.write(f"### System Health Score: {insights['health_score']} / 100")
+    
+    if insights["health_score"] > 80:
+        st.success("System performing well")
+    elif insights["health_score"] > 60:
+        st.warning("System needs monitoring")
+    else:
+        st.error("System requires intervention")
+    
+    st.markdown("### Executive Summary")
+    st.info(decision_nlp(insights, "executive summary"))
+    
     st.markdown(
         '<div class="section-title">System Insights</div>',
         unsafe_allow_html=True
@@ -254,3 +380,19 @@ def decision_intelligence_page():
 
     if q:
         st.success(decision_nlp(insights, q))
+    st.markdown("### API Response Output")
+
+    api_response = {
+        "health_score": insights["health_score"],
+        "avg_forecast": insights["avg_forecast"],
+        "total_products": insights["total_products"],
+        "risk_ratio": insights["risk_ratio"],
+        "production_load": insights["production_load"],
+        "shipping_load": insights["shipping_load"],
+        "risk_products": insights["risk_products"],
+        "production_needed": insights["production_needed"],
+        "delay_regions": insights["delay_regions"],
+        "future_risk": future_risk
+    }
+    
+    st.json(api_response)
