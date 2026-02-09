@@ -193,7 +193,6 @@ def inventory_optimization(forecast_df, inventory_df):
         .str.upper()
         .str.strip()
     )
-
     demand = (
         forecast_df
         .groupby("product_id")
@@ -225,7 +224,6 @@ def inventory_optimization(forecast_df, inventory_df):
         holding_cost_rate * df["avg_daily_demand"],
         1
     )
-
     df["EOQ"] = np.sqrt(
         (2 * df["annual_demand"] * ordering_cost) / df["holding_cost"]
     )
