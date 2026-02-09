@@ -202,8 +202,7 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
             df["weekly_demand"]                          
         ],
         default=df["weekly_demand"] * 0.5
-    )
-    
+    )    
     df["weekly_shipping_need"] = df["weekly_shipping_need"].round().astype(int)
 
     # Production link
@@ -217,7 +216,29 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
         df["production_required"] = 0
 
     logistics_df["delay_flag"] = logistics_df.get("delay_flag", 0)
-    forecast_df["region"] = forecast_df["region"].astype(str).str.strip().str.upper()
+    
+    # ---------- REGION CLEAN ----------
+    forecast_df["region"] = (
+        forecast_df["region"]
+            .astype(str)
+            .str.strip()
+    )
+    
+    # Map numeric codes if present
+    region_map_dict = {
+        "0": "NORTH",
+        "1": "NORTH",
+        "2": "SOUTH",
+        "3": "WEST",
+        "4": "EAST",
+    }
+    
+    forecast_df["region"] = forecast_df["region"].replace(region_map_dict)
+    
+    # Force uppercase
+    forecast_df["region"] = forecast_df["region"].str.upper()
+    
+    # Product → region mapping
     region_map = (
         forecast_df
             .groupby("product_id")["region"]
@@ -227,12 +248,15 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
     
     df = df.merge(region_map, on="product_id", how="left")
     df.rename(columns={"region": "destination_region"}, inplace=True)
+    
     df["destination_region"] = (
         df["destination_region"]
             .astype(str)
             .str.strip()
             .str.upper()
-    )    
+            .replace({"NAN": "UNASSIGNED"})
+    )
+
     logistics_df["destination_region"] = (
         logistics_df["destination_region"]
             .astype(str)
