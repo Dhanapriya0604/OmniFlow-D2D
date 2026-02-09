@@ -93,7 +93,10 @@ def load_forecasts():
         df = st.session_state["all_forecasts"].copy()
     else:
         df = pd.read_csv(FORECAST_PATH)
-
+    
+    # REGION BALANCE
+    regions = ["NORTH", "SOUTH", "WEST", "EAST"]
+    df["region"] = [regions[i % 4] for i in range(len(df))]
     df.columns = df.columns.str.lower()
     df = clean_text_column(df, "product_id")
     return df
