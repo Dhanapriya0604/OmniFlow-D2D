@@ -218,7 +218,7 @@ def inventory_optimization(forecast_df, inventory_df):
 
     ordering_cost = 500
     holding_cost_rate = 0.25
-    lead_time_days = 7
+    lead_time_days = 14
     service_level_z = 1.65
 
     df["holding_cost"] = np.maximum(
