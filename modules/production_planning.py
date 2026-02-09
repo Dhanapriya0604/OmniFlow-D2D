@@ -149,7 +149,7 @@ def production_planning(forecast_df, inventory_df, manufacturing_df):
         .reset_index(name="avg_daily_demand")
     )
 
-    demand["monthly_demand"] = demand["avg_daily_demand"] * 30
+    demand["planning_demand"] = demand["avg_daily_demand"] * 14
 
     inv = (
         inventory_df.groupby("product_id", as_index=False)
@@ -158,9 +158,7 @@ def production_planning(forecast_df, inventory_df, manufacturing_df):
 
     df = demand.merge(inv, on="product_id", how="left")     
     planning_days = 14
-
-    planning_need = df["avg_daily_demand"] * planning_days
-    
+    planning_need = df["avg_daily_demand"] * planning_days    
     base_requirement = planning_need - df["current_stock"]
     
     df["production_required"] = np.where(
@@ -168,7 +166,6 @@ def production_planning(forecast_df, inventory_df, manufacturing_df):
         np.maximum(0, base_requirement),
         0
     )
-
     mfg_agg = (
         manufacturing_df
         .groupby("product_id", as_index=False)
@@ -200,10 +197,10 @@ def production_planning(forecast_df, inventory_df, manufacturing_df):
     df["production_batches"] = np.ceil(
         df["production_required"] / df["batch_size"]
     )
-    df["backlog"] = np.maximum(
-        0,
-        df["monthly_demand"] - df["current_stock"] - df["max_possible_production"]
+    df["backlog"] = np.maximum(0,
+        planning_need - df["current_stock"] - df["max_possible_production"]
     )
+
     df["days_required"] = np.ceil(df["production_required"] / df["daily_capacity"])
     
     df["production_status"] = np.where(
@@ -306,7 +303,7 @@ PRODUCTION_DATA_DICTIONARY = pd.DataFrame({
     "Column": [
         "product_id",
         "avg_daily_demand",
-        "monthly_demand",
+        "planning_demand",
         "current_stock",
         "production_required",
         "batch_size",
@@ -318,7 +315,7 @@ PRODUCTION_DATA_DICTIONARY = pd.DataFrame({
     "Description": [
         "Unique product identifier",
         "Average forecasted daily demand",
-        "Monthly demand estimate",
+        "14-day planning demand",
         "Current inventory level",
         "Units required to meet demand",
         "Production batch size",
@@ -423,7 +420,7 @@ def production_planning_page():
         fig_ds = px.bar(
             prod_df,
             x="product_id",
-            y=["monthly_demand", "current_stock"],
+            y=["planning_demand", "current_stock"],
             barmode="group",
             template="plotly_white"
         )
