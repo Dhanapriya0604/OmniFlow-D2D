@@ -101,19 +101,28 @@ def compute_insights(forecast, inventory, production, logistics):
         .index.tolist()
     )
 
-    risk_products = inventory[
-        inventory["stock_status"].isin(
-            ["🔴 Critical", "🟠 Reorder Required"]
-        )
-    ]["product_id"].tolist()
+    if "stock_status" in inventory.columns:
+        risk_products = inventory[
+            inventory["stock_status"].isin(
+                ["🔴 Critical", "🟠 Reorder Required"]
+            )
+        ]["product_id"].tolist()
+    else:
+        risk_products = []
 
-    production_needed = production[
-        production["production_required"] > 0
-    ]["product_id"].tolist()
+    if "production_required" in production.columns:
+        production_needed = production[
+            production["production_required"] > 0
+        ]["product_id"].tolist()
+    else:
+        production_needed = []
 
-    high_delay_regions = logistics[
-        logistics["logistics_risk"] == "High Delay Risk"
-    ]["destination_region"].unique().tolist()
+    if "logistics_risk" in logistics.columns:
+        high_delay_regions = logistics[
+            logistics["logistics_risk"] == "High Delay Risk"
+        ]["destination_region"].unique().tolist()
+    else:
+        high_delay_regions = []
 
     return {
         "avg_forecast": avg_forecast,
