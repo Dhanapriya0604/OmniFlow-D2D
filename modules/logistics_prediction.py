@@ -223,8 +223,7 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
             .astype(str)
             .str.strip()
             .str.upper()
-    )
-    
+    )    
     region_map = (
         forecast_df
             .groupby("product_id")["region"]
@@ -241,15 +240,13 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
             .astype(str)
             .str.strip()
             .str.upper()
-    )
-    
+    ) 
     logistics_df["destination_region"] = (
         logistics_df["destination_region"]
             .astype(str)
             .str.strip()
             .str.upper()
     )
-
     df["destination_region"] = df["destination_region"].fillna("UNASSIGNED")
 
     # Region performance
