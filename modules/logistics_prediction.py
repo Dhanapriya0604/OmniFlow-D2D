@@ -230,8 +230,7 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
         "2": "SOUTH",
         "3": "WEST",
         "4": "EAST"
-    }
-    
+    }    
     forecast_df["region"] = forecast_df["region"].replace(region_lookup)
     
     # Force uppercase
@@ -380,7 +379,6 @@ def logistics_optimization_page():
 
     # ================= APPLICATION =================
     with tab2:
-
         forecast_df   = load_forecasts()
         inventory_df  = load_inventory()
         production_df = load_production()
