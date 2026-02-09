@@ -112,7 +112,6 @@ def load_inventory():
     
     # FIX
     df["on_hand_qty"] = df["on_hand_qty"].clip(lower=0)
-
     return df
 
 @st.cache_data
