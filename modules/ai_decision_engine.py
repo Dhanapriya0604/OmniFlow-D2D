@@ -92,32 +92,52 @@ def load_data():
 # ======================================================================================
 def compute_insights(forecast, inventory, production, logistics):
 
-    avg_forecast = forecast["forecast"].mean()
+    if "forecast" in forecast.columns:
+        avg_forecast = forecast["forecast"].mean()
+    
+        high_demand_products = (
+            forecast.groupby("product_id")["forecast"]
+            .mean()
+            .nlargest(3)
+            .index.tolist()
+        )
+    else:
+        avg_forecast = 0
+        high_demand_products = []
 
-    high_demand_products = (
-        forecast.groupby("product_id")["forecast"]
-        .mean()
-        .nlargest(3)
-        .index.tolist()
-    )
-
-    if "stock_status" in inventory.columns:
-        risk_products = inventory[
+    if (
+        not inventory.empty and
+        "stock_status" in inventory.columns and
+        "product_id" in inventory.columns
+    ):
+        risk_products = inventory.loc[
             inventory["stock_status"].isin(
                 ["🔴 Critical", "🟠 Reorder Required"]
-            )
-        ]["product_id"].tolist()
+            ),
+            "product_id"
+        ].tolist()
     else:
         risk_products = []
 
-    if "production_required" in production.columns:
+
+    if (
+        not production.empty and
+        "production_required" in production.columns and
+        "product_id" in production.columns
+    ):
+
         production_needed = production[
             production["production_required"] > 0
         ]["product_id"].tolist()
     else:
         production_needed = []
 
-    if "logistics_risk" in logistics.columns:
+    if (
+        not logistics.empty and
+        "logistics_risk" in logistics.columns and
+        "destination_region" in logistics.columns
+    ):
+
         high_delay_regions = logistics[
             logistics["logistics_risk"] == "High Delay Risk"
         ]["destination_region"].unique().tolist()
