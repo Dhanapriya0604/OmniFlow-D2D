@@ -415,16 +415,14 @@ def production_planning_page():
         st.markdown(
             '<div class="section-title">Demand vs Current Stock</div>',
             unsafe_allow_html=True
-        )
-        
+        )      
         fig_ds = px.bar(
             prod_df,
             x="product_id",
             y=["planning_demand", "current_stock"],
             barmode="group",
             template="plotly_white"
-        )
-        
+        )        
         st.plotly_chart(fig_ds, use_container_width=True)
 
         st.markdown('<div class="section-title">Production Requirement</div>', unsafe_allow_html=True)
