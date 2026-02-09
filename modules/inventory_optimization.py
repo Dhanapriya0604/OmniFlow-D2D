@@ -217,7 +217,7 @@ def inventory_optimization(forecast_df, inventory_df):
 
     ordering_cost = 500
     holding_cost_rate = 0.25
-    lead_time_days = 14
+    lead_time_days = 7
     service_level_z = 1.65
 
     df["holding_cost"] = np.maximum(
@@ -349,8 +349,7 @@ def inventory_optimization_page():
         inventory_df = load_inventory()
 
         opt_df = inventory_optimization(forecast_df, inventory_df)
-        opt_df["planning_demand"] = opt_df["avg_daily_demand"] * 14
-        opt_df["weekly_demand"] = opt_df["avg_daily_demand"] * 7  # optional UI
+        opt_df["weekly_demand"] = opt_df["avg_daily_demand"] * 7 
 
         st.session_state["inventory_optimized"] = opt_df.copy()
 
@@ -444,7 +443,6 @@ def inventory_optimization_page():
                 "EOQ",
                 "safety_stock",
                 "weekly_demand",
-                "planning_demand",
                 "reorder_point",
                 "stock_status"
             ]],
