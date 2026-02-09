@@ -389,17 +389,7 @@ def logistics_optimization_page():
             production_df,
             logistics_df
         )
-        st.write("Demand vs Shipping Check")
-        st.dataframe(
-            opt_df[[
-                "product_id",
-                "avg_daily_demand",
-                "current_stock",
-                "stock_cover_days",
-                "weekly_shipping_need"
-            ]].head(10)
-        )
-
+        
         # -------- KPIs --------
         st.markdown('<div class="section-title">Logistics KPIs</div>',
                     unsafe_allow_html=True)
@@ -469,13 +459,6 @@ def logistics_optimization_page():
                    title="Delay Rate by Region"),
             use_container_width=True
         )
-        st.write("Shipping by Region")
-        st.dataframe(
-            opt_df.groupby("destination_region")[
-                "weekly_shipping_need"
-            ].sum().reset_index()
-        )
-
 
         st.markdown(
             '<div class="section-title">Delay Risk Split</div>',
@@ -500,14 +483,6 @@ def logistics_optimization_page():
             ]]
         )
         st.write(forecast_df["region"].value_counts())
-        st.write("Risk Mapping Check")
-        st.dataframe(
-            opt_df[[
-                "destination_region",
-                "avg_delay_rate",
-                "logistics_risk"
-            ]].drop_duplicates()
-        )
 
         # -------- Output Preview --------
         st.markdown(
