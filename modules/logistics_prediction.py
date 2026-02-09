@@ -217,22 +217,32 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
 
     logistics_df["delay_flag"] = logistics_df.get("delay_flag", 0)
     
-    # ---------- REGION FROM FORECAST (ORIGINAL) ----------
-    forecast_df["region"] = (
-        forecast_df["region"]
-            .astype(str)
-            .str.strip()
-            .str.upper()
-    )    
+    # ---------- REGION FIX ----------
+    forecast_df["region"] = forecast_df["region"].astype(str).str.strip()
+    
+    # If numeric regions exist, convert to labels
+    region_lookup = {
+        "0": "NORTH",
+        "1": "NORTH",
+        "2": "SOUTH",
+        "3": "WEST",
+        "4": "EAST"
+    }
+    
+    forecast_df["region"] = forecast_df["region"].replace(region_lookup)
+    forecast_df["region"] = forecast_df["region"].str.upper()
+    
     region_map = (
-        forecast_df
-            .groupby("product_id")["region"]
-            .agg(lambda x: x.mode().iloc[0] if not x.mode().empty else "UNKNOWN")
-            .reset_index()
+        forecast_df.groupby("product_id")["region"]
+        .agg(lambda x: x.mode().iloc[0] if not x.mode().empty else "UNKNOWN")
+        .reset_index()
     )
     
     df = df.merge(region_map, on="product_id", how="left")
     df.rename(columns={"region": "destination_region"}, inplace=True)
+    
+    df["destination_region"] = df["destination_region"].fillna("UNASSIGNED")
+
     
     df["destination_region"] = (
         df["destination_region"]
