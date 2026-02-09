@@ -193,14 +193,14 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
 
     df["weekly_shipping_need"] = np.select(
         [
-            df["stock_cover_days"] > 21,                 # very safe
-            df["stock_cover_days"].between(7, 21),       # moderate
-            df["stock_cover_days"] < 7                   # risky
+            df["stock_cover_days"] > 21,                 
+            df["stock_cover_days"].between(7, 21),       
+            df["stock_cover_days"] < 7                   
         ],
         [
-            0,                                           # no shipping
-            df["weekly_demand"] * 0.5,                   # partial refill
-            df["weekly_demand"]                           # full refill
+            0,                                          
+            df["weekly_demand"] * 0.5,                   
+            df["weekly_demand"]                          
         ],
         default=df["weekly_demand"] * 0.5
     )
@@ -218,16 +218,14 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
         df["production_required"] = 0
 
     logistics_df["delay_flag"] = logistics_df.get("delay_flag", 0)
-
-    # Warehouse → Region
+    forecast_df["region"] = forecast_df["region"].astype(str).str.strip().str.upper()
     region_map = (
         forecast_df
             .groupby("product_id")["region"]
-            .agg(lambda x: x.mode().iloc[0])
+            .agg(lambda x: x.mode().iloc[0] if not x.mode().empty else "UNKNOWN")
             .reset_index()
     )
-
-     
+    
     df = df.merge(region_map, on="product_id", how="left")
     df.rename(columns={"region": "destination_region"}, inplace=True)
     df["destination_region"] = (
