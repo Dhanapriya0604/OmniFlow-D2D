@@ -218,11 +218,18 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
     region_stats = (
         logistics_df.groupby("destination_region", as_index=False)
         .agg(
-            avg_delay_rate=("delay_flag","mean"),
+            total_shipments=("delay_flag", "count"),
+            delayed_shipments=("delay_flag", "sum"),
             avg_transit_days=("actual_delivery_days","mean"),
             avg_shipping_cost=("logistics_cost","mean")
         )
     )
+    
+    region_stats["avg_delay_rate"] = (
+        region_stats["delayed_shipments"] /
+        region_stats["total_shipments"]
+    )
+
     df = df.merge(region_stats, on="destination_region", how="left")
 
     # Fill missing safely
@@ -267,10 +274,8 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
     df["carrier_delay_rate"].fillna(df["avg_delay_rate"], inplace=True)
 
     # Risk
-    threshold = df["avg_delay_rate"].quantile(0.7)
-
     df["logistics_risk"] = np.where(
-        df["avg_delay_rate"] > threshold,
+        df["avg_delay_rate"] > 0.15,
         "High Delay Risk",
         "Logistics Stable"
     )
@@ -401,6 +406,19 @@ def logistics_optimization_page():
                    y="weekly_shipping_need"),
             use_container_width=True
         )
+        region_delay = (
+            opt_df.groupby("destination_region")["avg_delay_rate"]
+            .mean()
+            .reset_index()
+        )
+        
+        st.plotly_chart(
+            px.bar(region_delay,
+                   x="destination_region",
+                   y="avg_delay_rate",
+                   title="Delay Rate by Region"),
+            use_container_width=True
+        )
 
         st.markdown(
             '<div class="section-title">Delay Risk Split</div>',
@@ -411,6 +429,18 @@ def logistics_optimization_page():
                    names="logistics_risk",
                    hole=0.4),
             use_container_width=True
+        )
+        risk_df = opt_df[
+            opt_df["logistics_risk"] == "High Delay Risk"
+        ]
+        
+        st.dataframe(
+            risk_df[[
+                "product_id",
+                "destination_region",
+                "weekly_shipping_need",
+                "avg_delay_rate"
+            ]]
         )
 
         # -------- Output Preview --------
