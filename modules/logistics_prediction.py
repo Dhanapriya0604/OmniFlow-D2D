@@ -230,6 +230,19 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
      
     df = df.merge(region_map, on="product_id", how="left")
     df.rename(columns={"region": "destination_region"}, inplace=True)
+    df["destination_region"] = (
+        df["destination_region"]
+            .astype(str)
+            .str.strip()
+            .str.upper()
+    )
+    
+    logistics_df["destination_region"] = (
+        logistics_df["destination_region"]
+            .astype(str)
+            .str.strip()
+            .str.upper()
+    )
 
     df["destination_region"] = df["destination_region"].fillna("UNASSIGNED")
 
