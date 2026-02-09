@@ -349,7 +349,9 @@ def inventory_optimization_page():
         inventory_df = load_inventory()
 
         opt_df = inventory_optimization(forecast_df, inventory_df)
-        opt_df["weekly_demand"] = opt_df["avg_daily_demand"] * 7
+        opt_df["planning_demand"] = opt_df["avg_daily_demand"] * 14
+        opt_df["weekly_demand"] = opt_df["avg_daily_demand"] * 7  # optional UI
+
         st.session_state["inventory_optimized"] = opt_df.copy()
 
         # ---------------- VIEW MODE ----------------
@@ -442,6 +444,7 @@ def inventory_optimization_page():
                 "EOQ",
                 "safety_stock",
                 "weekly_demand",
+                "planning_demand",
                 "reorder_point",
                 "stock_status"
             ]],
