@@ -192,7 +192,6 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
         df["avg_daily_demand"].replace(0, 1)
     )
 
-    
     df["weekly_shipping_need"] = np.select(
         [
             df["stock_cover_days"] > 21,                 # very safe
