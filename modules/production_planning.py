@@ -332,7 +332,7 @@ def production_profiling(df):
     return {
         "Total Products": df["product_id"].nunique(),
         "Total Production Required": int(df["production_required"].sum()),
-        "Avg Production Days": int(df["days_required"].mean()),
+        "Total Production Days": int(df["days_required"].sum()),
         "Products Below Reorder":
             int((df["production_required"] > 0).sum())
     }
@@ -396,8 +396,8 @@ def production_planning_page():
         metrics = [
             ("Total Production Required",
              int(prod_df["production_required"].sum())),
-            ("Avg Batches",
-             int(prod_df["production_batches"].mean())),
+            ("Total Batches",
+             int(prod_df["production_batches"].sum())),
             ("Products Needing Production",
              int((prod_df["production_required"] > 0).sum()))
         ]
