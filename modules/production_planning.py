@@ -215,7 +215,6 @@ def production_planning(forecast_df, inventory_df, manufacturing_df):
     )
     
     df = df.sort_values("production_priority", ascending=False)
-
     df["current_stock"] = df["current_stock"].fillna(0)
 
     return df
@@ -228,10 +227,8 @@ PRODUCTION_LINES = [
 def auto_production_schedule(prod_df):
 
     today = pd.Timestamp.today().normalize()
-
     work_df = prod_df.copy()
     work_df["remaining"] = work_df["production_required"]
-
     schedule_rows = []
     day = 0
 
@@ -246,9 +243,7 @@ def auto_production_schedule(prod_df):
         share = day_capacity / len(active)
 
         for idx, row in active.iterrows():
-
             produce_today = min(share, row["remaining"])
-
             schedule_rows.append({
                 "date": today + pd.Timedelta(days=day),
                 "product_id": row["product_id"],
@@ -424,7 +419,7 @@ def production_planning_page():
             template="plotly_white"
         )        
         st.plotly_chart(fig_ds, use_container_width=True)
-
+        
         st.markdown('<div class="section-title">Production Requirement</div>', unsafe_allow_html=True)
         st.plotly_chart(
             px.bar(prod_df,
