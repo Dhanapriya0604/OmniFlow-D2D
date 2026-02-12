@@ -853,6 +853,7 @@ def demand_forecasting_page():
         last_row = df.sort_values("date").iloc[-1]
         
         future_df["price"] = last_row["price"]
+        future_df["dayofweek"] = future_df["date"].dt.dayofweek
         future_df["promotion"] = (
            df.groupby("dayofweek")["promotion"]
              .mean()
@@ -866,7 +867,6 @@ def demand_forecasting_page():
         future_df["region"] = last_row["region"]
         future_df["avg_stock"] = last_row["avg_stock"]
         future_df["avg_delay_rate"] = last_row["avg_delay_rate"]
-        future_df["dayofweek"] = future_df["date"].dt.dayofweek
         future_df["sin_dow"] = np.sin(2*np.pi*future_df["dayofweek"]/7)
         future_df["cos_dow"] = np.cos(2*np.pi*future_df["dayofweek"]/7)
         future_df["month"] = future_df["date"].dt.month
