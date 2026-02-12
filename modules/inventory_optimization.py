@@ -221,7 +221,9 @@ def inventory_optimization(forecast_df, inventory_df):
     service_level_z = 1.65
 
     df["holding_cost"] = np.maximum(
-        holding_cost_rate * df["avg_daily_demand"],
+        holding_cost_rate * (
+            df["avg_daily_demand"] + df["demand_std"]
+        ),
         1
     )
     df["EOQ"] = np.sqrt(
@@ -251,6 +253,10 @@ def inventory_optimization(forecast_df, inventory_df):
     ) / (df["reorder_point"] + 1e-6)
     
     df["stockout_risk"] = df["stockout_risk"].clip(0, 1)
+    df["stock_cover_days"] = (
+        df["current_stock"] /
+        df["avg_daily_demand"].replace(0,1)
+    )
 
     df["stock_status"] = np.where(
         df["current_stock"] < df["reorder_point"] * 0.5,
