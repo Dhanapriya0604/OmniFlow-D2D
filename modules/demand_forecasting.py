@@ -854,12 +854,14 @@ def demand_forecasting_page():
         
         future_df["price"] = last_row["price"]
         future_df["dayofweek"] = future_df["date"].dt.dayofweek
+     
+        # Ensure dayofweek exists
+        if "dayofweek" not in df.columns:
+            df["dayofweek"] = df["date"].dt.dayofweek
+        
+        promo_pattern = (df.groupby("dayofweek")["promotion"].mean())   
         future_df["promotion"] = (
-           df.groupby("dayofweek")["promotion"]
-             .mean()
-             .reindex(future_df["dayofweek"])
-             .fillna(0)
-             .values
+            future_df["dayofweek"].map(promo_pattern).fillna(0)
         )
         future_df["holiday_flag"] = (
             future_df["date"].isin(india_holidays).astype(int)
