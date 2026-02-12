@@ -393,9 +393,6 @@ def train_models(X_train, y_train_log, X_test, y_test_log):
     return results_df, forecasts, best_model, search.best_estimator_
 
 # ======================================================================================
-# NLP INSIGHTS
-# ======================================================================================
-# ======================================================================================
 # ADVANCED NLP ANALYTICS ASSISTANT (RULE + INTENT BASED)
 # ======================================================================================
 def demand_nlp(df, results_df, best_model, q, top_product_global=None):
@@ -856,7 +853,13 @@ def demand_forecasting_page():
         last_row = df.sort_values("date").iloc[-1]
         
         future_df["price"] = last_row["price"]
-        future_df["promotion"] = round(df["promotion"].mean())
+        future_df["promotion"] = (
+           df.groupby("dayofweek")["promotion"]
+             .mean()
+             .reindex(future_df["dayofweek"])
+             .fillna(0)
+             .values
+        )
         future_df["holiday_flag"] = (
             future_df["date"].isin(india_holidays).astype(int)
         )
@@ -949,6 +952,11 @@ def demand_forecasting_page():
                 difficulty = row.get("sku_difficulty", 0)
                 alpha = 0.6 if difficulty > 1 else 0.8
                 pred = alpha * pred + (1 - alpha) * recent_mean
+                pred = np.clip(
+                    pred,
+                    recent_mean * 0.5,
+                    recent_mean * 1.8
+                )
                 global_mean = history["daily_sales"].mean()
                 pred = 0.9 * pred + 0.1 * global_mean
                 if regime == "Growing":
@@ -1010,6 +1018,11 @@ def demand_forecasting_page():
         df_fc["upper_ci"] = (
             df_fc["forecast"] + 1.96 * df_fc["sigma"]
         )
+        total_future_demand = df_fc["forecast"].sum()
+        peak_day = df_fc.loc[
+            df_fc["forecast"].idxmax(),
+            "date"
+        ]
 
         # ================= FUTURE DATA DICTIONARY =================
         with st.expander("📘 Data Dictionary (Future Forecast Columns Only)"):
@@ -1161,7 +1174,9 @@ def demand_forecasting_page():
         ))
         
         st.plotly_chart(fig, use_container_width=True)
-
+       
+        st.write(f"Total Future Demand: {int(total_future_demand)}")
+        st.write(f"Peak Demand Day: {peak_day.date()}")
 
         # ---------------- AI ASSISTANT ----------------
         st.markdown('<div class="section-title">💬 Demand Analytics Assistant</div>', unsafe_allow_html=True)
