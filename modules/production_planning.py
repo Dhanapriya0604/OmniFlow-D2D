@@ -162,7 +162,7 @@ def production_planning(forecast_df, inventory_df, manufacturing_df):
     base_requirement = planning_need - df["current_stock"]
     
     df["production_required"] = np.where(
-        df["current_stock"] < planning_need,
+        df["current_stock"] < planning_need * 0.9,
         np.maximum(0, base_requirement),
         0
     )
@@ -194,9 +194,7 @@ def production_planning(forecast_df, inventory_df, manufacturing_df):
 
     df["production_required"] = np.ceil(df["production_required"])
 
-    df["production_batches"] = np.ceil(
-        df["production_required"] / df["batch_size"]
-    )
+    df["production_batches"] = np.ceil(df["production_required"] / df["batch_size"])
     df["backlog"] = np.maximum(0,
         planning_need - df["current_stock"] - df["max_possible_production"]
     )
@@ -209,11 +207,9 @@ def production_planning(forecast_df, inventory_df, manufacturing_df):
         "✅ Stock Sufficient"
     )
     # Production priority score
-    df["production_priority"] = (
-        df["production_required"] +
-        df["backlog"] * 1.5
-    )
-    
+    df["production_priority"] = (df["production_required"] + df["backlog"] * 2 +
+        (planning_need - df["current_stock"]).clip(lower=0)
+    )   
     df = df.sort_values("production_priority", ascending=False)
     df["current_stock"] = df["current_stock"].fillna(0)
 
