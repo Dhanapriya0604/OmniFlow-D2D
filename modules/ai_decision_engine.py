@@ -153,14 +153,22 @@ def compute_insights(forecast, inventory, production, logistics):
         if total_products else 0
     )
     
-    production_load = (
-        production["production_required"].sum()
-        if "production_required" in production.columns else 0
-    )  
-    shipping_load = (
-        logistics["weekly_shipping_need"].sum()
-        if "weekly_shipping_need" in logistics.columns else 0
-    )
+    if (
+        not production.empty and
+        "production_required" in production.columns
+    ):
+        production_load = production["production_required"].sum()
+    else:
+        production_load = 0
+
+    if (
+        not logistics.empty and
+        "weekly_shipping_need" in logistics.columns
+    ):
+        shipping_load = logistics["weekly_shipping_need"].sum()
+    else:
+        shipping_load = 0
+
     health_score = max(
         0,
         100 - (
