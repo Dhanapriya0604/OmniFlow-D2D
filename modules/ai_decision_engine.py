@@ -91,9 +91,10 @@ def load_data():
 # ======================================================================================
 def compute_insights(forecast, inventory, production, logistics):
 
+    # ---------- Forecast ----------
     if not forecast.empty and "forecast" in forecast.columns:
         avg_forecast = forecast["forecast"].mean()
-    
+
         high_demand_products = (
             forecast.groupby("product_id")["forecast"]
             .mean()
@@ -104,6 +105,7 @@ def compute_insights(forecast, inventory, production, logistics):
         avg_forecast = 0
         high_demand_products = []
 
+    # ---------- Inventory Risk ----------
     if (
         not inventory.empty and
         "stock_status" in inventory.columns and
@@ -118,47 +120,33 @@ def compute_insights(forecast, inventory, production, logistics):
     else:
         risk_products = []
 
-
+    # ---------- Production ----------
     if (
         not production.empty and
         "production_required" in production.columns and
         "product_id" in production.columns
     ):
-
         production_needed = production[
             production["production_required"] > 0
         ]["product_id"].tolist()
+
+        production_load = production["production_required"].sum()
     else:
         production_needed = []
+        production_load = 0
 
+    # ---------- Logistics ----------
     if (
         not logistics.empty and
         "logistics_risk" in logistics.columns and
         "destination_region" in logistics.columns
     ):
-
         high_delay_regions = logistics[
             logistics["logistics_risk"] == "High Delay Risk"
         ]["destination_region"].unique().tolist()
     else:
         high_delay_regions = []
-    
-    if "product_id" in forecast.columns:
-        total_products = forecast["product_id"].nunique()
-    else:
-        total_products = 0
 
-    risk_ratio = (
-        len(risk_products) / total_products
-        if total_products else 0
-    )    
-    if (
-        not production.empty and
-        "production_required" in production.columns
-    ):
-        production_load = production["production_required"].sum()
-    else:
-        production_load = 0
     if (
         not logistics.empty and
         "weekly_shipping_need" in logistics.columns
@@ -167,24 +155,32 @@ def compute_insights(forecast, inventory, production, logistics):
     else:
         shipping_load = 0
 
-    health_score = max(0,100 - (
-            risk_ratio * 60 +
-            len(high_delay_regions) * 5 +
-            (production_load > shipping_load) * 5
-        )
-    )
-    shipping_cost = (
-        logistics["weekly_shipping_need"] *
-        logistics.get("avg_shipping_cost", 0)
-    ).sum()
-    bottleneck = "None"
+    # ---------- Product count ----------
+    if "product_id" in forecast.columns:
+        total_products = forecast["product_id"].nunique()
+    else:
+        total_products = 0
 
+    risk_ratio = (
+        len(risk_products) / total_products
+        if total_products else 0
+    )
+
+    # ---------- Health Score ----------
+    health_score = max(
+        0,
+        100 - (risk_ratio * 60 + len(high_delay_regions) * 5)
+    )
+
+    # ---------- Bottleneck ----------
     if risk_ratio > 0.2:
         bottleneck = "Inventory"
     elif production_load > shipping_load:
         bottleneck = "Production"
     elif shipping_load > production_load:
         bottleneck = "Logistics"
+    else:
+        bottleneck = "None"
 
     return {
         "avg_forecast": avg_forecast,
@@ -192,16 +188,14 @@ def compute_insights(forecast, inventory, production, logistics):
         "risk_products": risk_products,
         "production_needed": production_needed,
         "delay_regions": high_delay_regions,
-        "shipping_cost": shipping_cost,
         "bottleneck": bottleneck,
-
-        # API metrics
         "total_products": total_products,
         "risk_ratio": risk_ratio,
         "production_load": production_load,
         "shipping_load": shipping_load,
         "health_score": health_score
     }
+
 def predict_future_risk(insights):
 
     future_risk = []
