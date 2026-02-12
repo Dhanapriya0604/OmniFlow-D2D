@@ -163,15 +163,23 @@ def compute_insights(forecast, inventory, production, logistics):
     )
     health_score = max(
         0,
-        100 - (risk_ratio * 60 + len(high_delay_regions) * 5)
+        100 - (
+            risk_ratio * 60 +
+            len(high_delay_regions) * 5 +
+            (production_load > shipping_load) * 5
+        )
     )
+    shipping_cost = (
+        logistics["weekly_shipping_need"] *
+        logistics.get("avg_shipping_cost", 0)
+    ).sum()
     bottleneck = "None"
 
-    if insights["risk_ratio"] > 0.2:
+    if risk_ratio > 0.2:
         bottleneck = "Inventory"
-    elif insights["production_load"] > insights["shipping_load"]:
+    elif production_load > shipping_load:
         bottleneck = "Production"
-    elif insights["shipping_load"] > insights["production_load"]:
+    elif shipping_load > production_load:
         bottleneck = "Logistics"
 
     return {
@@ -180,7 +188,8 @@ def compute_insights(forecast, inventory, production, logistics):
         "risk_products": risk_products,
         "production_needed": production_needed,
         "delay_regions": high_delay_regions,
-        "bottleneck": bottleneck
+        "shipping_cost": shipping_cost,
+        "bottleneck": bottleneck,
 
         # API metrics
         "total_products": total_products,
@@ -285,7 +294,8 @@ def decision_nlp(insights, q):
             f"System health score is {insights['health_score']}/100. "
             f"{len(insights['risk_products'])} products at risk. "
             f"{len(insights['production_needed'])} need production. "
-            f"Logistics delays in {len(insights['delay_regions'])} regions."
+            f"Logistics delays detected in {len(insights['delay_regions'])} regions. "
+            f"Primary bottleneck: {insights['bottleneck']}."
         )
 
     return (
@@ -402,6 +412,7 @@ def decision_intelligence_page():
         "risk_products": insights["risk_products"],
         "production_needed": insights["production_needed"],
         "delay_regions": insights["delay_regions"],
+        "shipping_cost": insights["shipping_cost"],
         "future_risk": future_risk
     }
     
