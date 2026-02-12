@@ -112,11 +112,8 @@ def compute_insights(forecast, inventory, production, logistics):
         "product_id" in inventory.columns
     ):
         risk_products = inventory.loc[
-            inventory["stock_status"].isin(
-                ["🔴 Critical", "🟠 Reorder Required"]
-            ),
-            "product_id"
-        ].tolist()
+            inventory["stock_status"].astype(str)
+                .str.contains("Critical|Reorder", case=False, na=False),"product_id"].tolist()
     else:
         risk_products = []
 
