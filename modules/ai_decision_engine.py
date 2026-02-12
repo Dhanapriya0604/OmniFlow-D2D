@@ -85,7 +85,7 @@ def load_data():
     logistics = safe_read(LOGISTICS_PATH)
 
     return forecast, inventory, production, logistics
-
+    
 # ======================================================================================
 # INSIGHT ENGINE
 # ======================================================================================
@@ -339,6 +339,10 @@ def decision_intelligence_page():
     )
 
     forecast, inventory, production, logistics = load_data()
+    st.write("Inventory Columns:", inventory.columns)
+    st.write("Production Columns:", production.columns)
+    st.write("Logistics Columns:", logistics.columns)
+
     insights = compute_insights(
         forecast, inventory, production, logistics
     )
