@@ -152,8 +152,17 @@ def compute_insights(forecast, inventory, production, logistics):
         "weekly_shipping_need" in logistics.columns
     ):
         shipping_load = logistics["weekly_shipping_need"].sum()
+    
+        if "avg_shipping_cost" in logistics.columns:
+            shipping_cost = (
+                logistics["weekly_shipping_need"] *
+                logistics["avg_shipping_cost"]
+            ).sum()
+        else:
+            shipping_cost = 0
     else:
         shipping_load = 0
+        shipping_cost = 0
 
     # ---------- Product count ----------
     if "product_id" in forecast.columns:
@@ -193,22 +202,18 @@ def compute_insights(forecast, inventory, production, logistics):
         "risk_ratio": risk_ratio,
         "production_load": production_load,
         "shipping_load": shipping_load,
+        "shipping_cost": shipping_cost,
         "health_score": health_score
     }
 
 def predict_future_risk(insights):
-
     future_risk = []
-
     if insights["risk_ratio"] > 0.2:
         future_risk.append("Inventory risk likely to increase")
-
     if insights["production_load"] > 50000:
         future_risk.append("Production overload risk")
-
     if insights["shipping_load"] > 20000:
         future_risk.append("Logistics congestion risk")
-
     if not future_risk:
         future_risk.append("Supply chain stable")
 
@@ -218,31 +223,25 @@ def predict_future_risk(insights):
 # NLP ASSISTANT
 # ======================================================================================
 def decision_nlp(insights, q):
-
     q = q.lower()
-
     # ---- demand ----
     if "high demand" in q:
         return f"High demand products: {', '.join(insights['high_demand_products'])}"
-
     # ---- inventory ----
     if "risk" in q or "stock" in q:
         if len(insights["risk_products"]) == 0:
             return "No products currently at stock risk."
         return f"Products at stock risk: {', '.join(insights['risk_products'])}"
-
     # ---- production ----
     if "production" in q:
         if len(insights["production_needed"]) == 0:
             return "Production is sufficient. No products require production."
         return f"Production required for: {', '.join(insights['production_needed'])}"
-
     # ---- logistics ----
     if "delay" in q or "logistics" in q:
         if len(insights["delay_regions"]) == 0:
             return "No logistics delay risks detected."
-        return f"High delay risk regions: {', '.join(insights['delay_regions'])}"
-    
+        return f"High delay risk regions: {', '.join(insights['delay_regions'])}"   
     if "improve" in q:
         return (
             "Improvement Areas:\n"
@@ -251,23 +250,17 @@ def decision_nlp(insights, q):
             "- Reduce carrier delay risks\n"
             "- Balance warehouse stock\n"
         )
-
     # ---- action recommendation ----
     if "action" in q or "recommend" in q:
-        actions = []
-    
+        actions = []    
         if insights["risk_products"]:
-            actions.append("Replenish stock for critical items.")
-    
+            actions.append("Replenish stock for critical items.")    
         if insights["production_needed"]:
-            actions.append("Increase production capacity.")
-    
+            actions.append("Increase production capacity.")    
         if insights["delay_regions"]:
-            actions.append("Switch carriers or routes in delay regions.")
-    
+            actions.append("Switch carriers or routes in delay regions.")   
         if insights["health_score"] < 70:
-            actions.append("System health below safe threshold.")
-    
+            actions.append("System health below safe threshold.")  
         if not actions:
             actions.append("Operations running smoothly.")
     
