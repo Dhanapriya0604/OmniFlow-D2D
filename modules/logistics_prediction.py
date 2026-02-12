@@ -197,15 +197,14 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
     )
 
     df["weekly_shipping_need"] = np.where(
-        df["stock_cover_days"] > 21,
+        df["stock_cover_days"] > 28,
         0,
         np.where(
-            df["stock_cover_days"] > 7,
-            df["weekly_demand"] * 0.5,
+            df["stock_cover_days"] > 14,
+            df["weekly_demand"] * 0.4,
             df["weekly_demand"]
         )
     )
-
     df["weekly_shipping_need"] = df["weekly_shipping_need"].round().astype(int)
 
     # Production link
@@ -399,12 +398,13 @@ def logistics_optimization_page():
         metrics = [
             ("Avg Delay Rate",
              round(opt_df["avg_delay_rate"].mean(),2)),
-
             ("Avg Transit Days",
              round(opt_df["avg_transit_days"].mean(),1)),
-
             ("Weekly Shipments",
-             int(opt_df["weekly_shipping_need"].sum()))
+             int(opt_df["weekly_shipping_need"].sum())),
+            ("Weekly Shipping Cost",
+             int((opt_df["weekly_shipping_need"] *
+                  opt_df["avg_shipping_cost"]).sum()))
         ]
 
         for col, (k, v) in zip([c1, c2, c3], metrics):
