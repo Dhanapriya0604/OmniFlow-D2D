@@ -221,7 +221,6 @@ PRODUCTION_LINES = [
 ]
 
 def auto_production_schedule(prod_df):
-
     today = pd.Timestamp.today().normalize()
     work_df = prod_df.copy()
     work_df["remaining"] = work_df["production_required"]
@@ -229,15 +228,11 @@ def auto_production_schedule(prod_df):
     day = 0
 
     while work_df["remaining"].sum() > 0:
-
         day_capacity = work_df["daily_capacity"].sum()
         active = work_df[work_df["remaining"] > 0]
-
         if len(active) == 0:
             break
-
         share = day_capacity / len(active)
-
         for idx, row in active.iterrows():
             produce_today = min(share, row["remaining"])
             schedule_rows.append({
@@ -245,46 +240,44 @@ def auto_production_schedule(prod_df):
                 "product_id": row["product_id"],
                 "production_qty": round(produce_today)
             })
-
             work_df.loc[idx, "remaining"] -= produce_today
-
         day += 1
-
+    if len(schedule_rows) == 0:
+        return pd.DataFrame(columns=[
+            "date",
+            "product_id",
+            "production_qty"
+        ])
     return pd.DataFrame(schedule_rows)
+
 def allocate_production_lines(schedule_df):
-
+    if schedule_df.empty:
+        return pd.DataFrame(columns=[
+            "date",
+            "line",
+            "product_id",
+            "production_qty"
+        ])
     schedule_rows = []
-
     for date, day_df in schedule_df.groupby("date"):
-
         remaining = day_df.copy()
-
         for line_info in PRODUCTION_LINES:
-
             line_name = line_info["line"]
             capacity = line_info["capacity"]
-
             cap_left = capacity
-
             for idx, row in remaining.iterrows():
-
                 if cap_left <= 0:
                     break
-
                 qty = min(row["production_qty"], cap_left)
-
                 schedule_rows.append({
                     "date": date,
                     "line": line_name,
                     "product_id": row["product_id"],
                     "production_qty": qty
                 })
-
                 remaining.loc[idx, "production_qty"] -= qty
                 cap_left -= qty
-
         remaining = remaining[remaining["production_qty"] > 0]
-
     return pd.DataFrame(schedule_rows)
 
 # ======================================================================================
