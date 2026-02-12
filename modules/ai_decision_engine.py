@@ -151,8 +151,7 @@ def compute_insights(forecast, inventory, production, logistics):
     risk_ratio = (
         len(risk_products) / total_products
         if total_products else 0
-    )
-    
+    )    
     if (
         not production.empty and
         "production_required" in production.columns
@@ -160,7 +159,6 @@ def compute_insights(forecast, inventory, production, logistics):
         production_load = production["production_required"].sum()
     else:
         production_load = 0
-
     if (
         not logistics.empty and
         "weekly_shipping_need" in logistics.columns
@@ -169,9 +167,7 @@ def compute_insights(forecast, inventory, production, logistics):
     else:
         shipping_load = 0
 
-    health_score = max(
-        0,
-        100 - (
+    health_score = max(0,100 - (
             risk_ratio * 60 +
             len(high_delay_regions) * 5 +
             (production_load > shipping_load) * 5
