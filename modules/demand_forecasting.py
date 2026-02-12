@@ -644,24 +644,32 @@ def demand_forecasting_page():
         product_mode = st.radio(
             "Product View Mode",
             ["Single Product", "Multiple Products"],
-            horizontal=True
+            horizontal=True,
+            key="product_mode"
         )
         
         if product_mode == "Single Product":
             product = st.selectbox(
                 "Select Product",
-                sorted(raw_df["product_id"].unique())
+                sorted(raw_df["product_id"].unique()),
+                key="selected_product"
             )
             df_selected = raw_df[raw_df["product_id"] == product].copy()
 
         else:
             products = st.multiselect(
-                "Select Products",
-                sorted(raw_df["product_id"].unique()),
-                default=sorted(raw_df["product_id"].unique())[:3]
+                "Select Products",sorted(raw_df["product_id"].unique()),
+                default=st.session_state.get(
+                    "selected_products",
+                    sorted(raw_df["product_id"].unique())[:3]
+                ),
+                key="selected_products"
             )
             df_selected = raw_df[raw_df["product_id"].isin(products)].copy()
-
+        if st.button("🔄 Reset Product Selection"):
+            st.session_state.pop("selected_products", None)
+            st.session_state.pop("selected_product", None)
+            st.rerun()
         if len(df_selected) < 15:
             st.warning("⚠️ This product has limited history. Forecast accuracy may be lower.")
 
