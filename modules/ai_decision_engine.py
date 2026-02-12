@@ -165,14 +165,23 @@ def compute_insights(forecast, inventory, production, logistics):
         0,
         100 - (risk_ratio * 60 + len(high_delay_regions) * 5)
     )
-    
+    bottleneck = "None"
+
+    if insights["risk_ratio"] > 0.2:
+        bottleneck = "Inventory"
+    elif insights["production_load"] > insights["shipping_load"]:
+        bottleneck = "Production"
+    elif insights["shipping_load"] > insights["production_load"]:
+        bottleneck = "Logistics"
+
     return {
         "avg_forecast": avg_forecast,
         "high_demand_products": high_demand_products,
         "risk_products": risk_products,
         "production_needed": production_needed,
         "delay_regions": high_delay_regions,
-    
+        "bottleneck": bottleneck
+
         # API metrics
         "total_products": total_products,
         "risk_ratio": risk_ratio,
@@ -341,6 +350,7 @@ def decision_intelligence_page():
             """, unsafe_allow_html=True)
 
     # ================= INSIGHTS =================
+    st.warning(f"System Bottleneck: {insights['bottleneck']}")
     st.write(f"### System Health Score: {insights['health_score']} / 100")
     
     if insights["health_score"] > 80:
