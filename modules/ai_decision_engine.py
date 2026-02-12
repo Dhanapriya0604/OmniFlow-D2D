@@ -216,8 +216,35 @@ def predict_future_risk(insights):
         future_risk.append("Logistics congestion risk")
     if not future_risk:
         future_risk.append("Supply chain stable")
-
     return future_risk
+
+def system_decision(insights):
+    if insights["risk_ratio"] > 0.25:
+        return "Inventory Crisis Risk"
+    if insights["production_load"] > 40000:
+        return "Production Capacity Stress"
+    if insights["shipping_load"] > 30000:
+        return "Logistics Congestion Risk"
+    return "Operations Stable"
+
+def focus_area(insights):
+    if insights["risk_products"]:
+        return "Inventory Replenishment Priority"
+    if insights["production_needed"]:
+        return "Production Planning Required"
+    if insights["delay_regions"]:
+        return "Logistics Optimization Needed"
+    return "Growth Opportunity Mode"
+
+def executive_story(insights):
+    return (
+        f"Average demand forecast is {int(insights['avg_forecast'])} units. "
+        f"{len(insights['risk_products'])} products face stock risk. "
+        f"{len(insights['production_needed'])} products require production. "
+        f"Delay risks detected in "
+        f"{len(insights['delay_regions'])} regions. "
+        f"System health score is {int(insights['health_score'])}/100."
+    )
 
 # ======================================================================================
 # NLP ASSISTANT
@@ -316,6 +343,14 @@ def decision_intelligence_page():
         forecast, inventory, production, logistics
     )
     future_risk = predict_future_risk(insights)
+    decision = system_decision(insights)
+    focus = focus_area(insights)
+    
+    st.markdown(f"### System Decision: {decision}")
+    st.markdown(f"### Current Focus Area: {focus}")
+    
+    st.markdown("### Executive Summary")
+    st.success(executive_story(insights))
 
     st.markdown("### Future Risk Prediction")
     
@@ -394,16 +429,14 @@ def decision_intelligence_page():
     st.markdown("### API Response Output")
 
     api_response = {
+        "decision": decision,
+        "focus_area": focus,
         "health_score": insights["health_score"],
         "avg_forecast": insights["avg_forecast"],
         "total_products": insights["total_products"],
-        "risk_ratio": insights["risk_ratio"],
-        "production_load": insights["production_load"],
-        "shipping_load": insights["shipping_load"],
         "risk_products": insights["risk_products"],
         "production_needed": insights["production_needed"],
         "delay_regions": insights["delay_regions"],
-        "shipping_cost": insights["shipping_cost"],
         "future_risk": future_risk
     }
     
