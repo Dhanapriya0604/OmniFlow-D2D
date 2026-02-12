@@ -1,4 +1,4 @@
- # ======================================================================================
+# ======================================================================================
 # OmniFlow-D2D : Demand Forecasting Intelligence Module
 # ======================================================================================
 
@@ -31,7 +31,6 @@ st.set_page_config(page_title="Demand Forecasting Intelligence", layout="wide")
 def inject_css():
     st.markdown("""
     <style>
-
     :root {
         --bg: #f8fafc;
         --text: #0f172a;
@@ -40,28 +39,23 @@ def inject_css():
         --border: #e5e7eb;
         --accent: #e0e7ff;
     }
-
     html, body {
         background-color: var(--bg);
         color: var(--text);
         font-family: Inter, system-ui;
     }
-
     section.main > div {
         animation: fadeIn 0.4s ease-in-out;
     }
-
     @keyframes fadeIn {
         from { opacity: 0; transform: translateY(6px); }
         to { opacity: 1; transform: translateY(0); }
     }
-
     .section-title {
         font-size: 28px;
         font-weight: 800;
         margin: 28px 0 14px 0;
     }
-
     .card {
         background: white;
         padding: 22px;
@@ -70,12 +64,10 @@ def inject_css():
         box-shadow: 0 8px 24px rgba(0,0,0,0.08);
         transition: all 0.25s ease;
     }
-
     .card:hover {
         transform: translateY(-4px);
         box-shadow: 0 18px 40px rgba(0,0,0,0.14);
     }
-
     .metric-card {
         background: linear-gradient(180deg, #eef4ff, #ffffff);
         padding: 18px;
@@ -84,23 +76,19 @@ def inject_css():
         box-shadow: 0 6px 18px rgba(30,58,138,0.18);
         transition: all 0.25s ease;
     }
-
     .metric-card:hover {
         transform: translateY(-6px);
         box-shadow: 0 16px 36px rgba(30,58,138,0.28);
     }
-
     .metric-label {
         font-size: 14px;
         color: var(--muted);
     }
-
     .metric-value {
         font-size: 30px;
         font-weight: 900;
         color: var(--primary);
     }
-
     .stTabs [data-baseweb="tab"] {
         background: #f1f5f9;
         border-radius: 12px;
@@ -108,13 +96,11 @@ def inject_css():
         font-weight: 600;
         color: var(--muted);
     }
-
     .stTabs [aria-selected="true"] {
         background: var(--accent);
         color: var(--primary);
         box-shadow: 0 6px 18px rgba(30,58,138,0.25);
     }
-
     </style>
     """, unsafe_allow_html=True)
 
@@ -273,7 +259,8 @@ def prepare_features(df):
     # ✅ DO NOT DROP ROWS — FILL INSTEAD
     lag_cols = ["lag_1","lag_7","rolling_7","rolling_14","rolling_30"]  
     for col in lag_cols:
-        df[col] = df.groupby("product_id")[col]\.transform(lambda x: x.fillna(x.mean()))   
+        df[col] = df.groupby("product_id")[col]\
+        .transform(lambda x: x.fillna(x.mean()))   
     return df
 # ======================================================================================
 # DATA PROFILING
@@ -581,10 +568,8 @@ def demand_forecasting_page():
         else:
             products = st.multiselect(
                 "Select Products",sorted(raw_df["product_id"].unique()),
-                default=st.session_state.get(
-                    "selected_products",
-                    sorted(raw_df["product_id"].unique())[:3]
-                ),key="selected_products"
+                default= sorted(raw_df["product_id"].unique())[:3],
+                key="selected_products"
             )
             df_selected = raw_df[raw_df["product_id"].isin(products)].copy()
         if st.button("🔄 Reset Product Selection"):
