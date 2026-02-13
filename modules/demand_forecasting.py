@@ -641,7 +641,10 @@ def demand_forecasting_page():
         y_val_log   = np.log1p(y_val)
 
         # ================= SEASONALITY HEATMAP (TRAIN DATA ONLY) =================
-        st.markdown("### Seasonality Heatmap")
+        st.markdown(
+            '<div class="section-title">Seasonality Heatmap</div>',
+            unsafe_allow_html=True
+        ) 
         train_df = train_df.dropna(subset=["date"])
         season_pivot = train_df.pivot_table(
             values="daily_sales",
