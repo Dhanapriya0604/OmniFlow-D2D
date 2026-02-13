@@ -380,7 +380,7 @@ def inventory_optimization_page():
             st.dataframe(DATA_DICTIONARY, use_container_width=True)
 
         # -------- DATA PROFILING --------
-        with st.expander("🔍 Data Profiling Summary"):
+        with st.expander("🔍 Data Profiling "):
             profile = data_profiling(view_df)
             for k, v in profile.items():
                 st.write(f"**{k}:** {v}")
@@ -444,26 +444,17 @@ def inventory_optimization_page():
 
         st.dataframe(
             view_df[[
-                "product_id",
-                "current_stock",
-                "EOQ",
-                "safety_stock",
-                "weekly_demand",
-                "reorder_point",
-                "stock_status"
-            ]],
-            use_container_width=True
+                "product_id","current_stock","EOQ","safety_stock",
+                "weekly_demand","reorder_point","stock_status"
+            ]], use_container_width=True
         )
-
         # -------- NLP ASSISTANT --------
         st.markdown('<div class="section-title">💬 Inventory Assistant</div>', unsafe_allow_html=True)
         q = st.text_input("Ask inventory-related questions")
         if q:
             st.markdown(
-                f"<div class='card'>{inventory_nlp(view_df, q)}</div>",
-                unsafe_allow_html=True
+                f"<div class='card'>{inventory_nlp(view_df, q)}</div>",unsafe_allow_html=True
             )
-
         c1, c2, c3 = st.columns(3)
         with c2:
             st.download_button(
@@ -471,4 +462,3 @@ def inventory_optimization_page():
                 view_df.to_csv(index=False),
                 "inventory_optimization.csv"
             )
-
