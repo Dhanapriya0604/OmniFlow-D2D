@@ -641,7 +641,7 @@ def demand_forecasting_page():
         y_val_log   = np.log1p(y_val)
 
         # ================= SEASONALITY HEATMAP (TRAIN DATA ONLY) =================
-        st.markdown("### Seasonality Heatmap (Training Data)")
+        st.markdown("### Seasonality Heatmap")
         train_df = train_df.dropna(subset=["date"])
         season_pivot = train_df.pivot_table(
             values="daily_sales",
@@ -712,8 +712,11 @@ def demand_forecasting_page():
         }).sort_values("date")        
         err_df["rolling_error"] = err_df["abs_error"].rolling(14).mean()
               
-       # ================= FUTURE FORECAST =================
-        st.markdown("### Select Future Forecast Range")       
+        # ================= FUTURE FORECAST =================
+        st.markdown(
+            '<div class="section-title">Select Future Forecast Range</div>',
+            unsafe_allow_html=True
+        )       
         max_allowed_date = pd.Timestamp("2026-06-30")        
         default_start = df["date"].max() + pd.Timedelta(days=1)
         default_end = min(default_start + pd.Timedelta(days=90), max_allowed_date)       
@@ -888,14 +891,14 @@ def demand_forecasting_page():
         ]
 
         # ================= FUTURE DATA DICTIONARY =================
-        with st.expander("📘 Data Dictionary (Future Forecast Columns Only)"):
+        with st.expander("📘 Data Dictionary "):
             st.dataframe(
                 DATA_DICTIONARY[DATA_DICTIONARY["Column"].isin(df_fc.columns)],
                 use_container_width=True
             )
         
         # ================= FUTURE DATA PROFILING =================
-        with st.expander("🔍 Data Profiling Summary (Future Only)"):
+        with st.expander("🔍 Data Profiling "):
             profile_fc = {
                 "Total Forecast Records": len(df_fc),
                 "Future Date Range": f"{df_fc['date'].min().date()} → {df_fc['date'].max().date()}",
