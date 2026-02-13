@@ -359,7 +359,7 @@ def production_planning_page():
         with st.expander("📘 Data Dictionary"):
             st.dataframe(PRODUCTION_DATA_DICTIONARY, use_container_width=True)
 
-        with st.expander("🔍 Data Profiling Summary"):
+        with st.expander("🔍 Data Profiling "):
             profile = production_profiling(prod_df)
             for k, v in profile.items():
                 st.write(f"**{k}:** {v}")
