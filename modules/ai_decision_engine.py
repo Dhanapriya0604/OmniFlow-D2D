@@ -98,35 +98,37 @@ def compute_insights(forecast, inventory, production, logistics):
         )
     else:
         high_demand = pd.Series(dtype=float)
-    risk_products = (
-        inventory.loc[
-            inventory["stock_status"].str.contains("Critical|Reorder", na=False),"product_id"].tolist()
-        if (not inventory.empty and
-            "stock_status" in inventory.columns and"product_id" in inventory.columns
-        )
-        else []
-    )
-    production_needed = (
-        production.loc[
-            production["production_required"] > 0,"product_id"].tolist()
-        if (not production.empty and
-            "production_required" in production.columns and"product_id" in production.columns
-        )
-        else []
-    )
-    delay_regions = (
-        logistics.loc[
-            logistics["logistics_risk"] == "High Delay Risk","destination_region"].unique().tolist()
-        if (not logistics.empty and
-            "logistics_risk" in logistics.columns and"destination_region" in logistics.columns
-        )
-        else []
-    )
+    # ---- Inventory Risk Detection ----
+    if (not inventory.empty and
+        {"product_id", "current_stock", "reorder_point"}.issubset(inventory.columns)
+    ):
+        risk_df = inventory[inventory["current_stock"] <= inventory["reorder_point"]]
+        risk_products = risk_df["product_id"].tolist()
+    else:
+        risk_products = []
+
+    # ---- Production Need Detection ----
+    if (not production.empty and
+        {"product_id","production_required"}.issubset(production.columns)
+    ):
+        production_needed = production[production["production_required"] > 0]["product_id"].tolist()
+    else:
+        production_needed = risk_products
+   
+    # ---- Logistics Risk Detection ----
+    if (not logistics.empty and
+        {"destination_region","avg_delay_rate"}.issubset(logistics.columns)
+    ):
+        delay_regions = logistics[logistics["avg_delay_rate"] > 0.15]["destination_region"].unique().tolist()
+    else:
+        delay_regions = []
+
     total_products = forecast["product_id"].nunique() if not forecast.empty else 0
     risk_ratio = len(risk_products) / total_products if total_products else 0
-    health_score = max(0, 100 - risk_ratio * 60 - len(delay_regions) * 5)
+    health_score = max(0,100 - len(risk_products) * 10 - len(production_needed) *5 - len(delay_regions) * 5)
+    
     bottleneck = "None"
-    if risk_products:
+    if len(risk_products) > len(production_needed):
         bottleneck = "Inventory"
     elif production_needed:
         bottleneck = "Production"
@@ -169,6 +171,24 @@ def decision_nlp(insights, q):
         if not actions:
             actions.append("Operations stable.")
         return "\n".join(actions)
+        if "health" in q:
+    return f"System health score is {insights['health_score']}."
+
+    if "bottleneck" in q:
+        return f"Current bottleneck is {insights['bottleneck']}."
+    
+    if "high demand" in q:
+        return f"Top demand products: {list(insights['high_demand'].index)}"
+    
+    if "inventory status" in q:
+        return f"{len(insights['risk_products'])} products below reorder level."
+    
+    if "production load" in q:
+        return f"{len(insights['production_needed'])} products need production."
+    
+    if "logistics status" in q:
+        return f"{len(insights['delay_regions'])} regions have logistics delay risk."
+
     return "Ask about risk, production, delay, summary or recommendations."
 
 # ======================================================================================
