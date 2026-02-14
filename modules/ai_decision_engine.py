@@ -222,7 +222,6 @@ def decision_intelligence_page():
     inject_css()
     forecast, inventory, production, logistics = load_data()
     insights = compute_insights(forecast, inventory, production, logistics)
-    actions = generate_management_actions(insights)
     st.title("🧠 AI Decision Intelligence")
 
     # ================= KPI ROW =================
