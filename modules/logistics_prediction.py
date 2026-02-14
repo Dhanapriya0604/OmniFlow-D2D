@@ -389,7 +389,9 @@ def logistics_optimization_page():
             production_df,
             logistics_df
         )
-        
+        log_path = os.path.join(DATA_DIR, "logistics_plan.csv")
+        opt_df.to_csv(log_path, index=False)
+
         # -------- KPIs --------
         st.markdown('<div class="section-title">Logistics KPIs</div>',
                     unsafe_allow_html=True)
