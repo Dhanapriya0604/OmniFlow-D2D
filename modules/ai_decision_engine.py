@@ -228,6 +228,21 @@ def decision_nlp(insights, q):
             actions.append("Operations stable.")
         return "\n".join(actions)
     return "Ask about risk, production, health, bottleneck, logistics or recommendations."
+def generate_decision_summary(insights):
+    actions = []
+    if insights["risk_products"]:
+        actions.append("Replenish critical inventory immediately.")
+    if insights["production_needed"]:
+        actions.append("Schedule urgent production.")
+    if insights["delay_regions"]:
+        actions.append("Investigate logistics delays.")
+    if not actions:
+        actions.append("Operations stable across supply chain.")
+    return {
+        "top_risk_product": insights["risk_products"][0]
+            if insights["risk_products"] else "None",
+        "recommended_actions": actions
+    }
 # ======================================================================================
 # MAIN DASHBOARD PAGE
 # ======================================================================================
@@ -235,8 +250,8 @@ def decision_intelligence_page():
     inject_css()
     forecast, inventory, production, logistics = load_data()
     insights = compute_insights(forecast, inventory, production, logistics)
+    summary = generate_decision_summary(insights)
     st.title("🧠 AI Decision Intelligence")
-
     # ================= KPI ROW =================
     cols = st.columns(4)
     metrics = [
@@ -257,6 +272,18 @@ def decision_intelligence_page():
     decision_df = product_decisions(forecast, inventory, production)  
     if not decision_df.empty:
         st.dataframe(decision_df, use_container_width=True)
+    
+    st.markdown("### Executive Decision Panel")
+    st.markdown(f"""
+    <div class="floating-card">
+        <h3>Top Risk Product</h3>
+        <h2>{summary["top_risk_product"]}</h2>
+        <p><b>Recommended Actions</b></p>
+        <ul>
+            {''.join(f'<li>{a}</li>' for a in summary["recommended_actions"])}
+        </ul>
+    </div>
+    """, unsafe_allow_html=True)
 
     # ================= SYSTEM STATUS ROW =================
     st.markdown("### System Status")   
