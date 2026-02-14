@@ -1,5 +1,5 @@
 # ======================================================================================
-# OmniFlow-D2D : AI Decision Intelligence Engine (NEW)
+# OmniFlow-D2D : AI Decision Intelligence Engine (Corrected)
 # ======================================================================================
 
 import os
@@ -20,12 +20,11 @@ PRODUCTION_PATH = os.path.join(DATA_DIR, "production_plan.csv")
 LOGISTICS_PATH  = os.path.join(DATA_DIR, "logistics_plan.csv")
 
 # ======================================================================================
-# MODERN UI CSS
+# UI CSS
 # ======================================================================================
 def inject_css():
     st.markdown("""
     <style>
-
     section.main > div {
         animation: fadeIn .5s ease;
     }
@@ -51,8 +50,7 @@ def inject_css():
     }
 
     .kpi-card:hover {
-        transform:translateY(-6px);
-        box-shadow:0 16px 30px rgba(0,0,0,0.15);
+        transform:translateY(-5px);
     }
 
     .kpi-value {
@@ -61,96 +59,108 @@ def inject_css():
         color:#0284c7;
     }
 
-    .health-good {color:#059669;}
-    .health-warn {color:#d97706;}
-    .health-bad  {color:#dc2626;}
-
     .section-title {
-        font-size:24px;
+        font-size:22px;
         font-weight:700;
-        margin-top:25px;
+        margin-top:20px;
     }
-
     </style>
     """, unsafe_allow_html=True)
 
 # ======================================================================================
-# DATA LOADER
+# DATA LOADING
 # ======================================================================================
 def safe_read(path):
     if os.path.exists(path):
-        return pd.read_csv(path)
+        df = pd.read_csv(path)
+        df.columns = df.columns.str.lower()
+        return df
     return pd.DataFrame()
 
 def load_data():
-    forecast   = safe_read(FORECAST_PATH)
-    inventory  = safe_read(INVENTORY_PATH)
-    production = safe_read(PRODUCTION_PATH)
-    logistics  = safe_read(LOGISTICS_PATH)
-    return forecast, inventory, production, logistics
+    return (
+        safe_read(FORECAST_PATH),
+        safe_read(INVENTORY_PATH),
+        safe_read(PRODUCTION_PATH),
+        safe_read(LOGISTICS_PATH)
+    )
 
 # ======================================================================================
 # INSIGHT ENGINE
 # ======================================================================================
+@st.cache_data
 def compute_insights(forecast, inventory, production, logistics):
 
-    avg_forecast = forecast["forecast"].mean() if not forecast.empty else 0
+    # ---- Forecast ----
+    if "forecast" in forecast.columns:
+        avg_forecast = forecast["forecast"].mean()
+    else:
+        avg_forecast = 0
 
-    high_demand = (
-        forecast.groupby("product_id")["forecast"]
-        .mean()
-        .nlargest(3)
-        .index.tolist()
-        if not forecast.empty else []
-    )
+    if {"product_id", "forecast"}.issubset(forecast.columns):
+        high_demand = (
+            forecast.groupby("product_id")["forecast"]
+            .mean()
+            .nlargest(3)
+            .index.tolist()
+        )
+        total_products = forecast["product_id"].nunique()
+    else:
+        high_demand = []
+        total_products = 0
 
-    risk_products = (
-        inventory.loc[
-            inventory["stock_status"].isin(
-                ["🔴 Critical", "🟠 Reorder Required", "Critical"]
-            ),
+    # ---- Inventory Risk ----
+    if {"stock_status", "product_id"}.issubset(inventory.columns):
+        risk_products = inventory.loc[
+            inventory["stock_status"].str.contains("critical|reorder", case=False, na=False),
             "product_id"
         ].tolist()
-        if "stock_status" in inventory.columns else []
-    )
+    else:
+        risk_products = []
 
-    production_needed = (
-        production.loc[
+    # ---- Production Need ----
+    if {"production_required", "product_id"}.issubset(production.columns):
+        production_needed = production.loc[
             production["production_required"] > 0,
             "product_id"
         ].tolist()
-        if "production_required" in production.columns else []
-    )
+    else:
+        production_needed = []
 
-    delay_regions = (
-        logistics.loc[
-            logistics["logistics_risk"] == "High Delay Risk",
+    # ---- Logistics Delay ----
+    if {"logistics_risk", "destination_region"}.issubset(logistics.columns):
+        delay_regions = logistics.loc[
+            logistics["logistics_risk"].str.contains("delay", case=False, na=False),
             "destination_region"
         ].unique().tolist()
-        if "logistics_risk" in logistics.columns else []
-    )
+    else:
+        delay_regions = []
 
-    total_products = forecast["product_id"].nunique() if not forecast.empty else 0
-
+    # ---- Health score ----
     risk_ratio = len(risk_products) / total_products if total_products else 0
 
-    health_score = max(0, 100 - risk_ratio*60 - len(delay_regions)*5)
+    health_score = max(
+        0,
+        100 - risk_ratio * 60 - len(delay_regions) * 5
+    )
 
-    bottleneck = "None"
+    # ---- Bottleneck ----
     if risk_ratio > 0.2:
         bottleneck = "Inventory"
-    elif len(production_needed) > 0:
+    elif production_needed:
         bottleneck = "Production"
-    elif len(delay_regions) > 0:
+    elif delay_regions:
         bottleneck = "Logistics"
+    else:
+        bottleneck = "None"
 
     return {
-        "avg_forecast": avg_forecast,
+        "avg_forecast": round(avg_forecast, 2),
         "high_demand": high_demand,
         "risk_products": risk_products,
         "production_needed": production_needed,
         "delay_regions": delay_regions,
-        "health_score": health_score,
+        "health_score": round(health_score, 1),
         "bottleneck": bottleneck,
         "total_products": total_products
     }
@@ -159,41 +169,40 @@ def compute_insights(forecast, inventory, production, logistics):
 # NLP ASSISTANT
 # ======================================================================================
 def decision_nlp(insights, q):
-
     q = q.lower()
 
     if "risk" in q:
-        return f"Products at risk: {insights['risk_products']}"
+        return f"Products at risk: {insights['risk_products'] or 'None'}"
 
     if "production" in q:
-        return f"Production needed for: {insights['production_needed']}"
+        return f"Production needed: {insights['production_needed'] or 'None'}"
 
     if "delay" in q:
-        return f"Delay regions: {insights['delay_regions']}"
+        return f"Delay regions: {insights['delay_regions'] or 'None'}"
 
     if "summary" in q:
         return (
             f"Health Score: {insights['health_score']}. "
-            f"{len(insights['risk_products'])} products at risk."
+            f"Bottleneck: {insights['bottleneck']}."
         )
 
     if "recommend" in q:
         actions = []
         if insights["risk_products"]:
-            actions.append("Replenish stock immediately.")
+            actions.append("Replenish critical inventory.")
         if insights["production_needed"]:
-            actions.append("Increase production capacity.")
+            actions.append("Increase production output.")
         if insights["delay_regions"]:
-            actions.append("Change logistics routes.")
+            actions.append("Optimize logistics routes.")
         if not actions:
             actions.append("Operations stable.")
 
         return "\n".join(actions)
 
-    return "Try: risk, production, delay, summary, recommend"
+    return "Ask: risk, production, delay, summary, recommend"
 
 # ======================================================================================
-# MAIN PAGE
+# PAGE
 # ======================================================================================
 def decision_intelligence_page():
 
@@ -204,7 +213,7 @@ def decision_intelligence_page():
     forecast, inventory, production, logistics = load_data()
     insights = compute_insights(forecast, inventory, production, logistics)
 
-    # KPI CARDS
+    # KPI Cards
     cols = st.columns(4)
     metrics = [
         ("Avg Forecast", int(insights["avg_forecast"])),
@@ -222,36 +231,35 @@ def decision_intelligence_page():
             </div>
             """, unsafe_allow_html=True)
 
-    # HEALTH STATUS
+    # Health Status
     score = insights["health_score"]
 
-    color = "health-good" if score > 80 else \
-            "health-warn" if score > 60 else \
-            "health-bad"
+    if score > 80:
+        st.success("🟢 Supply chain stable")
+    elif score > 60:
+        st.warning("🟠 Monitoring required")
+    else:
+        st.error("🔴 Immediate intervention needed")
 
-    st.markdown(f"""
-    <div class="section-title">System Health</div>
-    <h2 class="{color}">{score}/100</h2>
-    """, unsafe_allow_html=True)
-
+    st.markdown(f"### System Health Score: {score}/100")
     st.warning(f"Bottleneck: {insights['bottleneck']}")
 
-    # INSIGHTS
+    # Insights
     st.markdown("### High Demand Products")
-    st.write(insights["high_demand"])
+    st.write(insights["high_demand"] or "No demand spikes")
 
     st.markdown("### Inventory Risk Products")
-    st.write(insights["risk_products"])
+    st.write(insights["risk_products"] or "No risk")
 
     st.markdown("### Production Needed")
-    st.write(insights["production_needed"])
+    st.write(insights["production_needed"] or "None")
 
-    st.markdown("### Delay Regions")
-    st.write(insights["delay_regions"])
+    st.markdown("### Logistics Delay Regions")
+    st.write(insights["delay_regions"] or "None")
 
-    # NLP
+    # NLP Assistant
     st.markdown("### AI Assistant")
-    q = st.text_input("Ask supply chain questions")
+    q = st.text_input("Ask supply-chain questions")
 
     if q:
         st.success(decision_nlp(insights, q))
