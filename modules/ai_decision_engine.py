@@ -145,10 +145,10 @@ def compute_insights(forecast, inventory, production, logistics):
 
     total_products = forecast["product_id"].nunique() if not forecast.empty else 0
     risk_ratio = len(risk_products) / total_products if total_products else 0
-    health_score = max(0,100- len(risk_products) * 12 - len(production_needed) * 6 - len(delay_regions) * 5)
+    health_score = max(0,100-len(risk_products)* 8-len(production_needed)* 5-len(delay_regions)* 4)
     
     bottleneck = "None"
-    if risk_products:
+    if len(risk_products) >= len(production_needed) and risk_products:
         bottleneck = "Inventory"
     elif production_needed:
         bottleneck = "Production"
@@ -198,35 +198,38 @@ def decision_nlp(insights, q):
         return f"Production required: {insights['production_needed']}"
     if "delay" in q:
         return f"Delay regions: {insights['delay_regions']}"
+    if "health" in q:
+        return f"System health score is {insights['health_score']}."
+    if "bottleneck" in q:
+        return f"Current bottleneck is {insights['bottleneck']}."
+    if "high demand" in q:
+        return f"Top demand products: {list(insights['high_demand'].index)}"
+    if "inventory status" in q:
+        return f"{len(insights['risk_products'])} products below reorder level."
+    if "production load" in q:
+        return f"{len(insights['production_needed'])} products need production."
+    if "logistics status" in q:
+        return f"{len(insights['delay_regions'])} regions have logistics delay risk."
     if "summary" in q:
         return (
             f"Health Score {insights['health_score']}. "
             f"{len(insights['risk_products'])} products at risk."
         )
+    for p in insights["risk_products"]:
+        if p.lower() in q:
+            return f"{p} is below reorder level and needs replenishment."
     if "recommend" in q:
         actions = []
         if insights["risk_products"]:
             actions.append("Replenish risky inventory.")
         if insights["production_needed"]:
-            actions.append("Increase production.")
+            actions.append("Increase production capacity.")
         if insights["delay_regions"]:
-            actions.append("Optimize logistics.")
+            actions.append("Optimize logistics routes.")
         if not actions:
             actions.append("Operations stable.")
         return "\n".join(actions)
-        if "health" in q:
-            return f"System health score is {insights['health_score']}."        
-        if "bottleneck" in q:
-            return f"Current bottleneck is {insights['bottleneck']}."            
-        if "high demand" in q:
-            return f"Top demand products: {list(insights['high_demand'].index)}"            
-        if "inventory status" in q:
-            return f"{len(insights['risk_products'])} products below reorder level."            
-        if "production load" in q:
-            return f"{len(insights['production_needed'])} products need production."           
-        if "logistics status" in q:
-            return f"{len(insights['delay_regions'])} regions have logistics delay risk."
-    return "Ask about risk, production, delay, summary or recommendations."
+    return "Ask about risk, production, health, bottleneck, logistics or recommendations."
 # ======================================================================================
 # MAIN DASHBOARD PAGE
 # ======================================================================================
