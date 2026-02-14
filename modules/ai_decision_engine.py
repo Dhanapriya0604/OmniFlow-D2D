@@ -212,9 +212,9 @@ def decision_intelligence_page():
     # ================= RISK OVERVIEW =================
     st.markdown("### Risk Overview")
     r1, r2, r3 = st.columns(3)
-    r1.write(f"Inventory Risk: {insights['risk_products'] or 'None'}")
-    r2.write(f"Production Needed: {insights['production_needed'] or 'None'}")
-    r3.write(f"Delay Regions: {insights['delay_regions'] or 'None'}")
+    r1.markdown(f"**Inventory Risk:** {insights['risk_products'] or 'None'}")
+    r2.markdown(f"**Production Needed:** {insights['production_needed'] or 'None'}")
+    r3.markdown(f"**Delay Regions:** {insights['delay_regions'] or 'None'}")
 
     # ================= AI ASSISTANT =================
     st.markdown("### AI Assistant")
