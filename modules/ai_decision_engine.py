@@ -292,7 +292,6 @@ def decision_intelligence_page():
             "product_id" in production.columns and
             "production_required" in production.columns
         ):
-            st.markdown('<div class="panel">', unsafe_allow_html=True)
             st.bar_chart(
                 production.set_index("product_id")["production_required"]
             )
