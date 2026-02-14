@@ -58,6 +58,23 @@ def inject_css():
         font-weight:700;
         margin-bottom:10px;
     }
+    .management-card {
+        background:white;
+        padding:24px;
+        border-radius:18px;
+        box-shadow:0 14px 40px rgba(0,0,0,0.1);
+        transition:0.3s;
+        margin-top:20px;
+    }
+    .management-card:hover {
+        transform:translateY(-5px);
+        box-shadow:0 20px 55px rgba(0,0,0,0.15);
+    }
+    .card-title {
+        font-size:22px;
+        font-weight:800;
+        margin-bottom:12px;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -237,6 +254,19 @@ def decision_intelligence_page():
                 <div class="kpi-value">{val}</div>
             </div>
             """, unsafe_allow_html=True)
+    st.markdown('<div class="management-card">', unsafe_allow_html=True)
+    st.markdown('<div class="card-title">🧠 Management Intelligence Panel</div>', unsafe_allow_html=True)
+    
+    st.write("### Inventory Risk Products")
+    st.write(insights["risk_products"] or "None")   
+    st.write("### Production Needed")
+    st.write(insights["production_needed"] or "None")   
+    st.write("### Logistics Delay Regions")
+    st.write(insights["delay_regions"] or "None")   
+    st.write("### Recommended Actions")
+    for act in actions:
+        st.write("•", act)   
+    st.markdown('</div>', unsafe_allow_html=True)
 
     # ================= MAIN PANELS =================
     left, right = st.columns([2,1])
@@ -264,9 +294,7 @@ def decision_intelligence_page():
         st.markdown("### Bottleneck")
         st.info(insights["bottleneck"])
         st.markdown('</div>', unsafe_allow_html=True)
-    st.markdown("### Recommended Management Actions")
-    for act in actions:
-        st.info(act)
+    
     # ================= RISK OVERVIEW =================
     st.markdown("### Risk Overview")
     r1, r2, r3 = st.columns(3)
