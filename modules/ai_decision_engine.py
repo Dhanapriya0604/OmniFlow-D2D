@@ -260,39 +260,48 @@ def decision_intelligence_page():
     if not decision_df.empty:
         st.dataframe(decision_df, use_container_width=True)
 
-    # ================= MAIN PANELS =================
-    left, right = st.columns([2,1])
-    with left:
+    # ================= SYSTEM STATUS ROW =================
+    st.markdown("### System Status")   
+    hcol, bcol = st.columns(2)   
+    with hcol:
+        st.markdown(f"""
+        <div class="floating-card">
+            <h3>System Health</h3>
+            <h1>{insights['health_score']}/100</h1>
+        </div>
+        """, unsafe_allow_html=True)   
+    with bcol:
+        st.markdown(f"""
+        <div class="floating-card">
+            <h3>Bottleneck</h3>
+            <h1>{insights['bottleneck']}</h1>
+        </div>
+        """, unsafe_allow_html=True)        
+    # ================= PERFORMANCE ANALYTICS =================
+    st.markdown("### Performance Analytics")    
+    dcol, pcol = st.columns(2)    
+    with dcol:
         st.markdown('<div class="panel">', unsafe_allow_html=True)
-        st.markdown("### Demand Leaders")
-        if isinstance(insights["high_demand"], pd.Series):
+        st.markdown("#### Demand Leaders")
+        if isinstance(insights["high_demand"], pd.Series) and not insights["high_demand"].empty:
             st.bar_chart(insights["high_demand"])
-        st.markdown('</div>', unsafe_allow_html=True)
-        st.markdown('<div class="panel">', unsafe_allow_html=True)
-        st.markdown("### Production Pressure")
-        if (not production.empty and
-            "product_id" in production.columns and"production_required" in production.columns
-        ):
-            st.bar_chart(production.set_index("product_id")["production_required"])
         else:
-            st.info("No production pressure data available.")
+            st.info("No demand data available.")
+        st.markdown('</div>', unsafe_allow_html=True)    
+    with pcol:
+        st.markdown('<div class="panel">', unsafe_allow_html=True)
+        st.markdown("#### Production Pressure")
+        if (
+            not production.empty and
+            "product_id" in production.columns and
+            "production_required" in production.columns
+        ):
+            st.bar_chart(
+                production.set_index("product_id")["production_required"]
+            )
+        else:
+            st.info("No production pressure detected.")
         st.markdown('</div>', unsafe_allow_html=True)
-    with right:
-        hcol, bcol = st.columns(2)  
-        with hcol:
-            st.markdown(f"""
-            <div class="floating-card">
-                <h3>System Health</h3>
-                <h2>{insights['health_score']}/100</h2>
-            </div>
-            """, unsafe_allow_html=True)    
-        with bcol:
-            st.markdown(f"""
-            <div class="floating-card">
-                <h3>Bottleneck</h3>
-                <h2>{insights['bottleneck']}</h2>
-            </div>
-            """, unsafe_allow_html=True)
 
     # ================= AI ASSISTANT =================
     st.markdown("### AI Assistant")
