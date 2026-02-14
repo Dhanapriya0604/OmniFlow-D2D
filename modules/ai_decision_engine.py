@@ -172,22 +172,17 @@ def decision_nlp(insights, q):
             actions.append("Operations stable.")
         return "\n".join(actions)
         if "health" in q:
-    return f"System health score is {insights['health_score']}."
-
-    if "bottleneck" in q:
-        return f"Current bottleneck is {insights['bottleneck']}."
-    
-    if "high demand" in q:
-        return f"Top demand products: {list(insights['high_demand'].index)}"
-    
-    if "inventory status" in q:
-        return f"{len(insights['risk_products'])} products below reorder level."
-    
-    if "production load" in q:
-        return f"{len(insights['production_needed'])} products need production."
-    
-    if "logistics status" in q:
-        return f"{len(insights['delay_regions'])} regions have logistics delay risk."
+            return f"System health score is {insights['health_score']}."        
+        if "bottleneck" in q:
+            return f"Current bottleneck is {insights['bottleneck']}."            
+        if "high demand" in q:
+            return f"Top demand products: {list(insights['high_demand'].index)}"            
+        if "inventory status" in q:
+            return f"{len(insights['risk_products'])} products below reorder level."            
+        if "production load" in q:
+            return f"{len(insights['production_needed'])} products need production."           
+        if "logistics status" in q:
+            return f"{len(insights['delay_regions'])} regions have logistics delay risk."
 
     return "Ask about risk, production, delay, summary or recommendations."
 
