@@ -356,6 +356,8 @@ def inventory_optimization_page():
 
         opt_df = inventory_optimization(forecast_df, inventory_df)
         opt_df["weekly_demand"] = opt_df["avg_daily_demand"] * 7 
+        output_path = os.path.join(DATA_DIR, "inventory_optimization.csv")
+        opt_df.to_csv(output_path, index=False)
 
         st.session_state["inventory_optimized"] = opt_df.copy()
 
