@@ -353,6 +353,8 @@ def production_planning_page():
             manufacturing_df
         )
         prod_df = prod_df.sort_values("production_required", ascending=False)
+        prod_path = os.path.join(DATA_DIR, "production_plan.csv")
+        prod_df.to_csv(prod_path, index=False)
 
         schedule_df = auto_production_schedule(prod_df)
         line_schedule_df = allocate_production_lines(schedule_df)
