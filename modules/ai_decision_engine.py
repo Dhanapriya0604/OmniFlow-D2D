@@ -99,48 +99,52 @@ def compute_insights(forecast, inventory, production, logistics):
     else:
         high_demand = pd.Series(dtype=float)
     # ================= INVENTORY RISK =================
-    risk_products = []
-    if not inventory.empty: 
-        cols = inventory.columns.str.lower()
-        inventory.columns = cols  
-        if {"product_id", "current_stock", "reorder_point"}.issubset(cols):    
-            risk_df = inventory[inventory["current_stock"] <= inventory["reorder_point"]] 
-            risk_products = risk_df["product_id"].tolist()   
-        elif "stock_status" in cols:   
-            risk_df = inventory[inventory["stock_status"].astype(str)
+    risk_products = []  
+    if not inventory.empty:  
+        inventory.columns = inventory.columns.str.lower()   
+        if {"product_id", "current_stock", "reorder_point"}.issubset(inventory.columns):
+            risk_df = inventory[
+                inventory["current_stock"]<= inventory["reorder_point"]
+            ]
+            risk_products = risk_df["product_id"].tolist()
+        elif "stock_status" in inventory.columns:  
+            risk_df = inventory[
+                inventory["stock_status"].astype(str)
                 .str.contains("critical|reorder", case=False, na=False)
             ]
             risk_products = risk_df["product_id"].tolist()
 
     # ================= PRODUCTION NEED =================
-    production_needed = []    
+    production_needed = [] 
     if (not production.empty and
         {"product_id","production_required"}.issubset(production.columns)
     ):   
-        production_needed = production[production["production_required"] > 0]["product_id"].tolist()    
+        production_needed = production[production["production_required"] > 0]["product_id"].tolist()
     if not production_needed:
-        production_needed = risk_products
+        production_needed = risk_products.copy()
         
-    # ================= LOGISTICS RISK =================
+   # ================= LOGISTICS RISK =================
     delay_regions = []   
-    if not logistics.empty:   
+    if not logistics.empty:  
         logistics.columns = logistics.columns.str.lower()   
         if "avg_delay_rate" in logistics.columns:   
-            delay_regions = logistics[logistics["avg_delay_rate"] > 0.15]["destination_region"].unique().tolist()
+            delay_regions = logistics[logistics["avg_delay_rate"] > 0.15]["destination_region"].unique().tolist() 
         elif "delay_flag" in logistics.columns:
             region_delay = (logistics.groupby("destination_region")["delay_flag"].mean().reset_index())
-            delay_regions = region_delay[ region_delay["delay_flag"] > 0.2]["destination_region"].tolist()
+            delay_regions = region_delay[region_delay["delay_flag"] > 0.2]["destination_region"].tolist()
+
     total_products = forecast["product_id"].nunique() if not forecast.empty else 0
     risk_ratio = len(risk_products) / total_products if total_products else 0
     health_score = max(0,100- len(risk_products) * 12 - len(production_needed) * 6 - len(delay_regions) * 5)
     
     bottleneck = "None"
-    if len(risk_products) > len(production_needed):
+    if risk_products:
         bottleneck = "Inventory"
     elif production_needed:
         bottleneck = "Production"
     elif delay_regions:
         bottleneck = "Logistics"
+
     return {
         "avg_forecast": avg_forecast,
         "high_demand": high_demand,
