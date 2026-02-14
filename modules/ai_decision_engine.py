@@ -15,7 +15,7 @@ BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 DATA_DIR = os.path.join(BASE_DIR, "data")
 
 FORECAST_PATH   = os.path.join(DATA_DIR, "forecast_output.csv")
-INVENTORY_PATH  = os.path nao os.path.join(DATA_DIR, "inventory_optimization.csv")
+INVENTORY_PATH  = os.path.join(DATA_DIR, "inventory_optimization.csv")
 PRODUCTION_PATH = os.path.join(DATA_DIR, "production_plan.csv")
 LOGISTICS_PATH  = os.path.join(DATA_DIR, "logistics_plan.csv")
 
