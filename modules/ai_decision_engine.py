@@ -77,7 +77,9 @@ def load_data():
     production = safe_read(PRODUCTION_PATH)
     logistics = safe_read(LOGISTICS_PATH)
     for df in [forecast, inventory, production, logistics]:
-        df.columns = df.columns.str.lower().str.strip()
+        if not df.empty:
+            df.columns = df.columns.astype(str)
+            df.columns = df.columns.str.lower().str.strip()
     return forecast, inventory, production, logistics
 
 # ======================================================================================
