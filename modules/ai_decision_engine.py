@@ -84,29 +84,43 @@ def load_data():
 # ======================================================================================
 @st.cache_data
 def compute_insights(forecast, inventory, production, logistics):
-    avg_forecast = forecast["forecast"].mean() if not forecast.empty else 0
-    high_demand = (
-        forecast.groupby("product_id")["forecast"].mean()
-        .sort_values(ascending=False).head(5)
-        if not forecast.empty else []
+    avg_forecast = (
+        forecast["forecast"].mean()
+        if not forecast.empty and "forecast" in forecast.columns
+        else 0
     )
+    if (
+        not forecast.empty and
+        "product_id" in forecast.columns and"forecast" in forecast.columns
+    ):
+        high_demand = (forecast.groupby("product_id")["forecast"].mean()
+            .sort_values(ascending=False).head(5)
+        )
+    else:
+        high_demand = pd.Series(dtype=float)
     risk_products = (
         inventory.loc[
-            inventory["stock_status"].str.contains("Critical|Reorder", na=False),"product_id"
-        ].tolist()
-        if "stock_status" in inventory.columns else []
+            inventory["stock_status"].str.contains("Critical|Reorder", na=False),"product_id"].tolist()
+        if (not inventory.empty and
+            "stock_status" in inventory.columns and"product_id" in inventory.columns
+        )
+        else []
     )
     production_needed = (
         production.loc[
-            production["production_required"] > 0,"product_id"
-        ].tolist()
-        if "production_required" in production.columns else []
+            production["production_required"] > 0,"product_id"].tolist()
+        if (not production.empty and
+            "production_required" in production.columns and"product_id" in production.columns
+        )
+        else []
     )
     delay_regions = (
         logistics.loc[
-            logistics["logistics_risk"] == "High Delay Risk","destination_region"
-        ].unique().tolist()
-        if "logistics_risk" in logistics.columns else []
+            logistics["logistics_risk"] == "High Delay Risk","destination_region"].unique().tolist()
+        if (not logistics.empty and
+            "logistics_risk" in logistics.columns and"destination_region" in logistics.columns
+        )
+        else []
     )
     total_products = forecast["product_id"].nunique() if not forecast.empty else 0
     risk_ratio = len(risk_products) / total_products if total_products else 0
@@ -128,7 +142,6 @@ def compute_insights(forecast, inventory, production, logistics):
         "bottleneck": bottleneck,
         "total_products": total_products,
     }
-
 # ======================================================================================
 # NLP ASSISTANT
 # ======================================================================================
@@ -194,10 +207,12 @@ def decision_intelligence_page():
         st.markdown('</div>', unsafe_allow_html=True)
         st.markdown('<div class="panel">', unsafe_allow_html=True)
         st.markdown("### Production Pressure")
-        if not production.empty:
-            st.bar_chart(
-                production.set_index("product_id")["production_required"]
-            )
+        if (not production.empty and
+            "product_id" in production.columns and"production_required" in production.columns
+        ):
+            st.bar_chart(production.set_index("product_id")["production_required"])
+        else:
+            st.info("No production pressure data available.")
         st.markdown('</div>', unsafe_allow_html=True)
     with right:
         st.markdown('<div class="panel">', unsafe_allow_html=True)
@@ -212,9 +227,15 @@ def decision_intelligence_page():
     # ================= RISK OVERVIEW =================
     st.markdown("### Risk Overview")
     r1, r2, r3 = st.columns(3)
-    r1.markdown(f"**Inventory Risk:** {insights['risk_products'] or 'None'}")
-    r2.markdown(f"**Production Needed:** {insights['production_needed'] or 'None'}")
-    r3.markdown(f"**Delay Regions:** {insights['delay_regions'] or 'None'}")
+    r1.markdown("**Inventory Risk:**" +
+        (", ".join(insights["risk_products"]) if insights["risk_products"] else "None")
+    )
+    r2.markdown("**Production Needed:**" +
+        (", ".join(insights['production_needed']) if insights["production_needed"] else "None")
+    )
+    r3.markdown("**Delay Regions:**" +
+        (", ".join(insights["delay_regions"]) if insights["delay_regions"] else "None")
+    )
 
     # ================= AI ASSISTANT =================
     st.markdown("### AI Assistant")
