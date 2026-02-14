@@ -46,15 +46,7 @@ def inject_css():
         font-size:32px;
         font-weight:900;
         color:#2563eb; /* mild blue */
-    }   
-    /* ---------- Panels ---------- */
-    .panel {
-        background:#ffffff;
-        padding:20px;
-        border-radius:16px;
-        box-shadow:0 6px 18px rgba(0,0,0,0.05);
-        margin-bottom:0px;
-    }  
+    }    
     /* ---------- Floating Cards ---------- */
     .floating-card {
         background:linear-gradient(180deg,#f8fafc,#ffffff);
@@ -287,7 +279,6 @@ def decision_intelligence_page():
     st.markdown("### Performance Analytics")    
     dcol, pcol = st.columns(2)    
     with dcol:
-        st.markdown('<div class="panel">', unsafe_allow_html=True)
         st.markdown("#### Demand Leaders")
         if isinstance(insights["high_demand"], pd.Series) and not insights["high_demand"].empty:
             st.bar_chart(insights["high_demand"])
