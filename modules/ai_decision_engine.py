@@ -21,58 +21,64 @@ LOGISTICS_PATH  = os.path.join(DATA_DIR, "logistics_plan.csv")
 # ======================================================================================
 def inject_css():
     st.markdown("""
-    <style>
+    <style>   
     section.main > div {
         animation: fadeIn .4s ease;
-    }
+    }    
     @keyframes fadeIn {
-        from {opacity:0; transform:translateY(10px);}
+        from {opacity:0; transform:translateY(8px);}
         to {opacity:1; transform:translateY(0);}
-    }
+    }    
+    /* ---------- KPI Cards ---------- */
     .kpi-card {
-        background:white;
+        background:#ffffff;
         padding:22px;
         border-radius:18px;
         text-align:center;
-        box-shadow:0 12px 32px rgba(0,0,0,0.08);
-        transition:0.3s;
-    }
+        box-shadow:0 6px 18px rgba(0,0,0,0.06);
+        transition:0.25s;
+    }   
     .kpi-card:hover {
-        transform:translateY(-6px);
-        box-shadow:0 20px 50px rgba(0,0,0,0.15);
-    }
+        transform:translateY(-4px);
+        box-shadow:0 12px 28px rgba(0,0,0,0.10);
+    }  
     .kpi-value {
-        font-size:34px;
+        font-size:32px;
         font-weight:900;
-        color:#0284c7;
-    }
+        color:#2563eb; /* mild blue */
+    }   
+    /* ---------- Panels ---------- */
     .panel {
-        background:white;
+        background:#ffffff;
         padding:20px;
         border-radius:16px;
-        box-shadow:0 10px 30px rgba(0,0,0,0.08);
-        margin-bottom:20px;
-    }
+        box-shadow:0 6px 18px rgba(0,0,0,0.05);
+        margin-bottom:18px;
+    }  
+    /* ---------- Floating Cards ---------- */
+    .floating-card {
+        background:linear-gradient(180deg,#f8fafc,#ffffff);
+        padding:22px;
+        border-radius:18px;
+        box-shadow:0 8px 24px rgba(0,0,0,0.08);
+        transition:0.25s;
+        text-align:center;
+    }   
+    .floating-card:hover {
+        transform:translateY(-4px);
+        box-shadow:0 14px 32px rgba(0,0,0,0.12);
+    }   
+    /* ---------- Titles ---------- */
     .section-title {
         font-size:22px;
         font-weight:700;
         margin-bottom:10px;
-    }
-    .floating-card {
-        background:white;
-        padding:22px;
-        border-radius:18px;
-        box-shadow:0 12px 30px rgba(0,0,0,0.12);
-        transition:0.3s;
-        text-align:center;
     }    
-    .floating-card:hover {
-        transform:translateY(-6px);
-        box-shadow:0 20px 45px rgba(0,0,0,0.18);
-    }
+    h1, h2, h3 {
+        color:#1f2933;
+    }    
     </style>
     """, unsafe_allow_html=True)
-
 # ======================================================================================
 # DATA LOADER
 # ======================================================================================
