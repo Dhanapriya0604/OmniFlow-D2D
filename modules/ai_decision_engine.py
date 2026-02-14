@@ -58,6 +58,18 @@ def inject_css():
         font-weight:700;
         margin-bottom:10px;
     }
+    .floating-card {
+        background:white;
+        padding:22px;
+        border-radius:18px;
+        box-shadow:0 12px 30px rgba(0,0,0,0.12);
+        transition:0.3s;
+        text-align:center;
+    }    
+    .floating-card:hover {
+        transform:translateY(-6px);
+        box-shadow:0 20px 45px rgba(0,0,0,0.18);
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -263,14 +275,21 @@ def decision_intelligence_page():
             st.info("No production pressure data available.")
         st.markdown('</div>', unsafe_allow_html=True)
     with right:
-        st.markdown('<div class="panel">', unsafe_allow_html=True)
-        st.markdown("### System Health")
-        st.metric("Health Score", f"{insights['health_score']}/100")
-        st.markdown('</div>', unsafe_allow_html=True)
-        st.markdown('<div class="panel">', unsafe_allow_html=True)
-        st.markdown("### Bottleneck")
-        st.info(insights["bottleneck"])
-        st.markdown('</div>', unsafe_allow_html=True)
+        hcol, bcol = st.columns(2)  
+        with hcol:
+            st.markdown(f"""
+            <div class="floating-card">
+                <h3>System Health</h3>
+                <h2>{insights['health_score']}/100</h2>
+            </div>
+            """, unsafe_allow_html=True)    
+        with bcol:
+            st.markdown(f"""
+            <div class="floating-card">
+                <h3>Bottleneck</h3>
+                <h2>{insights['bottleneck']}</h2>
+            </div>
+            """, unsafe_allow_html=True)
 
     # ================= AI ASSISTANT =================
     st.markdown("### AI Assistant")
