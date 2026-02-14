@@ -271,19 +271,6 @@ def decision_intelligence_page():
         st.markdown("### Bottleneck")
         st.info(insights["bottleneck"])
         st.markdown('</div>', unsafe_allow_html=True)
-    
-    # ================= RISK OVERVIEW =================
-    st.markdown("### Risk Overview")
-    r1, r2, r3 = st.columns(3)
-    r1.markdown("Inventory Risk:" +
-        (", ".join(insights["risk_products"]) if insights["risk_products"] else "None")
-    )
-    r2.markdown("Production Needed:" +
-        (", ".join(insights["production_needed"]) if insights["production_needed"] else "None")
-    )
-    r3.markdown("Delay Regions:" +
-        (", ".join(insights["delay_regions"]) if insights["delay_regions"] else "None")
-    )
 
     # ================= AI ASSISTANT =================
     st.markdown("### AI Assistant")
