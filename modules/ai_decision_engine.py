@@ -72,12 +72,13 @@ def safe_read(path):
         return pd.read_csv(path)
     return pd.DataFrame()
 def load_data():
-    return (
-        safe_read(FORECAST_PATH),
-        safe_read(INVENTORY_PATH),
-        safe_read(PRODUCTION_PATH),
-        safe_read(LOGISTICS_PATH),
-    )
+    forecast = safe_read(FORECAST_PATH)
+    inventory = safe_read(INVENTORY_PATH)
+    production = safe_read(PRODUCTION_PATH)
+    logistics = safe_read(LOGISTICS_PATH)
+    for df in [forecast, inventory, production, logistics]:
+        df.columns = df.columns.str.lower().str.strip()
+    return forecast, inventory, production, logistics
 
 # ======================================================================================
 # INSIGHT ENGINE
@@ -262,6 +263,13 @@ def decision_intelligence_page():
     r3.markdown("Delay Regions:" +
         (", ".join(insights["delay_regions"]) if insights["delay_regions"] else "None")
     )
+    st.write("Forecast shape:", forecast.shape)
+    st.write("Inventory shape:", inventory.shape)
+    st.write("Production shape:", production.shape)
+    st.write("Logistics shape:", logistics.shape)
+    st.write("Inventory columns:", inventory.columns)
+    st.write("Production columns:", production.columns)
+    st.write("Logistics columns:", logistics.columns)
 
     # ================= AI ASSISTANT =================
     st.markdown("### AI Assistant")
