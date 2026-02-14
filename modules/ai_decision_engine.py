@@ -53,7 +53,7 @@ def inject_css():
         padding:20px;
         border-radius:16px;
         box-shadow:0 6px 18px rgba(0,0,0,0.05);
-        margin-bottom:18px;
+        margin-bottom:0px;
     }  
     /* ---------- Floating Cards ---------- */
     .floating-card {
@@ -295,13 +295,13 @@ def decision_intelligence_page():
             st.info("No demand data available.")
         st.markdown('</div>', unsafe_allow_html=True)    
     with pcol:
-        st.markdown('<div class="panel">', unsafe_allow_html=True)
         st.markdown("#### Production Pressure")
         if (
             not production.empty and
             "product_id" in production.columns and
             "production_required" in production.columns
         ):
+            st.markdown('<div class="panel">', unsafe_allow_html=True)
             st.bar_chart(
                 production.set_index("product_id")["production_required"]
             )
