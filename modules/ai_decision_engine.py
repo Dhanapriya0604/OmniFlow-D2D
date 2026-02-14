@@ -152,23 +152,29 @@ def compute_insights(forecast, inventory, production, logistics):
         "bottleneck": bottleneck,
         "total_products": total_products,
     }
-# ======================================================================================
-# MANAGEMENT ACTION ENGINE
-# ======================================================================================
-def generate_management_actions(insights):
-    actions = []
-    if insights["risk_products"]:
-        for p in insights["risk_products"]:
-            actions.append(f"Replenish inventory immediately for product {p}.")
-    if insights["production_needed"]:
-        for p in insights["production_needed"]:
-            actions.append(f"Schedule urgent production for product {p}.")
-    if insights["delay_regions"]:
-        for r in insights["delay_regions"]:
-            actions.append(f"Optimize logistics or change carrier in {r} region.")
-    if not actions:
-        actions.append("Supply chain operating normally. Continue monitoring.")
-    return actions
+def product_decisions(forecast, inventory, production):
+    decisions = []
+    if forecast.empty:
+        return pd.DataFrame()
+    demand = (
+        forecast.groupby("product_id")["forecast"]
+        .mean().reset_index(name="avg_demand")
+    )
+    stock = inventory.groupby("product_id")["current_stock"].sum().reset_index() \
+        if "current_stock" in inventory.columns else pd.DataFrame()
+    prod = production[["product_id","production_required"]] \
+        if "production_required" in production.columns else pd.DataFrame()
+    df = demand.merge(stock, on="product_id", how="left")
+    df = df.merge(prod, on="product_id", how="left")
+    df.fillna(0, inplace=True)
+    df["decision"] = "Healthy"
+    df.loc[df["current_stock"] < df["avg_demand"] * 3,"decision"] = "Replenish Inventory"
+    df.loc[df["production_required"] > 0,"decision"] = "Increase Production"
+    df.loc[
+        (df["current_stock"] < df["avg_demand"]) &
+        (df["production_required"] > 0),"decision"
+    ] = "Urgent Production"
+    return df.sort_values("avg_demand", ascending=False)
 # ======================================================================================
 # NLP ASSISTANT
 # ======================================================================================
@@ -208,9 +214,7 @@ def decision_nlp(insights, q):
             return f"{len(insights['production_needed'])} products need production."           
         if "logistics status" in q:
             return f"{len(insights['delay_regions'])} regions have logistics delay risk."
-
     return "Ask about risk, production, delay, summary or recommendations."
-
 # ======================================================================================
 # MAIN DASHBOARD PAGE
 # ======================================================================================
@@ -236,11 +240,12 @@ def decision_intelligence_page():
                 <div>{name}</div>
                 <div class="kpi-value">{val}</div>
             </div>
-            """, unsafe_allow_html=True)
-    st.markdown('<div class="card-title">🧠 Recommended Actions</div>', unsafe_allow_html=True)  
-    for act in actions:
-        st.write("•", act)   
-    
+            """, unsafe_allow_html=True) 
+    st.markdown("### Product Decisions")
+    decision_df = product_decisions(forecast, inventory, production)  
+    if not decision_df.empty:
+        st.dataframe(decision_df, use_container_width=True)
+
     # ================= MAIN PANELS =================
     left, right = st.columns([2,1])
     with left:
