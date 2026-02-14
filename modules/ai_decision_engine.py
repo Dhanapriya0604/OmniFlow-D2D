@@ -1,13 +1,10 @@
 # ======================================================================================
 # OmniFlow-D2D : AI Decision Intelligence Engine (Modern Dashboard)
 # ======================================================================================
-
 import os
 import pandas as pd
 import streamlit as st
-
 st.set_page_config(page_title="AI Decision Intelligence", layout="wide")
-
 # ======================================================================================
 # PATHS
 # ======================================================================================
@@ -81,7 +78,6 @@ def load_data():
             df.columns = df.columns.astype(str)
             df.columns = df.columns.str.lower().str.strip()
     return forecast, inventory, production, logistics
-
 # ======================================================================================
 # INSIGHT ENGINE
 # ======================================================================================
@@ -89,8 +85,7 @@ def load_data():
 def compute_insights(forecast, inventory, production, logistics):
     avg_forecast = (
         forecast["forecast"].mean()
-        if not forecast.empty and "forecast" in forecast.columns
-        else 0
+        if not forecast.empty and "forecast" in forecast.columns else 0
     )
     if (
         not forecast.empty and
@@ -147,7 +142,6 @@ def compute_insights(forecast, inventory, production, logistics):
         bottleneck = "Production"
     elif delay_regions:
         bottleneck = "Logistics"
-
     return {
         "avg_forecast": avg_forecast,
         "high_demand": high_demand,
@@ -265,13 +259,6 @@ def decision_intelligence_page():
     r3.markdown("Delay Regions:" +
         (", ".join(insights["delay_regions"]) if insights["delay_regions"] else "None")
     )
-    st.write("Forecast shape:", forecast.shape)
-    st.write("Inventory shape:", inventory.shape)
-    st.write("Production shape:", production.shape)
-    st.write("Logistics shape:", logistics.shape)
-    st.write("Inventory columns:", inventory.columns)
-    st.write("Production columns:", production.columns)
-    st.write("Logistics columns:", logistics.columns)
 
     # ================= AI ASSISTANT =================
     st.markdown("### AI Assistant")
@@ -281,4 +268,3 @@ def decision_intelligence_page():
 
     # ================= API OUTPUT =================
     st.markdown("### API Output")
-    st.json(insights)
