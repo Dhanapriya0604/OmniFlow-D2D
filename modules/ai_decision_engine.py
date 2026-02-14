@@ -267,7 +267,6 @@ def decision_intelligence_page():
     st.markdown("### Recommended Management Actions")
     for act in actions:
         st.info(act)
-
     # ================= RISK OVERVIEW =================
     st.markdown("### Risk Overview")
     r1, r2, r3 = st.columns(3)
