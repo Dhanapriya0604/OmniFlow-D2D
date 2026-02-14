@@ -153,6 +153,23 @@ def compute_insights(forecast, inventory, production, logistics):
         "total_products": total_products,
     }
 # ======================================================================================
+# MANAGEMENT ACTION ENGINE
+# ======================================================================================
+def generate_management_actions(insights):
+    actions = []
+    if insights["risk_products"]:
+        for p in insights["risk_products"]:
+            actions.append(f"Replenish inventory immediately for product {p}.")
+    if insights["production_needed"]:
+        for p in insights["production_needed"]:
+            actions.append(f"Schedule urgent production for product {p}.")
+    if insights["delay_regions"]:
+        for r in insights["delay_regions"]:
+            actions.append(f"Optimize logistics or change carrier in {r} region.")
+    if not actions:
+        actions.append("Supply chain operating normally. Continue monitoring.")
+    return actions
+# ======================================================================================
 # NLP ASSISTANT
 # ======================================================================================
 def decision_nlp(insights, q):
@@ -201,6 +218,7 @@ def decision_intelligence_page():
     inject_css()
     forecast, inventory, production, logistics = load_data()
     insights = compute_insights(forecast, inventory, production, logistics)
+    actions = generate_management_actions(insights)
     st.title("🧠 AI Decision Intelligence")
 
     # ================= KPI ROW =================
@@ -246,6 +264,9 @@ def decision_intelligence_page():
         st.markdown("### Bottleneck")
         st.info(insights["bottleneck"])
         st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown("### Recommended Management Actions")
+    for act in actions:
+        st.info(act)
 
     # ================= RISK OVERVIEW =================
     st.markdown("### Risk Overview")
@@ -268,3 +289,4 @@ def decision_intelligence_page():
 
     # ================= API OUTPUT =================
     st.markdown("### API Output")
+    st.json(insights)
