@@ -996,50 +996,41 @@ def demand_forecasting_page():
         )       
         st.plotly_chart(rmse_fig, use_container_width=True)
      
-        # ---------------- FORECAST WITH CI + HISTORY ----------------
+       # ---------------- FORECAST WITH CI ----------------
         st.markdown(
-            '<div class="section-title">Forecast vs Recent Sales</div>',
+            '<div class="section-title">Forecast with Confidence Intervals</div>',
             unsafe_allow_html=True
-        )   
-        # ===== last 60 days actual sales =====
-        history_cutoff = future_start - pd.Timedelta(days=60)      
-        recent_sales = df[df["date"] >= history_cutoff]       
-        fig = go.Figure()       
-        # ---- Actual Sales ----
+        )      
+        history_cutoff = future_start - pd.Timedelta(days=60)   
+        recent_sales = df[df["date"] >= history_cutoff]     
+        fig = go.Figure()      
         fig.add_trace(go.Scatter(
             x=recent_sales["date"],
             y=recent_sales["daily_sales"],
             name="Actual Sales",
-            line=dict(width=3)
-        ))     
-        # ---- Forecast ----
+            line=dict(color="royalblue", width=3)
+        ))  
         fig.add_trace(go.Scatter(
             x=df_fc["date"],
             y=df_fc["forecast"],
             name="Forecast",
-            line=dict(width=3)
+            line=dict(color="firebrick", width=3)
         ))     
-        # ---- Upper CI ----
         fig.add_trace(go.Scatter(
             x=df_fc["date"],
             y=df_fc["upper_ci"],
             name="Upper CI",
-            line=dict(dash="dot")
-        ))   
-        # ---- Lower CI ----
+            line=dict(dash="dot", color="green")
+        ))
         fig.add_trace(go.Scatter(
             x=df_fc["date"],
             y=df_fc["lower_ci"],
             name="Lower CI",
             fill="tonexty",
-            opacity=0.25
-        ))     
-        fig.update_layout(
-            xaxis_title="Date",
-            yaxis_title="Demand",
-            template="plotly_white",
-            hovermode="x unified"
-        )    
+            opacity=0.25,
+            line=dict(color="purple")
+        ))
+        
         st.plotly_chart(fig, use_container_width=True)
         st.write(f"Total Future Demand: {int(total_future_demand)}")
         st.write(f"Peak Demand Day: {peak_day.date()}")
