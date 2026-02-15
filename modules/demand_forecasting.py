@@ -552,10 +552,6 @@ def demand_forecasting_page():
         raw_df = raw_df.sort_values(["product_id","date"])
        
         # ---------------- PRODUCT MODE ----------------
-        if "selected_product" not in st.session_state:
-            st.session_state["selected_product"] = raw_df["product_id"].iloc[0]       
-        if "selected_products" not in st.session_state:
-            st.session_state["selected_products"] = sorted(raw_df["product_id"].unique())[:3]
         product_mode = st.radio(
             "Product View Mode",
             ["Single Product", "Multiple Products"],
@@ -563,17 +559,16 @@ def demand_forecasting_page():
             key="product_mode"
         )     
         if product_mode == "Single Product":
-            product_list = sorted(raw_df["product_id"].unique())
-            product = st.selectbox("Select Product",product_list,
-                index=product_list.index(st.session_state["selected_product"]),
+            product = st.selectbox(
+                "Select Product",
+                sorted(raw_df["product_id"].unique()),
                 key="selected_product"
             )
             df_selected = raw_df[raw_df["product_id"] == product].copy()
         else:
             products = st.multiselect(
-                "Select Products",
-                sorted(raw_df["product_id"].unique()),
-                default=st.session_state["selected_products"],
+                "Select Products",sorted(raw_df["product_id"].unique()),
+                default= sorted(raw_df["product_id"].unique())[:3],
                 key="selected_products"
             )
             df_selected = raw_df[raw_df["product_id"].isin(products)].copy()
@@ -597,10 +592,15 @@ def demand_forecasting_page():
             how="left"
         )      
         df["sku_difficulty"] = df["sku_difficulty"].fillna(0)
+
         df = df.sort_values("date").reset_index(drop=True)
         df["region"] = LabelEncoder().fit_transform(df["region"].astype(str))
-        df["demand_regime"] = np.where(df["rolling_30"] > df["rolling_7"] * 1.2,"Growing",
-            np.where(df["rolling_30"] < df["rolling_7"] * 0.8,"Declining","Stable")
+        df["demand_regime"] = np.where(
+            df["rolling_30"] > df["rolling_7"] * 1.2,
+            "Growing",
+            np.where(df["rolling_30"] < df["rolling_7"] * 0.8,
+                     "Declining",
+                     "Stable")
         )
         # ---------- DATE SLICER ----------
         min_date = df["date"].min()
@@ -720,9 +720,8 @@ def demand_forecasting_page():
             '<div class="section-title">Select Future Forecast Range</div>',
             unsafe_allow_html=True
         )       
-        max_allowed_date = pd.Timestamp("2026-06-30") 
-        today = pd.Timestamp.today().normalize()
-        default_start = today
+        max_allowed_date = pd.Timestamp("2026-06-30")        
+        default_start = df["date"].max() + pd.Timedelta(days=1)
         default_end = min(default_start + pd.Timedelta(days=90), max_allowed_date)       
         future_range = st.date_input(
             "Select Future Forecast Dates",
@@ -862,6 +861,7 @@ def demand_forecasting_page():
             df_fc = pd.DataFrame(columns=["date","product_id","forecast"])
         else:
             df_fc = pd.concat(all_fc, ignore_index=True)
+        
         # guarantee required columns exist
         for col in ["date","product_id","forecast"]:
             if col not in df_fc.columns:
@@ -887,11 +887,12 @@ def demand_forecasting_page():
         df_fc["upper_ci"] = (
             df_fc["forecast"] + 1.96 * df_fc["sigma"]
         )
-        df_fc["date"] = pd.to_datetime(df_fc["date"], errors="coerce")
-        
         total_future_demand = df_fc["forecast"].sum()
-        peak_day = df_fc.loc[df_fc["forecast"].idxmax(),"date"]
-  
+        peak_day = df_fc.loc[
+            df_fc["forecast"].idxmax(),
+            "date"
+        ]
+
         # ================= FUTURE DATA DICTIONARY =================
         with st.expander("📘 Data Dictionary "):
             st.dataframe(
@@ -1034,14 +1035,11 @@ def demand_forecasting_page():
         st.markdown(
             '<div class="section-title">Forecast Output Preview</div>',
             unsafe_allow_html=True
-        )
-        st.write("Preview rows:", len(df_fc_output))
-        st.write("Preview start:", df_fc["date"].min())
-        st.write("Preview end:", df_fc["date"].max())
+        )       
         preview_cols = ["date","product_id","forecast","lower_ci","upper_ci"]       
-        st.dataframe(df_fc_output[preview_cols].head(50),use_container_width=True)
+        st.dataframe(df_fc[preview_cols].head(50),use_container_width=True)
         st.download_button(
             "⬇ Download Forecast Output",
-            df_fc_output.to_csv(index=False),
+            df_fc.to_csv(index=False),
             file_name="forecast_demand.csv"
         )
