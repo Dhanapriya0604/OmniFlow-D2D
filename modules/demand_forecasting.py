@@ -20,6 +20,12 @@ from sklearn.model_selection import RandomizedSearchCV
 
 warnings.filterwarnings("ignore")
 india_holidays = holidays.India()
+if "demand_products" not in st.session_state:
+    st.session_state.demand_products = []
+
+if "demand_date_range" not in st.session_state:
+    st.session_state.demand_date_range = None
+
 # ======================================================================================
 # PAGE CONFIG
 # ======================================================================================
@@ -568,9 +574,11 @@ def demand_forecasting_page():
             st.session_state.selected_product = product
             df_selected = raw_df[raw_df["product_id"] == product].copy()      
         else:
-            products = st.multiselect("Select Products",product_list,
-                default=product_list[:3], key="selected_products"
-            )  
+            selected_products = st.multiselect(
+                "Select Products",product_list,
+                default=st.session_state.demand_products
+            )       
+            st.session_state.demand_products = selected_products
             df_selected = raw_df[raw_df["product_id"].isin(products)].copy()
         if st.button("🔄 Reset Product Selection"):
             st.session_state.pop("selected_products", None)
