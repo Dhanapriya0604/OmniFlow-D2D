@@ -720,9 +720,11 @@ def demand_forecasting_page():
             '<div class="section-title">Select Future Forecast Range</div>',
             unsafe_allow_html=True
         )       
-        max_allowed_date = pd.Timestamp("2026-06-30")        
-        default_start = df["date"].max() + pd.Timedelta(days=1)
-        default_end = min(default_start + pd.Timedelta(days=90), max_allowed_date)       
+        max_allowed_date = pd.Timestamp("2026-06-30")
+        today = pd.Timestamp.today().normalize()      
+        default_start = max(df["date"].max() + pd.Timedelta(days=1),today)   
+        default_end = min(default_start + pd.Timedelta(days=90),max_allowed_date)
+              
         future_range = st.date_input(
             "Select Future Forecast Dates",
             value=(default_start, default_end),
