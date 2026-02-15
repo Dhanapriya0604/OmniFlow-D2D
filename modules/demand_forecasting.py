@@ -720,11 +720,9 @@ def demand_forecasting_page():
             '<div class="section-title">Select Future Forecast Range</div>',
             unsafe_allow_html=True
         )       
-        max_allowed_date = pd.Timestamp("2026-06-30")
-        today = pd.Timestamp.today().normalize()      
-        default_start = max(df["date"].max() + pd.Timedelta(days=1),today)   
-        default_end = min(default_start + pd.Timedelta(days=90),max_allowed_date)
-              
+        max_allowed_date = pd.Timestamp("2026-06-30")        
+        default_start = df["date"].max() + pd.Timedelta(days=1)
+        default_end = min(default_start + pd.Timedelta(days=90), max_allowed_date)       
         future_range = st.date_input(
             "Select Future Forecast Dates",
             value=(default_start, default_end),
@@ -996,42 +994,32 @@ def demand_forecasting_page():
         )       
         st.plotly_chart(rmse_fig, use_container_width=True)
      
-       # ---------------- FORECAST WITH CI ----------------
+        # ---------------- FORECAST WITH CI ----------------
         st.markdown(
             '<div class="section-title">Forecast with Confidence Intervals</div>',
             unsafe_allow_html=True
-        )      
-        history_cutoff = future_start - pd.Timedelta(days=60)   
-        recent_sales = df[df["date"] >= history_cutoff]     
-        fig = go.Figure()      
-        fig.add_trace(go.Scatter(
-            x=recent_sales["date"],
-            y=recent_sales["daily_sales"],
-            name="Actual Sales",
-            line=dict(color="royalblue", width=3)
-        ))  
+        )       
+        fig = go.Figure()       
         fig.add_trace(go.Scatter(
             x=df_fc["date"],
             y=df_fc["forecast"],
             name="Forecast",
-            line=dict(color="firebrick", width=3)
-        ))     
+            line=dict(width=3)
+        ))        
         fig.add_trace(go.Scatter(
             x=df_fc["date"],
             y=df_fc["upper_ci"],
             name="Upper CI",
-            line=dict(dash="dot", color="green")
-        ))
+            line=dict(dash="dot")
+        ))      
         fig.add_trace(go.Scatter(
             x=df_fc["date"],
             y=df_fc["lower_ci"],
             name="Lower CI",
             fill="tonexty",
-            opacity=0.25,
-            line=dict(color="purple")
-        ))
-        
-        st.plotly_chart(fig, use_container_width=True)
+            opacity=0.25
+        ))      
+        st.plotly_chart(fig, use_container_width=True)     
         st.write(f"Total Future Demand: {int(total_future_demand)}")
         st.write(f"Peak Demand Day: {peak_day.date()}")
 
