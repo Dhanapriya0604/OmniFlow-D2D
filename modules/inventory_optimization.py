@@ -362,20 +362,26 @@ def inventory_optimization_page():
         st.session_state["inventory_optimized"] = opt_df.copy()
 
         # ---------------- VIEW MODE ----------------
-        view_mode = st.radio(
-            "Inventory Analysis Mode",
-            ["Overall Inventory", "Single Product"],
-            horizontal=True
-        )
-        if view_mode == "Single Product":
-            product = st.selectbox(
-                "Select Product",
-                sorted(opt_df["product_id"].unique())
+        if "inventory_view_mode" not in st.session_state:
+            st.session_state.inventory_view_mode = "Overall Inventory"     
+        view_mode = st.radio("Inventory Analysis Mode",
+            ["Overall Inventory", "Single Product"],horizontal=True,
+            index=["Overall Inventory", "Single Product"].index(
+                st.session_state.inventory_view_mode
             )
+        )     
+        st.session_state.inventory_view_mode = view_mode
+        if view_mode == "Single Product":
+            product_list = sorted(opt_df["product_id"].unique())
+            if "inventory_selected_product" not in st.session_state:
+                st.session_state.inventory_selected_product = product_list[0]          
+            product = st.selectbox("Select Product",product_list,
+                index=product_list.index(st.session_state.inventory_selected_product)
+            )         
+            st.session_state.inventory_selected_product = product
             view_df = opt_df[opt_df["product_id"] == product]
         else:
             view_df = opt_df.copy()
-
 
         # -------- DATA DICTIONARY --------
         with st.expander("📘 Data Dictionary"):
