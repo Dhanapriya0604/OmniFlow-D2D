@@ -887,7 +887,15 @@ def demand_forecasting_page():
         df_fc["upper_ci"] = (
             df_fc["forecast"] + 1.96 * df_fc["sigma"]
         )
-        df_fc_output = df_fc[df_fc["date"] >= today]
+        today = pd.Timestamp.today().normalize()
+        end_preview = today + pd.Timedelta(days=90)
+        
+        df_fc["date"] = pd.to_datetime(df_fc["date"])
+        
+        df_fc_output = df_fc[
+            (df_fc["date"] >= today) &
+            (df_fc["date"] <= end_preview)
+        ]
         total_future_demand = df_fc["forecast"].sum()
         peak_day = df_fc.loc[
             df_fc["forecast"].idxmax(),
