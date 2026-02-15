@@ -1002,7 +1002,7 @@ def demand_forecasting_page():
             unsafe_allow_html=True
         )   
         # ===== last 60 days actual sales =====
-        history_cutoff = df["date"].max() - pd.Timedelta(days=60)       
+        history_cutoff = future_start - pd.Timedelta(days=60)      
         recent_sales = df[df["date"] >= history_cutoff]       
         fig = go.Figure()       
         # ---- Actual Sales ----
