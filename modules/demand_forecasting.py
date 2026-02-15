@@ -558,13 +558,16 @@ def demand_forecasting_page():
             horizontal=True,
             key="product_mode"
         )     
-        if product_mode == "Single Product":
-            product = st.selectbox(
-                "Select Product",
-                sorted(raw_df["product_id"].unique()),
-                key="selected_product"
-            )
-            df_selected = raw_df[raw_df["product_id"] == product].copy()
+        product_list = sorted(raw_df["product_id"].unique())
+        if "selected_product" not in st.session_state:
+            st.session_state.selected_product = product_list[0]        
+        product = st.selectbox(
+            "Select Product",
+            product_list,
+            index=product_list.index(st.session_state.selected_product),
+        )        
+        st.session_state.selected_product = product
+        df_selected = raw_df[raw_df["product_id"] == product].copy()
         else:
             products = st.multiselect(
                 "Select Products",sorted(raw_df["product_id"].unique()),
@@ -723,12 +726,16 @@ def demand_forecasting_page():
         max_allowed_date = pd.Timestamp("2026-06-30")        
         default_start = df["date"].max() + pd.Timedelta(days=1)
         default_end = min(default_start + pd.Timedelta(days=90), max_allowed_date)       
+        if "forecast_range" not in st.session_state:
+            st.session_state.forecast_range = (default_start, default_end)    
         future_range = st.date_input(
             "Select Future Forecast Dates",
-            value=(default_start, default_end),
+            value=st.session_state.forecast_range,
             min_value=default_start,
             max_value=max_allowed_date
-        )       
+        )        
+        st.session_state.forecast_range = future_range
+       
         future_start = pd.to_datetime(future_range[0])
         future_end   = pd.to_datetime(future_range[1])
         
@@ -1037,7 +1044,14 @@ def demand_forecasting_page():
             unsafe_allow_html=True
         )       
         preview_cols = ["date","product_id","forecast","lower_ci","upper_ci"]       
-        st.dataframe(df_fc[preview_cols].head(50),use_container_width=True)
+        today = pd.Timestamp.today().normalize()
+        future_limit = today + pd.Timedelta(days=90)     
+        preview_df = df_fc[
+            (df_fc["date"] >= today) &
+            (df_fc["date"] <= future_limit)
+        ]      
+        st.dataframe(preview_df[preview_cols], use_container_width=True)
+
         st.download_button(
             "⬇ Download Forecast Output",
             df_fc.to_csv(index=False),
