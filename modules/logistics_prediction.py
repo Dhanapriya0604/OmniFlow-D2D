@@ -151,15 +151,11 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
     df = demand.merge(stock, on="product_id", how="left")
     df["current_stock"] = df["current_stock"].fillna(0)
     df["warehouse_id"] = df["warehouse_id"].fillna("WH_UNKNOWN")
-    df["stock_cover_days"] = (
-        df["current_stock"] / df["avg_daily_demand"].replace(0, 1)
+    df["stock_cover_days"] = (df["current_stock"] / df["avg_daily_demand"].replace(0, 1))
+    df["shipping_need_14d"] = np.where(df["stock_cover_days"] > 28, 0,
+        np.where(df["stock_cover_days"] > 14,df["planning_demand"] * 0.5,df["planning_demand"])
     )
-    df["weekly_shipping_need"] = np.where(df["stock_cover_days"] > 28,0,
-        np.where(
-            df["stock_cover_days"] > 14,df["planning_demand"] * 0.4,df["planning_demand"]
-        )
-    )
-    df["weekly_shipping_need"] = df["weekly_shipping_need"].round().astype(int)
+    df["shipping_need_14d"] = df["shipping_need_14d"].round().astype(int)
     if not production_df.empty:
         df = df.merge(production_df[["product_id","production_required"]],on="product_id",how="left")
     else:
@@ -176,16 +172,14 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
     forecast_df["region"] = forecast_df["region"].str.upper()
     region_map = (
         forecast_df.groupby("product_id")["region"]
-        .agg(lambda x: x.mode().iloc[0] if not x.mode().empty else "UNKNOWN")
-        .reset_index()
+        .agg(lambda x: x.mode().iloc[0] if not x.mode().empty else "UNKNOWN").reset_index()
     )
     df = df.merge(region_map, on="product_id", how="left")
     df.rename(columns={"region": "destination_region"}, inplace=True)
     df["destination_region"] = df["destination_region"].fillna("UNKNOWN")
     logistics_df["destination_region"] = (
         logistics_df["destination_region"].astype(str).str.strip().str.upper()
-    )
-    
+    )    
     region_stats = (logistics_df.groupby("destination_region",as_index=False)
         .agg(
             total_shipments=("delay_flag", "count"),
@@ -197,7 +191,7 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
     region_stats["avg_delay_rate"] = (
         region_stats["delayed_shipments"] / region_stats["total_shipments"].replace(0, 1)
     ) 
-    df = df.merge(region_stats,on=["product_id", "destination_region"],how="left")
+    df = df.merge(region_stats, on="destination_region", how="left")
     df["avg_delay_rate"] = df["avg_delay_rate"].fillna(0.05)
     median_days = logistics_df["actual_delivery_days"].median()
     if pd.isna(median_days):
@@ -224,9 +218,9 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
     df["recommended_carrier"] = df["recommended_carrier"].fillna("STANDARD")
     df["carrier_delay_rate"].fillna(df["avg_delay_rate"], inplace=True)
 
-    df["logistics_risk"] = np.where(df["avg_delay_rate"] > 0.15,"High Delay Risk","Logistics Stable")
-    df["shipping_priority"] = (df["weekly_shipping_need"] * (1 + df["avg_delay_rate"]))
-    df["weekly_shipping_need"] = df["weekly_shipping_need"].clip(lower=0)
+    df["logistics_risk"] = np.where(df["avg_delay_rate"] > 0.25,"High Delay Risk","Logistics Stable")
+    df["shipping_priority"] = (df["shipping_need_14d"] * (1 + df["avg_delay_rate"]))
+    df["shipping_need_14d"] = df["shipping_need_14d"].clip(lower=0)
     df = df.sort_values("shipping_priority", ascending=False)
     df["warehouse_id"] = df["warehouse_id"].fillna("WH_UNKNOWN")
     df["destination_region"] = (df["destination_region"].fillna("UNKNOWN").astype(str).str.upper())
@@ -241,7 +235,7 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
     df["production_required"] = df["production_required"].fillna(0)   
     df = df.replace([np.inf, -np.inf], 0)
     df["avg_daily_demand"] = df["avg_daily_demand"].round().astype(int)
-    df["weekly_shipping_need"] = df["weekly_shipping_need"].round().astype(int)
+    df["shipping_need_14d"] = df["shipping_need_14d"].round().astype(int)
     df["avg_shipping_cost"] = df["avg_shipping_cost"].round(2)
     df["avg_transit_days"] = df["avg_transit_days"].round().astype(int)
     df = df.replace([np.inf, -np.inf], 0)
@@ -250,11 +244,9 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
 def logistics_optimization_page():
     inject_css()
     tab1, tab2 = st.tabs(["📘 Overview", "🚚 Application"])
-    # ================= OVERVIEW =================
     with tab1:
         st.markdown(
-            '<div class="section-title">Logistics Optimization Overview</div>',
-            unsafe_allow_html=True
+            '<div class="section-title">Logistics Optimization Overview</div>',unsafe_allow_html=True
         )
         st.markdown("""
         Logistics optimization ensures products move efficiently from
@@ -262,8 +254,6 @@ def logistics_optimization_page():
         This module recommends carriers, estimates transit times,
         and highlights shipment risks.
         """)
-
-    # ================= APPLICATION =================
     with tab2:
         forecast_df   = load_forecasts()
         inventory_df  = load_inventory()
@@ -283,10 +273,10 @@ def logistics_optimization_page():
              round(opt_df["avg_delay_rate"].mean(),2)),
             ("Avg Transit Days",
              round(opt_df["avg_transit_days"].mean(),1)),
-            ("Weekly Shipments",
-             int(opt_df["weekly_shipping_need"].sum())),
-            ("Weekly Shipping Cost",
-             int((opt_df["weekly_shipping_need"] *
+            ("Planning Shipments",
+             int(opt_df["shipping_need_14d"].sum())),
+            ("Shipping Cost",
+             int((opt_df["shipping_need_14d"] *
                   opt_df["avg_shipping_cost"]).sum()))
         ]
         for col, (k, v) in zip([c1, c2, c3, c4], metrics):
@@ -298,13 +288,13 @@ def logistics_optimization_page():
                 </div>
                 """, unsafe_allow_html=True)       
         # -------- Charts --------
-        opt_df = opt_df.sort_values("weekly_shipping_need",ascending=False)
+        opt_df = opt_df.sort_values("shipping_need_14d",ascending=False)
         st.markdown(
             '<div class="section-title">Shipping Need by Product</div>',
             unsafe_allow_html=True
         )
         st.plotly_chart(
-            px.bar(opt_df,x="product_id",y="weekly_shipping_need",
+            px.bar(opt_df,x="product_id",y="shipping_need_14d",
                 color="destination_region",hover_data=["avg_delay_rate","avg_transit_days"]
             ),use_container_width=True
         )
@@ -313,10 +303,10 @@ def logistics_optimization_page():
             unsafe_allow_html=True
         )
         region_ship = (
-            opt_df.groupby("destination_region")["weekly_shipping_need"].sum().reset_index()
+            opt_df.groupby("destination_region")["shipping_need_14d"].sum().reset_index()
         )
         st.plotly_chart(
-            px.bar(region_ship,x="destination_region",y="weekly_shipping_need"),use_container_width=True
+            px.bar(region_ship,x="destination_region",y="shipping_need_14d"),use_container_width=True
         )   
         region_delay = (
             opt_df.groupby("destination_region")["avg_delay_rate"].mean().reset_index()
@@ -333,9 +323,8 @@ def logistics_optimization_page():
         )
         risk_df = opt_df[opt_df["logistics_risk"] == "High Delay Risk"]
         st.dataframe(
-            risk_df[["product_id","destination_region","weekly_shipping_need","avg_delay_rate"]]
+            risk_df[["product_id","destination_region","shipping_need_14d","avg_delay_rate"]]
         )
-        # -------- Output Preview --------
         st.markdown(
             '<div class="section-title">Logistics Output Preview</div>',unsafe_allow_html=True
         )
