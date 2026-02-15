@@ -186,15 +186,14 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
         logistics_df["destination_region"].astype(str).str.strip().str.upper()
     )
     
-    region_stats = (logistics_df.groupby(
-            ["product_id", "destination_region"],as_index=False
-        ).agg(
+    region_stats = (logistics_df.groupby("destination_region",as_index=False)
+        .agg(
             total_shipments=("delay_flag", "count"),
             delayed_shipments=("delay_flag", "sum"),
-            avg_transit_days=("actual_delivery_days","mean"),
-            avg_shipping_cost=("logistics_cost","mean")
+            avg_transit_days=("actual_delivery_days", "mean"),
+            avg_shipping_cost=("logistics_cost", "mean")
         )
-    )  
+    )
     region_stats["avg_delay_rate"] = (
         region_stats["delayed_shipments"] / region_stats["total_shipments"].replace(0, 1)
     ) 
