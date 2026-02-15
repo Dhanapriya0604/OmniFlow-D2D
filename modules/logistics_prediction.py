@@ -129,16 +129,19 @@ def load_logistics():
     for col in required_cols:
         if col not in df.columns:
             df[col] = 0 if col != "carrier" else "UNKNOWN"
+        df["actual_delivery_days"] = pd.to_numeric(df["actual_delivery_days"], errors="coerce").fillna(5)      
+        df["logistics_cost"] = pd.to_numeric(df["logistics_cost"], errors="coerce").fillna(0) 
+        df["delay_flag"] = pd.to_numeric(df["delay_flag"], errors="coerce").fillna(0)
     return df
 def logistics_optimization(forecast_df, inventory_df, production_df, logistics_df):
     if "date" in forecast_df.columns:
         forecast_df = forecast_df.sort_values(["product_id","date"])
+    forecast_df["rank"] = forecast_df.groupby("product_id").cumcount()   
     demand = (
-        forecast_df
-            .sort_values(["product_id","date"]).groupby("product_id")
-            .apply(lambda x: x.head(14)).reset_index(drop=True)
-            .groupby("product_id")["forecast"].mean()
-            .reset_index(name="avg_daily_demand")
+        forecast_df[forecast_df["rank"] < 14]
+        .groupby("product_id", as_index=False)["forecast"]
+        .mean()
+        .rename(columns={"forecast": "avg_daily_demand"})
     )
     planning_days = 14
     demand["planning_demand"] = demand["avg_daily_demand"] * planning_days
@@ -171,9 +174,14 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
     forecast_df["region"] = forecast_df["region"].replace(region_lookup)
     forecast_df["region"] = forecast_df["region"].str.upper()
     region_map = (
-        forecast_df.groupby("product_id")["region"]
-        .agg(lambda x: x.mode().iloc[0] if not x.mode().empty else "UNKNOWN").reset_index()
+        forecast_df.groupby("product_id", as_index=False)["region"]
+        .agg(lambda x: x.mode().iloc[0] if len(x.mode()) else "UNKNOWN")
     )
+    if "product_id" not in df.columns:
+        st.error("product_id missing in df")
+    if "product_id" not in region_map.columns:
+        st.error("product_id missing in region_map")
+
     df = df.merge(region_map, on="product_id", how="left")
     df.rename(columns={"region": "destination_region"}, inplace=True)
     df["destination_region"] = df["destination_region"].fillna("UNKNOWN")
