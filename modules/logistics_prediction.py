@@ -122,16 +122,17 @@ def load_logistics():
     df = clean_text_column(df, "destination_region")
     df = clean_text_column(df, "carrier")
     df = clean_text_column(df, "product_id")
-    required_cols = [
-        "source_warehouse","destination_region","carrier",
+    required_cols = ["source_warehouse","destination_region","carrier",
         "actual_delivery_days","delay_flag","logistics_cost"
     ]
     for col in required_cols:
         if col not in df.columns:
-            df[col] = 0 if col != "carrier" else "UNKNOWN"
-        df["actual_delivery_days"] = pd.to_numeric(df["actual_delivery_days"], errors="coerce").fillna(5)      
-        df["logistics_cost"] = pd.to_numeric(df["logistics_cost"], errors="coerce").fillna(0) 
-        df["delay_flag"] = pd.to_numeric(df["delay_flag"], errors="coerce").fillna(0)
+            df[col] = "UNKNOWN" if col in ["carrier", "destination_region"] else 0
+    df["actual_delivery_days"] = pd.to_numeric(df["actual_delivery_days"], errors="coerce").fillna(5)
+    df["logistics_cost"] = pd.to_numeric(df["logistics_cost"], errors="coerce").fillna(0)
+    df["delay_flag"] = pd.to_numeric(df["delay_flag"], errors="coerce").fillna(0)
+    df["destination_region"] = df["destination_region"].astype(str).str.upper().str.strip()
+
     return df
 def logistics_optimization(forecast_df, inventory_df, production_df, logistics_df):
     if "date" in forecast_df.columns:
@@ -188,17 +189,20 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
     logistics_df["destination_region"] = (
         logistics_df["destination_region"].astype(str).str.strip().str.upper()
     )    
-    region_stats = (logistics_df.groupby("destination_region",as_index=False)
-        .agg(
-            total_shipments=("delay_flag", "count"),
-            delayed_shipments=("delay_flag", "sum"),
-            avg_transit_days=("actual_delivery_days", "mean"),
-            avg_shipping_cost=("logistics_cost", "mean")
+    if logistics_df.empty:
+        region_stats = pd.DataFrame(columns=["destination_region","total_shipments",
+            "delayed_shipments","avg_transit_days","avg_shipping_cost","avg_delay_rate"
+        ])
+    else:
+        region_stats = (logistics_df.groupby("destination_region", as_index=False)
+            .agg(
+                total_shipments=("delay_flag", "count"),delayed_shipments=("delay_flag", "sum"),
+                avg_transit_days=("actual_delivery_days", "mean"),avg_shipping_cost=("logistics_cost", "mean"),
+            )
         )
-    )
-    region_stats["avg_delay_rate"] = (
-        region_stats["delayed_shipments"] / region_stats["total_shipments"].replace(0, 1)
-    ) 
+        region_stats["avg_delay_rate"] = (
+            region_stats["delayed_shipments"] / region_stats["total_shipments"].replace(0, 1)
+        )
     df = df.merge(region_stats, on="destination_region", how="left")
     df["avg_delay_rate"] = df["avg_delay_rate"].fillna(0.05)
     median_days = logistics_df["actual_delivery_days"].median()
