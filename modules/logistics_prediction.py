@@ -113,7 +113,6 @@ def load_production():
 @st.cache_data
 def load_logistics():
     df = pd.read_csv(LOGISTICS_PATH)
-    # clean column names
     df.columns = (
         df.columns.str.lower().str.strip().str.replace(" ", "_").str.replace("-", "_")
     )
@@ -123,7 +122,6 @@ def load_logistics():
     df = clean_text_column(df, "destination_region")
     df = clean_text_column(df, "carrier")
     df = clean_text_column(df, "product_id")
-
     required_cols = [
         "source_warehouse","destination_region","carrier",
         "actual_delivery_days","delay_flag","logistics_cost"
@@ -132,9 +130,6 @@ def load_logistics():
         if col not in df.columns:
             df[col] = 0
     return df
-# ======================================================================================
-# LOGISTICS OPTIMIZATION
-# ======================================================================================
 def logistics_optimization(forecast_df, inventory_df, production_df, logistics_df):
     if "date" in forecast_df.columns:
         forecast_df = forecast_df.sort_values(["product_id","date"])
@@ -146,7 +141,7 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
             .reset_index(name="avg_daily_demand")
     )
     planning_days = 14
-    demand["planning_demand"] = demand["avg_daily_demand"] * planning_days
+    demand["weekly_demand"] = demand["avg_daily_demand"] * planning_days
     stock = (
         inventory_df.groupby("product_id", as_index=False)
         .agg(
@@ -156,8 +151,6 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
     df = demand.merge(stock, on="product_id", how="left")
     df["current_stock"] = df["current_stock"].fillna(0)
     df["warehouse_id"] = df["warehouse_id"].fillna("WH_UNKNOWN")
-
-    # ---------------- STOCK COVERAGE LOGIC ----------------
     df["stock_cover_days"] = (
         df["current_stock"] / df["avg_daily_demand"].replace(0, 1)
     )
