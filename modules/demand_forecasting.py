@@ -559,21 +559,18 @@ def demand_forecasting_page():
             key="product_mode"
         )     
         product_list = sorted(raw_df["product_id"].unique())
-        if "selected_product" not in st.session_state:
-            st.session_state.selected_product = product_list[0]        
-        product = st.selectbox(
-            "Select Product",
-            product_list,
-            index=product_list.index(st.session_state.selected_product),
-        )        
-        st.session_state.selected_product = product
-        df_selected = raw_df[raw_df["product_id"] == product].copy()
+        if product_mode == "Single Product":    
+            if "selected_product" not in st.session_state:
+                st.session_state.selected_product = product_list[0]      
+            product = st.selectbox("Select Product",product_list,
+                index=product_list.index(st.session_state.selected_product),
+            )     
+            st.session_state.selected_product = product
+            df_selected = raw_df[raw_df["product_id"] == product].copy()      
         else:
-            products = st.multiselect(
-                "Select Products",sorted(raw_df["product_id"].unique()),
-                default= sorted(raw_df["product_id"].unique())[:3],
-                key="selected_products"
-            )
+            products = st.multiselect("Select Products",product_list,
+                default=product_list[:3], key="selected_products"
+            )  
             df_selected = raw_df[raw_df["product_id"].isin(products)].copy()
         if st.button("🔄 Reset Product Selection"):
             st.session_state.pop("selected_products", None)
