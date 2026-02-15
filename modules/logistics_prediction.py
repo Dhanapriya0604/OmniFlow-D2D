@@ -128,7 +128,7 @@ def load_logistics():
     ]
     for col in required_cols:
         if col not in df.columns:
-            df[col] = 0
+            df[col] = 0 if col != "carrier" else "UNKNOWN"
     return df
 def logistics_optimization(forecast_df, inventory_df, production_df, logistics_df):
     if "date" in forecast_df.columns:
@@ -234,10 +234,10 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
     ) 
     df["production_required"] = df["production_required"].fillna(0)   
     df = df.replace([np.inf, -np.inf], 0)
-    df["avg_daily_demand"] = df["avg_daily_demand"].round().astype(int)
-    df["shipping_need_14d"] = df["shipping_need_14d"].round().astype(int)
+    df["avg_daily_demand"] = pd.to_numeric(df["avg_daily_demand"], errors="coerce").fillna(0).round().astype(int)
+    df["shipping_need_14d"] = pd.to_numeric(df["shipping_need_14d"], errors="coerce").fillna(0).round().astype(int)
     df["avg_shipping_cost"] = df["avg_shipping_cost"].round(2)
-    df["avg_transit_days"] = df["avg_transit_days"].round().astype(int)
+    df["avg_transit_days"] = pd.to_numeric(df["avg_transit_days"], errors="coerce").fillna(0).round().astype(int)
     df = df.replace([np.inf, -np.inf], 0)
     df.fillna(0, inplace=True)
     return df   
