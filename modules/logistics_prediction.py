@@ -192,31 +192,20 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
     # Shipping need
     # ---------------- STOCK COVERAGE LOGIC ----------------
     df["stock_cover_days"] = (
-        df["current_stock"] /
-        df["avg_daily_demand"].replace(0, 1)
+        df["current_stock"] / df["avg_daily_demand"].replace(0, 1)
     )
-
-    df["weekly_shipping_need"] = np.where(
-        df["stock_cover_days"] > 28,
-        0,
-        np.where(
-            df["stock_cover_days"] > 14,
-            df["weekly_demand"] * 0.4,
-            df["weekly_demand"]
-        )
+    df["weekly_shipping_need"] = np.where(df["stock_cover_days"] > 35,0,
+        np.where( df["stock_cover_days"] > 21,df["weekly_demand"] * 0.3,df["weekly_demand"])
     )
     df["weekly_shipping_need"] = df["weekly_shipping_need"].round().astype(int)
 
     # Production link
     if not production_df.empty:
-        df = df.merge(
-            production_df[["product_id","production_required"]],
-            on="product_id",
-            how="left"
+        df = df.merge(production_df[["product_id","production_required"]],
+                on="product_id",how="left"
         )
     else:
         df["production_required"] = 0
-
     logistics_df["delay_flag"] = logistics_df.get("delay_flag", 0)
     
     # ---------- REGION CLEAN ----------
@@ -396,7 +385,7 @@ def logistics_optimization_page():
         st.markdown('<div class="section-title">Logistics KPIs</div>',
                     unsafe_allow_html=True)
 
-        c1, c2, c3 = st.columns(3)
+        c1, c2, c3, c4 = st.columns(4)
         metrics = [
             ("Avg Delay Rate",
              round(opt_df["avg_delay_rate"].mean(),2)),
@@ -409,7 +398,7 @@ def logistics_optimization_page():
                   opt_df["avg_shipping_cost"]).sum()))
         ]
 
-        for col, (k, v) in zip([c1, c2, c3], metrics):
+        for col, (k, v) in zip([c1, c2, c3, c4], metrics):
             with col:
                 st.markdown(f"""
                 <div class="metric-card">
@@ -477,19 +466,13 @@ def logistics_optimization_page():
                    hole=0.4),
             use_container_width=True
         )
-        risk_df = opt_df[
-            opt_df["logistics_risk"] == "High Delay Risk"
-        ]
+        risk_df = opt_df[opt_df["logistics_risk"] == "High Delay Risk"]
         st.dataframe(
             risk_df[[
-                "product_id",
-                "destination_region",
-                "weekly_shipping_need",
-                "avg_delay_rate"
+                "product_id","destination_region",
+                "weekly_shipping_need","avg_delay_rate"
             ]]
         )
-        st.write(forecast_df["region"].value_counts())
-
         # -------- Output Preview --------
         st.markdown(
             '<div class="section-title">Logistics Output Preview</div>',
@@ -497,7 +480,7 @@ def logistics_optimization_page():
         )
         st.dataframe(opt_df, use_container_width=True)
 
-        c1, c2, c3 = st.columns(3)
+        c1, c2, c3, c4 = st.columns(4)
         with c2:
             st.download_button(
                 "⬇ Download Logistics Plan",
