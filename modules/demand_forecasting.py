@@ -574,14 +574,16 @@ def demand_forecasting_page():
             st.session_state.selected_product = product
             df_selected = raw_df[raw_df["product_id"] == product].copy()      
         else:
-            selected_products = st.multiselect(
-                "Select Products",product_list,
+            selected_products = st.multiselect("Select Products",product_list,
                 default=st.session_state.demand_products
-            )       
-            st.session_state.demand_products = selected_products
-            df_selected = raw_df[raw_df["product_id"].isin(products)].copy()
+            )    
+            st.session_state.demand_products = selected_products         
+            if len(selected_products) == 0:
+                df_selected = raw_df.copy()
+            else:
+                df_selected = raw_df[raw_df["product_id"].isin(selected_products)].copy()
         if st.button("🔄 Reset Product Selection"):
-            st.session_state.pop("selected_products", None)
+            st.session_state.pop("demand_products", None)
             st.session_state.pop("selected_product", None)
             st.rerun()
         if len(df_selected) < 15:
