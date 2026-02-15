@@ -141,7 +141,7 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
             .reset_index(name="avg_daily_demand")
     )
     planning_days = 14
-    demand["weekly_demand"] = demand["avg_daily_demand"] * planning_days
+    demand["planning_demand"] = demand["avg_daily_demand"] * planning_days
     stock = (
         inventory_df.groupby("product_id", as_index=False)
         .agg(
@@ -154,8 +154,10 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
     df["stock_cover_days"] = (
         df["current_stock"] / df["avg_daily_demand"].replace(0, 1)
     )
-    df["shipping_need"] = np.where(df["stock_cover_days"] > 28,0,
-        np.where(df["stock_cover_days"] > 14,df["planning_demand"] * 0.4,df["planning_demand"])
+    df["weekly_shipping_need"] = np.where(df["stock_cover_days"] > 28,0,
+        np.where(
+            df["stock_cover_days"] > 14,df["planning_demand"] * 0.4,df["planning_demand"]
+        )
     )
     df["weekly_shipping_need"] = df["weekly_shipping_need"].round().astype(int)
     if not production_df.empty:
