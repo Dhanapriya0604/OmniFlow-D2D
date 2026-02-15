@@ -1044,7 +1044,8 @@ def demand_forecasting_page():
         st.markdown(
             '<div class="section-title">Forecast Output Preview</div>',
             unsafe_allow_html=True
-        )       
+        )
+        st.write("Preview start:", df_fc_output["date"].min())
         preview_cols = ["date","product_id","forecast","lower_ci","upper_ci"]       
         st.dataframe(df_fc_output[preview_cols].head(50),use_container_width=True)
         st.download_button(
