@@ -193,18 +193,11 @@ def inventory_optimization(forecast_df, inventory_df):
         .str.upper()
         .str.strip()
     )
-    demand = (
-        forecast_df
-        .groupby("product_id")
-        .agg(
-            avg_daily_demand=("forecast", "mean"),
-            demand_std=("forecast", "std")
-        )
+    demand = (forecast_df.groupby("product_id")
+        .agg(avg_daily_demand=("forecast", "mean"),demand_std=("forecast", "std"))
         .reset_index()
-    )
-    
+    )   
     demand["demand_std"] = demand["demand_std"].fillna(0)
-
     demand["annual_demand"] = demand["avg_daily_demand"] * 365
 
     df = demand.merge(
@@ -217,7 +210,7 @@ def inventory_optimization(forecast_df, inventory_df):
 
     ordering_cost = 500
     holding_cost_rate = 0.25
-    lead_time_days = 7
+    lead_time_days = 14
     service_level_z = 1.65
 
     df["holding_cost"] = np.maximum(
