@@ -996,32 +996,51 @@ def demand_forecasting_page():
         )       
         st.plotly_chart(rmse_fig, use_container_width=True)
      
-        # ---------------- FORECAST WITH CI ----------------
+        # ---------------- FORECAST WITH CI + HISTORY ----------------
         st.markdown(
-            '<div class="section-title">Forecast with Confidence Intervals</div>',
+            '<div class="section-title">Forecast vs Recent Sales</div>',
             unsafe_allow_html=True
-        )       
+        )   
+        # ===== last 60 days actual sales =====
+        history_cutoff = df["date"].max() - pd.Timedelta(days=60)       
+        recent_sales = df[df["date"] >= history_cutoff]       
         fig = go.Figure()       
+        # ---- Actual Sales ----
+        fig.add_trace(go.Scatter(
+            x=recent_sales["date"],
+            y=recent_sales["daily_sales"],
+            name="Actual Sales",
+            line=dict(width=3)
+        ))     
+        # ---- Forecast ----
         fig.add_trace(go.Scatter(
             x=df_fc["date"],
             y=df_fc["forecast"],
             name="Forecast",
             line=dict(width=3)
-        ))        
+        ))     
+        # ---- Upper CI ----
         fig.add_trace(go.Scatter(
             x=df_fc["date"],
             y=df_fc["upper_ci"],
             name="Upper CI",
             line=dict(dash="dot")
-        ))      
+        ))   
+        # ---- Lower CI ----
         fig.add_trace(go.Scatter(
             x=df_fc["date"],
             y=df_fc["lower_ci"],
             name="Lower CI",
             fill="tonexty",
             opacity=0.25
-        ))      
-        st.plotly_chart(fig, use_container_width=True)     
+        ))     
+        fig.update_layout(
+            xaxis_title="Date",
+            yaxis_title="Demand",
+            template="plotly_white",
+            hovermode="x unified"
+        )    
+        st.plotly_chart(fig, use_container_width=True)
         st.write(f"Total Future Demand: {int(total_future_demand)}")
         st.write(f"Peak Demand Day: {peak_day.date()}")
 
