@@ -159,7 +159,8 @@ def production_planning(forecast_df, inventory_df, manufacturing_df):
     df = demand.merge(inv, on="product_id", how="left")     
     planning_days = 14
     planning_need = df["avg_daily_demand"] * planning_days    
-    base_requirement = planning_need - df["current_stock"]
+    safety_buffer = planning_need * 0.15  # 15% buffer
+    base_requirement = planning_need + safety_buffer - df["current_stock"]
     
     df["production_required"] = np.where(
         df["current_stock"] < planning_need * 0.9,
@@ -207,9 +208,10 @@ def production_planning(forecast_df, inventory_df, manufacturing_df):
         "✅ Stock Sufficient"
     )
     # Production priority score
-    df["production_priority"] = (df["production_required"] + df["backlog"] * 2 +
-        (planning_need - df["current_stock"]).clip(lower=0)
-    )   
+    stock_gap = (planning_need - df["current_stock"]).clip(lower=0)  
+    df["production_priority"] = (
+        df["production_required"] * 1.2+ df["backlog"] * 2 + stock_gap * 1.5
+    )  
     df = df.sort_values("production_priority", ascending=False)
     df["current_stock"] = df["current_stock"].fillna(0)
 
@@ -316,9 +318,8 @@ def production_profiling(df):
     return {
         "Total Products": df["product_id"].nunique(),
         "Total Production Required": int(df["production_required"].sum()),
-        "Total Production Days": int(df["days_required"].sum()),
-        "Products Below Reorder":
-            int((df["production_required"] > 0).sum())
+        "Max Days Needed": int(df["days_required"].max()),
+        "Products Below Reorder": int((df["production_required"] > 0).sum())
     }
 
 # ======================================================================================
@@ -355,14 +356,29 @@ def production_planning_page():
         prod_df = prod_df.sort_values("production_required", ascending=False)
         prod_path = os.path.join(DATA_DIR, "production_plan.csv")
         prod_df.to_csv(prod_path, index=False)
-
+        # ---------- PRODUCT VIEW CONTROL ----------
+        view_mode = st.radio("Production View",
+            ["All Products", "Single Product"],horizontal=True
+        )    
+        if view_mode == "Single Product":
+            prod_list = sorted(prod_df["product_id"].unique())     
+            if "production_selected_product" not in st.session_state:
+                st.session_state.production_selected_product = prod_list[0]     
+            selected_product = st.selectbox("Select Product",prod_list,
+                index=prod_list.index(st.session_state.production_selected_product)
+            )
+            st.session_state.production_selected_product = selected_product
+            view_prod_df = prod_df[prod_df["product_id"] == selected_product]   
+        else:
+            view_prod_df = prod_df.copy()
+        
         schedule_df = auto_production_schedule(prod_df)
         line_schedule_df = allocate_production_lines(schedule_df)
         with st.expander("📘 Data Dictionary"):
             st.dataframe(PRODUCTION_DATA_DICTIONARY, use_container_width=True)
 
         with st.expander("🔍 Data Profiling "):
-            profile = production_profiling(prod_df)
+            profile = production_profiling(view_prod_df)
             for k, v in profile.items():
                 st.write(f"**{k}:** {v}")
         if prod_df["backlog"].sum() == 0:
@@ -376,18 +392,15 @@ def production_planning_page():
 
         # KPIs
         st.markdown('<div class="section-title">Production KPIs</div>', unsafe_allow_html=True)
-
         c1, c2, c3 = st.columns(3)
-
         metrics = [
             ("Total Production Required",
-             int(prod_df["production_required"].sum())),
+             int(view_prod_df["production_required"].sum())),
             ("Total Batches",
-             int(prod_df["production_batches"].sum())),
+             int(view_prod_df["production_batches"].sum())),
             ("Products Needing Production",
-             int((prod_df["production_required"] > 0).sum()))
+             int((view_prod_df["production_required"] > 0).sum()))
         ]
-
         for col, (k, v) in zip([c1, c2, c3], metrics):
             with col:
                 st.markdown(f"""
@@ -396,6 +409,10 @@ def production_planning_page():
                     <div class="metric-value">{v}</div>
                 </div>
                 """, unsafe_allow_html=True)
+        capacity_used = prod_df["production_required"].sum()
+        capacity_total = prod_df["max_possible_production"].sum()       
+        util = (capacity_used / (capacity_total + 1e-6)) * 100      
+        st.info(f"Factory capacity utilization: {util:.1f}%")
 
         # Charts
         st.markdown(
@@ -403,7 +420,7 @@ def production_planning_page():
             unsafe_allow_html=True
         )      
         fig_ds = px.bar(
-            prod_df,
+            view_prod_df,
             x="product_id",
             y=["planning_demand", "current_stock"],
             barmode="group",
@@ -413,7 +430,7 @@ def production_planning_page():
         
         st.markdown('<div class="section-title">Production Requirement</div>', unsafe_allow_html=True)
         st.plotly_chart(
-            px.bar(prod_df,
+            px.bar(view_prod_df,
                    x="product_id",
                    y="production_required",
                    color="production_status",
@@ -422,7 +439,7 @@ def production_planning_page():
         )
         st.markdown('<div class="section-title">Production Plan Output</div>', unsafe_allow_html=True)
         st.dataframe(
-            prod_df[[
+            view_prod_df[[
                 "product_id",
                 "production_required",
                 "daily_capacity",
