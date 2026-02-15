@@ -1038,7 +1038,6 @@ def demand_forecasting_page():
         st.write("Preview rows:", len(df_fc_output))
         st.write("Preview start:", df_fc["date"].min())
         st.write("Preview end:", df_fc["date"].max())
-
         preview_cols = ["date","product_id","forecast","lower_ci","upper_ci"]       
         st.dataframe(df_fc_output[preview_cols].head(50),use_container_width=True)
         st.download_button(
