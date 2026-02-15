@@ -887,21 +887,13 @@ def demand_forecasting_page():
         df_fc["upper_ci"] = (
             df_fc["forecast"] + 1.96 * df_fc["sigma"]
         )
+        df_fc["date"] = pd.to_datetime(df_fc["date"], errors="coerce")
         today = pd.Timestamp.today().normalize()
-        end_preview = today + pd.Timedelta(days=90)
-        
-        df_fc["date"] = pd.to_datetime(df_fc["date"])
-        
-        df_fc_output = df_fc[
-            (df_fc["date"] >= today) &
-            (df_fc["date"] <= end_preview)
-        ]
+        preview_end = today + pd.Timedelta(days=90)     
+        df_fc_output = df_fc.loc[(df_fc["date"] >= today) &(df_fc["date"] <= preview_end)].copy()
         total_future_demand = df_fc["forecast"].sum()
-        peak_day = df_fc.loc[
-            df_fc["forecast"].idxmax(),
-            "date"
-        ]
-
+        peak_day = df_fc.loc[df_fc["forecast"].idxmax(),"date"]
+  
         # ================= FUTURE DATA DICTIONARY =================
         with st.expander("📘 Data Dictionary "):
             st.dataframe(
@@ -1046,6 +1038,10 @@ def demand_forecasting_page():
             unsafe_allow_html=True
         )
         st.write("Preview start:", df_fc_output["date"].min())
+        st.write("Preview rows:", len(df_fc_output))
+        st.write("Preview start:", df_fc_output["date"].min())
+        st.write("Preview end:", df_fc_output["date"].max())
+
         preview_cols = ["date","product_id","forecast","lower_ci","upper_ci"]       
         st.dataframe(df_fc_output[preview_cols].head(50),use_container_width=True)
         st.download_button(
