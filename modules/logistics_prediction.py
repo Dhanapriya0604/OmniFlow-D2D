@@ -137,11 +137,9 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
     )
     planning_days = 14
     demand["planning_demand"] = demand["avg_daily_demand"] * planning_days
-    stock = (
-        inventory_df.groupby("product_id", as_index=False)
-        .agg(
-            current_stock=("on_hand_qty", "sum"),warehouse_id=("warehouse_id", "first")
-        )
+    stock = (inventory_df.groupby(
+            ["product_id", "warehouse_id"], as_index=False
+        ).agg(current_stock=("on_hand_qty", "sum"))
     )
     df = demand.merge(stock, on="product_id", how="left")
     df["current_stock"] = df["current_stock"].fillna(0)
@@ -166,19 +164,19 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
     forecast_df["region"] = forecast_df["region"].replace(region_lookup)
     forecast_df["region"] = forecast_df["region"].str.upper()
     
-    region_dist = (
-        logistics_df
-        .groupby(["product_id", "destination_region"])
-        .size().reset_index(name="shipments")
+    region_dist = (logistics_df.groupby(["product_id", "destination_region"]
+        ).size().reset_index(name="shipments")
     ) 
-    region_dist["share"] = (region_dist["shipments"] /
-        region_dist.groupby("product_id")["shipments"].transform("sum")
-    )
+    region_dist["share"] = (
+        region_dist.groupby("product_id")["shipments"]
+        .transform(lambda x: x / x.sum())
+    ) 
     df = df.merge(region_dist, on="product_id", how="left")
-
+    
     df["shipping_need_14d"] = (
-        df["shipping_need_14d"] * df["share"].fillna(1)
-    ).round().astype(int)   
+        df["shipping_need_14d"] * df["share"]
+    ).fillna(df["shipping_need_14d"])
+
     df["destination_region"] = df["destination_region"].fillna("UNKNOWN")
 
     logistics_df["destination_region"] = (
@@ -243,7 +241,8 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
     df = df.replace([np.inf, -np.inf], 0)
     df["avg_daily_demand"] = pd.to_numeric(df["avg_daily_demand"], errors="coerce").fillna(0).round().astype(int)
     df["shipping_need_14d"] = pd.to_numeric(df["shipping_need_14d"], errors="coerce").fillna(0).round().astype(int)
-    df["avg_shipping_cost"] = df["avg_shipping_cost"].round(2)
+    df["avg_shipping_cost"] = (df["avg_shipping_cost"] / 100).clip(lower=5, upper=200)
+
     df["avg_transit_days"] = pd.to_numeric(df["avg_transit_days"], errors="coerce").fillna(0).round().astype(int)
     df = df.replace([np.inf, -np.inf], 0)
     df.fillna(0, inplace=True)
