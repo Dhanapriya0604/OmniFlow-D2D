@@ -164,8 +164,9 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
     fallback_region = (forecast_df.groupby("product_id")["region"]
         .agg(lambda x: x.mode()[0] if len(x.mode()) > 0 else "UNKNOWN").reset_index()
     )   
-    df = df.merge(fallback_region, on="product_id",how="left", suffixes=("", "_fallback"))     
-    df.drop(columns=["region_fallback"], inplace=True)
+    df = df.merge(fallback_region, on="product_id", how="left")
+    df["destination_region"] = df["destination_region"].fillna(df["region"])
+    df.drop(columns=["region"], errors="ignore", inplace=True)
     logistics_df["destination_region"] = (
         logistics_df["destination_region"].astype(str).str.strip().str.upper()
     )    
@@ -227,7 +228,6 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
     if df["avg_shipping_cost"].median() > 2000:
         df["avg_shipping_cost"] = df["avg_shipping_cost"] / 10   
     df["avg_shipping_cost"] = df["avg_shipping_cost"].clip(80, 800)
-    df["avg_shipping_cost"] = df["avg_shipping_cost"].clip(lower=20, upper=500)
     df["avg_transit_days"] = pd.to_numeric(df["avg_transit_days"], errors="coerce").fillna(0).round().astype(int)
     df = df.replace([np.inf, -np.inf], 0)
     df.fillna(0, inplace=True)
