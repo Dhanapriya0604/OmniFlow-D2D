@@ -1,7 +1,6 @@
 # ======================================================================================
 # OmniFlow-D2D : Demand Forecasting Intelligence Module
 # ======================================================================================
-
 import os
 import warnings
 import numpy as np
@@ -10,7 +9,6 @@ import streamlit as st
 import plotly.express as px
 import plotly.graph_objects as go
 import holidays
-
 from sklearn.linear_model import LinearRegression
 from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
@@ -20,20 +18,7 @@ from sklearn.model_selection import RandomizedSearchCV
 
 warnings.filterwarnings("ignore")
 india_holidays = holidays.India()
-if "demand_products" not in st.session_state:
-    st.session_state.demand_products = []
-
-if "demand_date_range" not in st.session_state:
-    st.session_state.demand_date_range = None
-
-# ======================================================================================
-# PAGE CONFIG
-# ======================================================================================
 st.set_page_config(page_title="Demand Forecasting Intelligence", layout="wide")
-
-# ======================================================================================
-# CSS – FULL UI (CARDS, HOVERS, ANIMATIONS, TABS)
-# ======================================================================================
 def inject_css():
     st.markdown("""
     <style>
@@ -501,6 +486,12 @@ def fit_final_model(model, X, y):
 # MAIN PAGE
 # ======================================================================================
 def demand_forecasting_page():
+    if "demand_products" not in st.session_state:
+        st.session_state["demand_products"] = []
+    if "selected_product" not in st.session_state:
+        st.session_state["selected_product"] = None
+    if "forecast_range" not in st.session_state:
+        st.session_state["forecast_range"] = None
     inject_css()
     tab1, tab2 = st.tabs(["📘 Overview", "📊 Application"])
 
@@ -575,16 +566,16 @@ def demand_forecasting_page():
             df_selected = raw_df[raw_df["product_id"] == product].copy()      
         else:
             selected_products = st.multiselect("Select Products",product_list,
-                default=st.session_state.demand_products
-            )    
+                default=st.session_state.get("demand_products", [])
+            )
             st.session_state.demand_products = selected_products         
             if len(selected_products) == 0:
                 df_selected = raw_df.copy()
             else:
                 df_selected = raw_df[raw_df["product_id"].isin(selected_products)].copy()
         if st.button("🔄 Reset Product Selection"):
-            st.session_state.pop("demand_products", None)
-            st.session_state.pop("selected_product", None)
+            st.session_state["demand_products"] = []
+            st.session_state["selected_product"] = product_list[0]
             st.rerun()
         if len(df_selected) < 15:
             st.warning("⚠️ This product has limited history. Forecast accuracy may be lower.")
