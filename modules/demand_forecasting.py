@@ -683,18 +683,19 @@ def demand_forecasting_page():
         default_end = min(default_start + pd.Timedelta(days=90), max_allowed_date)       
         
         stored_range = st.session_state.get("forecast_range")   
-        if (
-            stored_range is None
-            or stored_range[0] < default_start
-            or stored_range[1] > max_allowed_date
-        ):
-            st.session_state["forecast_range"] = (default_start, default_end)
+        if stored_range is None:
+            stored_range = (default_start, default_end)
+        else:
+            stored_range = (
+                pd.to_datetime(stored_range[0]), pd.to_datetime(stored_range[1])
+            )
         future_range = st.date_input(
             "Select Future Forecast Dates",
-            value=st.session_state.forecast_range,
-            min_value=default_start,
-            max_value=max_allowed_date
-        )        
+            value=(stored_range[0].date(), stored_range[1].date()),
+            min_value=default_start.date(),
+            max_value=max_allowed_date.date()
+        )
+       
         st.session_state.forecast_range = future_range
        
         future_start = pd.to_datetime(future_range[0])
