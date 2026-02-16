@@ -531,7 +531,7 @@ def demand_forecasting_page():
             if "selected_product" not in st.session_state:
                 st.session_state.selected_product = product_list[0]      
             product = st.selectbox("Select Product",product_list,
-                index=product_list.index(st.session_state.selected_product)
+                index=product_list.index(st.session_state.selected_product),
             )     
             st.session_state.selected_product = product
             df_selected = raw_df[raw_df["product_id"] == product].copy()      
