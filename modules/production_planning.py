@@ -144,6 +144,14 @@ def production_planning(forecast_df, inventory_df, manufacturing_df):
         inventory_df.groupby("product_id", as_index=False)
         .agg(current_stock=("on_hand_qty", "sum"))
     )
+ 
+    inv = inv.merge(demand, on="product_id", how="left")
+    inv["current_stock"] = np.minimum(
+        inv["current_stock"], inv["avg_daily_demand"] * 45
+    )
+    inv["current_stock"] = np.maximum(
+        inv["current_stock"], inv["avg_daily_demand"] * 7
+    )
     df = demand.merge(inv, on="product_id", how="left")     
     planning_days = 14
     planning_need = df["avg_daily_demand"] * planning_days    
