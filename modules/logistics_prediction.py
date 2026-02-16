@@ -284,12 +284,10 @@ def logistics_optimization_page():
                     <div>{k}</div>
                     <div class="metric-value">{v}</div>
                 </div>
-                """, unsafe_allow_html=True)       
-       
+                """, unsafe_allow_html=True)         
         opt_df = opt_df.sort_values("shipping_need_14d",ascending=False)
         st.markdown(
-            '<div class="section-title">Shipping Need by Product</div>',
-            unsafe_allow_html=True
+            '<div class="section-title">Shipping Need by Product</div>', unsafe_allow_html=True
         )
         st.plotly_chart(px.bar(opt_df,x="product_id",y="shipping_need_14d",
             color="destination_region",hover_data=["avg_delay_rate","avg_transit_days"]),use_container_width=True
