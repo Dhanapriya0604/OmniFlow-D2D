@@ -468,7 +468,6 @@ def demand_nlp(df, results_df, best_model, q, top_product_global=None):
             f"- Avg Forecast: {df['forecast'].mean():.2f}\n"
             f"- Volatility: {df['forecast'].std():.2f}"
         )
-    # ---------------- HELP ----------------
     return (
         "I can help with:\n"
         "- average / max / min demand\n"
@@ -482,9 +481,6 @@ def demand_nlp(df, results_df, best_model, q, top_product_global=None):
 def fit_final_model(model, X, y):
     model.fit(X.astype(float), y.astype(float))
     return model
-# ======================================================================================
-# MAIN PAGE
-# ======================================================================================
 def demand_forecasting_page():
     if "demand_products" not in st.session_state:
         st.session_state["demand_products"] = []
