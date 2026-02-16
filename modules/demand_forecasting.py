@@ -564,7 +564,7 @@ def demand_forecasting_page():
             selected_products = st.multiselect("Select Products",product_list,
                 default=st.session_state.get("demand_products", [])
             )
-            st.session_state.demand_products = selected_products         
+            st.session_state["demand_products"] = selected_products         
             if len(selected_products) == 0:
                 df_selected = raw_df.copy()
             else:
