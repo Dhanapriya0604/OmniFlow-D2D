@@ -112,6 +112,8 @@ def load_logistics():
     df = clean_text_column(df, "source_warehouse", remove_dash=True)
     df = clean_text_column(df, "destination_region")
     df = clean_text_column(df, "carrier")
+    if "product_id" not in df.columns:
+        df["product_id"] = "UNKNOWN"  
     df = clean_text_column(df, "product_id")
     required_cols = ["source_warehouse","destination_region","carrier",
         "actual_delivery_days","delay_flag","logistics_cost"
@@ -166,9 +168,14 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
     forecast_df["region"] = forecast_df["region"].replace(region_lookup)
     forecast_df["region"] = forecast_df["region"].str.upper()
     
-    region_dist = (logistics_df.groupby(["product_id", "destination_region"]
-        ).size().reset_index(name="shipments")
-    ) 
+    if {"product_id","destination_region"}.issubset(logistics_df.columns): 
+        region_dist = (logistics_df.groupby(["product_id","destination_region"])
+            .size().reset_index(name="shipments")
+        )  
+    else:
+        region_dist = pd.DataFrame(columns=[
+            "product_id","destination_region","shipments"
+        ])
     region_dist["share"] = (
         region_dist.groupby("product_id")["shipments"]
         .transform(lambda x: x / x.sum())
