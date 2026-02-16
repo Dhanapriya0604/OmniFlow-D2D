@@ -9,9 +9,6 @@ import plotly.express as px
 
 st.set_page_config(page_title="Logistics Optimization", layout="wide")
 
-# ======================================================================================
-# CSS UI
-# ======================================================================================
 def inject_css():
     st.markdown("""
     <style>
@@ -57,13 +54,9 @@ def inject_css():
         transition: 0.3s ease;
         box-shadow: 0 18px 40px rgba(0,0,0,0.2);
     }
-
     </style>
     """, unsafe_allow_html=True)
 
-# ======================================================================================
-# PATHS
-# ======================================================================================
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 DATA_DIR = os.path.join(BASE_DIR, "data")
 
@@ -78,9 +71,7 @@ def clean_text_column(df, col, remove_dash=False):
         if remove_dash:
             df[col] = df[col].str.replace("-", "", regex=False)
     return df
-# ======================================================================================
-# LOAD DATA
-# ======================================================================================
+
 @st.cache_data
 def load_forecasts():
     if "all_forecasts" in st.session_state:
@@ -174,18 +165,22 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
     }    
     forecast_df["region"] = forecast_df["region"].replace(region_lookup)
     forecast_df["region"] = forecast_df["region"].str.upper()
-    region_map = (
-        forecast_df.groupby("product_id", as_index=False)["region"]
-        .agg(lambda x: x.mode().iloc[0] if len(x.mode()) else "UNKNOWN")
+    
+    region_dist = (
+        logistics_df
+        .groupby(["product_id", "destination_region"])
+        .size().reset_index(name="shipments")
+    ) 
+    region_dist["share"] = (region_dist["shipments"] /
+        region_dist.groupby("product_id")["shipments"].transform("sum")
     )
-    if "product_id" not in df.columns:
-        st.error("product_id missing in df")
-    if "product_id" not in region_map.columns:
-        st.error("product_id missing in region_map")
+    df = df.merge(region_dist, on="product_id", how="left")
 
-    df = df.merge(region_map, on="product_id", how="left")
-    df.rename(columns={"region": "destination_region"}, inplace=True)
+    df["shipping_need_14d"] = (
+        df["shipping_need_14d"] * df["share"].fillna(1)
+    ).round().astype(int)   
     df["destination_region"] = df["destination_region"].fillna("UNKNOWN")
+
     logistics_df["destination_region"] = (
         logistics_df["destination_region"].astype(str).str.strip().str.upper()
     )    
@@ -280,16 +275,20 @@ def logistics_optimization_page():
         # -------- KPIs --------
         st.markdown('<div class="section-title">Logistics KPIs</div>',unsafe_allow_html=True)
         c1, c2, c3, c4 = st.columns(4)
+       
+        opt_df["shipment_size"] = np.where(
+            opt_df["destination_region"] == "WEST", 150,
+            np.where(opt_df["destination_region"] == "NORTH", 120, 100)
+        )     
+        opt_df["shipments_required"] = np.ceil(
+            opt_df["shipping_need_14d"] / opt_df["shipment_size"]
+        )
         metrics = [
-            ("Avg Delay Rate",
-             round(opt_df["avg_delay_rate"].mean(),2)),
-            ("Avg Transit Days",
-             round(opt_df["avg_transit_days"].mean(),1)),
-            ("Planning Shipments",
-             int(opt_df["shipping_need_14d"].sum())),
+            ("Avg Delay Rate", round(opt_df["avg_delay_rate"].mean(),2)),
+            ("Avg Transit Days", round(opt_df["avg_transit_days"].mean(),1)),
+            ("Planning Shipments", int(opt_df["shipping_need_14d"].sum())),   
             ("Shipping Cost",
-             int((opt_df["shipping_need_14d"] *
-                  opt_df["avg_shipping_cost"]).sum()))
+              int((opt_df["shipments_required"] * opt_df["avg_shipping_cost"]).sum()))
         ]
         for col, (k, v) in zip([c1, c2, c3, c4], metrics):
             with col:
