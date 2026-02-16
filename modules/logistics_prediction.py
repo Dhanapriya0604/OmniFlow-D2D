@@ -6,9 +6,7 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 import plotly.express as px
-
 st.set_page_config(page_title="Logistics Optimization", layout="wide")
-
 def inject_css():
     st.markdown("""
     <style>
@@ -56,22 +54,18 @@ def inject_css():
     }
     </style>
     """, unsafe_allow_html=True)
-
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 DATA_DIR = os.path.join(BASE_DIR, "data")
-
 FORECAST_PATH   = os.path.join(DATA_DIR, "forecast_output.csv")
 INVENTORY_PATH  = os.path.join(DATA_DIR, "retail_inventory_snapshot.csv")
 PRODUCTION_PATH = os.path.join(DATA_DIR, "production_plan.csv")
 LOGISTICS_PATH  = os.path.join(DATA_DIR, "supply_chain_logistics_shipments.csv")
-
 def clean_text_column(df, col, remove_dash=False):
     if col in df.columns:
         df[col] = (df[col].astype(str).str.strip().str.upper())
         if remove_dash:
             df[col] = df[col].str.replace("-", "", regex=False)
     return df
-
 @st.cache_data
 def load_forecasts():
     if "all_forecasts" in st.session_state:
@@ -128,11 +122,9 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
     if "date" in forecast_df.columns:
         forecast_df = forecast_df.sort_values(["product_id","date"])
     forecast_df["rank"] = forecast_df.groupby("product_id").cumcount()   
-    demand = (
-        forecast_df[forecast_df["rank"] < 14]
+    demand = (forecast_df[forecast_df["rank"] < 14]
         .groupby("product_id", as_index=False)["forecast"]
-        .mean()
-        .rename(columns={"forecast": "avg_daily_demand"})
+        .mean().rename(columns={"forecast": "avg_daily_demand"})
     )
     planning_days = 14
     demand["planning_demand"] = demand["avg_daily_demand"] * planning_days
@@ -162,25 +154,17 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
             .size().reset_index(name="shipments")
         )  
     else:
-        region_dist = pd.DataFrame(columns=[
-            "product_id","destination_region","shipments"
-        ])
+        region_dist = pd.DataFrame(columns=["product_id","destination_region","shipments"])
     region_dist["share"] = (
-        region_dist.groupby("product_id")["shipments"]
-        .transform(lambda x: x / x.sum())
+        region_dist.groupby("product_id")["shipments"].transform(lambda x: x / x.sum())
     ) 
     region_dist["share"] = region_dist["share"].clip(upper=0.6)
     df = df.merge(region_dist, on="product_id", how="left")    
-    df["shipping_need_14d"] = (
-        df["shipping_need_14d"] * df["share"]
-    ).fillna(df["shipping_need_14d"])
+    df["shipping_need_14d"] = df["shipping_need_14d"] * df["share"]).fillna(df["shipping_need_14d"])
     fallback_region = (forecast_df.groupby("product_id")["region"]
         .agg(lambda x: x.mode()[0] if len(x.mode()) > 0 else "UNKNOWN").reset_index()
     )   
-    df = df.merge(
-        fallback_region, on="product_id",
-        how="left", suffixes=("", "_fallback")
-    )     
+    df = df.merge(fallback_region, on="product_id",how="left", suffixes=("", "_fallback"))     
     df.drop(columns=["region_fallback"], inplace=True)
     logistics_df["destination_region"] = (
         logistics_df["destination_region"].astype(str).str.strip().str.upper()
@@ -236,9 +220,7 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
     df["avg_transit_days"] = df["avg_transit_days"].fillna(
         logistics_df["actual_delivery_days"].median()
     ) 
-    df["avg_shipping_cost"] = df["avg_shipping_cost"].fillna(
-        logistics_df["logistics_cost"].median()
-    ) 
+    df["avg_shipping_cost"] = df["avg_shipping_cost"].fillna(logistics_df["logistics_cost"].median()) 
     df["production_required"] = df["production_required"].fillna(0)   
     df["avg_daily_demand"] = pd.to_numeric(df["avg_daily_demand"], errors="coerce").fillna(0).round().astype(int)
     df["shipping_need_14d"] = pd.to_numeric(df["shipping_need_14d"], errors="coerce").fillna(0).round().astype(int)
@@ -268,23 +250,17 @@ def logistics_optimization_page():
         inventory_df  = load_inventory()
         production_df = load_production()
         logistics_df  = load_logistics()
-        opt_df = logistics_optimization(
-            forecast_df,inventory_df,production_df,logistics_df
-        )
+        opt_df = logistics_optimization(forecast_df,inventory_df,production_df,logistics_df)
         log_path = os.path.join(DATA_DIR, "logistics_plan.csv")
         opt_df.to_csv(log_path, index=False)
 
-        # -------- KPIs --------
         st.markdown('<div class="section-title">Logistics KPIs</div>',unsafe_allow_html=True)
-        c1, c2, c3, c4 = st.columns(4)
-       
+        c1, c2, c3, c4 = st.columns(4)    
         opt_df["shipment_size"] = np.where(
             opt_df["destination_region"] == "WEST", 150,
             np.where(opt_df["destination_region"] == "NORTH", 120, 100)
         )     
-        opt_df["shipments_required"] = np.ceil(
-            opt_df["shipping_need_14d"] / opt_df["shipment_size"]
-        )
+        opt_df["shipments_required"] = np.ceil(opt_df["shipping_need_14d"] / opt_df["shipment_size"])
         metrics = [
             ("Avg Delay Rate", round(opt_df["avg_delay_rate"].mean(),2)),
             ("Avg Transit Days", round(opt_df["avg_transit_days"].mean(),1)),
@@ -300,20 +276,17 @@ def logistics_optimization_page():
                     <div class="metric-value">{v}</div>
                 </div>
                 """, unsafe_allow_html=True)       
-        # -------- Charts --------
+       
         opt_df = opt_df.sort_values("shipping_need_14d",ascending=False)
         st.markdown(
             '<div class="section-title">Shipping Need by Product</div>',
             unsafe_allow_html=True
         )
-        st.plotly_chart(
-            px.bar(opt_df,x="product_id",y="shipping_need_14d",
-                color="destination_region",hover_data=["avg_delay_rate","avg_transit_days"]
-            ),use_container_width=True
+        st.plotly_chart(px.bar(opt_df,x="product_id",y="shipping_need_14d",
+            color="destination_region",hover_data=["avg_delay_rate","avg_transit_days"]),use_container_width=True
         )
         st.markdown(
-            '<div class="section-title">Shipping Demand by Region</div>',
-            unsafe_allow_html=True
+            '<div class="section-title">Shipping Demand by Region</div>', unsafe_allow_html=True
         )
         region_ship = (
             opt_df.groupby("destination_region")["shipping_need_14d"].sum().reset_index()
