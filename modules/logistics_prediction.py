@@ -160,7 +160,7 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
     ) 
     region_dist["share"] = region_dist["share"].clip(upper=0.6)
     df = df.merge(region_dist, on="product_id", how="left")    
-    df["shipping_need_14d"] = df["shipping_need_14d"] * df["share"]).fillna(df["shipping_need_14d"])
+    df["shipping_need_14d"] = df["shipping_need_14d"] * df["share"].fillna(df["shipping_need_14d"])
     fallback_region = (forecast_df.groupby("product_id")["region"]
         .agg(lambda x: x.mode()[0] if len(x.mode()) > 0 else "UNKNOWN").reset_index()
     )   
