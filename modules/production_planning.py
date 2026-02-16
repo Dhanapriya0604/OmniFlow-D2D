@@ -125,37 +125,25 @@ def load_manufacturing():
     df = pd.read_csv(MANUFACTURING_PATH)
     df.columns = df.columns.str.lower()
     return df
-
-
 def load_forecasts():
     if "all_forecasts" in st.session_state:
         return st.session_state["all_forecasts"]
     return pd.read_csv(FORECAST_PATH)
 
-# ======================================================================================
-# PRODUCTION LOGIC
-# ======================================================================================
 def production_planning(forecast_df, inventory_df, manufacturing_df):
-    # Use next 14 days demand only
-    forecast_df = forecast_df.sort_values(["product_id", "date"])
     
+    forecast_df = forecast_df.sort_values(["product_id", "date"])
     demand = (
-        forecast_df
-        .groupby("product_id")
-        .apply(lambda x: x.head(14))
-        .reset_index(drop=True)
-        .groupby("product_id")["forecast"]
-        .mean()
-        .reset_index(name="avg_daily_demand")
+        forecast_df.groupby("product_id")
+        .head(14).groupby("product_id")["forecast"]
+        .mean().reset_index(name="avg_daily_demand")
     )
 
     demand["planning_demand"] = demand["avg_daily_demand"] * 14
-
     inv = (
         inventory_df.groupby("product_id", as_index=False)
         .agg(current_stock=("on_hand_qty", "sum"))
     )
-
     df = demand.merge(inv, on="product_id", how="left")     
     planning_days = 14
     planning_need = df["avg_daily_demand"] * planning_days    
@@ -164,71 +152,56 @@ def production_planning(forecast_df, inventory_df, manufacturing_df):
     
     df["production_required"] = np.where(
         df["current_stock"] < planning_need * 0.9,
-        np.maximum(0, base_requirement),
-        0
+        np.maximum(0, base_requirement), 0
     )
     mfg_agg = (
         manufacturing_df
         .groupby("product_id", as_index=False)
-        .agg(
-            batch_size=("planned_qty", "mean")
-        )
+        .agg( batch_size=("planned_qty", "mean"))
     )    
     df = df.merge(mfg_agg, on="product_id", how="left")    
-    df["batch_size"] = df["batch_size"].fillna(100)
-    
+    df["batch_size"] = df["batch_size"].fillna(100)   
     df["daily_capacity"] = df["batch_size"]    
     df["max_possible_production"] = df["daily_capacity"] * 30
 
     df["production_required"] = np.minimum(
         df["production_required"],
         df["max_possible_production"]
-    )
-    # keep 10% capacity buffer
+    ) 
     df["production_required"] *= 0.9
-
     df["production_required"] = np.where(
         df["production_required"] < df["batch_size"] * 0.6,
-        0,
-        df["production_required"]
+        0, df["production_required"]
     )
-
     df["production_required"] = np.ceil(df["production_required"])
-
     df["production_batches"] = np.ceil(df["production_required"] / df["batch_size"])
     df["backlog"] = np.maximum(0,
         planning_need - df["current_stock"] - df["max_possible_production"]
     )
-
-    df["days_required"] = np.ceil(df["production_required"] / df["daily_capacity"])
-    
+    df["days_required"] = np.ceil(df["production_required"] / df["daily_capacity"])  
     df["production_status"] = np.where(
         df["production_required"] > 0,
         "⚠ Production Needed",
         "✅ Stock Sufficient"
-    )
-    # Production priority score
+    )  
     stock_gap = (planning_need - df["current_stock"]).clip(lower=0)  
     df["production_priority"] = (
         df["production_required"] * 1.2+ df["backlog"] * 2 + stock_gap * 1.5
     )  
     df = df.sort_values("production_priority", ascending=False)
     df["current_stock"] = df["current_stock"].fillna(0)
-
     return df
 PRODUCTION_LINES = [
     {"line": "Line-1", "capacity": 800},
     {"line": "Line-2", "capacity": 700},
     {"line": "Line-3", "capacity": 600},
 ]
-
 def auto_production_schedule(prod_df):
     today = pd.Timestamp.today().normalize()
     work_df = prod_df.copy()
     work_df["remaining"] = work_df["production_required"]
     schedule_rows = []
     day = 0
-
     while work_df["remaining"].sum() > 0:
         day_capacity = work_df["daily_capacity"].sum()
         active = work_df[work_df["remaining"] > 0]
@@ -246,19 +219,13 @@ def auto_production_schedule(prod_df):
         day += 1
     if len(schedule_rows) == 0:
         return pd.DataFrame(columns=[
-            "date",
-            "product_id",
-            "production_qty"
+            "date", "product_id", "production_qty"
         ])
     return pd.DataFrame(schedule_rows)
-
 def allocate_production_lines(schedule_df):
     if schedule_df.empty:
         return pd.DataFrame(columns=[
-            "date",
-            "line",
-            "product_id",
-            "production_qty"
+            "date","line","product_id","production_qty"
         ])
     schedule_rows = []
     for date, day_df in schedule_df.groupby("date"):
@@ -282,9 +249,6 @@ def allocate_production_lines(schedule_df):
         remaining = remaining[remaining["production_qty"] > 0]
     return pd.DataFrame(schedule_rows)
 
-# ======================================================================================
-# DATA DICTIONARY
-# ======================================================================================
 PRODUCTION_DATA_DICTIONARY = pd.DataFrame({
     "Column": [
         "product_id",
@@ -311,9 +275,7 @@ PRODUCTION_DATA_DICTIONARY = pd.DataFrame({
         "Production decision status"
     ]
 })
-# ======================================================================================
-# DATA PROFILING
-# ======================================================================================
+
 def production_profiling(df):
     return {
         "Total Products": df["product_id"].nunique(),
@@ -322,16 +284,10 @@ def production_profiling(df):
         "Products Below Reorder": int((df["production_required"] > 0).sum())
     }
 
-# ======================================================================================
-# MAIN PAGE
-# ======================================================================================
 def production_planning_page():
-
     inject_css()
-
     tab1, tab2 = st.tabs(["📘 Overview", "🏭 Application"])
 
-    # -------- OVERVIEW --------
     with tab1:
         st.markdown('<div class="section-title">Production Planning Overview</div>', unsafe_allow_html=True)
         st.markdown("""
@@ -340,23 +296,17 @@ def production_planning_page():
         while minimizing idle capacity and stock shortages.
         </div>
         """, unsafe_allow_html=True)
-
-    # -------- APPLICATION --------
     with tab2:
-
         forecast_df = load_forecasts()
         inventory_df = load_inventory()
         manufacturing_df = load_manufacturing()        
-
         prod_df = production_planning(
-            forecast_df,
-            inventory_df,
-            manufacturing_df
+            forecast_df, inventory_df, manufacturing_df
         )
         prod_df = prod_df.sort_values("production_required", ascending=False)
         prod_path = os.path.join(DATA_DIR, "production_plan.csv")
         prod_df.to_csv(prod_path, index=False)
-        # ---------- PRODUCT VIEW CONTROL ----------
+        
         view_mode = st.radio("Production View",
             ["All Products", "Single Product"],horizontal=True
         )    
@@ -390,7 +340,6 @@ def production_planning_page():
                 "Backlog detected. Production capacity insufficient for demand."
             )
 
-        # KPIs
         st.markdown('<div class="section-title">Production KPIs</div>', unsafe_allow_html=True)
         c1, c2, c3 = st.columns(3)
         metrics = [
@@ -421,11 +370,10 @@ def production_planning_page():
         )      
         fig_ds = px.bar(
             view_prod_df,
-            x="product_id",
-            y=["planning_demand", "current_stock"],
-            barmode="group",
-            template="plotly_white"
-        )        
+            x="product_id", y=["planning_demand", "current_stock"],
+            barmode="group", template="plotly_white"
+        )      
+        fig_ds.update_yaxes(type="log")   # scale fix        
         st.plotly_chart(fig_ds, use_container_width=True)
         
         st.markdown('<div class="section-title">Production Requirement</div>', unsafe_allow_html=True)
