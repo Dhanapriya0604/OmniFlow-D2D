@@ -582,7 +582,7 @@ def demand_forecasting_page():
         ]       
        
         df = df.sort_values("date").reset_index(drop=True)
-        split_idx = max(int(len(df) * 0.8), len(df) - 14
+        split_idx = max(int(len(df) * 0.8), len(df) - 14)
         if len(df) - split_idx < 5:
             split_idx = len(df) - 5        
         train_df = df.iloc[:split_idx].copy()
