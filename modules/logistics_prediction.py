@@ -158,14 +158,23 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
     region_dist["share"] = (
         region_dist.groupby("product_id")["shipments"].transform(lambda x: x / x.sum())
     ) 
-    region_dist["share"] = region_dist["share"].clip(upper=0.6)
+    region_dist["share"] = region_dist["share"].clip(upper=0.5)
     df = df.merge(region_dist, on="product_id", how="left")    
-    df["shipping_need_14d"] = df["shipping_need_14d"] * df["share"].fillna(df["shipping_need_14d"])
+    df["shipping_need_14d"] = (df["shipping_need_14d"] * df["share"]).fillna(df["shipping_need_14d"])
     fallback_region = (forecast_df.groupby("product_id")["region"]
         .agg(lambda x: x.mode()[0] if len(x.mode()) > 0 else "UNKNOWN").reset_index()
     )   
     df = df.merge(fallback_region, on="product_id", how="left")
     df["destination_region"] = df["destination_region"].fillna(df["region"])
+        warehouse_region_map = {
+        "WH01": "NORTH",
+        "WH02": "SOUTH",
+        "WH03": "WEST",
+        "WH04": "EAST"
+    }    
+    df["destination_region"] = df["destination_region"].fillna(
+        df["warehouse_id"].map(warehouse_region_map)
+    )
     df.drop(columns=["region"], errors="ignore", inplace=True)
     logistics_df["destination_region"] = (
         logistics_df["destination_region"].astype(str).str.strip().str.upper()
@@ -227,7 +236,7 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
     df["shipping_need_14d"] = pd.to_numeric(df["shipping_need_14d"], errors="coerce").fillna(0).round().astype(int)
     if df["avg_shipping_cost"].median() > 2000:
         df["avg_shipping_cost"] = df["avg_shipping_cost"] / 10   
-    df["avg_shipping_cost"] = df["avg_shipping_cost"].clip(80, 800)
+    df["avg_shipping_cost"] = df["avg_shipping_cost"].clip(80, 600)
     df["avg_transit_days"] = pd.to_numeric(df["avg_transit_days"], errors="coerce").fillna(0).round().astype(int)
     df = df.replace([np.inf, -np.inf], 0)
     df.fillna(0, inplace=True)
