@@ -291,7 +291,7 @@ def logistics_optimization_page():
             ("Planning Shipments", int(opt_df["shipping_need_14d"].sum())),   
             ("Shipping Cost", int((opt_df["shipments_required"] *
                   opt_df["avg_shipping_cost"] * 0.6).sum()))
-
+        ]
         for col, (k, v) in zip([c1, c2, c3, c4], metrics):
             with col:
                 st.markdown(f"""
