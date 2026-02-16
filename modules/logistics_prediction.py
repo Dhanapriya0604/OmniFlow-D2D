@@ -251,8 +251,10 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
     df = df.replace([np.inf, -np.inf], 0)
     df["avg_daily_demand"] = pd.to_numeric(df["avg_daily_demand"], errors="coerce").fillna(0).round().astype(int)
     df["shipping_need_14d"] = pd.to_numeric(df["shipping_need_14d"], errors="coerce").fillna(0).round().astype(int)
-    df["avg_shipping_cost"] = (df["avg_shipping_cost"] / 100).clip(lower=5, upper=200)
-
+    
+    if df["avg_shipping_cost"].median() > 1000:
+        df["avg_shipping_cost"] = df["avg_shipping_cost"] / 100   
+    df["avg_shipping_cost"] = df["avg_shipping_cost"].clip(lower=20, upper=500)
     df["avg_transit_days"] = pd.to_numeric(df["avg_transit_days"], errors="coerce").fillna(0).round().astype(int)
     df = df.replace([np.inf, -np.inf], 0)
     df.fillna(0, inplace=True)
