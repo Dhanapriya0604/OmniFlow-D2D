@@ -551,30 +551,24 @@ def demand_forecasting_page():
         if len(df_selected) < 15:
             st.warning("⚠️ This product has limited history. Forecast accuracy may be lower.")
 
-        # -------- BUILD FEATURES AFTER FILTER --------
         df = prepare_features(df_selected)
-        # ---- SKU difficulty ----
+    
         vol = df.groupby("product_id")["daily_sales"].std()
         mean_sales = df.groupby("product_id")["daily_sales"].mean()     
         difficulty = (vol / (mean_sales + 1e-6)).rename("sku_difficulty")       
         df = df.merge(
-            difficulty,
-            left_on="product_id",
-            right_index=True,
-            how="left"
+            difficulty,left_on="product_id",right_index=True,how="left"
         )      
         df["sku_difficulty"] = df["sku_difficulty"].fillna(0)
 
         df = df.sort_values("date").reset_index(drop=True)
         df["region"] = LabelEncoder().fit_transform(df["region"].astype(str))
         df["demand_regime"] = np.where(
-            df["rolling_30"] > df["rolling_7"] * 1.2,
-            "Growing",
+            df["rolling_30"] > df["rolling_7"] * 1.2,"Growing",
             np.where(df["rolling_30"] < df["rolling_7"] * 0.8,
-                     "Declining",
-                     "Stable")
+                     "Declining","Stable")
         )
-        # ---------- DATE SLICER ----------
+        
         min_date = df["date"].min()
         max_date = df["date"].max()       
         FEATURES = [
@@ -586,11 +580,9 @@ def demand_forecasting_page():
             "price_change","promo_rolling_7","promo_effect",
             "sin_dow","cos_dow","sin_month","cos_month","sku_difficulty"
         ]       
-        # ================= TRAIN / VALIDATE SPLIT =================
+       
         df = df.sort_values("date").reset_index(drop=True)
-        split_idx = max(int(len(df) * 0.8), len(df) - 14)
-
-        # ✅ ensure validation has at least 5 rows
+        split_idx = max(int(len(df) * 0.8), len(df) - 14
         if len(df) - split_idx < 5:
             split_idx = len(df) - 5        
         train_df = df.iloc[:split_idx].copy()
@@ -600,7 +592,6 @@ def demand_forecasting_page():
         y_train = train_df["daily_sales"].copy()
         y_val   = val_df["daily_sales"].copy()
         
-        # numeric safety
         X_train = X_train.apply(pd.to_numeric, errors="coerce").fillna(0)
         X_val   = X_val.apply(pd.to_numeric, errors="coerce").fillna(0)        
         y_train = pd.to_numeric(y_train, errors="coerce").fillna(0)
@@ -608,11 +599,9 @@ def demand_forecasting_page():
         y_train = y_train.clip(lower=0)
         y_val   = y_val.clip(lower=0)
 
-        # ✅ NOW log transform
         y_train_log = np.log1p(y_train)
         y_val_log   = np.log1p(y_val)
 
-        # ================= SEASONALITY HEATMAP (TRAIN DATA ONLY) =================
         st.markdown(
             '<div class="section-title">Seasonality Heatmap</div>',
             unsafe_allow_html=True
@@ -628,7 +617,7 @@ def demand_forecasting_page():
             px.imshow(season_pivot, aspect="auto"),
             use_container_width=True
         )
-        # ===== FINAL SAFETY NUMERIC CAST =====
+      
         for col in X_train.columns:
             X_train[col] = pd.to_numeric(X_train[col], errors="coerce")      
         for col in X_val.columns:
@@ -638,12 +627,10 @@ def demand_forecasting_page():
         y_train = pd.to_numeric(y_train, errors="coerce").fillna(0)
         y_val   = pd.to_numeric(y_val, errors="coerce").fillna(0)
 
-        # ---- model comparison on validation ----
         results_df, forecasts, best_model, tuned_rf = train_models(
             X_train, y_train_log, X_val, y_val_log
         )
 
-        # ================= FINAL MODEL FIT ON FULL HISTORY =================
         model_map = {
             "Linear Regression": LinearRegression(),
             "Random Forest": tuned_rf,
@@ -661,7 +648,6 @@ def demand_forecasting_page():
         y_full = np.log1p(df["daily_sales"].clip(lower=0))
         final_model.fit(X_full.astype(float), y_full.astype(float))
 
-        # ================= RESIDUAL + ROLLING ERROR =================
         val_preds = forecasts[best_model]
         y_true = np.expm1(y_val_log)
         residuals = y_true - val_preds
@@ -695,8 +681,14 @@ def demand_forecasting_page():
         max_allowed_date = pd.Timestamp("2026-06-30")        
         default_start = df["date"].max() + pd.Timedelta(days=1)
         default_end = min(default_start + pd.Timedelta(days=90), max_allowed_date)       
-        if "forecast_range" not in st.session_state:
-            st.session_state.forecast_range = (default_start, default_end)    
+        
+        stored_range = st.session_state.get("forecast_range")   
+        if (
+            stored_range is None
+            or stored_range[0] < default_start
+            or stored_range[1] > max_allowed_date
+        ):
+            st.session_state["forecast_range"] = (default_start, default_end)
         future_range = st.date_input(
             "Select Future Forecast Dates",
             value=st.session_state.forecast_range,
@@ -707,8 +699,6 @@ def demand_forecasting_page():
        
         future_start = pd.to_datetime(future_range[0])
         future_end   = pd.to_datetime(future_range[1])
-        
-        # safety guard if user somehow bypasses UI
         future_end = min(future_end, max_allowed_date)       
         future_dates = pd.date_range(future_start, future_end, freq="D")
         FORECAST_DAYS = len(future_dates)
@@ -720,12 +710,10 @@ def demand_forecasting_page():
             st.warning("No future horizon available beyond June 2026 based on current data.")
             st.stop()
          
-        # ---- base features from last known row ----
         last_row = df.sort_values("date").iloc[-1]        
         future_df["price"] = last_row["price"]
         future_df["dayofweek"] = future_df["date"].dt.dayofweek
      
-        # Ensure dayofweek exists
         if "dayofweek" not in df.columns:
             df["dayofweek"] = df["date"].dt.dayofweek        
         promo_pattern = (df.groupby("dayofweek")["promotion"].mean())   
@@ -746,7 +734,6 @@ def demand_forecasting_page():
         future_df["dayofyear"] = future_df["date"].dt.dayofyear
         future_df["weekofyear"] = future_df["date"].dt.isocalendar().week.astype(int)
         
-        # ---- recursive lag generation (per product) ----
         all_fc = []
         if df.empty:
             st.warning("No data available for forecasting.")
@@ -784,32 +771,23 @@ def demand_forecasting_page():
                 if row["holiday_flag"] == 1:
                     pred *= 1.15
 
-                # residual correction
                 res_corr = residual_model.predict(X_future)[0]
                 pred = pred + 0.3 * res_corr
-                
-                # ----- EXPLOSION CONTROL -----
                 hist_mean = history["daily_sales"].mean()
                 
-                # demand floor
                 pred = max(hist_mean * 0.2, pred)
-                
-                # clip extremes
                 pred = np.clip(pred,hist_mean * 0.3,hist_mean * 3)
-                
-                # ----- additional variance-based protection -----
+            
                 hist_std = history["daily_sales"].std()         
                 if np.isnan(hist_std):
                     hist_std = 0             
                 upper = hist_mean + 3 * hist_std
                 lower = max(0, hist_mean - 3 * hist_std)             
                 pred = np.clip(pred, lower, upper)
-                
-                # -------- FORECAST STABILIZATION --------
+            
                 recent_mean = history["daily_sales"].tail(14).mean()
                 pred = 0.85 * pred + 0.15 * recent_mean
 
-                # Smooth sudden jumps
                 difficulty = row.get("sku_difficulty", 0)
                 alpha = 0.6 if difficulty > 1 else 0.8
                 pred = alpha * pred + (1 - alpha) * recent_mean
@@ -825,58 +803,43 @@ def demand_forecasting_page():
                 new_hist = row.copy()
                 new_hist["daily_sales"] = pred               
                 history = pd.concat([history, new_hist.to_frame().T], ignore_index=True)            
-
             tmp = future_df.copy()
             tmp["product_id"] = pid
             tmp["forecast"] = future_preds
             all_fc.append(tmp)
         
-        # ----- combine forecasts safely -----
         if len(all_fc) == 0:
             st.warning("No forecasts generated.")
             df_fc = pd.DataFrame(columns=["date","product_id","forecast"])
         else:
             df_fc = pd.concat(all_fc, ignore_index=True)
-        
-        # guarantee required columns exist
+     
         for col in ["date","product_id","forecast"]:
             if col not in df_fc.columns:
                 df_fc[col] = np.nan
         trend = df_fc.groupby("product_id")["forecast"].pct_change()
         df_fc["forecast"] = df_fc["forecast"] * (1 - trend.fillna(0)*0.3)
      
-        # ---- Confidence interval ----
         df_fc["sigma"] = df_fc["product_id"].map(product_sigma)
-
-        # fallback if sigma missing
         df_fc["sigma"] = df_fc["sigma"].fillna(residuals.std())
-        
-        # avoid zero CI
         df_fc["sigma"] = df_fc["sigma"].clip(lower=1)
-        
-        # ✅ NEW: cap sigma relative to forecast
         df_fc["sigma"] = np.minimum(df_fc["sigma"],df_fc["forecast"] * 0.5)        
+        
         df_fc["lower_ci"] = np.maximum(
-            df_fc["forecast"] * 0.3,
-            df_fc["forecast"] - 1.96 * df_fc["sigma"]
+            df_fc["forecast"] * 0.3,df_fc["forecast"] - 1.96 * df_fc["sigma"]
         )        
         df_fc["upper_ci"] = (
             df_fc["forecast"] + 1.96 * df_fc["sigma"]
         )
         total_future_demand = df_fc["forecast"].sum()
-        peak_day = df_fc.loc[
-            df_fc["forecast"].idxmax(),
-            "date"
-        ]
+        peak_day = df_fc.loc[df_fc["forecast"].idxmax(),"date"]
 
-        # ================= FUTURE DATA DICTIONARY =================
         with st.expander("📘 Data Dictionary "):
             st.dataframe(
                 DATA_DICTIONARY[DATA_DICTIONARY["Column"].isin(df_fc.columns)],
                 use_container_width=True
             )
-        
-        # ================= FUTURE DATA PROFILING =================
+     
         with st.expander("🔍 Data Profiling "):
             profile_fc = {
                 "Total Forecast Records": len(df_fc),
@@ -888,7 +851,6 @@ def demand_forecasting_page():
             for k, v in profile_fc.items():
                 st.write(f"**{k}:** {v}")
 
-        # ---- SESSION STATE ----
         if "all_forecasts" not in st.session_state:
             st.session_state["all_forecasts"] = pd.DataFrame()        
         if not st.session_state["all_forecasts"].empty and "product" in locals():
@@ -900,16 +862,11 @@ def demand_forecasting_page():
             [st.session_state["all_forecasts"], df_fc],
             ignore_index=True
         )
-        
-        # ---- DISK BACKUP (CRITICAL FIX) ----
         st.session_state["all_forecasts"].to_csv( FORECAST_PATH, index=False)
-        
-        # ---------- MOST DEMAND PRODUCT (GLOBAL KPI) ----------
+     
         top_product_global = (
-            df.groupby("product_id")["daily_sales"]
-            .mean()
-            .sort_values(ascending=False)
-            .index[0]
+            df.groupby("product_id")["daily_sales"].mean()
+            .sort_values(ascending=False).index[0]
         )    
         st.markdown(
             '<div class="section-title">Model Performance Comparison</div>',
@@ -924,7 +881,6 @@ def demand_forecasting_page():
         )     
         st.dataframe(results_df, use_container_width=True)
      
-        # ---------------- KPIs ----------------
         st.markdown('<div class="section-title">Executive KPIs</div>', unsafe_allow_html=True)
         c1,c2,c3,c4,c5 = st.columns(5)
         metrics = [
@@ -946,60 +902,45 @@ def demand_forecasting_page():
             f"✅ **{best_model}** selected as the production model "
             f"with lowest RMSE ({results_df.iloc[0]['RMSE']:.2f})."
         )
-        # ---------------- MODEL COMPARISON ----------------
+       
         st.markdown(
             '<div class="section-title">RMSE Comparison Across Models</div>',
             unsafe_allow_html=True
         )        
         rmse_fig = px.bar(
-            results_df,
-            x="Model",
-            y="RMSE",
-            text="RMSE",
-            template="plotly_white"
+            results_df, x="Model", y="RMSE",
+            text="RMSE", template="plotly_white"
         )        
         rmse_fig.update_traces(
-            texttemplate='%{text:.2f}',
-            textposition='outside'
+            texttemplate='%{text:.2f}', textposition='outside'
         )        
         rmse_fig.update_layout(
-            yaxis_title="Root Mean Squared Error",
-            xaxis_title="Model",
-            uniformtext_minsize=10,
-            uniformtext_mode='hide'
+            yaxis_title="Root Mean Squared Error", xaxis_title="Model",
+            uniformtext_minsize=10, uniformtext_mode='hide'
         )       
         st.plotly_chart(rmse_fig, use_container_width=True)
      
-        # ---------------- FORECAST WITH CI ----------------
         st.markdown(
             '<div class="section-title">Forecast with Confidence Intervals</div>',
             unsafe_allow_html=True
         )       
         fig = go.Figure()       
         fig.add_trace(go.Scatter(
-            x=df_fc["date"],
-            y=df_fc["forecast"],
-            name="Forecast",
-            line=dict(width=3)
+            x=df_fc["date"], y=df_fc["forecast"],
+            name="Forecast", line=dict(width=3)
         ))        
         fig.add_trace(go.Scatter(
-            x=df_fc["date"],
-            y=df_fc["upper_ci"],
-            name="Upper CI",
-            line=dict(dash="dot")
+            x=df_fc["date"], y=df_fc["upper_ci"],
+            name="Upper CI", line=dict(dash="dot")
         ))      
         fig.add_trace(go.Scatter(
-            x=df_fc["date"],
-            y=df_fc["lower_ci"],
-            name="Lower CI",
-            fill="tonexty",
-            opacity=0.25
+            x=df_fc["date"], y=df_fc["lower_ci"],
+            name="Lower CI", fill="tonexty", opacity=0.25
         ))      
         st.plotly_chart(fig, use_container_width=True)     
         st.write(f"Total Future Demand: {int(total_future_demand)}")
         st.write(f"Peak Demand Day: {peak_day.date()}")
 
-        # ---------------- AI ASSISTANT ----------------
         st.markdown('<div class="section-title">💬 Demand Analytics Assistant</div>', unsafe_allow_html=True)
         q = st.text_input("Ask anything about demand forecasting")
         if q:
@@ -1007,7 +948,7 @@ def demand_forecasting_page():
                 f"<div class='card'>{demand_nlp(df_fc, results_df, best_model, q, top_product_global)}</div>",
                 unsafe_allow_html=True
             )
-        # ---------------- FORECAST OUTPUT PREVIEW ----------------
+       
         st.markdown(
             '<div class="section-title">Forecast Output Preview</div>',
             unsafe_allow_html=True
@@ -1016,13 +957,9 @@ def demand_forecasting_page():
         today = pd.Timestamp.today().normalize()
         future_limit = today + pd.Timedelta(days=90)     
         preview_df = df_fc[
-            (df_fc["date"] >= today) &
-            (df_fc["date"] <= future_limit)
+            (df_fc["date"] >= today) & (df_fc["date"] <= future_limit)
         ]      
         st.dataframe(preview_df[preview_cols], use_container_width=True)
-
-        st.download_button(
-            "⬇ Download Forecast Output",
-            df_fc.to_csv(index=False),
-            file_name="forecast_demand.csv"
+        st.download_button("⬇ Download Forecast Output",
+            df_fc.to_csv(index=False), file_name="forecast_demand.csv"
         )
