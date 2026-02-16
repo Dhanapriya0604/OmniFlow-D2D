@@ -166,7 +166,7 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
     )   
     df = df.merge(fallback_region, on="product_id", how="left")
     df["destination_region"] = df["destination_region"].fillna(df["region"])
-        warehouse_region_map = {
+    warehouse_region_map = {
         "WH01": "NORTH",
         "WH02": "SOUTH",
         "WH03": "WEST",
