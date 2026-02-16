@@ -134,9 +134,13 @@ def production_planning(forecast_df, inventory_df, manufacturing_df):
     
     forecast_df = forecast_df.sort_values(["product_id", "date"])
     demand = (
-        forecast_df.groupby("product_id")
-        .head(14).groupby("product_id")["forecast"]
-        .mean().reset_index(name="avg_daily_demand")
+        forecast_df
+        .groupby("product_id")
+        .apply(lambda x: x.head(14))
+        .reset_index(drop=True)
+        .groupby("product_id")["forecast"]
+        .mean()
+        .reset_index(name="avg_daily_demand")
     )
 
     demand["planning_demand"] = demand["avg_daily_demand"] * 14
@@ -144,15 +148,16 @@ def production_planning(forecast_df, inventory_df, manufacturing_df):
         inventory_df.groupby("product_id", as_index=False)
         .agg(current_stock=("on_hand_qty", "sum"))
     )
- 
-    inv = inv.merge(demand, on="product_id", how="left")
-    inv["current_stock"] = np.minimum(
-        inv["current_stock"], inv["avg_daily_demand"] * 45
+
+    df = demand.merge(inv, on="product_id", how="left")
+    df["current_stock"] = df["current_stock"].fillna(0)    
+    df["current_stock"] = np.minimum(
+        df["current_stock"], df["avg_daily_demand"] * 45
+    )   
+    df["current_stock"] = np.maximum(
+        df["current_stock"], df["avg_daily_demand"] * 7
     )
-    inv["current_stock"] = np.maximum(
-        inv["current_stock"], inv["avg_daily_demand"] * 7
-    )
-    df = demand.merge(inv, on="product_id", how="left")     
+   
     planning_days = 14
     planning_need = df["avg_daily_demand"] * planning_days    
     safety_buffer = planning_need * 0.15  # 15% buffer
