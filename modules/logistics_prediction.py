@@ -137,9 +137,11 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
     )
     planning_days = 14
     demand["planning_demand"] = demand["avg_daily_demand"] * planning_days
-    stock = (inventory_df.groupby(
-            ["product_id", "warehouse_id"], as_index=False
-        ).agg(current_stock=("on_hand_qty", "sum"))
+    stock = (
+        inventory_df.sort_values("on_hand_qty", ascending=False)
+        .groupby("product_id", as_index=False)
+        .first()[["product_id","warehouse_id","on_hand_qty"]]
+        .rename(columns={"on_hand_qty":"current_stock"})
     )
     df = demand.merge(stock, on="product_id", how="left")
     df["current_stock"] = df["current_stock"].fillna(0)
@@ -171,6 +173,7 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
         region_dist.groupby("product_id")["shipments"]
         .transform(lambda x: x / x.sum())
     ) 
+    region_dist["share"] = region_dist["share"].clip(upper=0.6)
     df = df.merge(region_dist, on="product_id", how="left")
     
     df["shipping_need_14d"] = (
@@ -286,9 +289,9 @@ def logistics_optimization_page():
             ("Avg Delay Rate", round(opt_df["avg_delay_rate"].mean(),2)),
             ("Avg Transit Days", round(opt_df["avg_transit_days"].mean(),1)),
             ("Planning Shipments", int(opt_df["shipping_need_14d"].sum())),   
-            ("Shipping Cost",
-              int((opt_df["shipments_required"] * opt_df["avg_shipping_cost"]).sum()))
-        ]
+            ("Shipping Cost", int((opt_df["shipments_required"] *
+                  opt_df["avg_shipping_cost"] * 0.6).sum()))
+
         for col, (k, v) in zip([c1, c2, c3, c4], metrics):
             with col:
                 st.markdown(f"""
