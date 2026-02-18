@@ -131,24 +131,22 @@ def load_forecasts():
     return pd.read_csv(FORECAST_PATH)
 
 def production_planning(forecast_df, inventory_df, manufacturing_df):
-    
-    forecast_df = forecast_df.sort_values(["product_id", "date"])
+    forecast_df["date"] = pd.to_datetime(forecast_df["date"], errors="coerce")
+    start_date = forecast_df["date"].min()
+    end_date = start_date + pd.Timedelta(days=14)   
+    future_fc = forecast_df[
+        (forecast_df["date"] >= start_date) &
+        (forecast_df["date"] < end_date)
+    ]    
     demand = (
-        forecast_df
-        .groupby("product_id")
-        .apply(lambda x: x.head(14))
-        .reset_index(drop=True)
-        .groupby("product_id")["forecast"]
-        .mean()
-        .reset_index(name="avg_daily_demand")
+        future_fc.groupby("product_id")["forecast"]
+        .mean().reset_index(name="avg_daily_demand")
     )
-
     demand["planning_demand"] = demand["avg_daily_demand"] * 14
     inv = (
         inventory_df.groupby("product_id", as_index=False)
         .agg(current_stock=("on_hand_qty", "sum"))
     )
-
     df = demand.merge(inv, on="product_id", how="left")
     df["current_stock"] = df["current_stock"].fillna(0)    
     df["current_stock"] = np.minimum(
@@ -183,7 +181,7 @@ def production_planning(forecast_df, inventory_df, manufacturing_df):
     ) 
     df["production_required"] *= 0.9
     df["production_required"] = np.where(
-        df["production_required"] < df["batch_size"] * 0.6,
+        df["production_required"] < df["batch_size"] * 0.2,
         0, df["production_required"]
     )
     df["production_required"] = np.ceil(df["production_required"])
