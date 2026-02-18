@@ -132,7 +132,8 @@ def inventory_optimization(forecast_df, inventory_df):
             "current_stock","EOQ","safety_stock","reorder_point","stock_status"])
     demand["annual_demand"] = demand["avg_daily_demand"] * 365
     df = demand.mergeinventory_df.groupby("product_id", as_index=False)
-        .agg(current_stock=("on_hand_qty", "sum")), on="product_id",how="left")
+         .agg(current_stock=("on_hand_qty", "sum")), on="product_id",how="left"
+    )
     df["current_stock"] = df["current_stock"].fillna(0)
     ordering_cost = 500
     holding_cost_rate = 0.25
