@@ -102,6 +102,7 @@ def load_forecasts():
         return st.session_state["all_forecasts"]
     return pd.read_csv(FORECAST_PATH)
 def production_planning(forecast_df, inventory_df, manufacturing_df): 
+    forecast_df["date"] = pd.to_datetime(forecast_df["date"], errors="coerce")
     today = pd.Timestamp.today().normalize()
     end_date = today + pd.Timedelta(days=14)  
     future_fc = forecast_df[
