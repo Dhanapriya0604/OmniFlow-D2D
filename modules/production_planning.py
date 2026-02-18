@@ -104,7 +104,10 @@ def load_forecasts():
 def production_planning(forecast_df, inventory_df, manufacturing_df): 
     today = pd.Timestamp.today().normalize()
     end_date = today + pd.Timedelta(days=14)  
-    future_fc = forecast_df[(forecast_df["date"] >= today) & (forecast_df["date"] < end_date)] 
+    future_fc = forecast_df[
+        (forecast_df["date"] >= today) & 
+        (forecast_df["date"] < end_date)
+    ] 
     demand = (
         future_fc.groupby("product_id")["forecast"].mean().reset_index(name="avg_daily_demand")
     )
