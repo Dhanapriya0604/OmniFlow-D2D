@@ -149,7 +149,8 @@ def inventory_optimization(forecast_df, inventory_df):
     df["holding_cost"] = np.maximum(holding_cost_rate * (df["avg_daily_demand"] + df["demand_std"]),1)
     df["EOQ"] = np.sqrt(
         (2 * df["annual_demand"] * ordering_cost) / (df["holding_cost"] + 1)
-    ).fillna(0)
+    )
+    df["EOQ"] = pd.to_numeric(df["EOQ"], errors="coerce").fillna(0)
     df["EOQ"] = df["EOQ"].clip(
         lower=(df["avg_daily_demand"] * 14).fillna(0),upper=(df["avg_daily_demand"] * 60).fillna(0))
     df["safety_stock"] = (service_level_z * df["demand_std"] * np.sqrt(lead_time_days)).clip(lower=0)
@@ -161,6 +162,8 @@ def inventory_optimization(forecast_df, inventory_df):
     df["stock_status"] = np.where(df["current_stock"] < df["reorder_point"] * 0.5,"🔴 Critical",
         np.where(df["current_stock"] < df["reorder_point"],
             "🟠 Reorder Required","🟢 Stock OK"))  
+    if "EOQ" not in df.columns:
+        df["EOQ"] = 0
     return df
 def inventory_nlp(df, q):
     q = q.lower()
