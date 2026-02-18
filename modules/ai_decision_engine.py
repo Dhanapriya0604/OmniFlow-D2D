@@ -51,7 +51,8 @@ def inject_css():
     .floating-card:hover {
         transform:translateY(-4px);
         box-shadow:0 14px 32px rgba(0,0,0,0.12);
-    }   
+    } 
+    /* ---------- Titles ---------- */
     .section-title {
         font-size:22px;
         font-weight:700;
