@@ -135,6 +135,12 @@ def inventory_optimization(forecast_df, inventory_df):
         ).reset_index()
     )
     demand["demand_std"] = demand["demand_std"].fillna(0)
+    if demand.empty:
+        return pd.DataFrame(columns=[
+            "product_id","avg_daily_demand","annual_demand",
+            "current_stock","EOQ","safety_stock",
+            "reorder_point","stock_status"
+        ])
     demand["annual_demand"] = demand["avg_daily_demand"] * 365
     df = demand.merge(
         inventory_df.groupby("product_id", as_index=False)
@@ -151,9 +157,9 @@ def inventory_optimization(forecast_df, inventory_df):
     )
     df["EOQ"] = np.sqrt(
         (2 * df["annual_demand"] * ordering_cost) / (df["holding_cost"] + 1)
-    ) 
+    ).fillna(0)
     df["EOQ"] = df["EOQ"].clip(
-        lower=df["avg_daily_demand"] * 14,upper=df["avg_daily_demand"] * 60
+        lower=(df["avg_daily_demand"] * 14).fillna(0),upper=(df["avg_daily_demand"] * 60).fillna(0)
     )
     df["safety_stock"] = (
         service_level_z * df["demand_std"] * np.sqrt(lead_time_days)
@@ -268,7 +274,7 @@ def inventory_optimization_page():
              (opt_df["stock_status"].isin(
                  ["🔴 Critical", "🟠 Reorder Required"]
              )).sum()),
-            ("Average EOQ", int(opt_df["EOQ"].mean())),
+            ("Average EOQ", int(opt_df["EOQ"].fillna(0).mean())),
             ("Average Safety Stock", int(opt_df["safety_stock"].mean()))
         ]
         for col, (t, v) in zip([c1, c2, c3], kpis):
