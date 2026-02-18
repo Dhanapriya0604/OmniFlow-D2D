@@ -123,17 +123,24 @@ def inventory_optimization(forecast_df, inventory_df):
     today = pd.Timestamp.today().normalize()
     horizon_end = today + pd.Timedelta(days=14)  
     forecast_df["date"] = pd.to_datetime(forecast_df["date"])   
-    forecast_14d = forecast_df[(forecast_df["date"] >= today) &(forecast_df["date"] < horizon_end)]
-    demand = (forecast_14d.groupby("product_id").agg(
-            avg_daily_demand=("forecast", "mean"),demand_std=("forecast", "std")).reset_index())
+    forecast_14d = forecast_df[
+        (forecast_df["date"] >= today) & (forecast_df["date"] < horizon_end)
+    ]
+
+    demand = (forecast_14d.groupby("product_id")
+              .agg(avg_daily_demand=("forecast", "mean"),
+                  demand_std=("forecast", "std")
+              ).reset_index())
     demand["demand_std"] = demand["demand_std"].fillna(0)
     if demand.empty:
         return pd.DataFrame(columns=["product_id","avg_daily_demand","annual_demand",
             "current_stock","EOQ","safety_stock","reorder_point","stock_status"])
     demand["annual_demand"] = demand["avg_daily_demand"] * 365
-    df = demand.mergeinventory_df.groupby((
-       "product_id", as_index=False).agg(current_stock=("on_hand_qty", "sum")), on="product_id",how="left"
+    stock = (
+        inventory_df
+            .groupby("product_id", as_index=False).agg(current_stock=("on_hand_qty", "sum"))
     )
+    df = demand.merge(stock, on="product_id", how="left")
     df["current_stock"] = df["current_stock"].fillna(0)
     ordering_cost = 500
     holding_cost_rate = 0.25
@@ -145,7 +152,6 @@ def inventory_optimization(forecast_df, inventory_df):
     ).fillna(0)
     df["EOQ"] = df["EOQ"].clip(
         lower=(df["avg_daily_demand"] * 14).fillna(0),upper=(df["avg_daily_demand"] * 60).fillna(0))
-    opt_df["EOQ"] = opt_df["EOQ"].fillna(0)
     df["safety_stock"] = (service_level_z * df["demand_std"] * np.sqrt(lead_time_days)).clip(lower=0)
     df["safety_stock"] = np.maximum(df["safety_stock"],df["avg_daily_demand"] * 2)
     df["reorder_point"] = np.ceil(df["avg_daily_demand"] * lead_time_days + df["safety_stock"])
