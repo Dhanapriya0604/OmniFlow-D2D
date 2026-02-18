@@ -5,20 +5,12 @@ import os
 import pandas as pd
 import streamlit as st
 st.set_page_config(page_title="AI Decision Intelligence", layout="wide")
-# ======================================================================================
-# PATHS
-# ======================================================================================
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 DATA_DIR = os.path.join(BASE_DIR, "data")
-
 FORECAST_PATH   = os.path.join(DATA_DIR, "forecast_output.csv")
 INVENTORY_PATH  = os.path.join(DATA_DIR, "inventory_optimization.csv")
 PRODUCTION_PATH = os.path.join(DATA_DIR, "production_plan.csv")
 LOGISTICS_PATH  = os.path.join(DATA_DIR, "logistics_plan.csv")
-
-# ======================================================================================
-# MODERN DASHBOARD CSS
-# ======================================================================================
 def inject_css():
     st.markdown("""
     <style>   
@@ -60,7 +52,6 @@ def inject_css():
         transform:translateY(-4px);
         box-shadow:0 14px 32px rgba(0,0,0,0.12);
     }   
-    /* ---------- Titles ---------- */
     .section-title {
         font-size:22px;
         font-weight:700;
