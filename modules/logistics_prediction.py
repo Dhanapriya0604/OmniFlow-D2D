@@ -121,9 +121,12 @@ def load_logistics():
 def logistics_optimization(forecast_df, inventory_df, production_df, logistics_df):
     if "date" in forecast_df.columns:
         forecast_df = forecast_df.sort_values(["product_id","date"])
-    forecast_df["rank"] = forecast_df.groupby("product_id").cumcount()   
-    demand = (forecast_df[forecast_df["rank"] < 14]
-        .groupby("product_id", as_index=False)["forecast"]
+    today = pd.Timestamp.today().normalize()
+    end_date = today + pd.Timedelta(days=14) 
+    forecast_df["date"] = pd.to_datetime(forecast_df["date"])   
+    future_fc = forecast_df[(forecast_df["date"] >= today) & (forecast_df["date"] < end_date)] 
+    demand = (
+        future_fc.groupby("product_id", as_index=False)["forecast"]
         .mean().rename(columns={"forecast": "avg_daily_demand"})
     )
     planning_days = 14
@@ -148,7 +151,15 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
         )
     df["production_required"] = df["production_required"].fillna(0)
     logistics_df["delay_flag"] = logistics_df.get("delay_flag", 0)
-    forecast_df["region"] = forecast_df["region"].astype(str).str.strip()    
+    forecast_df["region"] = forecast_df["region"].astype(str).str.strip()
+    region_lookup = {
+        "0": "NORTH",
+        "1": "SOUTH",
+        "2": "WEST",
+        "3": "EAST"
+    }    
+    forecast_df["region"] = forecast_df["region"].replace(region_lookup)
+    forecast_df["region"] = forecast_df["region"].str.upper()   
     if {"product_id","destination_region"}.issubset(logistics_df.columns): 
         region_dist = (logistics_df.groupby(["product_id","destination_region"])
             .size().reset_index(name="shipments")
@@ -166,6 +177,7 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
     )   
     df = df.merge(fallback_region, on="product_id", how="left")
     df["destination_region"] = df["destination_region"].fillna(df["region"])
+    df["destination_region"] = df["destination_region"].replace(region_lookup)
     warehouse_region_map = {
         "WH01": "NORTH",
         "WH02": "SOUTH",
