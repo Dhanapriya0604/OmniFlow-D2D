@@ -84,8 +84,7 @@ def compute_insights(forecast, inventory, production, logistics):
         "product_id" in forecast.columns and"forecast" in forecast.columns
     ):
         high_demand = (forecast.groupby("product_id")["forecast"].mean()
-            .sort_values(ascending=False).head(5)
-        )
+            .sort_values(ascending=False).head(5))
     else:
         high_demand = pd.Series(dtype=float)
     risk_products = []  
