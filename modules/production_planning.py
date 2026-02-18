@@ -1,3 +1,4 @@
+
 # ======================================================================================
 # OmniFlow-D2D : Production Planning Module
 # ======================================================================================
@@ -101,13 +102,9 @@ def load_forecasts():
         return st.session_state["all_forecasts"]
     return pd.read_csv(FORECAST_PATH)
 def production_planning(forecast_df, inventory_df, manufacturing_df): 
-    forecast_df["date"] = pd.to_datetime(forecast_df["date"], errors="coerce")
     today = pd.Timestamp.today().normalize()
     end_date = today + pd.Timedelta(days=14)  
-    future_fc = forecast_df[
-        (forecast_df["date"] >= today) & 
-        (forecast_df["date"] < end_date)
-    ] 
+    future_fc = forecast_df[(forecast_df["date"] >= today) & (forecast_df["date"] < end_date)] 
     demand = (
         future_fc.groupby("product_id")["forecast"].mean().reset_index(name="avg_daily_demand")
     )
@@ -117,9 +114,11 @@ def production_planning(forecast_df, inventory_df, manufacturing_df):
     )
     df = demand.merge(inv, on="product_id", how="left")
     df["current_stock"] = df["current_stock"].fillna(0)    
+    df["current_stock"] = np.minimum(df["current_stock"], df["avg_daily_demand"] * 45)   
+    df["current_stock"] = np.maximum(df["current_stock"], df["avg_daily_demand"] * 7)
     planning_days = 14
     planning_need = df["avg_daily_demand"] * planning_days    
-    safety_buffer = planning_need * 0.15 
+    safety_buffer = planning_need * 0.15  # 15% buffer
     base_requirement = planning_need + safety_buffer - df["current_stock"]
     df["production_required"] = np.where(
         df["current_stock"] < planning_need * 0.9,np.maximum(0, base_requirement), 0
