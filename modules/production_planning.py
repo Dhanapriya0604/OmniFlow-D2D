@@ -135,7 +135,7 @@ def production_planning(forecast_df, inventory_df, manufacturing_df):
     df["production_required"] = np.ceil(df["production_required"])
     df["production_batches"] = np.ceil(df["production_required"] / df["batch_size"])
     df["backlog"] = np.maximum(0, planning_need - df["current_stock"] - df["max_possible_production"])
-    df["days_required"] = np.ceil(df["production_required"] / df["daily_capacity")   
+    df["days_required"] = np.ceil(df["production_required"] / df["daily_capacity"])   
     df.loc[df["production_required"] == 0, "days_required"] = 0
     df["days_required"] = df["days_required"].clip(lower=1)
     df["production_status"] = np.where(df["production_required"] > 0,"⚠ Production Needed", "✅ Stock Sufficient")  
