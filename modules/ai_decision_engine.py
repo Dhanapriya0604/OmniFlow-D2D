@@ -21,7 +21,6 @@ def inject_css():
         from {opacity:0; transform:translateY(8px);}
         to {opacity:1; transform:translateY(0);}
     }    
-    /* ---------- KPI Cards ---------- */
     .kpi-card {
         background:#ffffff;
         padding:22px;
@@ -39,7 +38,6 @@ def inject_css():
         font-weight:900;
         color:#2563eb; /* mild blue */
     }    
-    /* ---------- Floating Cards ---------- */
     .floating-card {
         background:linear-gradient(180deg,#f8fafc,#ffffff);
         padding:22px;
@@ -52,7 +50,6 @@ def inject_css():
         transform:translateY(-4px);
         box-shadow:0 14px 32px rgba(0,0,0,0.12);
     } 
-    /* ---------- Titles ---------- */
     .section-title {
         font-size:22px;
         font-weight:700;
@@ -63,9 +60,6 @@ def inject_css():
     }    
     </style>
     """, unsafe_allow_html=True)
-# ======================================================================================
-# DATA LOADER
-# ======================================================================================
 def safe_read(path):
     if os.path.exists(path):
         return pd.read_csv(path)
@@ -80,13 +74,9 @@ def load_data():
             df.columns = df.columns.astype(str)
             df.columns = df.columns.str.lower().str.strip()
     return forecast, inventory, production, logistics
-# ======================================================================================
-# INSIGHT ENGINE
-# ======================================================================================
 @st.cache_data
 def compute_insights(forecast, inventory, production, logistics):
-    avg_forecast = (
-        forecast["forecast"].mean()
+    avg_forecast = (forecast["forecast"].mean()
         if not forecast.empty and "forecast" in forecast.columns else 0
     )
     if (
@@ -98,23 +88,15 @@ def compute_insights(forecast, inventory, production, logistics):
         )
     else:
         high_demand = pd.Series(dtype=float)
-    # ================= INVENTORY RISK =================
     risk_products = []  
     if not inventory.empty:  
         inventory.columns = inventory.columns.str.lower()   
         if {"product_id", "current_stock", "reorder_point"}.issubset(inventory.columns):
-            risk_df = inventory[
-                inventory["current_stock"]<= inventory["reorder_point"]
-            ]
+            risk_df = inventory[inventory["current_stock"]<= inventory["reorder_point"]]
             risk_products = risk_df["product_id"].tolist()
         elif "stock_status" in inventory.columns:  
-            risk_df = inventory[
-                inventory["stock_status"].astype(str)
-                .str.contains("critical|reorder", case=False, na=False)
-            ]
+            risk_df = inventory[inventory["stock_status"].astype(str).str.contains("critical|reorder", case=False, na=False)]
             risk_products = risk_df["product_id"].tolist()
-
-    # ================= PRODUCTION NEED =================
     production_needed = [] 
     if (not production.empty and
         {"product_id","production_required"}.issubset(production.columns)
@@ -122,8 +104,6 @@ def compute_insights(forecast, inventory, production, logistics):
         production_needed = production[production["production_required"] > 0]["product_id"].tolist()
     if not production_needed:
         production_needed = risk_products.copy()
-        
-   # ================= LOGISTICS RISK =================
     delay_regions = []   
     if not logistics.empty:  
         logistics.columns = logistics.columns.str.lower()   
@@ -132,11 +112,9 @@ def compute_insights(forecast, inventory, production, logistics):
         elif "delay_flag" in logistics.columns:
             region_delay = (logistics.groupby("destination_region")["delay_flag"].mean().reset_index())
             delay_regions = region_delay[region_delay["delay_flag"] > 0.2]["destination_region"].tolist()
-
     total_products = forecast["product_id"].nunique() if not forecast.empty else 0
     risk_ratio = len(risk_products) / total_products if total_products else 0
-    health_score = max(0,100-len(risk_products)* 8-len(production_needed)* 5-len(delay_regions)* 4)
-    
+    health_score = max(0,100-len(risk_products)* 8-len(production_needed)* 5-len(delay_regions)* 4)  
     bottleneck = "None"
     if len(risk_products) >= len(production_needed) and risk_products:
         bottleneck = "Inventory"
@@ -158,10 +136,7 @@ def product_decisions(forecast, inventory, production):
     decisions = []
     if forecast.empty:
         return pd.DataFrame()
-    demand = (
-        forecast.groupby("product_id")["forecast"]
-        .mean().reset_index(name="avg_demand")
-    )
+    demand = (forecast.groupby("product_id")["forecast"].mean().reset_index(name="avg_demand"))
     stock = inventory.groupby("product_id")["current_stock"].sum().reset_index() \
         if "current_stock" in inventory.columns else pd.DataFrame()
     prod = production[["product_id","production_required"]] \
@@ -173,13 +148,9 @@ def product_decisions(forecast, inventory, production):
     df.loc[df["current_stock"] < df["avg_demand"] * 3,"decision"] = "Replenish Inventory"
     df.loc[df["production_required"] > 0,"decision"] = "Increase Production"
     df.loc[
-        (df["current_stock"] < df["avg_demand"]) &
-        (df["production_required"] > 0),"decision"
+        (df["current_stock"] < df["avg_demand"]) & (df["production_required"] > 0),"decision"
     ] = "Urgent Production"
     return df.sort_values("avg_demand", ascending=False)
-# ======================================================================================
-# NLP ASSISTANT
-# ======================================================================================
 def decision_nlp(insights, q):
     q = q.lower()
     if "risk" in q:
@@ -235,16 +206,12 @@ def generate_decision_summary(insights):
             if insights["risk_products"] else "None",
         "recommended_actions": actions
     }
-# ======================================================================================
-# MAIN DASHBOARD PAGE
-# ======================================================================================
 def decision_intelligence_page():
     inject_css()
     forecast, inventory, production, logistics = load_data()
     insights = compute_insights(forecast, inventory, production, logistics)
     summary = generate_decision_summary(insights)
     st.title("🧠 AI Decision Intelligence")
-    # ================= KPI ROW =================
     cols = st.columns(4)
     metrics = [
         ("Avg Forecast", int(insights["avg_forecast"])),
@@ -263,8 +230,7 @@ def decision_intelligence_page():
     st.markdown("### Product Decisions")
     decision_df = product_decisions(forecast, inventory, production)  
     if not decision_df.empty:
-        st.dataframe(decision_df, use_container_width=True)
-    
+        st.dataframe(decision_df, use_container_width=True)   
     st.markdown("### Executive Decision Panel")
     st.markdown(f"""
     <div class="floating-card">
@@ -276,8 +242,6 @@ def decision_intelligence_page():
         </ul>
     </div>
     """, unsafe_allow_html=True)
-
-    # ================= SYSTEM STATUS ROW =================
     st.markdown("### System Status")   
     hcol, bcol = st.columns(2)   
     with hcol:
@@ -294,7 +258,6 @@ def decision_intelligence_page():
             <h1>{insights['bottleneck']}</h1>
         </div>
         """, unsafe_allow_html=True)        
-    # ================= PERFORMANCE ANALYTICS =================
     st.markdown("### Performance Analytics")    
     dcol, pcol = st.columns(2)    
     with dcol:
@@ -306,24 +269,16 @@ def decision_intelligence_page():
         st.markdown('</div>', unsafe_allow_html=True)    
     with pcol:
         st.markdown("#### Production Pressure")
-        if (
-            not production.empty and
-            "product_id" in production.columns and
-            "production_required" in production.columns
+        if (not production.empty and
+            "product_id" in production.columns and "production_required" in production.columns
         ):
-            st.bar_chart(
-                production.set_index("product_id")["production_required"]
-            )
+            st.bar_chart(production.set_index("product_id")["production_required"])
         else:
             st.info("No production pressure detected.")
         st.markdown('</div>', unsafe_allow_html=True)
-
-    # ================= AI ASSISTANT =================
     st.markdown("### AI Assistant")
     q = st.text_input("Ask supply-chain questions")
     if q:
         st.success(decision_nlp(insights, q))
-
-    # ================= API OUTPUT =================
     st.markdown("### API Output")
     st.json(insights)
