@@ -119,9 +119,7 @@ def production_planning(forecast_df, inventory_df, manufacturing_df):
     planning_need = df["avg_daily_demand"] * planning_days    
     safety_buffer = planning_need * 0.15  # 15% buffer
     base_requirement = planning_need + safety_buffer - df["current_stock"]
-    df["production_required"] = np.where(
-        df["current_stock"] < planning_need * 0.9,np.maximum(0, base_requirement), 0
-    )
+    df["production_required"] = np.where(df["current_stock"] < planning_need * 0.9,np.maximum(0, base_requirement), 0)
     mfg_agg = (
         manufacturing_df.groupby("product_id", as_index=False).agg( batch_size=("planned_qty", "mean"))
     )    
@@ -129,9 +127,7 @@ def production_planning(forecast_df, inventory_df, manufacturing_df):
     df["batch_size"] = df["batch_size"].fillna(100)   
     df["daily_capacity"] = df["batch_size"]    
     df["max_possible_production"] = df["daily_capacity"] * 30
-    df["production_required"] = np.minimum(
-        df["production_required"], df["max_possible_production"]
-    ) 
+    df["production_required"] = np.minimum(df["production_required"], df["max_possible_production"]) 
     df["production_required"] *= 0.9
     df["production_required"] = np.where(
         df["production_required"] < df["batch_size"] * 0.6, 0, df["production_required"]
@@ -139,7 +135,9 @@ def production_planning(forecast_df, inventory_df, manufacturing_df):
     df["production_required"] = np.ceil(df["production_required"])
     df["production_batches"] = np.ceil(df["production_required"] / df["batch_size"])
     df["backlog"] = np.maximum(0, planning_need - df["current_stock"] - df["max_possible_production"])
-    df["days_required"] = np.ceil(df["production_required"] / df["daily_capacity"])  
+    df["days_required"] = np.ceil(df["production_required"] / df["daily_capacity")   
+    df.loc[df["production_required"] == 0, "days_required"] = 0
+    df["days_required"] = df["days_required"].clip(lower=1)
     df["production_status"] = np.where(df["production_required"] > 0,"⚠ Production Needed", "✅ Stock Sufficient")  
     stock_gap = (planning_need - df["current_stock"]).clip(lower=0)  
     df["production_priority"] = (df["production_required"] * 1.2+ df["backlog"] * 2 + stock_gap * 1.5)  
