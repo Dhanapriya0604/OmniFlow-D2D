@@ -1,4 +1,3 @@
-
 # ======================================================================================
 # OmniFlow-D2D : Production Planning Module
 # ======================================================================================
@@ -118,11 +117,9 @@ def production_planning(forecast_df, inventory_df, manufacturing_df):
     )
     df = demand.merge(inv, on="product_id", how="left")
     df["current_stock"] = df["current_stock"].fillna(0)    
-    df["current_stock"] = np.minimum(df["current_stock"], df["avg_daily_demand"] * 45)   
-    df["current_stock"] = np.maximum(df["current_stock"], df["avg_daily_demand"] * 7)
     planning_days = 14
     planning_need = df["avg_daily_demand"] * planning_days    
-    safety_buffer = planning_need * 0.15  # 15% buffer
+    safety_buffer = planning_need * 0.15 
     base_requirement = planning_need + safety_buffer - df["current_stock"]
     df["production_required"] = np.where(
         df["current_stock"] < planning_need * 0.9,np.maximum(0, base_requirement), 0
