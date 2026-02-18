@@ -133,8 +133,14 @@ def inventory_optimization(forecast_df, inventory_df):
               ).reset_index())
     demand["demand_std"] = demand["demand_std"].fillna(0)
     if demand.empty:
-        return pd.DataFrame(columns=["product_id","avg_daily_demand","annual_demand",
-            "current_stock","EOQ","safety_stock","reorder_point","stock_status"])
+        empty_df = pd.DataFrame(columns=[
+            "product_id","avg_daily_demand","annual_demand",
+            "current_stock","EOQ","safety_stock",
+            "reorder_point","stock_status"
+        ])
+        empty_df["stock_status"] = "🟢 Stock OK"
+        return empty_df
+
     demand["annual_demand"] = demand["avg_daily_demand"] * 365
     stock = (
         inventory_df
@@ -164,6 +170,9 @@ def inventory_optimization(forecast_df, inventory_df):
             "🟠 Reorder Required","🟢 Stock OK"))  
     if "EOQ" not in df.columns:
         df["EOQ"] = 0
+    if "stock_status" not in df.columns:
+        df["stock_status"] = "🟢 Stock OK"
+
     return df
 def inventory_nlp(df, q):
     q = q.lower()
