@@ -1,3 +1,4 @@
+
 # ======================================================================================
 # OmniFlow-D2D : Inventory Optimization Module
 # ======================================================================================
@@ -88,19 +89,22 @@ INVENTORY_PATH = os.path.join(DATA_DIR, "retail_inventory_snapshot.csv")
 DATA_DICTIONARY = pd.DataFrame({
     "Column": [
         "product_id","current_stock","avg_daily_demand","annual_demand",
-        "EOQ","safety_stock","reorder_point","stock_status"],
+        "EOQ","safety_stock","reorder_point","stock_status"
+    ],
     "Description": [
         "Unique product identifier","Current available inventory",
         "Average daily forecasted demand","Projected annual demand",
         "Economic Order Quantity","Buffer stock to handle demand uncertainty",
-        "Stock level at which reorder is triggered","Inventory health indicator"]
+        "Stock level at which reorder is triggered","Inventory health indicator"
+    ]
 })
 @st.cache_data
 def load_inventory():
     df = pd.read_csv(INVENTORY_PATH)
     df.columns = df.columns.str.lower().str.strip()
     df["warehouse_id"] = (df["warehouse_id"].astype(str).str.upper()
-        .str.replace("-", "", regex=False).str.strip())
+        .str.replace("-", "", regex=False).str.strip()
+    )
     df["product_id"] = df["product_id"].astype(str).str.upper().str.strip()
     df["on_hand_qty"] = pd.to_numeric(df["on_hand_qty"], errors="coerce")
     df["on_hand_qty"] = df["on_hand_qty"].fillna(0)
@@ -111,26 +115,26 @@ def data_profiling(df):
         "Total Products": df["product_id"].nunique(),
         "Average Stock Level": round(df["current_stock"].mean(), 2),
         "Products at Risk": int(
-            df["stock_status"].isin(["🔴 Critical", "🟠 Reorder Required"]).sum()),
+            df["stock_status"].isin(["🔴 Critical", "🟠 Reorder Required"]).sum()
+        ),
         "Average EOQ": round(df["EOQ"].mean(), 2),
         "Average Safety Stock": round(df["safety_stock"].mean(), 2)
     }
 def inventory_optimization(forecast_df, inventory_df):
     forecast_df["forecast"] = pd.to_numeric(
-        forecast_df["forecast"], errors="coerce").fillna(0)
+        forecast_df["forecast"], errors="coerce"
+    ).fillna(0)
     forecast_df["product_id"] = (
-        forecast_df["product_id"].astype(str).str.upper().str.strip())
+        forecast_df["product_id"].astype(str).str.upper().str.strip()
+    )
     today = pd.Timestamp.today().normalize()
     horizon_end = today + pd.Timedelta(days=14)  
     forecast_df["date"] = pd.to_datetime(forecast_df["date"])   
-    forecast_14d = forecast_df[
-        (forecast_df["date"] >= today) & (forecast_df["date"] < horizon_end)
-    ]
-
-    demand = (forecast_14d.groupby("product_id")
-              .agg(avg_daily_demand=("forecast", "mean"),
-                  demand_std=("forecast", "std")
-              ).reset_index())
+    forecast_14d = forecast_df[(forecast_df["date"] >= today) &(forecast_df["date"] < horizon_end)]
+    demand = (forecast_14d.groupby("product_id").agg(
+            avg_daily_demand=("forecast", "mean"),demand_std=("forecast", "std")
+        ).reset_index()
+    )
     demand["demand_std"] = demand["demand_std"].fillna(0)
     if demand.empty:
         return pd.DataFrame(columns=[
@@ -139,34 +143,43 @@ def inventory_optimization(forecast_df, inventory_df):
             "reorder_point","stock_status"
         ])
     demand["annual_demand"] = demand["avg_daily_demand"] * 365
-    stock = (
-        inventory_df
-            .groupby("product_id", as_index=False).agg(current_stock=("on_hand_qty", "sum"))
+    df = demand.merge(
+        inventory_df.groupby("product_id", as_index=False)
+        .agg(current_stock=("on_hand_qty", "sum")),
+        on="product_id",how="left"
     )
-    df = demand.merge(stock, on="product_id", how="left")
     df["current_stock"] = df["current_stock"].fillna(0)
     ordering_cost = 500
     holding_cost_rate = 0.25
     lead_time_days = 14
     service_level_z = 1.65
-    df["holding_cost"] = np.maximum(holding_cost_rate * (df["avg_daily_demand"] + df["demand_std"]),1)
+    df["holding_cost"] = np.maximum(
+        holding_cost_rate * (df["avg_daily_demand"] + df["demand_std"]),1
+    )
     df["EOQ"] = np.sqrt(
         (2 * df["annual_demand"] * ordering_cost) / (df["holding_cost"] + 1)
-    )
-    df["EOQ"] = pd.to_numeric(df["EOQ"], errors="coerce").fillna(0)
+    ).fillna(0)
     df["EOQ"] = df["EOQ"].clip(
-        lower=(df["avg_daily_demand"] * 14).fillna(0),upper=(df["avg_daily_demand"] * 60).fillna(0))
-    df["safety_stock"] = (service_level_z * df["demand_std"] * np.sqrt(lead_time_days)).clip(lower=0)
+        lower=(df["avg_daily_demand"] * 14).fillna(0),upper=(df["avg_daily_demand"] * 60).fillna(0)
+    )
+    df["safety_stock"] = (
+        service_level_z * df["demand_std"] * np.sqrt(lead_time_days)
+    ).clip(lower=0)
     df["safety_stock"] = np.maximum(df["safety_stock"],df["avg_daily_demand"] * 2)
-    df["reorder_point"] = np.ceil(df["avg_daily_demand"] * lead_time_days + df["safety_stock"])
+
+    df["reorder_point"] = np.ceil(
+        df["avg_daily_demand"] * lead_time_days + df["safety_stock"]
+    )
     df["stockout_risk"] = (df["reorder_point"] - df["current_stock"]) / (df["reorder_point"] + 1e-6)
     df["stockout_risk"] = df["stockout_risk"].clip(0, 1)
     df["stock_cover_days"] = (df["current_stock"] / df["avg_daily_demand"].replace(0,1))
-    df["stock_status"] = np.where(df["current_stock"] < df["reorder_point"] * 0.5,"🔴 Critical",
-        np.where(df["current_stock"] < df["reorder_point"],
-            "🟠 Reorder Required","🟢 Stock OK"))  
-    if "EOQ" not in df.columns:
-        df["EOQ"] = 0
+    df["stock_status"] = np.where(
+        df["current_stock"] < df["reorder_point"] * 0.5,"🔴 Critical",
+        np.where(
+            df["current_stock"] < df["reorder_point"],
+            "🟠 Reorder Required","🟢 Stock OK"
+        )
+    )  
     return df
 def inventory_nlp(df, q):
     q = q.lower()
@@ -234,7 +247,8 @@ def inventory_optimization_page():
         view_mode = st.radio("Inventory Analysis Mode",
             ["Overall Inventory", "Single Product"],horizontal=True,
             index=["Overall Inventory", "Single Product"].index(
-                st.session_state.inventory_view_mode)
+                st.session_state.inventory_view_mode
+            )
         )     
         st.session_state.inventory_view_mode = view_mode
         if view_mode == "Single Product":
@@ -242,7 +256,8 @@ def inventory_optimization_page():
             if "inventory_selected_product" not in st.session_state:
                 st.session_state.inventory_selected_product = product_list[0]          
             product = st.selectbox("Select Product",product_list,
-                index=product_list.index(st.session_state.inventory_selected_product))         
+                index=product_list.index(st.session_state.inventory_selected_product)
+            )         
             st.session_state.inventory_selected_product = product
             view_df = opt_df[opt_df["product_id"] == product]
         else:
@@ -271,17 +286,22 @@ def inventory_optimization_page():
                     <div class="metric-value">{v}</div>
                 </div>
                 """, unsafe_allow_html=True)
-        st.markdown('<div class="section-title">Stock Level vs Reorder Point</div>',
-            unsafe_allow_html=True)      
+        st.markdown(
+            '<div class="section-title">Stock Level vs Reorder Point</div>',
+            unsafe_allow_html=True
+        )      
         stock_fig = px.scatter(
             view_df,x="reorder_point",y="current_stock",
             color="stock_status",
             color_discrete_map={
-               "🔴 Critical": "red","🟠 Reorder Required": "orange","🟢 Stock OK": "green"
+                "🔴 Critical": "red",
+                "🟠 Reorder Required": "orange",
+                "🟢 Stock OK": "green"
             },
             hover_data=["product_id"],
             labels={
-                "reorder_point": "Reorder Point","current_stock": "Current Stock"
+                "reorder_point": "Reorder Point",
+                "current_stock": "Current Stock"
             },template="plotly_white"
         )      
         stock_fig.add_shape(
@@ -302,9 +322,12 @@ def inventory_optimization_page():
         q = st.text_input("Ask inventory-related questions")
         if q:
             st.markdown(
-                f"<div class='card'>{inventory_nlp(view_df, q)}</div>",unsafe_allow_html=True)
+                f"<div class='card'>{inventory_nlp(view_df, q)}</div>",unsafe_allow_html=True
+            )
         c1, c2, c3 = st.columns(3)
         with c2:
             st.download_button(
-             "⬇ Download Inventory Output", view_df.to_csv(index=False),"inventory_optimization.csv"
+                "⬇ Download Inventory Output",
+                view_df.to_csv(index=False),
+                "inventory_optimization.csv"
             )
