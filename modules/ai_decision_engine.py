@@ -4,6 +4,7 @@
 import os
 import pandas as pd
 import streamlit as st
+import plotly.express as px
 st.set_page_config(page_title="AI Decision Intelligence", layout="wide")
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 DATA_DIR = os.path.join(BASE_DIR, "data")
@@ -50,6 +51,18 @@ def inject_css():
         font-size:22px;
         font-weight:700;
         margin-bottom:10px;
+    }
+    .action-item {
+        background: #f1f5f9;
+        padding: 10px 14px;
+        border-radius: 10px;
+        margin: 6px 0;
+        font-size: 14px;
+        color: #1f2937;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        border-left: 4px solid #2563eb;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -235,6 +248,12 @@ def decision_intelligence_page():
             """, unsafe_allow_html=True)
     st.markdown('<div class="section-title">Product Decisions</div>', unsafe_allow_html=True)
     decision_df = product_decisions(forecast, inventory, production)  
+    decision_df["color"] = decision_df["decision"].map({
+        "Healthy": "#00CC96",
+        "Replenish Inventory": "#FFA15A",
+        "Increase Production": "#AB63FA",
+        "Urgent Production": "#EF553B"
+    })
     if not decision_df.empty:
         st.dataframe(decision_df, use_container_width=True)   
     st.markdown('<div class="section-title">Executive Decision Panel</div>', unsafe_allow_html=True)
@@ -243,27 +262,27 @@ def decision_intelligence_page():
         <h3>Top Risk Product</h3>
         <h2>{summary["top_risk_product"]}</h2>
         <p><b>Recommended Actions</b></p>
-        <ul>
-            {''.join(f'<li>{a}</li>' for a in summary["recommended_actions"])}
-        </ul>
+        <div style="text-align:left; margin-top:10px;">
+            {''.join(f'<div class="action-item">✔ {a}</div>' for a in summary["recommended_actions"])}
+        </div>
     </div>
     """, unsafe_allow_html=True)
+    health = insights["health_score"]
+    if health > 75:
+        color = "#16a34a"
+    elif health > 50:
+        color = "#f59e0b"
+    else:
+        color = "#dc2626"
     st.markdown('<div class="section-title">System Status</div>', unsafe_allow_html=True)  
     hcol, bcol = st.columns(2)   
     with hcol:
         st.markdown(f"""
         <div class="floating-card">
             <h3>System Health</h3>
-            health = insights["health_score"]
-            if health > 75:
-                color = "#16a34a"
-            elif health > 50:
-                color = "#f59e0b"
-            else:
-                color = "#dc2626"
             <h1 style="color:{color}">{health}/100</h1>
         </div>
-        """, unsafe_allow_html=True)   
+        """, unsafe_allow_html=True) 
     with bcol:
         st.markdown(f"""
         <div class="floating-card">
@@ -276,7 +295,11 @@ def decision_intelligence_page():
     with dcol:
         st.markdown('<div class="section-title">Demand Leaders</div>', unsafe_allow_html=True)
         if isinstance(insights["high_demand"], pd.Series) and not insights["high_demand"].empty:
-            st.bar_chart(insights["high_demand"])
+            fig1 = px.bar(
+                insights["high_demand"].reset_index(), x="product_id", y="forecast",
+                color_discrete_sequence=["#636EFA"] 
+            )     
+            st.plotly_chart(fig1, use_container_width=True)
         else:
             st.info("No demand data available.")
         st.markdown('</div>', unsafe_allow_html=True)    
@@ -285,7 +308,12 @@ def decision_intelligence_page():
         if (not production.empty and
             "product_id" in production.columns and "production_required" in production.columns
         ):
-            st.bar_chart(production.set_index("product_id")["production_required"])
+            fig2 = px.bar(
+                production, x="product_id", y="production_required",
+                color_discrete_sequence=["#EF553B"] 
+            )   
+            st.plotly_chart(fig2, use_container_width=True)
+
         else:
             st.info("No production pressure detected.")
         st.markdown('</div>', unsafe_allow_html=True)
