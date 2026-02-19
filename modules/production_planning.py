@@ -297,7 +297,7 @@ def production_planning_page():
         )      
         fig_ds = px.bar(
             view_prod_df, x="product_id",  y=["planning_demand", "current_stock"],
-            barmode="group", title="Demand vs Current Stock (14 Days)",
+            barmode="group",
             color_discrete_map={
                 "planning_demand": "#636EFA",
                 "current_stock": "#EF553B"
@@ -308,6 +308,18 @@ def production_planning_page():
             xaxis_title="Product ID", yaxis_title="Units", legend_title="", title_x=0.3
         )
         st.plotly_chart(fig_ds, use_container_width=True)
+        view_prod_df["risk_flag"] = view_prod_df["current_stock"] < view_prod_df["planning_demand"]
+        fig_ds = px.bar(
+            view_prod_df,
+            x="product_id",
+            y=["planning_demand", "current_stock"],
+            barmode="group",
+            color="risk_flag",
+            color_discrete_map={True: "red", False: "green"},
+            title="Demand vs Stock with Risk Highlight",
+            template="plotly_white"
+        )
+
         st.markdown('<div class="section-title">Production Requirement</div>', unsafe_allow_html=True)
         st.plotly_chart(
             px.bar(view_prod_df,
