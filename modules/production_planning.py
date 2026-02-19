@@ -314,7 +314,7 @@ def production_planning_page():
             template="plotly_white"
         )  
         fig_ds.update_layout(
-            xaxis_title="Product ID", yaxis_title="Units", legend_title="", title_x=0.3
+            xaxis_title="Product ID", yaxis_title="Units", legend_title=""
         )
         st.plotly_chart(fig_ds, use_container_width=True)
         st.markdown('<div class="section-title">Production Requirement</div>', unsafe_allow_html=True)
