@@ -148,10 +148,6 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
         df = df.merge(production_df[["product_id","production_required"]],
             on="product_id", how="left"
         )
-    df["destination_region"] = df["destination_region"].astype(str)
-    df["destination_region"] = df["destination_region"].replace(
-        {"1": "NORTH", "2": "SOUTH", "3": "WEST", "4": "EAST"}
-    )
     df["production_required"] = df["production_required"].fillna(0)
     logistics_df["delay_flag"] = logistics_df.get("delay_flag", 0)
     forecast_df["region"] = forecast_df["region"].astype(str).str.strip()    
@@ -172,6 +168,10 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
     )   
     df = df.merge(fallback_region, on="product_id", how="left")
     df["destination_region"] = df["destination_region"].fillna(df["region"])
+    df["destination_region"] = df["destination_region"].astype(str)
+    df["destination_region"] = df["destination_region"].replace(
+        {"1": "NORTH", "2": "SOUTH", "3": "WEST", "4": "EAST"}
+    )
     warehouse_region_map = {
         "WH01": "NORTH",
         "WH02": "SOUTH",
@@ -303,6 +303,8 @@ def logistics_optimization_page():
                 "WEST": "#d62728","UNKNOWN": "#7f7f7f"
             },hover_data=["avg_delay_rate","avg_transit_days"]),use_container_width=True
         )
+        st.write(df["destination_region"].unique())
+
         st.markdown(
             '<div class="section-title">Shipping Demand by Region</div>', unsafe_allow_html=True
         )
