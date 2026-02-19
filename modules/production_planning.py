@@ -96,10 +96,10 @@ def load_manufacturing():
     df = pd.read_csv(MANUFACTURING_PATH)
     df.columns = df.columns.str.lower()
     return df
+@st.cache_data
 def load_forecasts():
-    if "all_forecasts" in st.session_state:
-        return st.session_state["all_forecasts"]
     return pd.read_csv(FORECAST_PATH)
+@st.cache_data
 def production_planning(forecast_df, inventory_df, manufacturing_df):  
     forecast_df = forecast_df.sort_values(["product_id", "date"])
     demand = (
@@ -238,9 +238,14 @@ def production_planning_page():
         """, unsafe_allow_html=True)
     with tab2:
         forecast_df = load_forecasts()
+        st.session_state["all_forecasts"] = forecast_df
         inventory_df = load_inventory()
         manufacturing_df = load_manufacturing()        
-        prod_df = production_planning(forecast_df, inventory_df, manufacturing_df)
+        if "prod_df" not in st.session_state:
+            st.session_state["prod_df"] = production_planning(
+                forecast_df, inventory_df, manufacturing_df
+            ) 
+        prod_df = st.session_state["prod_df"]
         prod_df = prod_df.sort_values("production_required", ascending=False)
         prod_path = os.path.join(DATA_DIR, "production_plan.csv")
         prod_df.to_csv(prod_path, index=False)       
