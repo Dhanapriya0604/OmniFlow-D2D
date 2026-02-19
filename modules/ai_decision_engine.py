@@ -19,45 +19,64 @@ def inject_css():
         --bg: #f8fafc;
         --card: #ffffff;
         --text: #1f2937;
-
         --primary: #2563eb;
         --success: #16a34a;
         --danger: #dc2626;
         --warning: #f59e0b;
-
         --border: #e5e7eb;
     }
-
-    body {
+    html, body {
         background: linear-gradient(180deg, #f8fafc, #eef2ff);
+        color: var(--text);
+        font-family: Inter, system-ui;
+    }
+    section.main > div {
+        animation: fadeIn 0.4s ease-in-out;
     }
 
+    @keyframes fadeIn {
+        from {opacity:0; transform:translateY(6px);}
+        to {opacity:1; transform:translateY(0);}
+    }
     .kpi-card {
-        background: var(--card);
         padding:22px;
         border-radius:18px;
         text-align:center;
-        box-shadow:0 6px 18px rgba(0,0,0,0.06);
+        background: linear-gradient(180deg, #ffffff, #f1f5f9);
+        box-shadow:
+            0 6px 16px rgba(0,0,0,0.05);
+        transition: all 0.25s ease;
     }
-
+    .kpi-card:hover {
+        transform: translateY(-6px);
+        box-shadow:
+            0 16px 32px rgba(0,0,0,0.08);
+    }
     .kpi-value {
         font-size:32px;
         font-weight:900;
     }
-
     .floating-card {
-        background: #ffffff;
         padding:22px;
         border-radius:18px;
-        border-left: 6px solid var(--primary);
-        box-shadow:0 8px 24px rgba(0,0,0,0.08);
         text-align:center;
+        background: linear-gradient(180deg, #ffffff, #f8fafc);
+        box-shadow: 
+            0 8px 20px rgba(0, 0, 0, 0.05),
+            0 2px 6px rgba(0, 0, 0, 0.04);
+        transition: all 0.25s ease;
+        margin-top: 10px;
     }
-
+    .floating-card:hover {
+        transform: translateY(-6px);
+        box-shadow: 
+            0 16px 32px rgba(0, 0, 0, 0.08),
+            0 4px 10px rgba(0, 0, 0, 0.06);
+    }
     .section-title {
         font-size:22px;
         font-weight:700;
-        margin-bottom:10px;
+        margin:20px 0 10px;
     }
     </style>
     """, unsafe_allow_html=True)
