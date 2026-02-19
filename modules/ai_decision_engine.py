@@ -226,11 +226,11 @@ def decision_intelligence_page():
                 <div class="kpi-value">{val}</div>
             </div>
             """, unsafe_allow_html=True) 
-    st.markdown("### Product Decisions")
+    st.markdown('<div class="section-title">Product Decisions</div>', unsafe_allow_html=True)
     decision_df = product_decisions(forecast, inventory, production)  
     if not decision_df.empty:
         st.dataframe(decision_df, use_container_width=True)   
-    st.markdown("### Executive Decision Panel")
+    st.markdown('<div class="section-title">Executive Decision Panel</div>', unsafe_allow_html=True)
     st.markdown(f"""
     <div class="floating-card">
         <h3>Top Risk Product</h3>
@@ -241,7 +241,7 @@ def decision_intelligence_page():
         </ul>
     </div>
     """, unsafe_allow_html=True)
-    st.markdown("### System Status")   
+    st.markdown('<div class="section-title">System Status</div>', unsafe_allow_html=True)  
     hcol, bcol = st.columns(2)   
     with hcol:
         st.markdown(f"""
@@ -257,17 +257,17 @@ def decision_intelligence_page():
             <h1>{insights['bottleneck']}</h1>
         </div>
         """, unsafe_allow_html=True)        
-    st.markdown("### Performance Analytics")    
+    st.markdown('<div class="section-title">Performance Analytics</div>', unsafe_allow_html=True)    
     dcol, pcol = st.columns(2)    
     with dcol:
-        st.markdown("#### Demand Leaders")
+        st.markdown('<div class="section-title">Demand Leaders</div>', unsafe_allow_html=True)
         if isinstance(insights["high_demand"], pd.Series) and not insights["high_demand"].empty:
             st.bar_chart(insights["high_demand"])
         else:
             st.info("No demand data available.")
         st.markdown('</div>', unsafe_allow_html=True)    
     with pcol:
-        st.markdown("#### Production Pressure")
+        st.markdown('<div class="section-title">Production Pressure</div>', unsafe_allow_html=True)
         if (not production.empty and
             "product_id" in production.columns and "production_required" in production.columns
         ):
@@ -275,9 +275,9 @@ def decision_intelligence_page():
         else:
             st.info("No production pressure detected.")
         st.markdown('</div>', unsafe_allow_html=True)
-    st.markdown("### AI Assistant")
+    st.markdown('<div class="section-title">AI Assistant</div>', unsafe_allow_html=True)
     q = st.text_input("Ask supply-chain questions")
     if q:
         st.success(decision_nlp(insights, q))
-    st.markdown("### API Output")
+    st.markdown('<div class="section-title">API Output</div>', unsafe_allow_html=True)
     st.json(insights)
