@@ -121,12 +121,9 @@ def load_logistics():
 def logistics_optimization(forecast_df, inventory_df, production_df, logistics_df):
     if "date" in forecast_df.columns:
         forecast_df = forecast_df.sort_values(["product_id","date"])
-    today = pd.Timestamp.today().normalize()
-    end_date = today + pd.Timedelta(days=14) 
-    forecast_df["date"] = pd.to_datetime(forecast_df["date"])   
-    future_fc = forecast_df[(forecast_df["date"] >= today) & (forecast_df["date"] < end_date)] 
-    demand = (
-        future_fc.groupby("product_id", as_index=False)["forecast"]
+    forecast_df["rank"] = forecast_df.groupby("product_id").cumcount()   
+    demand = (forecast_df[forecast_df["rank"] < 14]
+        .groupby("product_id", as_index=False)["forecast"]
         .mean().rename(columns={"forecast": "avg_daily_demand"})
     )
     planning_days = 14
@@ -151,18 +148,7 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
         )
     df["production_required"] = df["production_required"].fillna(0)
     logistics_df["delay_flag"] = logistics_df.get("delay_flag", 0)
-    forecast_df["region"] = forecast_df["region"].astype(str).str.strip().str.upper()
-    region_lookup = {
-        "0": "NORTH",
-        "1": "SOUTH",
-        "2": "WEST",
-        "3": "EAST",
-        0: "NORTH",
-        1: "SOUTH",
-        2: "WEST",
-        3: "EAST",
-    }
-    forecast_df["region"] = forecast_df["region"].replace(region_lookup)
+    forecast_df["region"] = forecast_df["region"].astype(str).str.strip()    
     if {"product_id","destination_region"}.issubset(logistics_df.columns): 
         region_dist = (logistics_df.groupby(["product_id","destination_region"])
             .size().reset_index(name="shipments")
@@ -174,22 +160,25 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
     ) 
     region_dist["share"] = region_dist["share"].clip(upper=0.5)
     df = df.merge(region_dist, on="product_id", how="left")    
-    df["share"] = df["share"].fillna(0.5)
-    df["shipping_need_14d"] = (df["shipping_need_14d"] * df["share"]).round()
+    df["shipping_need_14d"] = (df["shipping_need_14d"] * df["share"]).fillna(df["shipping_need_14d"])
     fallback_region = (forecast_df.groupby("product_id")["region"]
         .agg(lambda x: x.mode()[0] if len(x.mode()) > 0 else "UNKNOWN").reset_index()
     )   
     df = df.merge(fallback_region, on="product_id", how="left")
+    df["destination_region"] = df["destination_region"].fillna(df["region"])
     warehouse_region_map = {
         "WH01": "NORTH",
         "WH02": "SOUTH",
         "WH03": "WEST",
         "WH04": "EAST"
-    }  
-    df["destination_region"] = df["destination_region"].fillna(df["warehouse_id"].map(warehouse_region_map))
-    
+    }    
+    df["destination_region"] = df["destination_region"].fillna(
+        df["warehouse_id"].map(warehouse_region_map)
+    )
     df.drop(columns=["region"], errors="ignore", inplace=True)
-       
+    logistics_df["destination_region"] = (
+        logistics_df["destination_region"].astype(str).str.strip().str.upper()
+    )    
     if logistics_df.empty:
         region_stats = pd.DataFrame(columns=["destination_region","total_shipments",
             "delayed_shipments","avg_transit_days","avg_shipping_cost","avg_delay_rate"
@@ -235,15 +224,18 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
     df["shipping_need_14d"] = df["shipping_need_14d"].clip(lower=0)
     df = df.sort_values("shipping_priority", ascending=False)
     df["warehouse_id"] = df["warehouse_id"].fillna("WH_UNKNOWN")
-    df["destination_region"] = df["destination_region"].replace(region_lookup)
     df["destination_region"] = (df["destination_region"].fillna("UNKNOWN").astype(str).str.upper())
     df["recommended_carrier"] = df["recommended_carrier"].fillna("STANDARD")
     df["avg_delay_rate"] = df["avg_delay_rate"].fillna(0)
-    df["avg_transit_days"] = df["avg_transit_days"].fillna(logistics_df["actual_delivery_days"].median()) 
+    df["avg_transit_days"] = df["avg_transit_days"].fillna(
+        logistics_df["actual_delivery_days"].median()
+    ) 
     df["avg_shipping_cost"] = df["avg_shipping_cost"].fillna(logistics_df["logistics_cost"].median()) 
     df["production_required"] = df["production_required"].fillna(0)   
     df["avg_daily_demand"] = pd.to_numeric(df["avg_daily_demand"], errors="coerce").fillna(0).round().astype(int)
-    df["shipping_need_14d"] = pd.to_numeric(df["shipping_need_14d"], errors="coerce").fillna(0).round().astype(int)  
+    df["shipping_need_14d"] = pd.to_numeric(df["shipping_need_14d"], errors="coerce").fillna(0).round().astype(int)
+    if df["avg_shipping_cost"].median() > 2000:
+        df["avg_shipping_cost"] = df["avg_shipping_cost"] / 10   
     df["avg_shipping_cost"] = df["avg_shipping_cost"].clip(80, 600)
     df["avg_transit_days"] = pd.to_numeric(df["avg_transit_days"], errors="coerce").fillna(0).round().astype(int)
     df = df.replace([np.inf, -np.inf], 0)
@@ -273,8 +265,10 @@ def logistics_optimization_page():
 
         st.markdown('<div class="section-title">Logistics KPIs</div>',unsafe_allow_html=True)
         c1, c2, c3, c4 = st.columns(4)    
-        region_capacity = {"NORTH": 140,"SOUTH": 130,"WEST": 160,"EAST": 120}
-        opt_df["shipment_size"] = opt_df["destination_region"].map(region_capacity).fillna(120)
+        opt_df["shipment_size"] = np.where(
+            opt_df["destination_region"] == "WEST", 150,
+            np.where(opt_df["destination_region"] == "NORTH", 120, 100)
+        )     
         opt_df["shipments_required"] = np.ceil(opt_df["shipping_need_14d"] / opt_df["shipment_size"])
         metrics = [
             ("Avg Delay Rate", round(opt_df["avg_delay_rate"].mean(),2)),
