@@ -82,11 +82,9 @@ def inject_css():
     }
     </style>
     """, unsafe_allow_html=True)
-
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 DATA_DIR = os.path.join(BASE_DIR, "data")
 INVENTORY_PATH = os.path.join(DATA_DIR, "retail_inventory_snapshot.csv")
-
 DATA_DICTIONARY = pd.DataFrame({
     "Column": [
         "product_id","current_stock","avg_daily_demand","annual_demand",
@@ -99,7 +97,6 @@ DATA_DICTIONARY = pd.DataFrame({
         "Stock level at which reorder is triggered","Inventory health indicator"
     ]
 })
-
 @st.cache_data
 def load_inventory():
     df = pd.read_csv(INVENTORY_PATH)
@@ -124,12 +121,8 @@ def data_profiling(df):
         "Average Safety Stock": round(df["safety_stock"].mean(), 2)
     }
 def inventory_optimization(forecast_df, inventory_df):
-    forecast_df["forecast"] = pd.to_numeric(
-        forecast_df["forecast"], errors="coerce"
-    ).fillna(0)
-    forecast_df["product_id"] = (
-        forecast_df["product_id"].astype(str).str.upper().str.strip()
-    )
+    forecast_df["forecast"] = pd.to_numeric(forecast_df["forecast"], errors="coerce").fillna(0)
+    forecast_df["product_id"] = (forecast_df["product_id"].astype(str).str.upper().str.strip())
     demand = (forecast_df.groupby("product_id").agg(avg_daily_demand=("forecast", "mean"),
         demand_std=("forecast", "std")).reset_index()
     )   
@@ -145,33 +138,22 @@ def inventory_optimization(forecast_df, inventory_df):
     holding_cost_rate = 0.25
     lead_time_days = 14
     service_level_z = 1.65
-    df["holding_cost"] = np.maximum(
-        holding_cost_rate * (df["avg_daily_demand"] + df["demand_std"]),1
-    )
-    df["EOQ"] = np.sqrt(
-        (2 * df["annual_demand"] * ordering_cost) / (df["holding_cost"] + 1)
-    ) 
-    df["EOQ"] = df["EOQ"].clip(
-        lower=df["avg_daily_demand"] * 14,upper=df["avg_daily_demand"] * 60
-    )
-    df["safety_stock"] = (
-        service_level_z * df["demand_std"] * np.sqrt(lead_time_days)
-    ).clip(lower=0)
+    df["holding_cost"] = np.maximum(holding_cost_rate * (df["avg_daily_demand"] + df["demand_std"]),1)
+    df["EOQ"] = np.sqrt((2 * df["annual_demand"] * ordering_cost) / (df["holding_cost"] + 1)) 
+    df["EOQ"] = df["EOQ"].clip(lower=df["avg_daily_demand"] * 14,upper=df["avg_daily_demand"] * 60)
+    df["safety_stock"] = (service_level_z * df["demand_std"] * np.sqrt(lead_time_days)).clip(lower=0)
     df["safety_stock"] = np.maximum(df["safety_stock"],df["avg_daily_demand"] * 2)
-
-    df["reorder_point"] = np.ceil(
-        df["avg_daily_demand"] * lead_time_days + df["safety_stock"]
-    )
+    planning_days = 14
+    df["future_demand_14"] = df["avg_daily_demand"] * planning_days
+    df["reorder_point"] = np.ceil(df["future_demand_14"] + df["safety_stock"])
     df["stockout_risk"] = (df["reorder_point"] - df["current_stock"]) / (df["reorder_point"] + 1e-6)
     df["stockout_risk"] = df["stockout_risk"].clip(0, 1)
     df["stock_cover_days"] = (df["current_stock"] / df["avg_daily_demand"].replace(0,1))
     df["stock_status"] = np.where(
-        df["current_stock"] < df["reorder_point"] * 0.5,"🔴 Critical",
-        np.where(
-            df["current_stock"] < df["reorder_point"],
-            "🟠 Reorder Required","🟢 Stock OK"
-        )
-    )  
+        df["current_stock"] < df["future_demand_14"] * 0.5,"🔴 Critical",
+        np.where(df["current_stock"] < df["future_demand_14"],
+            "🟠 Reorder Required","🟢 Stock OK")
+    )
     return df
 def inventory_nlp(df, q):
     q = q.lower()
@@ -264,9 +246,7 @@ def inventory_optimization_page():
         c1, c2, c3 = st.columns(3)
         kpis = [
             ("Products at Risk",
-             (opt_df["stock_status"].isin(
-                 ["🔴 Critical", "🟠 Reorder Required"]
-             )).sum()),
+             (opt_df["stock_status"].isin(["🔴 Critical", "🟠 Reorder Required"])).sum()),
             ("Average EOQ", int(opt_df["EOQ"].mean())),
             ("Average Safety Stock", int(opt_df["safety_stock"].mean()))
         ]
