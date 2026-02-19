@@ -14,71 +14,48 @@ PRODUCTION_PATH = os.path.join(DATA_DIR, "production_plan.csv")
 LOGISTICS_PATH  = os.path.join(DATA_DIR, "logistics_plan.csv")
 def inject_css():
     st.markdown("""
-    <style>   
+    <style>
     :root {
-        --bg: #f8fafc;
-        --card: #ffffff;
-        --text: #1f2937;
-        --primary: #2563eb;
-        --success: #16a34a;
-        --danger: #dc2626;
-        --warning: #f59e0b;
-        --border: #e5e7eb;
+        --bg:#f8fafc;
+        --text:#0f172a;
+        --muted:#475569;
+        --primary:#1d4ed8;
+        --accent:#dbeafe;
+        --border:#e5e7eb;
     }
-    body {
-        background: linear-gradient(180deg, #f8fafc, #eef2ff);
+    html, body {
+        background:var(--bg);
+        color:var(--text);
+        font-family:Inter;
     }
-    .kpi-card {
-        padding:22px;
-        border-radius:18px;
-        text-align:center;   
-        background: linear-gradient(180deg, #ffffff, #f1f5f9);    
-        box-shadow:
-            0 6px 16px rgba(0,0,0,0.05);    
-        transition: all 0.25s ease;
+    section.main > div {
+        animation: fadeIn .4s ease-in-out;
     }
-    .kpi-card:hover {
-        transform: translateY(-4px);
-        box-shadow:
-            0 12px 24px rgba(0,0,0,0.08);
-    }
-    .kpi-value {
-        font-size:32px;
-        font-weight:900;
-    }
-    .floating-card {
-        padding: 22px;
-        margin-top: 10px;
-        border-radius: 18px;
-        text-align: center;
-        background: linear-gradient(180deg, #ffffff, #f8fafc);
-        box-shadow: 
-            0 8px 20px rgba(0, 0, 0, 0.05),
-            0 2px 6px rgba(0, 0, 0, 0.04);
-        transition: all 0.25s ease;
-    }
-    .floating-card:hover {
-        transform: translateY(-6px);
-        box-shadow: 
-            0 16px 32px rgba(0, 0, 0, 0.08),
-            0 4px 10px rgba(0, 0, 0, 0.06);
+    @keyframes fadeIn {
+        from {opacity:0; transform:translateY(6px);}
+        to {opacity:1; transform:translateY(0);}
     }
     .section-title {
-        font-size:22px;
-        font-weight:700;
-        margin-bottom:10px;
+        font-size:28px;
+        font-weight:800;
+        margin:28px 0 14px;
     }
-    .action-item {
-        background: #f1f5f9;
-        padding: 10px 14px;
-        border-radius: 10px;
-        margin: 6px 0;
-        font-size: 14px;
-        color: #1f2937;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        border-left: 4px solid #2563eb;
+    .metric-card {
+        background:linear-gradient(180deg,#dbeafe,#ffffff);
+        padding:18px;
+        border-radius:16px;
+        text-align:center;
+        box-shadow:0 6px 18px rgba(29,78,216,0.25);
+    }
+    .metric-value {
+        font-size:30px;
+        font-weight:900;
+        color:var(--primary);
+    }
+    .metric-card:hover {
+        transform: translateY(-6px);
+        transition: 0.3s ease;
+        box-shadow: 0 18px 40px rgba(0,0,0,0.2);
     }
     </style>
     """, unsafe_allow_html=True)
