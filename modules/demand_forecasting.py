@@ -167,6 +167,7 @@ def prepare_features(df):
     df["holiday_flag"] = df["holiday_flag"].fillna(0)
     df["avg_delay_rate"] = df["avg_delay_rate"].fillna(0)
     df["avg_stock"] = df["avg_stock"].fillna(df["avg_stock"].median())
+    df["region"] = df["region"].astype(str).str.upper().str.strip()
     df = df.sort_values(["product_id","date"]).reset_index(drop=True)
     df["dayofweek"] = df["date"].dt.dayofweek
     df["is_weekend"] = (df["dayofweek"] >= 5).astype(int)
@@ -230,8 +231,7 @@ def train_models(X_train, y_train_log, X_test, y_test_log):
         "min_samples_leaf": [1, 2, 3]
     }
     search = RandomizedSearchCV(
-        rf,params,n_iter=5,cv=3,
-        scoring="neg_mean_squared_error",n_jobs=-1
+        rf,params,n_iter=5,cv=3,scoring="neg_mean_squared_error",n_jobs=-1
     )
     search.fit(X_train, y_train_log)
     models["Random Forest"] = search.best_estimator_
