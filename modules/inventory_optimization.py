@@ -258,6 +258,9 @@ def inventory_optimization_page():
                     <div class="metric-value">{v}</div>
                 </div>
                 """, unsafe_allow_html=True)
+        st.write("Forecast rows:", len(forecast_df))
+        st.write("Avg demand:", forecast_df["forecast"].mean())
+        
         st.markdown(
             '<div class="section-title">Stock Level vs Reorder Point</div>',
             unsafe_allow_html=True
