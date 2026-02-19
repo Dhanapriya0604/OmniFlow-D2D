@@ -266,19 +266,26 @@ def decision_intelligence_page():
             </div>
         </div>
         """, unsafe_allow_html=True)
-    health = insights["health_score"]
-    card_bg = "linear-gradient(180deg,#ecfdf5,#ffffff)" if health > 75 else \
-              "linear-gradient(180deg,#fff7ed,#ffffff)" if health > 50 else \
-              "linear-gradient(180deg,#fef2f2,#ffffff)"
+    
     st.markdown('<div class="section-title">System Status</div>', unsafe_allow_html=True)  
+    health = insights["health_score"]
+        if health > 75:
+            health_color = "#16a34a"
+        elif health > 50:
+            health_color = "#f59e0b"
+        else:
+            health_color = "#dc2626"
+        card_bg = "linear-gradient(180deg,#ecfdf5,#ffffff)" if health > 75 else \
+                  "linear-gradient(180deg,#fff7ed,#ffffff)" if health > 50 else \
+                  "linear-gradient(180deg,#fef2f2,#ffffff)"
     hcol, bcol = st.columns(2)   
     with hcol:
         st.markdown(f"""
-        <div class="floating-card" style="background:{card_bg}">
+        <div class="floating-card">
             <h3>System Health</h3>
-            <h1 style="color:{color}">{health}/100</h1>
+            <h1 style="color:{health_color}">{health}/100</h1>
         </div>
-        """, unsafe_allow_html=True) 
+        """, unsafe_allow_html=True)
     with bcol:
         st.markdown(f"""
         <div class="floating-card">
