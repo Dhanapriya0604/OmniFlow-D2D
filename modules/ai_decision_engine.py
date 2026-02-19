@@ -258,15 +258,15 @@ def decision_intelligence_page():
         st.dataframe(decision_df, use_container_width=True)   
     st.markdown('<div class="section-title">Executive Decision Panel</div>', unsafe_allow_html=True)
     st.markdown(f"""
-    <div class="floating-card">
-        <h3>Top Risk Product</h3>
-        <h2>{summary["top_risk_product"]}</h2>
-        <p><b>Recommended Actions</b></p>
-        <div style="text-align:left; margin-top:10px;">
-            {''.join(f'<div class="action-item">✔ {a}</div>' for a in summary["recommended_actions"])}
+        <div class="floating-card">
+            <h3>Top Risk Product</h3>
+            <h2>{summary["top_risk_product"]}</h2>
+            <p><b>Recommended Actions</b></p>
+            <div style="text-align:left; margin-top:10px;">
+                {''.join(f'<div class="action-item">✔ {a}</div>' for a in summary["recommended_actions"])}
+            </div>
         </div>
-    </div>
-    """, unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
     health = insights["health_score"]
     if health > 75:
         color = "#16a34a"
