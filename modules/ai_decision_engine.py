@@ -246,7 +246,6 @@ def decision_intelligence_page():
             </div>
             """, unsafe_allow_html=True)
     st.markdown('<div class="section-title">Product Decisions</div>', unsafe_allow_html=True)
-    decision_df = decision_df.sort_values("decision")
     decision_df = product_decisions(forecast, inventory, production)  
     decision_df["color"] = decision_df["decision"].map({
         "Healthy": "#00CC96",
