@@ -266,7 +266,6 @@ def logistics_optimization_page():
         production_df = load_production()
         logistics_df  = load_logistics()
         opt_df = logistics_optimization(forecast_df,inventory_df,production_df,logistics_df)
-        st.write(opt_df["destination_region"].unique())
         log_path = os.path.join(DATA_DIR, "logistics_plan.csv")
         opt_df.to_csv(log_path, index=False)
         st.markdown('<div class="section-title">Logistics KPIs</div>',unsafe_allow_html=True)
@@ -276,6 +275,7 @@ def logistics_optimization_page():
             np.where(opt_df["destination_region"] == "NORTH", 120, 100)
         )     
         opt_df["shipments_required"] = np.ceil(opt_df["shipping_need_14d"] / opt_df["shipment_size"])
+        st.write(opt_df["destination_region"].unique())
         metrics = [
             ("Avg Delay Rate", round(opt_df["avg_delay_rate"].mean(),2)),
             ("Avg Transit Days", round(opt_df["avg_transit_days"].mean(),1)),
