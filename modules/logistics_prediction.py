@@ -74,8 +74,10 @@ def load_forecasts():
         df = pd.read_csv(FORECAST_PATH)    
     df.columns = df.columns.str.lower()
     df = clean_text_column(df, "product_id")
-    if "region" not in df.columns:
-        df["region"] = "UNKNOWN"  
+    if "region" not in df.columns or df["region"].isnull().all():
+        df["region"] = "UNKNOWN"
+    else:
+        df["region"] = df["region"].astype(str).str.upper().str.strip() 
     return df
 @st.cache_data
 def load_inventory():
@@ -146,6 +148,10 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
         df = df.merge(production_df[["product_id","production_required"]],
             on="product_id", how="left"
         )
+    df["destination_region"] = df["destination_region"].astype(str)
+    df["destination_region"] = df["destination_region"].replace(
+        {"1": "NORTH", "2": "SOUTH", "3": "WEST", "4": "EAST"}
+    )
     df["production_required"] = df["production_required"].fillna(0)
     logistics_df["delay_flag"] = logistics_df.get("delay_flag", 0)
     forecast_df["region"] = forecast_df["region"].astype(str).str.strip()    
@@ -289,8 +295,13 @@ def logistics_optimization_page():
         st.markdown(
             '<div class="section-title">Shipping Need by Product</div>', unsafe_allow_html=True
         )
-        st.plotly_chart(px.bar(opt_df,x="product_id",y="shipping_need_14d",
-            color="destination_region",hover_data=["avg_delay_rate","avg_transit_days"]),use_container_width=True
+        st.plotly_chart(
+            px.bar(
+            opt_df, x="product_id", y="shipping_need_14d", color="destination_region",
+            color_discrete_map={
+                "NORTH": "#1f77b4","SOUTH": "#2ca02c","EAST": "#ff7f0e",
+                "WEST": "#d62728","UNKNOWN": "#7f7f7f"
+            },hover_data=["avg_delay_rate","avg_transit_days"]),use_container_width=True
         )
         st.markdown(
             '<div class="section-title">Shipping Demand by Region</div>', unsafe_allow_html=True
