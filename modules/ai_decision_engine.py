@@ -14,48 +14,50 @@ PRODUCTION_PATH = os.path.join(DATA_DIR, "production_plan.csv")
 LOGISTICS_PATH  = os.path.join(DATA_DIR, "logistics_plan.csv")
 def inject_css():
     st.markdown("""
-    <style>
+    <style>   
     :root {
-        --bg:#f8fafc;
-        --text:#0f172a;
-        --muted:#475569;
-        --primary:#1d4ed8;
-        --accent:#dbeafe;
-        --border:#e5e7eb;
+        --bg: #f8fafc;
+        --card: #ffffff;
+        --text: #1f2937;
+
+        --primary: #2563eb;
+        --success: #16a34a;
+        --danger: #dc2626;
+        --warning: #f59e0b;
+
+        --border: #e5e7eb;
     }
-    html, body {
-        background:var(--bg);
-        color:var(--text);
-        font-family:Inter;
+
+    body {
+        background: linear-gradient(180deg, #f8fafc, #eef2ff);
     }
-    section.main > div {
-        animation: fadeIn .4s ease-in-out;
-    }
-    @keyframes fadeIn {
-        from {opacity:0; transform:translateY(6px);}
-        to {opacity:1; transform:translateY(0);}
-    }
-    .section-title {
-        font-size:28px;
-        font-weight:800;
-        margin:28px 0 14px;
-    }
-    .metric-card {
-        background:linear-gradient(180deg,#dbeafe,#ffffff);
-        padding:18px;
-        border-radius:16px;
+
+    .kpi-card {
+        background: var(--card);
+        padding:22px;
+        border-radius:18px;
         text-align:center;
-        box-shadow:0 6px 18px rgba(29,78,216,0.25);
+        box-shadow:0 6px 18px rgba(0,0,0,0.06);
     }
-    .metric-value {
-        font-size:30px;
+
+    .kpi-value {
+        font-size:32px;
         font-weight:900;
-        color:var(--primary);
     }
-    .metric-card:hover {
-        transform: translateY(-6px);
-        transition: 0.3s ease;
-        box-shadow: 0 18px 40px rgba(0,0,0,0.2);
+
+    .floating-card {
+        background: #ffffff;
+        padding:22px;
+        border-radius:18px;
+        border-left: 6px solid var(--primary);
+        box-shadow:0 8px 24px rgba(0,0,0,0.08);
+        text-align:center;
+    }
+
+    .section-title {
+        font-size:22px;
+        font-weight:700;
+        margin-bottom:10px;
     }
     </style>
     """, unsafe_allow_html=True)
