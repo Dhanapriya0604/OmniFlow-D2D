@@ -133,10 +133,6 @@ def production_planning(forecast_df, inventory_df, manufacturing_df):
     df["max_possible_production"] = df["daily_capacity"] * 30
     df["production_required"] = np.minimum(df["production_required"], df["max_possible_production"]) 
     df["production_required"] *= 0.9
-    df["production_required"] = np.where(
-        df["production_required"] < df["batch_size"] * 0.6,
-        0, df["production_required"]
-    )
     df["production_required"] = np.ceil(df["production_required"])
     df["production_batches"] = np.ceil(df["production_required"] / df["batch_size"])
     df["backlog"] = np.maximum(0,planning_need - df["current_stock"] - df["max_possible_production"])
