@@ -670,7 +670,8 @@ def demand_forecasting_page():
             tmp = future_df.copy()
             tmp["product_id"] = pid
             tmp["forecast"] = future_preds
-            tmp["region"] = last_row["region"]
+            product_region = df[df["product_id"] == pid]["region"].iloc[-1]
+            tmp["region"] = product_region
             all_fc.append(tmp)      
         if len(all_fc) == 0:
             st.warning("No forecasts generated.")
