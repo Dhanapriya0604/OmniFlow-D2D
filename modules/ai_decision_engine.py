@@ -31,20 +31,37 @@ def inject_css():
     .kpi-card {
         padding:22px;
         border-radius:18px;
-        text-align:center;
-        box-shadow:0 6px 18px rgba(0,0,0,0.06);
-        background: linear-gradient(180deg, #eff6ff, #ffffff);  /* soft blue */
+        text-align:center;   
+        background: linear-gradient(180deg, #ffffff, #f1f5f9);    
+        box-shadow:
+            0 6px 16px rgba(0,0,0,0.05);    
+        transition: all 0.25s ease;
+    }
+    .kpi-card:hover {
+        transform: translateY(-4px);
+        box-shadow:
+            0 12px 24px rgba(0,0,0,0.08);
     }
     .kpi-value {
         font-size:32px;
         font-weight:900;
     }
     .floating-card {
-        padding:22px;
-        border-radius:18px;
-        text-align:center;
-        background: linear-gradient(180deg, #f8fafc, #ffffff);
-        box-shadow:0 8px 24px rgba(0,0,0,0.08);
+        padding: 22px;
+        margin-top: 10px;
+        border-radius: 18px;
+        text-align: center;
+        background: linear-gradient(180deg, #ffffff, #f8fafc);
+        box-shadow: 
+            0 8px 20px rgba(0, 0, 0, 0.05),
+            0 2px 6px rgba(0, 0, 0, 0.04);
+        transition: all 0.25s ease;
+    }
+    .floating-card:hover {
+        transform: translateY(-6px);
+        box-shadow: 
+            0 16px 32px rgba(0, 0, 0, 0.08),
+            0 4px 10px rgba(0, 0, 0, 0.06);
     }
     .section-title {
         font-size:22px;
@@ -247,12 +264,6 @@ def decision_intelligence_page():
             """, unsafe_allow_html=True)
     st.markdown('<div class="section-title">Product Decisions</div>', unsafe_allow_html=True)
     decision_df = product_decisions(forecast, inventory, production)  
-    decision_df["color"] = decision_df["decision"].map({
-        "Healthy": "#00CC96",
-        "Replenish Inventory": "#FFA15A",
-        "Increase Production": "#AB63FA",
-        "Urgent Production": "#EF553B"
-    })
     if not decision_df.empty:
         st.dataframe(decision_df, use_container_width=True)   
     st.markdown('<div class="section-title">Executive Decision Panel</div>', unsafe_allow_html=True)
@@ -269,15 +280,7 @@ def decision_intelligence_page():
     
     st.markdown('<div class="section-title">System Status</div>', unsafe_allow_html=True)  
     health = insights["health_score"]
-    if health > 75:
-        health_color = "#16a34a"
-    elif health > 50:
-        health_color = "#f59e0b"
-    else:
-        health_color = "#dc2626"
-    card_bg = "linear-gradient(180deg,#ecfdf5,#ffffff)" if health > 75 else \
-              "linear-gradient(180deg,#fff7ed,#ffffff)" if health > 50 else \
-              "linear-gradient(180deg,#fef2f2,#ffffff)"
+    health_color = "#111827"
     hcol, bcol = st.columns(2)   
     with hcol:
         st.markdown(f"""
