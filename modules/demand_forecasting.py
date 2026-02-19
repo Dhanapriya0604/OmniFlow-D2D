@@ -15,18 +15,14 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from sklearn.preprocessing import LabelEncoder
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import RandomizedSearchCV
-
 warnings.filterwarnings("ignore")
 india_holidays = holidays.India()
-
 if "demand_products" not in st.session_state:
     st.session_state["demand_products"] = []
 if "selected_product" not in st.session_state:
     st.session_state["selected_product"] = None
-
 if "forecast_range" not in st.session_state:
     st.session_state["forecast_range"] = None
-
 st.set_page_config(page_title="Demand Forecasting Intelligence", layout="wide")
 def inject_css():
     st.markdown("""
@@ -103,16 +99,13 @@ def inject_css():
     }
     </style>
     """, unsafe_allow_html=True)
-
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 DATA_DIR = os.path.join(BASE_DIR, "data")
-
 SALES_PATH = os.path.join(DATA_DIR, "retail_sales_transactions.csv")
 PRODUCT_PATH = os.path.join(DATA_DIR, "fmcg_product_master.csv")
 INVENTORY_PATH = os.path.join(DATA_DIR, "retail_inventory_snapshot.csv")
 LOGISTICS_PATH = os.path.join(DATA_DIR, "supply_chain_logistics_shipments.csv")
 FORECAST_PATH = os.path.join(DATA_DIR, "forecast_output.csv")
-
 DATA_DICTIONARY = pd.DataFrame({
     "Column": [
         "date","product_id","region","daily_sales","price",
@@ -122,28 +115,14 @@ DATA_DICTIONARY = pd.DataFrame({
         "forecast","lower_ci","upper_ci"
     ],
     "Description": [
-        "Transaction date",
-        "Unique product identifier",
-        "Sales region (encoded)",
-        "Units sold per day (target)",
-        "Unit selling price",
-        "Promotion flag",
-        "Holiday flag",
-        "Average stock level",
-        "Average logistics delay rate",
-        "Day of week feature",
-        "Month feature",
-        "Day of year feature",
-        "ISO week number",
-        "Sales lag 1 day",
-        "Sales lag 7 days",
-        "7-day rolling mean",
-        "Forecasted demand",
-        "Lower confidence bound",
-        "Upper confidence bound"
+        "Transaction date","Unique product identifier","Sales region (encoded)",
+        "Units sold per day (target)","Unit selling price" "Promotion flag","Holiday flag",
+        "Average stock level","Average logistics delay rate","Day of week feature",
+        "Month feature","Day of year feature","ISO week number",
+        "Sales lag 1 day","Sales lag 7 days","7-day rolling mean",
+        "Forecasted demand","Lower confidence bound","Upper confidence bound"
     ]
 })
-
 @st.cache_data
 def load_tables():
     for f in [SALES_PATH, PRODUCT_PATH, INVENTORY_PATH, LOGISTICS_PATH]:
@@ -154,33 +133,27 @@ def load_tables():
     products = pd.read_csv(PRODUCT_PATH)
     inventory = pd.read_csv(INVENTORY_PATH)
     logistics = pd.read_csv(LOGISTICS_PATH)
-
     for df in [sales, products, inventory, logistics]:
         df.columns = df.columns.str.lower().str.strip()
     sales["date"] = pd.to_datetime(sales["date"], errors="coerce")
     return sales, products, inventory, logistics
-
 def build_demand_dataset():
     sales, products, inventory, logistics = load_tables()
     df = sales.merge(
         products[[
-            "product_id","category","brand",
-            "unit_weight_kg","shelf_life_days","mrp"
+         "product_id","category","brand","unit_weight_kg","shelf_life_days","mrp"
         ]],on="product_id", how="left"
     )
     inv_agg = (
-        inventory.groupby("product_id", as_index=False)
-        .agg(avg_stock=("on_hand_qty","mean"))
+        inventory.groupby("product_id", as_index=False).agg(avg_stock=("on_hand_qty","mean"))
     )
     df = df.merge(inv_agg, on="product_id", how="left")
-    log_agg = (
-        logistics.groupby("destination_region", as_index=False)
+    log_agg = (logistics.groupby("destination_region", as_index=False)
         .agg(avg_delay_rate=("delay_flag","mean"))
         .rename(columns={"destination_region":"region"})
     )
     df = df.merge(log_agg, on="region", how="left")
     return df
-
 def prepare_features(df):
     df = df.rename(columns={
         "units_sold":"daily_sales",
@@ -194,52 +167,38 @@ def prepare_features(df):
     df["holiday_flag"] = df["holiday_flag"].fillna(0)
     df["avg_delay_rate"] = df["avg_delay_rate"].fillna(0)
     df["avg_stock"] = df["avg_stock"].fillna(df["avg_stock"].median())
-
     df = df.sort_values(["product_id","date"]).reset_index(drop=True)
-
     df["dayofweek"] = df["date"].dt.dayofweek
     df["is_weekend"] = (df["dayofweek"] >= 5).astype(int)
     df["month"] = df["date"].dt.month
     df["dayofyear"] = df["date"].dt.dayofyear
     df["weekofyear"] = df["date"].dt.isocalendar().week.astype(int)
-
     df["sin_dow"] = np.sin(2*np.pi*df["dayofweek"]/7)
     df["cos_dow"] = np.cos(2*np.pi*df["dayofweek"]/7)    
     df["sin_month"] = np.sin(2*np.pi*df["month"]/12)
     df["cos_month"] = np.cos(2*np.pi*df["month"]/12)
-
     df["lag_1"]  = df.groupby("product_id")["daily_sales"].shift(1)
     df["lag_7"]  = df.groupby("product_id")["daily_sales"].shift(7)
- 
     df["rolling_7"] = (
         df.groupby("product_id")["daily_sales"]
-        .rolling(7).mean()
-        .reset_index(level=0, drop=True)
+        .rolling(7).mean().reset_index(level=0, drop=True)
     )
     df["rolling_14"] = (
        df.groupby("product_id")["daily_sales"]
-       .rolling(14).mean()
-       .reset_index(level=0, drop=True)
+       .rolling(14).mean().reset_index(level=0, drop=True)
     )   
     df["rolling_30"] = (
        df.groupby("product_id")["daily_sales"]
-       .rolling(30).mean()
-       .reset_index(level=0, drop=True)
+       .rolling(30).mean().reset_index(level=0, drop=True)
     )
-    # yearly seasonality memory
     df["lag_365"] = df.groupby("product_id")["daily_sales"].shift(365)    
     df["lag_365"] = df["lag_365"].fillna(df["rolling_30"])
     df["promo_effect"] = df["rolling_7"] * df["promotion"]
-
-    # demand momentum
     df["lag_diff_1"] = df["daily_sales"] - df["lag_1"]
     df["lag_ratio_1"] = df["daily_sales"] / (df["lag_1"] + 1)
-    
-    # short vs medium trend
     df["trend_7"] = df["rolling_7"] - df["lag_7"]
     df["price_change"] = df.groupby("product_id")["price"].pct_change().fillna(0)
     df["promo_rolling_7"] = df.groupby("product_id")["promotion"].rolling(7).mean().reset_index(0,drop=True)
-
     lag_cols = ["lag_1","lag_7","rolling_7","rolling_14","rolling_30"]  
     for col in lag_cols:
         df[col] = df.groupby("product_id")[col]\
@@ -256,17 +215,12 @@ def data_profiling(df):
         "Date Sorted": df["date"].is_monotonic_increasing,
         "Missing Values": int(df.isnull().sum().sum())
     }
-
 def train_models(X_train, y_train_log, X_test, y_test_log):
     models = {
         "Linear Regression": LinearRegression(),
         "Gradient Boosting": GradientBoostingRegressor(
-             n_estimators=600,
-             learning_rate=0.03,
-             max_depth=5,
-             min_samples_leaf=3,
-             subsample=0.8,
-             random_state=42
+             n_estimators=600,learning_rate=0.03,max_depth=5,
+             min_samples_leaf=3,subsample=0.8,random_state=42
          )
     }
     rf = RandomForestRegressor(random_state=42, n_jobs=-1)
@@ -276,12 +230,8 @@ def train_models(X_train, y_train_log, X_test, y_test_log):
         "min_samples_leaf": [1, 2, 3]
     }
     search = RandomizedSearchCV(
-        rf,
-        params,
-        n_iter=5,
-        cv=3,
-        scoring="neg_mean_squared_error",
-        n_jobs=-1
+        rf,params,n_iter=5,cv=3,
+        scoring="neg_mean_squared_error",n_jobs=-1
     )
     search.fit(X_train, y_train_log)
     models["Random Forest"] = search.best_estimator_
@@ -293,7 +243,6 @@ def train_models(X_train, y_train_log, X_test, y_test_log):
         model.fit(X_train, y_train_log)
         preds_log = model.predict(X_test)
         preds = np.expm1(preds_log)
-     
         preds = np.nan_to_num(preds, nan=0.0, posinf=0.0, neginf=0.0)
         forecasts[name] = preds
         mae = mean_absolute_error(y_true, preds)
@@ -311,7 +260,6 @@ def train_models(X_train, y_train_log, X_test, y_test_log):
     results_df = pd.DataFrame(results).sort_values("RMSE").reset_index(drop=True)
     best_model = results_df.iloc[0]["Model"]
     return results_df, forecasts, best_model, search.best_estimator_
-
 def demand_nlp(df, results_df, best_model, q, top_product_global=None):
     q = q.lower().strip()
     if any(x in q for x in ["average demand", "avg demand", "mean demand"]):
@@ -320,9 +268,7 @@ def demand_nlp(df, results_df, best_model, q, top_product_global=None):
         "maximum demand product", "highest demand product",
         "top demand product", "most demanded product"
     ]):
-        prod_demand = (df.groupby("product_id")["forecast"]
-            .mean().sort_values(ascending=False)
-        )
+        prod_demand = (df.groupby("product_id")["forecast"].mean().sort_values(ascending=False))
         top_product = prod_demand.index[0]
         top_value = prod_demand.iloc[0]   
         return (
@@ -406,9 +352,7 @@ def demand_nlp(df, results_df, best_model, q, top_product_global=None):
         )
     if any(x in q for x in ["top 3 products", "top products", "top 5 products"]):
         top_n = 3 if "3" in q else 5
-        top_products = (df.groupby("product_id")["forecast"]
-            .mean().sort_values(ascending=False).head(top_n)
-        )
+        top_products = (df.groupby("product_id")["forecast"].mean().sort_values(ascending=False).head(top_n))
         return (
             f"Top {top_n} products by average forecasted demand:\n" + top_products.to_string()
         )
@@ -454,7 +398,6 @@ def demand_forecasting_page():
         inventory and logistics context. It serves as the intelligence backbone of OmniFlow-D2D.
         </div>
         """, unsafe_allow_html=True)
-
         st.markdown('<div class="section-title">Objectives</div>', unsafe_allow_html=True)
         st.markdown("""
         <div class="card">
@@ -494,10 +437,8 @@ def demand_forecasting_page():
         raw_df = build_demand_dataset()
         raw_df = raw_df.sort_values(["product_id","date"])
         product_mode = st.radio(
-            "Product View Mode",
-            ["Single Product", "Multiple Products"],
-            horizontal=True,
-            key="product_mode"
+            "Product View Mode",["Single Product", "Multiple Products"],
+            horizontal=True, key="product_mode"
         )     
         product_list = sorted(raw_df["product_id"].unique())
         if product_mode == "Single Product":   
@@ -535,7 +476,6 @@ def demand_forecasting_page():
         df = df.sort_values("date").reset_index(drop=True)
         le = LabelEncoder()
         df["region_encoded"] = le.fit_transform(df["region"].astype(str))
-
         df["demand_regime"] = np.where(df["rolling_30"] > df["rolling_7"] * 1.2,"Growing",
             np.where(df["rolling_30"] < df["rolling_7"] * 0.8,"Declining","Stable")
         )  
@@ -569,8 +509,7 @@ def demand_forecasting_page():
         y_train_log = np.log1p(y_train)
         y_val_log   = np.log1p(y_val)
         st.markdown(
-            '<div class="section-title">Seasonality Heatmap</div>',
-            unsafe_allow_html=True
+            '<div class="section-title">Seasonality Heatmap</div>',unsafe_allow_html=True
         ) 
         train_df = train_df.dropna(subset=["date"])
         season_pivot = train_df.pivot_table(values="daily_sales", index=train_df["date"].dt.day_name(),
@@ -604,8 +543,7 @@ def demand_forecasting_page():
         val_df["residual"] = residuals        
         product_sigma = (val_df.groupby("product_id")["residual"].std().fillna(residuals.std()))
         residual_model = GradientBoostingRegressor(
-            n_estimators=150, learning_rate=0.05,
-            max_depth=3, random_state=42
+            n_estimators=150, learning_rate=0.05, max_depth=3, random_state=42
         )        
         residual_model.fit(X_val, residuals)
         err_df = pd.DataFrame({
@@ -732,6 +670,7 @@ def demand_forecasting_page():
             tmp = future_df.copy()
             tmp["product_id"] = pid
             tmp["forecast"] = future_preds
+            tmp["region"] = last_row["region"]
             all_fc.append(tmp)      
         if len(all_fc) == 0:
             st.warning("No forecasts generated.")
@@ -779,8 +718,7 @@ def demand_forecasting_page():
         )
         st.session_state["all_forecasts"].to_csv( FORECAST_PATH, index=False)  
         top_product_global = (
-            df.groupby("product_id")["daily_sales"].mean()
-            .sort_values(ascending=False).index[0]
+            df.groupby("product_id")["daily_sales"].mean().sort_values(ascending=False).index[0]
         )    
         st.markdown(
             '<div class="section-title">Model Performance Comparison</div>', unsafe_allow_html=True
@@ -814,8 +752,7 @@ def demand_forecasting_page():
             f"with lowest RMSE ({results_df.iloc[0]['RMSE']:.2f})."
         )   
         st.markdown(
-            '<div class="section-title">RMSE Comparison Across Models</div>',
-            unsafe_allow_html=True
+            '<div class="section-title">RMSE Comparison Across Models</div>',unsafe_allow_html=True
         )        
         rmse_fig = px.bar(
             results_df, x="Model", y="RMSE",
@@ -832,16 +769,13 @@ def demand_forecasting_page():
         )       
         fig = go.Figure()       
         fig.add_trace(go.Scatter(
-            x=df_fc["date"], y=df_fc["forecast"],
-            name="Forecast", line=dict(width=3)
+            x=df_fc["date"], y=df_fc["forecast"], name="Forecast", line=dict(width=3)
         ))        
         fig.add_trace(go.Scatter(
-            x=df_fc["date"], y=df_fc["upper_ci"],
-            name="Upper CI", line=dict(dash="dot")
+            x=df_fc["date"], y=df_fc["upper_ci"], name="Upper CI", line=dict(dash="dot")
         ))      
         fig.add_trace(go.Scatter(
-            x=df_fc["date"], y=df_fc["lower_ci"],
-            name="Lower CI", fill="tonexty", opacity=0.25
+            x=df_fc["date"], y=df_fc["lower_ci"], name="Lower CI", fill="tonexty", opacity=0.25
         ))      
         st.plotly_chart(fig, use_container_width=True)     
         st.write(f"Total Future Demand: {int(total_future_demand)}")
