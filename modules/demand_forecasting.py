@@ -533,7 +533,9 @@ def demand_forecasting_page():
         df = df.merge(difficulty,left_on="product_id",right_index=True,how="left")      
         df["sku_difficulty"] = df["sku_difficulty"].fillna(0)
         df = df.sort_values("date").reset_index(drop=True)
-        df["region"] = LabelEncoder().fit_transform(df["region"].astype(str))
+        le = LabelEncoder()
+        df["region_encoded"] = le.fit_transform(df["region"].astype(str))
+
         df["demand_regime"] = np.where(df["rolling_30"] > df["rolling_7"] * 1.2,"Growing",
             np.where(df["rolling_30"] < df["rolling_7"] * 0.8,"Declining","Stable")
         )  
@@ -541,7 +543,7 @@ def demand_forecasting_page():
         max_date = df["date"].max()       
         FEATURES = [
             "price","promotion","holiday_flag",
-            "region","avg_stock","avg_delay_rate",
+            "region_encoded","avg_stock","avg_delay_rate",
             "dayofweek","is_weekend","month","dayofyear","weekofyear",
             "lag_1","lag_7","rolling_7","rolling_14",
             "rolling_30","lag_365","lag_diff_1","lag_ratio_1","trend_7",
