@@ -320,15 +320,7 @@ def decision_intelligence_page():
         st.markdown('<div class="chart-card">', unsafe_allow_html=True)
         st.markdown('<div class="chart-title">Demand Leaders</div>', unsafe_allow_html=True)
         if isinstance(insights["high_demand"], pd.Series) and not insights["high_demand"].empty:
-            fig = px.bar(
-                insights["high_demand"],labels={"value": "Forecast", "index": "Product"},
-            )
-            fig.update_layout(
-                plot_bgcolor="rgba(0,0,0,0)",
-                paper_bgcolor="rgba(0,0,0,0)",
-                margin=dict(l=10, r=10, t=10, b=10)
-            ) 
-            st.plotly_chart(fig, use_container_width=True)
+            st.bar_chart(insights["high_demand"])
         else:
             st.info("No demand data available.")
         st.markdown('</div>', unsafe_allow_html=True) 
@@ -338,16 +330,7 @@ def decision_intelligence_page():
         if (not production.empty and
             "product_id" in production.columns and
             "production_required" in production.columns):
-            prod_chart = production.set_index("product_id")["production_required"]
-            fig2 = px.bar(
-                prod_chart,labels={"value": "Production Required", "index": "Product"},
-            )  
-            fig2.update_layout(
-                plot_bgcolor="rgba(0,0,0,0)",
-                paper_bgcolor="rgba(0,0,0,0)",
-                margin=dict(l=10, r=10, t=10, b=10)
-            )        
-            st.plotly_chart(fig2, use_container_width=True)
+            st.bar_chart(production.set_index("product_id")["production_required"])
         else:
             st.info("No production pressure detected.")
         st.markdown('</div>', unsafe_allow_html=True)
