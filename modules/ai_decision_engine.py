@@ -14,56 +14,50 @@ LOGISTICS_PATH  = os.path.join(DATA_DIR, "logistics_plan.csv")
 def inject_css():
     st.markdown("""
     <style>   
-    section.main > div {
-        animation: fadeIn .4s ease;
-    }    
-    @keyframes fadeIn {
-        from {opacity:0; transform:translateY(8px);}
-        to {opacity:1; transform:translateY(0);}
-    }    
+    :root {
+        --bg: #f8fafc;
+        --card: #ffffff;
+        --text: #1f2937;
+        --primary: #2563eb;
+        --success: #16a34a;
+        --danger: #dc2626;
+        --warning: #f59e0b;
+        --border: #e5e7eb;
+    }
+    body {
+        background: linear-gradient(180deg, #f8fafc, #eef2ff);
+    }
     .kpi-card {
-        background:#ffffff;
+        background: var(--card);
         padding:22px;
         border-radius:18px;
         text-align:center;
         box-shadow:0 6px 18px rgba(0,0,0,0.06);
-        transition:0.25s;
-    }   
-    .kpi-card:hover {
-        transform:translateY(-4px);
-        box-shadow:0 12px 28px rgba(0,0,0,0.10);
-    }  
+    }
     .kpi-value {
         font-size:32px;
         font-weight:900;
-        color:#2563eb; /* mild blue */
-    }    
+    }
     .floating-card {
-        background:linear-gradient(180deg,#f8fafc,#ffffff);
+        background: #ffffff;
         padding:22px;
         border-radius:18px;
+        border-left: 6px solid var(--primary);
         box-shadow:0 8px 24px rgba(0,0,0,0.08);
-        transition:0.25s;
         text-align:center;
-    }   
-    .floating-card:hover {
-        transform:translateY(-4px);
-        box-shadow:0 14px 32px rgba(0,0,0,0.12);
-    } 
+    }
     .section-title {
         font-size:22px;
         font-weight:700;
         margin-bottom:10px;
-    }    
-    h1, h2, h3 {
-        color:#1f2933;
-    }    
+    }
     </style>
     """, unsafe_allow_html=True)
 def safe_read(path):
     if os.path.exists(path):
         return pd.read_csv(path)
     return pd.DataFrame()
+@st.cache_data
 def load_data():
     forecast = safe_read(FORECAST_PATH)
     inventory = safe_read(INVENTORY_PATH)
@@ -207,10 +201,16 @@ def generate_decision_summary(insights):
     }
 def decision_intelligence_page():
     inject_css()
-    forecast, inventory, production, logistics = load_data()
+    if "data_loaded" not in st.session_state:
+        st.session_state["data_loaded"] = load_data()   
+    forecast, inventory, production, logistics = st.session_state["data_loaded"]
     insights = compute_insights(forecast, inventory, production, logistics)
     summary = generate_decision_summary(insights)
     st.title("🧠 AI Decision Intelligence")
+    if st.button("🔄 Refresh Data"):
+        st.cache_data.clear()
+        st.session_state.clear()
+        st.rerun()
     cols = st.columns(4)
     metrics = [
         ("Avg Forecast", int(insights["avg_forecast"])),
@@ -218,14 +218,21 @@ def decision_intelligence_page():
         ("Production Needed", len(insights["production_needed"])),
         ("Delay Regions", len(insights["delay_regions"])),
     ]
+    kpi_colors = {
+        "Avg Forecast": "#2563eb",     
+        "Products at Risk": "#dc2626", 
+        "Production Needed": "#f59e0b",
+        "Delay Regions": "#7c3aed"      
+    }
     for col, (name, val) in zip(cols, metrics):
         with col:
+            color = kpi_colors.get(name, "#2563eb")
             st.markdown(f"""
             <div class="kpi-card">
                 <div>{name}</div>
-                <div class="kpi-value">{val}</div>
+                <div class="kpi-value" style="color:{color}">{val}</div>
             </div>
-            """, unsafe_allow_html=True) 
+            """, unsafe_allow_html=True)
     st.markdown('<div class="section-title">Product Decisions</div>', unsafe_allow_html=True)
     decision_df = product_decisions(forecast, inventory, production)  
     if not decision_df.empty:
@@ -247,7 +254,14 @@ def decision_intelligence_page():
         st.markdown(f"""
         <div class="floating-card">
             <h3>System Health</h3>
-            <h1>{insights['health_score']}/100</h1>
+            health = insights["health_score"]
+            if health > 75:
+                color = "#16a34a"
+            elif health > 50:
+                color = "#f59e0b"
+            else:
+                color = "#dc2626"
+            <h1 style="color:{color}">{health}/100</h1>
         </div>
         """, unsafe_allow_html=True)   
     with bcol:
