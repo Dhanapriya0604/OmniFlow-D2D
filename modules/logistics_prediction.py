@@ -266,9 +266,9 @@ def logistics_optimization_page():
         production_df = load_production()
         logistics_df  = load_logistics()
         opt_df = logistics_optimization(forecast_df,inventory_df,production_df,logistics_df)
+        st.write(opt_df["destination_region"].unique())
         log_path = os.path.join(DATA_DIR, "logistics_plan.csv")
         opt_df.to_csv(log_path, index=False)
-
         st.markdown('<div class="section-title">Logistics KPIs</div>',unsafe_allow_html=True)
         c1, c2, c3, c4 = st.columns(4)    
         opt_df["shipment_size"] = np.where(
@@ -303,8 +303,6 @@ def logistics_optimization_page():
                 "WEST": "#d62728","UNKNOWN": "#7f7f7f"
             },hover_data=["avg_delay_rate","avg_transit_days"]),use_container_width=True
         )
-        st.write(df["destination_region"].unique())
-
         st.markdown(
             '<div class="section-title">Shipping Demand by Region</div>', unsafe_allow_html=True
         )
