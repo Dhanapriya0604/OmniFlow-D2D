@@ -78,6 +78,26 @@ def inject_css():
         font-weight:700;
         margin:20px 0 10px;
     }
+    .chart-card {
+        padding: 18px;
+        border-radius: 18px;
+        background: linear-gradient(180deg, #ffffff, #f8fafc);
+        box-shadow:
+            0 8px 20px rgba(0,0,0,0.05),
+            0 2px 6px rgba(0,0,0,0.04);
+        transition: all 0.25s ease;
+    }  
+    .chart-card:hover {
+        transform: translateY(-5px);
+        box-shadow:
+            0 16px 32px rgba(0,0,0,0.08),
+            0 4px 10px rgba(0,0,0,0.06);
+    }  
+    .chart-title {
+        font-size:16px;
+        font-weight:600;
+        margin-bottom:10px;
+    }
     </style>
     """, unsafe_allow_html=True)
 def safe_read(path):
@@ -295,29 +315,39 @@ def decision_intelligence_page():
         </div>
         """, unsafe_allow_html=True)        
     st.markdown('<div class="section-title">Performance Analytics</div>', unsafe_allow_html=True)    
-    dcol, pcol = st.columns(2)    
+    dcol, pcol = st.columns(2)
     with dcol:
-        st.markdown('<div class="section-title">Demand Leaders</div>', unsafe_allow_html=True)
+        st.markdown('<div class="chart-card">', unsafe_allow_html=True)
+        st.markdown('<div class="chart-title">Demand Leaders</div>', unsafe_allow_html=True)
         if isinstance(insights["high_demand"], pd.Series) and not insights["high_demand"].empty:
-            fig1 = px.bar(
-                insights["high_demand"].reset_index(), x="product_id", y="forecast",
-                color_discrete_sequence=["#636EFA"] 
-            )     
-            st.plotly_chart(fig1, use_container_width=True)
+            fig = px.bar(
+                insights["high_demand"],labels={"value": "Forecast", "index": "Product"},
+            )
+            fig.update_layout(
+                plot_bgcolor="rgba(0,0,0,0)",
+                paper_bgcolor="rgba(0,0,0,0)",
+                margin=dict(l=10, r=10, t=10, b=10)
+            ) 
+            st.plotly_chart(fig, use_container_width=True)
         else:
             st.info("No demand data available.")
-        st.markdown('</div>', unsafe_allow_html=True)    
+        st.markdown('</div>', unsafe_allow_html=True) 
     with pcol:
-        st.markdown('<div class="section-title">Production Pressure</div>', unsafe_allow_html=True)
+        st.markdown('<div class="chart-card">', unsafe_allow_html=True)
+        st.markdown('<div class="chart-title">Production Pressure</div>', unsafe_allow_html=True)
         if (not production.empty and
-            "product_id" in production.columns and "production_required" in production.columns
-        ):
+            "product_id" in production.columns and
+            "production_required" in production.columns):
+            prod_chart = production.set_index("product_id")["production_required"]
             fig2 = px.bar(
-                production, x="product_id", y="production_required",
-                color_discrete_sequence=["#EF553B"] 
-            )   
+                prod_chart,labels={"value": "Production Required", "index": "Product"},
+            )  
+            fig2.update_layout(
+                plot_bgcolor="rgba(0,0,0,0)",
+                paper_bgcolor="rgba(0,0,0,0)",
+                margin=dict(l=10, r=10, t=10, b=10)
+            )        
             st.plotly_chart(fig2, use_container_width=True)
-
         else:
             st.info("No production pressure detected.")
         st.markdown('</div>', unsafe_allow_html=True)
