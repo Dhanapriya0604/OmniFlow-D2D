@@ -263,6 +263,10 @@ def production_planning_page():
             view_prod_df = prod_df[prod_df["product_id"] == selected_product]   
         else:
             view_prod_df = prod_df.copy()        
+        if st.button("🔄 Refresh Production"):
+            st.cache_data.clear()
+            st.session_state.clear()
+            st.rerun()
         schedule_df = auto_production_schedule(prod_df)
         line_schedule_df = allocate_production_lines(schedule_df)
         with st.expander("📘 Data Dictionary"):
