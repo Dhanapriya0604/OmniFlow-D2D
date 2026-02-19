@@ -295,12 +295,19 @@ def production_planning_page():
         st.markdown(
             '<div class="section-title">Demand vs Current Stock</div>', unsafe_allow_html=True
         )      
-        fig_ds = px.bar(view_prod_df,
-            x="product_id", y=["planning_demand", "current_stock"],
-            barmode="group", template="plotly_white"
-        )      
-        fig_ds.update_yaxes(type="log")         
-        st.plotly_chart(fig_ds, use_container_width=True)     
+        fig_ds = px.bar(
+            view_prod_df, x="product_id",  y=["planning_demand", "current_stock"],
+            barmode="group", title="Demand vs Current Stock (14 Days)",
+            color_discrete_map={
+                "planning_demand": "#636EFA",
+                "current_stock": "#EF553B"
+            },
+            template="plotly_white"
+        )  
+        fig_ds.update_layout(
+            xaxis_title="Product ID", yaxis_title="Units", legend_title="", title_x=0.3
+        )
+        st.plotly_chart(fig_ds, use_container_width=True)
         st.markdown('<div class="section-title">Production Requirement</div>', unsafe_allow_html=True)
         st.plotly_chart(
             px.bar(view_prod_df,
