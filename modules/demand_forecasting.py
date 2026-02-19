@@ -111,16 +111,18 @@ DATA_DICTIONARY = pd.DataFrame({
         "date","product_id","region","daily_sales","price",
         "promotion","holiday_flag","avg_stock","avg_delay_rate",
         "dayofweek","month","dayofyear","weekofyear",
-        "lag_1","lag_7","rolling_7",
-        "forecast","lower_ci","upper_ci"
+        "lag_1","lag_7","rolling_7","rolling_14","rolling_30",
+        "lag_365","forecast","lower_ci","upper_ci"
     ],
     "Description": [
-        "Transaction date","Unique product identifier","Sales region (encoded)",
-        "Units sold per day (target)","Unit selling price" "Promotion flag","Holiday flag",
-        "Average stock level","Average logistics delay rate","Day of week feature",
-        "Month feature","Day of year feature","ISO week number",
-        "Sales lag 1 day","Sales lag 7 days","7-day rolling mean",
-        "Forecasted demand","Lower confidence bound","Upper confidence bound"
+        "Transaction date","Unique product identifier","Sales region",
+        "Units sold per day (target)","Unit selling price","Promotion flag",
+        "Holiday flag","Average stock level","Average logistics delay rate",
+        "Day of week feature","Month feature","Day of year feature",
+        "ISO week number","Sales lag 1 day","Sales lag 7 days",
+        "7-day rolling mean","14-day rolling mean","30-day rolling mean",
+        "Yearly seasonal lag","Forecasted demand",
+        "Lower confidence bound","Upper confidence bound"
     ]
 })
 @st.cache_data
