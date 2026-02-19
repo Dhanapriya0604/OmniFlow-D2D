@@ -29,23 +29,22 @@ def inject_css():
         background: linear-gradient(180deg, #f8fafc, #eef2ff);
     }
     .kpi-card {
-        background: var(--card);
         padding:22px;
         border-radius:18px;
         text-align:center;
         box-shadow:0 6px 18px rgba(0,0,0,0.06);
+        background: linear-gradient(180deg, #eff6ff, #ffffff);  /* soft blue */
     }
     .kpi-value {
         font-size:32px;
         font-weight:900;
     }
     .floating-card {
-        background: #ffffff;
         padding:22px;
         border-radius:18px;
-        border-left: 6px solid var(--primary);
-        box-shadow:0 8px 24px rgba(0,0,0,0.08);
         text-align:center;
+        background: linear-gradient(180deg, #f8fafc, #ffffff);
+        box-shadow:0 8px 24px rgba(0,0,0,0.08);
     }
     .section-title {
         font-size:22px;
@@ -231,22 +230,23 @@ def decision_intelligence_page():
         ("Production Needed", len(insights["production_needed"])),
         ("Delay Regions", len(insights["delay_regions"])),
     ]
-    kpi_colors = {
-        "Avg Forecast": "#2563eb",     
-        "Products at Risk": "#dc2626", 
-        "Production Needed": "#f59e0b",
-        "Delay Regions": "#7c3aed"      
+    kpi_bg = {
+        "Avg Forecast": "linear-gradient(180deg,#eff6ff,#ffffff)",  
+        "Products at Risk": "linear-gradient(180deg,#fef2f2,#ffffff)", 
+        "Production Needed": "linear-gradient(180deg,#fff7ed,#ffffff)",
+        "Delay Regions": "linear-gradient(180deg,#f5f3ff,#ffffff)"     
     }
     for col, (name, val) in zip(cols, metrics):
         with col:
-            color = kpi_colors.get(name, "#2563eb")
+            bg = kpi_bg.get(name, "#ffffff")
             st.markdown(f"""
-            <div class="kpi-card">
+            <div class="kpi-card" style="background:{bg}">
                 <div>{name}</div>
-                <div class="kpi-value" style="color:{color}">{val}</div>
+                <div class="kpi-value" style="color:#111827">{val}</div>
             </div>
             """, unsafe_allow_html=True)
     st.markdown('<div class="section-title">Product Decisions</div>', unsafe_allow_html=True)
+    decision_df = decision_df.sort_values("decision")
     decision_df = product_decisions(forecast, inventory, production)  
     decision_df["color"] = decision_df["decision"].map({
         "Healthy": "#00CC96",
@@ -268,17 +268,14 @@ def decision_intelligence_page():
         </div>
         """, unsafe_allow_html=True)
     health = insights["health_score"]
-    if health > 75:
-        color = "#16a34a"
-    elif health > 50:
-        color = "#f59e0b"
-    else:
-        color = "#dc2626"
+    card_bg = "linear-gradient(180deg,#ecfdf5,#ffffff)" if health > 75 else \
+              "linear-gradient(180deg,#fff7ed,#ffffff)" if health > 50 else \
+              "linear-gradient(180deg,#fef2f2,#ffffff)"
     st.markdown('<div class="section-title">System Status</div>', unsafe_allow_html=True)  
     hcol, bcol = st.columns(2)   
     with hcol:
         st.markdown(f"""
-        <div class="floating-card">
+        <div class="floating-card" style="background:{card_bg}">
             <h3>System Health</h3>
             <h1 style="color:{color}">{health}/100</h1>
         </div>
