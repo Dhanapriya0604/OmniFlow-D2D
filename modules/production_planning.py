@@ -132,12 +132,11 @@ def load_forecasts():
 
 def production_planning(forecast_df, inventory_df, manufacturing_df):
     forecast_df["date"] = pd.to_datetime(forecast_df["date"], errors="coerce")
-    start_date = forecast_df["date"].min()
-    end_date = start_date + pd.Timedelta(days=14)   
+    today = pd.Timestamp.today().normalize()
     future_fc = forecast_df[
-        (forecast_df["date"] >= start_date) &
-        (forecast_df["date"] < end_date)
-    ]    
+        forecast_df["date"] >= today
+    ].sort_values("date")  
+    future_fc = future_fc.groupby("product_id").head(14)
     demand = (
         future_fc.groupby("product_id")["forecast"]
         .mean().reset_index(name="avg_daily_demand")
@@ -147,14 +146,13 @@ def production_planning(forecast_df, inventory_df, manufacturing_df):
         inventory_df.groupby("product_id", as_index=False)
         .agg(current_stock=("on_hand_qty", "sum"))
     )
+    forecast_df["product_id"] = forecast_df["product_id"].astype(str).str.strip().str.upper()
+    inventory_df["product_id"] = inventory_df["product_id"].astype(str).str.strip().str.upper()
+    manufacturing_df["product_id"] = manufacturing_df["product_id"].astype(str).str.strip().str.upper()
+
     df = demand.merge(inv, on="product_id", how="left")
     df["current_stock"] = df["current_stock"].fillna(0)    
-    df["current_stock"] = np.minimum(
-        df["current_stock"], df["avg_daily_demand"] * 45
-    )   
-    df["current_stock"] = np.maximum(
-        df["current_stock"], df["avg_daily_demand"] * 7
-    )
+    df["current_stock"] = np.minimum(df["current_stock"], df["avg_daily_demand"] * 45)   
    
     planning_days = 14
     planning_need = df["avg_daily_demand"] * planning_days    
@@ -332,7 +330,11 @@ def production_planning_page():
             view_prod_df = prod_df[prod_df["product_id"] == selected_product]   
         else:
             view_prod_df = prod_df.copy()
-        
+        st.write(future_fc["forecast"].describe())
+        st.write("Forecast rows:", len(future_fc))
+        st.write("Products in forecast:", future_fc["product_id"].nunique())
+        st.write(future_fc.head())
+
         schedule_df = auto_production_schedule(prod_df)
         line_schedule_df = allocate_production_lines(schedule_df)
         with st.expander("📘 Data Dictionary"):
