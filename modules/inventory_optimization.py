@@ -300,6 +300,5 @@ def inventory_optimization_page():
         with c2:
             st.download_button(
                 "⬇ Download Inventory Output",
-                view_df.to_csv(index=False),
-                "inventory_optimization.csv"
+                view_df.to_csv(index=False), "inventory_optimization.csv"
             )
