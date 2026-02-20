@@ -47,7 +47,6 @@ def inject_global_css():
         box-shadow: 0 10px 26px rgba(0,0,0,0.08);
         transition: all 0.25s ease;
         margin-bottom: 18px;
-        min-height: 120px;
     }
     .of-card:hover {
         transform: translateY(-4px);
