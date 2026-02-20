@@ -239,11 +239,10 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
     df["avg_shipping_cost"] = df["avg_shipping_cost"].fillna(logistics_df["logistics_cost"].median()) 
     df["production_required"] = df["production_required"].fillna(0)   
     df["avg_daily_demand"] = pd.to_numeric(df["avg_daily_demand"], errors="coerce").fillna(0).round().astype(int)
-    df["shipping_need_14d"] = pd.to_numeric(df["shipping_need_14d"], errors="coerce").fillna(0).round().astype(int)
-    if df["avg_shipping_cost"].median() > 2000:
-        df["avg_shipping_cost"] = df["avg_shipping_cost"] / 10   
-    df["avg_shipping_cost"] = df["avg_shipping_cost"].clip(80, 600)
+    df["shipping_need_14d"] = pd.to_numeric(df["shipping_need_14d"], errors="coerce").fillna(0).round().astype(int)   
+    df["avg_shipping_cost"] = df["avg_shipping_cost"].clip(500, 5000)
     df["avg_transit_days"] = pd.to_numeric(df["avg_transit_days"], errors="coerce").fillna(0).round().astype(int)
+    df["adjusted_cost"] = df["avg_shipping_cost"] * (1 + df["avg_delay_rate"])
     df = df.replace([np.inf, -np.inf], 0)
     df.fillna(0, inplace=True)
     return df   
@@ -271,8 +270,8 @@ def logistics_optimization_page():
         st.markdown('<div class="section-title">Logistics KPIs</div>',unsafe_allow_html=True)
         c1, c2, c3, c4 = st.columns(4)    
         opt_df["shipment_size"] = np.where(
-            opt_df["destination_region"] == "WEST", 150,
-            np.where(opt_df["destination_region"] == "NORTH", 120, 100)
+            opt_df["destination_region"] == "WEST", 50,
+            np.where(opt_df["destination_region"] == "NORTH", 40, 30)
         )     
         opt_df["shipments_required"] = np.ceil(opt_df["shipping_need_14d"] / opt_df["shipment_size"])
         st.write(opt_df["destination_region"].unique())
@@ -280,8 +279,7 @@ def logistics_optimization_page():
             ("Avg Delay Rate", round(opt_df["avg_delay_rate"].mean(),2)),
             ("Avg Transit Days", round(opt_df["avg_transit_days"].mean(),1)),
             ("Planning Shipments", int(opt_df["shipping_need_14d"].sum())),   
-            ("Shipping Cost", int((opt_df["shipments_required"] *
-                  opt_df["avg_shipping_cost"]).sum()))
+            ("Shipping Cost", int((opt_df["shipments_required"] * opt_df["adjusted_cost"]).sum()))
         ]
         for col, (k, v) in zip([c1, c2, c3, c4], metrics):
             with col:
