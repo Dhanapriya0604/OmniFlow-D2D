@@ -34,6 +34,11 @@ def inject_global_css():
         from { opacity: 0; transform: translateY(8px); }
         to   { opacity: 1; transform: translateY(0); }
     }
+    .section-title {
+        font-size: 28px;
+        font-weight: 800;
+        margin: 28px 0 14px 0;
+    }
     .of-card {
         background: var(--card-bg);
         padding: 22px;
