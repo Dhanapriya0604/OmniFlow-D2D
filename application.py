@@ -52,6 +52,10 @@ def inject_global_css():
         transform: translateY(-4px);
         box-shadow: 0 18px 38px rgba(0,0,0,0.14);
     }
+    .of-card span {
+        font-size: 13px;
+        font-weight: 500;
+    }
     .of-title {
         font-size: 26px;
         font-weight: 800;
@@ -109,36 +113,48 @@ def show_overview():
     </ul>
     </div>
     """, unsafe_allow_html=True)
-    st.markdown('<div class="section-title">Key Capabilities</div>', unsafe_allow_html=True)
-    st.markdown("""
-    <div class="of-card">
-    <ul>
-        <li>Feature engineering (lags, trends, seasonality)</li>
-        <li>Model selection using RMSE</li>
-        <li>Automated production scheduling</li>
-        <li>Logistics risk detection</li>
-        <li>AI-based decision recommendations</li>
-    </ul>
-    </div>
-    """, unsafe_allow_html=True)
-    st.markdown('<div class="section-title">Business Impact</div>', unsafe_allow_html=True)
-    st.markdown("""
-    <div class="of-card">
-    <ul>
-        <li>Reduce stockouts & overstock</li>
-        <li>Align production with demand</li>
-        <li>Optimize logistics cost & delivery</li>
-        <li>Improve supply chain visibility</li>
-        <li>Enable faster decision-making</li>
-    </ul>
-    </div>
-    """, unsafe_allow_html=True)
+    c1, c2 = st.columns(2)
+    with c1:
+        st.markdown("""
+        <div class="of-card">
+            <div class="of-title">🧠 Key Capabilities</div>
+            <ul style="padding-left:18px; line-height:1.8;">
+                <li>Feature engineering (lags, rolling trends, seasonality)</li>
+                <li>Model selection using RMSE</li>
+                <li>Forecast confidence intervals</li>
+                <li>Automated production scheduling</li>
+                <li>Logistics risk detection</li>
+                <li>AI-driven decision recommendations</li>
+            </ul>
+        </div>
+        """, unsafe_allow_html=True)
+    with c2:
+        st.markdown("""
+        <div class="of-card">
+            <div class="of-title">📈 Business Impact</div>
+            <ul style="padding-left:18px; line-height:1.8;">
+                <li>Reduce stockouts & overstock</li>
+                <li>Align production with real demand</li>
+                <li>Optimize logistics cost & delivery</li>
+                <li>Improve supply chain visibility</li>
+                <li>Enable faster data-driven decisions</li>
+            </ul>
+        </div>
+        """, unsafe_allow_html=True)
     st.markdown('<div class="section-title">Technology Stack</div>', unsafe_allow_html=True)
     st.markdown("""
     <div class="of-card">
-    Python • Pandas • NumPy • Scikit-learn<br><br>
-    Machine Learning Models • Optimization Logic<br><br>
-    Streamlit • Plotly • Data Pipelines
+    <div style="display:flex; flex-wrap:wrap; gap:10px; margin-top:10px;">
+        <span style="background:#eef2ff; padding:8px 14px; border-radius:12px;">Python</span>
+        <span style="background:#eef2ff; padding:8px 14px; border-radius:12px;">Pandas</span>
+        <span style="background:#eef2ff; padding:8px 14px; border-radius:12px;">NumPy</span>
+        <span style="background:#eef2ff; padding:8px 14px; border-radius:12px;">Scikit-learn</span>
+        <span style="background:#f0fdf4; padding:8px 14px; border-radius:12px;">ML Models</span>
+        <span style="background:#f0fdf4; padding:8px 14px; border-radius:12px;">Optimization Logic</span>
+        <span style="background:#ecfeff; padding:8px 14px; border-radius:12px;">Streamlit</span>
+        <span style="background:#ecfeff; padding:8px 14px; border-radius:12px;">Plotly</span>
+        <span style="background:#ecfeff; padding:8px 14px; border-radius:12px;">Data Pipelines</span>
+    </div>
     </div>
     """, unsafe_allow_html=True)
     st.success("🚀 Fully Integrated Demand-to-Delivery Intelligence System")
