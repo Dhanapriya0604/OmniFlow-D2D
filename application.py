@@ -47,6 +47,7 @@ def inject_global_css():
         box-shadow: 0 10px 26px rgba(0,0,0,0.08);
         transition: all 0.25s ease;
         margin-bottom: 18px;
+        min-height: 120px;
     }
     .of-card:hover {
         transform: translateY(-4px);
@@ -81,82 +82,90 @@ st.set_page_config(
     layout="wide"
 )
 inject_global_css()
-
 def show_overview():
     st.title("OmniFlow D2D")
     st.subheader("Predictive Logistics & AI-Powered Demand-to-Delivery Optimization System")
     st.markdown('<div class="section-title">Overview</div>', unsafe_allow_html=True)
-    st.markdown("""
-    <div class="of-card">
-    OmniFlow D2D is an End-to-End AI-Powered Supply Chain Optimization System that connects demand forecasting,
-    inventory optimization, production planning, and logistics into one unified flow.
-    It transforms raw data into actionable decisions for faster and smarter operations.
-    </div>
-    """, unsafe_allow_html=True)
-    st.markdown('<div class="section-title">End-to-End Flow</div>', unsafe_allow_html=True)
-    st.markdown("""
-    <div class="of-card">
-    📊 Demand Forecasting → 📦 Inventory Optimization → ⚙️ Production Planning → 🚚 Logistics Optimization → 🤖 AI Decision Engine
-    <br><br>
-    Each module feeds the next, forming a closed-loop intelligent system.
-    </div>
-    """, unsafe_allow_html=True)
-    st.markdown('<div class="section-title">Core Modules</div>', unsafe_allow_html=True)
-    st.markdown("""
-    <div class="of-card">
-    <ul>
-        <li><b>Demand Intelligence:</b> ML-based forecasting with trends & seasonality</li>
-        <li><b>Inventory Optimization:</b> Prevents stockouts and optimizes stock levels</li>
-        <li><b>Production Planning:</b> Converts demand into production plans</li>
-        <li><b>Predictive Logistics:</b> Optimizes shipments and detects delays</li>
-        <li><b>AI Decision Engine:</b> Identifies risks and recommends actions</li>
-    </ul>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown("""<div class="of-card">
+    OmniFlow D2D is an <b>end-to-end AI-powered supply chain intelligence system</b> that connects
+    demand forecasting, inventory optimization, production planning, and logistics into one unified pipeline.
+    It transforms raw operational data into <b>real-time, actionable decisions</b>.
+    </div>""", unsafe_allow_html=True)
+
     c1, c2 = st.columns(2)
     with c1:
-        st.markdown("""
-        <div class="of-card">
+        st.markdown("""<div class="of-card">
+            <div class="of-title">🔄 End-to-End Flow</div>
+            <div style="font-weight:600; margin-top:10px;">
+                📊 Demand → 📦 Inventory → ⚙️ Production → 🚚 Logistics → 🤖 AI
+            </div>
+            <div class="of-subtitle" style="margin-top:12px;">
+                Closed-loop system where each module continuously feeds the next.
+            </div>
+        </div>""", unsafe_allow_html=True)
+    with c2:
+        st.markdown("""<div class="of-card">
+            <div class="of-title">⚙️ Technology Stack</div>
+            <div style="display:flex; flex-wrap:wrap; gap:10px; margin-top:10px;">
+                <span style="background:#eef2ff; padding:6px 12px; border-radius:10px;">Python</span>
+                <span style="background:#eef2ff; padding:6px 12px; border-radius:10px;">Pandas</span>
+                <span style="background:#eef2ff; padding:6px 12px; border-radius:10px;">NumPy</span>
+                <span style="background:#eef2ff; padding:6px 12px; border-radius:10px;">Scikit-learn</span>
+                <span style="background:#f0fdf4; padding:6px 12px; border-radius:10px;">ML Models</span>
+                <span style="background:#f0fdf4; padding:6px 12px; border-radius:10px;">Optimization</span>
+                <span style="background:#ecfeff; padding:6px 12px; border-radius:10px;">Streamlit</span>
+                <span style="background:#ecfeff; padding:6px 12px; border-radius:10px;">Plotly</span>
+            </div>
+        </div>""", unsafe_allow_html=True)
+    st.markdown('<div class="section-title">Core Modules</div>', unsafe_allow_html=True)
+    m1, m2, m3 = st.columns(3)
+    with m1:
+        st.markdown("""<div class="of-card">
+        <b>📊 Demand Intelligence</b><br><br>
+        ML-based forecasting using trends, seasonality, and feature engineering.
+        </div>""", unsafe_allow_html=True)
+        st.markdown("""<div class="of-card">
+        <b>⚙️ Production Planning</b><br><br>
+        Converts demand signals into optimized production schedules.
+        </div>""", unsafe_allow_html=True)
+    with m2:
+        st.markdown("""<div class="of-card">
+        <b>📦 Inventory Optimization</b><br><br>
+        Maintains optimal stock levels and prevents stockouts.
+        </div>""", unsafe_allow_html=True)
+        st.markdown("""<div class="of-card">
+        <b>🚚 Predictive Logistics</b><br><br>
+        Optimizes shipments, routes, and delay risks.
+        </div>""", unsafe_allow_html=True)
+    with m3:
+        st.markdown("""<div class="of-card">
+        <b>🤖 AI Decision Engine</b><br><br>
+        Detects risks, bottlenecks, and recommends actions.
+        </div>""", unsafe_allow_html=True)
+    c1, c2 = st.columns(2)
+    with c1:
+        st.markdown("""<div class="of-card">
             <div class="of-title">🧠 Key Capabilities</div>
             <ul style="padding-left:18px; line-height:1.8;">
-                <li>Feature engineering (lags, rolling trends, seasonality)</li>
+                <li>Advanced feature engineering</li>
                 <li>Model selection using RMSE</li>
                 <li>Forecast confidence intervals</li>
-                <li>Automated production scheduling</li>
+                <li>Automated production planning</li>
                 <li>Logistics risk detection</li>
-                <li>AI-driven decision recommendations</li>
+                <li>AI-driven recommendations</li>
             </ul>
-        </div>
-        """, unsafe_allow_html=True)
+        </div>""", unsafe_allow_html=True)
     with c2:
-        st.markdown("""
-        <div class="of-card">
+        st.markdown("""<div class="of-card">
             <div class="of-title">📈 Business Impact</div>
             <ul style="padding-left:18px; line-height:1.8;">
                 <li>Reduce stockouts & overstock</li>
-                <li>Align production with real demand</li>
-                <li>Optimize logistics cost & delivery</li>
-                <li>Improve supply chain visibility</li>
-                <li>Enable faster data-driven decisions</li>
+                <li>Align production with demand</li>
+                <li>Optimize logistics cost</li>
+                <li>Improve visibility</li>
+                <li>Enable faster decisions</li>
             </ul>
-        </div>
-        """, unsafe_allow_html=True)
-    st.markdown('<div class="section-title">Technology Stack</div>', unsafe_allow_html=True)
-    st.markdown("""
-    <div class="of-card">
-    <div style="display:flex; flex-wrap:wrap; gap:10px; margin-top:10px;">
-        <span style="background:#eef2ff; padding:8px 14px; border-radius:12px;">Python</span>
-        <span style="background:#eef2ff; padding:8px 14px; border-radius:12px;">Pandas</span>
-        <span style="background:#eef2ff; padding:8px 14px; border-radius:12px;">NumPy</span>
-        <span style="background:#eef2ff; padding:8px 14px; border-radius:12px;">Scikit-learn</span>
-        <span style="background:#f0fdf4; padding:8px 14px; border-radius:12px;">ML Models</span>
-        <span style="background:#f0fdf4; padding:8px 14px; border-radius:12px;">Optimization Logic</span>
-        <span style="background:#ecfeff; padding:8px 14px; border-radius:12px;">Streamlit</span>
-        <span style="background:#ecfeff; padding:8px 14px; border-radius:12px;">Plotly</span>
-        <span style="background:#ecfeff; padding:8px 14px; border-radius:12px;">Data Pipelines</span>
-    </div>
-    </div>
-    """, unsafe_allow_html=True)
+        </div>""", unsafe_allow_html=True)
     st.success("🚀 Fully Integrated Demand-to-Delivery Intelligence System")
 menu = st.sidebar.radio(
     "Navigation",
