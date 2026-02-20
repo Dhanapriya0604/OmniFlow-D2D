@@ -252,12 +252,10 @@ def logistics_optimization_page():
         st.markdown(
             '<div class="section-title">Logistics Optimization Overview</div>',unsafe_allow_html=True
         )
-        st.markdown("""
-        Logistics optimization ensures products move efficiently from
+        st.markdown("""<div class="card">Logistics optimization ensures products move efficiently from
         warehouses to destination regions while minimizing delays and costs.
         This module recommends carriers, estimates transit times,
-        and highlights shipment risks.
-        """)
+        and highlights shipment risks.</div>""", unsafe_allow_html=True)
     with tab2:
         forecast_df   = load_forecasts()
         inventory_df  = load_inventory()
