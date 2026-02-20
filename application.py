@@ -74,14 +74,8 @@ st.set_page_config(
 inject_global_css()
 
 def show_overview():
-    st.markdown("""
-    <div class="of-card">
-        <div class="of-title">📦 OmniFlow D2D</div>
-        <div class="of-subtitle">
-            Predictive Logistics & AI-Powered Demand-to-Delivery Optimization System
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    st.title("OmniFlow D2D")
+    st.subheader("Predictive Logistics & AI-Powered Demand-to-Delivery Optimization System")
 
     st.markdown("""
     <div class="of-card">
