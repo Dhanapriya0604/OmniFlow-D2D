@@ -76,66 +76,67 @@ inject_global_css()
 def show_overview():
     st.title("OmniFlow D2D")
     st.subheader("Predictive Logistics & AI-Powered Demand-to-Delivery Optimization System")
-
+    st.markdown('<div class="section-title">Overview</div>', unsafe_allow_html=True)
     st.markdown("""
     <div class="of-card">
-    <b>🔄 End-to-End AI-Powered Supply Chain Optimization System</b><br><br>
-    📊 Demand → 📦 Inventory → ⚙️ Production → 🚚 Logistics → 🤖 AI Decisions
+    OmniFlow D2D is an End-to-End AI-Powered Supply Chain Optimization System that connects demand forecasting,
+    inventory optimization, production planning, and logistics into one unified flow.
+    It transforms raw data into actionable decisions for faster and smarter operations.
+    </div>
+    """, unsafe_allow_html=True)
+    st.markdown('<div class="section-title">End-to-End Flow</div>', unsafe_allow_html=True)
+    st.markdown("""
+    <div class="of-card">
+    📊 Demand Forecasting → 📦 Inventory Optimization → ⚙️ Production Planning → 🚚 Logistics Optimization → 🤖 AI Decision Engine
     <br><br>
-    <span style="color:#475569;">Closed-loop intelligent system</span>
+    Each module feeds the next, forming a closed-loop intelligent system.
     </div>
     """, unsafe_allow_html=True)
-
+    st.markdown('<div class="section-title">Core Modules</div>', unsafe_allow_html=True)
     st.markdown("""
-    <div class="grid">
-        <div class="of-card">
-        <b>📊 Demand Intelligence</b><br><br>
-        ML forecasting using lag features, trends & seasonality
-        </div>
-        <div class="of-card">
-        <b>📦 Inventory Optimization</b><br><br>
-        Prevents stockouts & maintains optimal stock levels
-        </div>
-        <div class="of-card">
-        <b>⚙️ Production Planning</b><br><br>
-        Converts demand into production with capacity planning
-        </div>
-        <div class="of-card">
-        <b>🚚 Logistics Optimization</b><br><br>
-        Shipment planning, delay prediction & cost estimation
-        </div>
-        <div class="of-card">
-        <b>🤖 AI Decision Engine</b><br><br>
-        Detects risks & recommends business actions
-        </div>
-        <div class="of-card">
-        <b>⚡ Key Capabilities</b><br><br>
-        ✔ Forecasting<br>
-        ✔ Optimization<br>
-        ✔ Scheduling<br>
-        ✔ Risk Detection<br>
-        ✔ AI Decisions
-        </div>
+    <div class="of-card">
+    <ul>
+        <li><b>Demand Intelligence:</b> ML-based forecasting with trends & seasonality</li>
+        <li><b>Inventory Optimization:</b> Prevents stockouts and optimizes stock levels</li>
+        <li><b>Production Planning:</b> Converts demand into production plans</li>
+        <li><b>Predictive Logistics:</b> Optimizes shipments and detects delays</li>
+        <li><b>AI Decision Engine:</b> Identifies risks and recommends actions</li>
+    </ul>
     </div>
     """, unsafe_allow_html=True)
+    st.markdown('<div class="section-title">Key Capabilities</div>', unsafe_allow_html=True)
     st.markdown("""
-    <div class="grid">
-        <div class="of-card">
-        <b>🎯 Business Impact</b><br><br>
-        ✔ Reduce stockouts & overstock<br>
-        ✔ Align production with demand<br>
-        ✔ Optimize logistics cost<br>
-        ✔ Improve visibility
-        </div>
-        <div class="of-card">
-        <b>🧠 Tech Stack</b><br><br>
-        Python • Pandas • NumPy<br>
-        Scikit-learn • ML Models<br>
-        Streamlit • Plotly
-        </div>
+    <div class="of-card">
+    <ul>
+        <li>Feature engineering (lags, trends, seasonality)</li>
+        <li>Model selection using RMSE</li>
+        <li>Automated production scheduling</li>
+        <li>Logistics risk detection</li>
+        <li>AI-based decision recommendations</li>
+    </ul>
     </div>
     """, unsafe_allow_html=True)
-    st.success("🚀 Forecast → Plan → Execute → Decide — Unified Intelligence System")
+    st.markdown('<div class="section-title">Business Impact</div>', unsafe_allow_html=True)
+    st.markdown("""
+    <div class="of-card">
+    <ul>
+        <li>Reduce stockouts & overstock</li>
+        <li>Align production with demand</li>
+        <li>Optimize logistics cost & delivery</li>
+        <li>Improve supply chain visibility</li>
+        <li>Enable faster decision-making</li>
+    </ul>
+    </div>
+    """, unsafe_allow_html=True)
+    st.markdown('<div class="section-title">Technology Stack</div>', unsafe_allow_html=True)
+    st.markdown("""
+    <div class="of-card">
+    Python • Pandas • NumPy • Scikit-learn<br><br>
+    Machine Learning Models • Optimization Logic<br><br>
+    Streamlit • Plotly • Data Pipelines
+    </div>
+    """, unsafe_allow_html=True)
+    st.success("🚀 Fully Integrated Demand-to-Delivery Intelligence System")
 menu = st.sidebar.radio(
     "Navigation",
     [
