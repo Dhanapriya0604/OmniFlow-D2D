@@ -1,29 +1,16 @@
 # application.py
 # OmniFlow-D2D : Streamlit Application (MODULE-BASED)
-
 import os
 import sys
 import streamlit as st
-
-# --------------------------------------------------
-# ENSURE PROJECT ROOT IS IN PYTHON PATH
-# --------------------------------------------------
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 if PROJECT_ROOT not in sys.path:
     sys.path.append(PROJECT_ROOT)
-
-# --------------------------------------------------
-# CORRECT MODULE IMPORTS
-# --------------------------------------------------
 from modules.demand_forecasting import demand_forecasting_page
 from modules.inventory_optimization import inventory_optimization_page
 from modules.production_planning import production_planning_page
 from modules.logistics_prediction import logistics_optimization_page
 from modules.ai_decision_engine import decision_intelligence_page
-
-# --------------------------------------------------
-# GLOBAL UI THEME (CONSISTENT WITH MODULES)
-# --------------------------------------------------
 def inject_global_css():
     st.markdown("""
     <style>
@@ -35,22 +22,18 @@ def inject_global_css():
         --border: #e5e7eb;
         --card-bg: #ffffff;
     }
-
     html, body {
         background-color: var(--bg);
         color: var(--text);
         font-family: Inter, system-ui, -apple-system;
     }
-
     section.main > div {
         animation: fadeIn 0.45s ease-in-out;
     }
-
     @keyframes fadeIn {
         from { opacity: 0; transform: translateY(8px); }
         to   { opacity: 1; transform: translateY(0); }
     }
-
     .of-card {
         background: var(--card-bg);
         padding: 22px;
@@ -60,186 +43,113 @@ def inject_global_css():
         transition: all 0.25s ease;
         margin-bottom: 18px;
     }
-
     .of-card:hover {
         transform: translateY(-4px);
         box-shadow: 0 18px 38px rgba(0,0,0,0.14);
     }
-
     .of-title {
         font-size: 26px;
         font-weight: 800;
         margin-bottom: 8px;
     }
-
     .of-subtitle {
         color: var(--muted);
         font-size: 15px;
     }
-
     [data-testid="stSidebar"] {
         background: linear-gradient(180deg, #f1f5f9, #ffffff);
     }
     </style>
     """, unsafe_allow_html=True)
-
-# --------------------------------------------------
-# STREAMLIT CONFIG
-# --------------------------------------------------
 st.set_page_config(
     page_title="OmniFlow D2D",
     page_icon="📦",
     layout="wide"
 )
-
 inject_global_css()
-
 st.title("OmniFlow D2D")
 st.subheader("Predictive Logistics & AI-Powered Demand-to-Delivery Optimization System")
-
-# --------------------------------------------------
-# OVERVIEW PAGE
-# --------------------------------------------------
 def show_overview():
 
-    st.markdown("""
-    <div class="of-card">
-        <div class="of-title">📘 OmniFlow D2D – System Overview</div>
+    st.markdown("""<div class="of-card">
+        <div class="of-title">📦 OmniFlow D2D</div>
         <div class="of-subtitle">
-            Predictive Logistics & AI-Powered Demand-to-Delivery Optimization
+            End-to-End AI-Powered Supply Chain Optimization System
         </div>
-    </div>
-    """, unsafe_allow_html=True)
+    </div>""", unsafe_allow_html=True)
 
-    # 1️⃣ ABSTRACT
-    with st.expander("1️⃣ Abstract", expanded=True):
-        st.markdown("""
-        <div class="of-card">
-        <b>OmniFlow D2D</b> is an AI-driven, end-to-end supply chain optimization platform
-        designed to bridge the gap between market demand and final product delivery.
+    st.markdown("""<div class="of-card">
+    <b>What this system does</b><br><br>
+    OmniFlow D2D transforms raw business data into actionable supply chain decisions.
+    It predicts demand, optimizes inventory, plans production, improves logistics,
+    and finally generates AI-driven recommendations — all in one unified platform.
+    </div>""", unsafe_allow_html=True)
 
-        The system integrates <b>demand forecasting, inventory optimization,
-        production planning, predictive logistics, and AI-based decision intelligence</b>
-        into a single unified application.
+    st.markdown("""<div class="of-card">
+    <b>End-to-End Flow</b><br><br>
 
-        Traditional supply chain systems operate in silos.
-        OmniFlow D2D eliminates these silos by ensuring real-time demand signals
-        drive procurement, production, inventory, and transportation decisions.
+    📊 Demand Forecasting → 📦 Inventory Optimization → ⚙️ Production Planning → 🚚 Logistics Optimization → 🤖 AI Decision Engine
 
-        The platform operates as a <b>closed-loop intelligence system</b>.
-        </div>
-        """, unsafe_allow_html=True)
+    <br>
+    Each module feeds the next, forming a closed-loop intelligent system.
+    </div>""", unsafe_allow_html=True)
 
-    # 2️⃣ TOOLS
-    with st.expander("2️⃣ Tools & Technologies Used"):
-        st.markdown("""
-        <div class="of-card">
-        <b>Programming & Analytics</b>
-        <ul>
-            <li>Python</li>
-            <li>Pandas & NumPy</li>
-        </ul>
+    st.markdown("""<div class="of-card">
+    <b>Core Modules</b><br><br>
 
-        <b>Machine Learning</b>
-        <ul>
-            <li>Scikit-Learn</li>
-            <li>Prophet</li>
-            <li>SARIMA</li>
-        </ul>
+    📊 <b>Demand Intelligence</b><br>
+    ML-based forecasting using lag features, rolling averages, seasonality, and model selection (RF, GBM, Linear)
 
-        <b>Optimization & Deployment</b>
-        <ul>
-            <li>EOQ, Safety Stock, Reorder Point</li>
-            <li>Streamlit</li>
-            <li>GitHub & Streamlit Cloud</li>
-        </ul>
-        </div>
-        """, unsafe_allow_html=True)
+    <br><br>
 
-    # 3️⃣ DATA SOURCES
-    with st.expander("3️⃣ Data Sources Used"):
-        st.markdown("""
-        <div class="of-card">
-        The system operates on enterprise-style operational data that reflects
-        real-world business processes across the supply chain lifecycle.
+    📦 <b>Inventory Optimization</b><br>
+    Uses demand + stock signals to prevent stockouts and maintain optimal inventory levels
+
+    <br><br>
+
+    ⚙️ <b>Production Planning</b><br>
+    Converts demand into production requirements with capacity, batch sizing, and scheduling
+
+    <br><br>
+
+    🚚 <b>Predictive Logistics</b><br>
+    Optimizes shipments, assigns regions, estimates delays, and calculates shipping cost
+
+    <br><br>
+
+    🤖 <b>AI Decision Intelligence</b><br>
+    Identifies risks, bottlenecks, and recommends business actions dynamically
+    </div>""", unsafe_allow_html=True)
+
+    st.markdown("""<div class="of-card">
+    <b>What makes it intelligent</b><br><br>
+
+    ✔ Feature engineering (lags, rolling trends, seasonality)  
+    ✔ Model selection using RMSE  
+    ✔ Forecast confidence intervals  
+    ✔ Automated production scheduling  
+    ✔ Logistics risk detection  
+    ✔ AI-based decision recommendations  
+    </div>""", unsafe_allow_html=True)
+
+    st.markdown("""<div class="of-card">
+    <b>Business Impact</b><br><br>
+
+    ✔ Reduce stockouts & overstock  
+    ✔ Align production with real demand  
+    ✔ Optimize logistics cost & delivery  
+    ✔ Improve supply chain visibility  
+    ✔ Enable faster data-driven decisions  
+    </div>""", unsafe_allow_html=True)
     
-        <ul>
-            <li>Historical demand and sales behavior</li>
-            <li>Inventory levels and stock movement information</li>
-            <li>Manufacturing and production performance records</li>
-            <li>Transportation and delivery operations data</li>
-        </ul>
-    
-        These data inputs enable analytical modeling, forecasting, optimization,
-        and decision intelligence across multiple functional areas.
-        </div>
-        """, unsafe_allow_html=True)
+    st.markdown("""<div class="of-card">
+    <b>Technology Stack</b><br><br>
 
-    # 4️⃣ MODULES
-    with st.expander("4️⃣ System Modules & Functionality"):
-        st.markdown("""
-        <div class="of-card">
-        <ul>
-            <li>Demand Forecasting</li>
-            <li>Inventory Optimization</li>
-            <li>Production Planning</li>
-            <li>Predictive Logistics</li>
-            <li>AI Decision Intelligence</li>
-        </ul>
-        </div>
-        """, unsafe_allow_html=True)
-
-    # 5️⃣ BENEFITS
-    with st.expander("5️⃣ What Can Be Done Using OmniFlow D2D"):
-        st.markdown("""
-        <div class="of-card">
-        <ul>
-            <li>Accurate demand forecasting</li>
-            <li>Reduced stockouts & wastage</li>
-            <li>Optimized production schedules</li>
-            <li>Lower logistics costs</li>
-            <li>AI-driven decision support</li>
-        </ul>
-        </div>
-        """, unsafe_allow_html=True)
-
-    # 6️⃣ CHALLENGES
-    with st.expander("6️⃣ Challenges & Solutions"):
-        st.table({
-            "Challenge": [
-                "Stockouts & Overstocks",
-                "Logistics Delays",
-                "High Costs",
-                "Poor Visibility"
-            ],
-            "Solution": [
-                "Demand Forecasting & Inventory Optimization",
-                "Predictive Logistics",
-                "Optimization Models",
-                "Real-time Dashboards"
-            ]
-        })
-
-    # 7️⃣ USERS
-    with st.expander("7️⃣ Who This Project Is Useful For"):
-        st.markdown("""
-        <div class="of-card">
-        <b>Enterprise Roles</b>
-        <ul>
-            <li>Supply Chain Managers</li>
-            <li>Inventory Managers</li>
-            <li>Production Planners</li>
-            <li>Logistics Coordinators</li>
-            <li>Data Scientists</li>
-        </ul>
-        </div>
-        """, unsafe_allow_html=True)
-
-    st.success("🔁 Demand → Inventory → Production → Logistics → AI Decisions")
-
-# --------------------------------------------------
-# SIDEBAR NAVIGATION
-# --------------------------------------------------
+    Python • Pandas • NumPy • Scikit-learn  
+    Machine Learning Models • Optimization Logic  
+    Streamlit • Plotly • Data Pipelines  
+    </div>""", unsafe_allow_html=True)
+    st.success("🚀 From Forecast → Plan → Execute → Decide — Fully Connected Intelligence System")
 menu = st.sidebar.radio(
     "Navigation",
     [
@@ -251,29 +161,20 @@ menu = st.sidebar.radio(
         "AI Insights"
     ]
 )
-
-# --------------------------------------------------
-# PAGE ROUTING
-# --------------------------------------------------
 if menu == "Overview":
     show_overview()
-
 elif menu == "Demand Intelligence":
     st.header("📊 Demand Forecasting Intelligence")
     demand_forecasting_page()
-
 elif menu == "Inventory Optimization":
     st.header("📦 Inventory Optimization")
     inventory_optimization_page()
-
 elif menu == "Production Planning":
     st.header("⚙️ Production Planning")
     production_planning_page()
-
 elif menu == "Predictive Logistics":
     st.header("🚚 Predictive Logistics")
     logistics_optimization_page()
-
 elif menu == "AI Insights":
     st.header("🤖 AI Decision Engine")
     decision_intelligence_page()
