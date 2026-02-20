@@ -52,6 +52,17 @@ def inject_css():
         transition: 0.3s ease;
         box-shadow: 0 18px 40px rgba(0,0,0,0.2);
     }
+    .stTabs [data-baseweb="tab"] {
+        background: #f1f5f9;
+        border-radius: 12px;
+        padding: 10px 18px;
+        font-weight: 600;
+    }
+    .stTabs [aria-selected="true"] {
+        background: var(--accent);
+        color: var(--primary);
+        box-shadow: 0 6px 18px rgba(180,83,9,0.25);
+    }
     </style>
     """, unsafe_allow_html=True)
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -252,10 +263,14 @@ def logistics_optimization_page():
         st.markdown(
             '<div class="section-title">Logistics Optimization Overview</div>',unsafe_allow_html=True
         )
-        st.markdown("""<div class="card">Logistics optimization ensures products move efficiently from
+        st.markdown(
+        """<div class="card">
+        Logistics optimization ensures products move efficiently from
         warehouses to destination regions while minimizing delays and costs.
         This module recommends carriers, estimates transit times,
-        and highlights shipment risks.</div>""", unsafe_allow_html=True)
+        and highlights shipment risks.
+        </div>
+        """, unsafe_allow_html=True)
     with tab2:
         forecast_df   = load_forecasts()
         inventory_df  = load_inventory()
