@@ -95,11 +95,19 @@ def show_overview():
     with c1:
         st.markdown("""<div class="of-card">
             <div class="of-title">🔄 End-to-End Flow</div>
-            <div style="font-weight:600; margin-top:10px;">
-                📊 Demand → 📦 Inventory → ⚙️ Production → 🚚 Logistics → 🤖 AI
+            <div style="margin-top:15px; line-height:2; font-weight:600;">
+                📊 Demand Forecasting<br>
+                ↓<br>
+                📦 Inventory Optimization<br>
+                ↓<br>
+                ⚙️ Production Planning<br>
+                ↓<br>
+                🚚 Logistics Optimization<br>
+                ↓<br>
+                🤖 AI Decision Engine
             </div>
-            <div class="of-subtitle" style="margin-top:12px;">
-                Closed-loop system where each module continuously feeds the next.
+            <div class="of-subtitle" style="margin-top:15px;">
+                Closed-loop system where each stage continuously feeds the next.
             </div>
         </div>""", unsafe_allow_html=True)
     with c2:
