@@ -35,6 +35,18 @@ def inject_css():
         font-weight:800;
         margin:28px 0 14px;
     }
+    .card {
+        background: white;
+        padding: 22px;
+        border-radius: 16px;
+        border: 1px solid var(--border);
+        box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+        transition: 0.25s;
+    }
+    .card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 18px 40px rgba(0,0,0,0.14);
+    }
     .metric-card {
         background:linear-gradient(180deg,#dbeafe,#ffffff);
         padding:18px;
@@ -263,14 +275,12 @@ def logistics_optimization_page():
         st.markdown(
             '<div class="section-title">Logistics Optimization Overview</div>',unsafe_allow_html=True
         )
-        st.markdown(
-        """<div class="card">
+        st.markdown("""<div class="card">
         Logistics optimization ensures products move efficiently from
         warehouses to destination regions while minimizing delays and costs.
         This module recommends carriers, estimates transit times,
         and highlights shipment risks.
-        </div>
-        """, unsafe_allow_html=True)
+        </div>""", unsafe_allow_html=True)
     with tab2:
         forecast_df   = load_forecasts()
         inventory_df  = load_inventory()
