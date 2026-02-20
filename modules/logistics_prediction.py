@@ -273,7 +273,6 @@ def logistics_optimization_page():
             np.where(opt_df["destination_region"] == "NORTH", 80, 60)
         )     
         opt_df["shipments_required"] = np.ceil(opt_df["shipping_need_14d"] / opt_df["shipment_size"])
-        st.write(opt_df["destination_region"].unique())
         metrics = [
             ("Avg Delay Rate", round(opt_df["avg_delay_rate"].mean(),2)),
             ("Avg Transit Days", round(opt_df["avg_transit_days"].mean(),1)),
