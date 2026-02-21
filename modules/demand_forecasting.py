@@ -619,23 +619,22 @@ def demand_forecasting_page():
         for pid in df["product_id"].unique():            
             prod_df = df[df["product_id"] == pid].copy()
             history = prod_df.copy()
-            last_sales = history["daily_sales"].values.tolist()
             regime = history["demand_regime"].iloc[-1]
             future_preds = []
             if prod_df.empty:
                 continue
             for i in range(FORECAST_DAYS):     
                 row = future_df.iloc[i].copy()
-                row["lag_1"] = last_sales[-1]
-                if len(last_sales) >= 7:
-                    row["lag_7"] = last_sales[-7]
-                    row["rolling_7"] = np.mean(last_sales[-7:])
+                row["lag_1"] = history.iloc[-1]["daily_sales"]
+                if len(history) >= 7:
+                    row["lag_7"] = history.iloc[-7]["daily_sales"]
+                    row["rolling_7"] = history["daily_sales"].tail(7).mean()
                 else:
-                    m = np.mean(last_sales)
+                    m = history["daily_sales"].mean()
                     row["lag_7"] = m
-                    row["rolling_7"] = m                
-                row["rolling_14"] = np.mean(last_sales[-14:])
-                row["rolling_30"] = np.mean(last_sales[-30:])
+                    row["rolling_7"] = m                 
+                row["rolling_14"] = history["daily_sales"].tail(14).mean()
+                row["rolling_30"] = history["daily_sales"].tail(30).mean()
                 row["lag_diff_1"] = row["lag_1"] - row["lag_7"]
                 row["lag_ratio_1"] = row["lag_1"] / (row["lag_7"] + 1)
                 row["trend_7"] = row["rolling_7"] - row["lag_7"]
@@ -650,30 +649,32 @@ def demand_forecasting_page():
                     pred *= 1.15
                 res_corr = residual_model.predict(X_future)[0]
                 pred = pred + 0.3 * res_corr
-                hist_mean = np.mean(last_sales)          
+                hist_mean = history["daily_sales"].mean()          
                 pred = max(hist_mean * 0.2, pred)
                 pred = np.clip(pred,hist_mean * 0.3,hist_mean * 3)         
-                hist_std = np.std(last_sales)         
+                hist_std = history["daily_sales"].std()         
                 if np.isnan(hist_std):
                     hist_std = 0             
                 upper = hist_mean + 3 * hist_std
                 lower = max(0, hist_mean - 3 * hist_std)             
                 pred = np.clip(pred, lower, upper)   
-                recent_mean = np.mean(last_sales[-14:])
+                recent_mean = history["daily_sales"].tail(14).mean()
                 pred = 0.85 * pred + 0.15 * recent_mean
                 difficulty = row.get("sku_difficulty", 0)
                 alpha = 0.6 if difficulty > 1 else 0.8
                 pred = alpha * pred + (1 - alpha) * recent_mean
                 pred = np.clip(pred,recent_mean * 0.5,recent_mean * 1.8)
-                global_mean = np.mean(last_sales)
+                global_mean = history["daily_sales"].mean()
                 pred = 0.9 * pred + 0.1 * global_mean
                 if regime == "Growing":
                    pred *= 1.05
                 elif regime == "Declining":
                     pred *= 0.95
-                pred = min(pred, max(last_sales) * 2)
-                future_preds.append(pred)                           
-                last_sales.append(pred)            
+                pred = min(pred, history["daily_sales"].max() * 2)
+                future_preds.append(pred)            
+                new_hist = row.copy()
+                new_hist["daily_sales"] = pred               
+                history = pd.concat([history, new_hist.to_frame().T], ignore_index=True)            
             tmp = future_df.copy()
             tmp["product_id"] = pid
             tmp["forecast"] = future_preds
