@@ -250,8 +250,11 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
     df["carrier_delay_rate"].fillna(df["avg_delay_rate"], inplace=True)
     df["logistics_risk"] = np.where(df["avg_delay_rate"] > 0.25,"High Delay Risk","Logistics Stable")
     df["shipping_priority"] = (df["shipping_need_14d"] * (1 + df["avg_delay_rate"]))
+    df["cost_score"] = df["avg_shipping_cost"] / df["avg_shipping_cost"].max()
+    df["delay_score"] = df["avg_delay_rate"]
+    df["optimization_score"] = (0.6 * df["cost_score"] +  0.4 * df["delay_score"])
     df["shipping_need_14d"] = df["shipping_need_14d"].clip(lower=0)
-    df = df.sort_values("shipping_priority", ascending=False)
+    df = df.sort_values("optimization_score")
     df["warehouse_id"] = df["warehouse_id"].fillna("WH_UNKNOWN")
     df["destination_region"] = (df["destination_region"].fillna("UNKNOWN").astype(str).str.upper())
     df["recommended_carrier"] = df["recommended_carrier"].fillna("STANDARD")
@@ -300,8 +303,8 @@ def logistics_optimization_page():
             ("Avg Delay Rate", round(opt_df["avg_delay_rate"].mean(),2)),
             ("Avg Transit Days", round(opt_df["avg_transit_days"].mean(),1)),
             ("Planning Shipments", int(opt_df["shipping_need_14d"].sum())),   
-            ("Shipping Cost", int(
-                (opt_df["shipments_required"] * opt_df["avg_shipping_cost"]).sum()
+            (("Optimized Cost", int(
+                (opt_df["shipments_required"] * opt_df["avg_shipping_cost"] * (1 - opt_df["delay_score"])).sum()
             ))
         ]
         for col, (k, v) in zip([c1, c2, c3, c4], metrics):
