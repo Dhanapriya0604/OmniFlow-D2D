@@ -1,3 +1,4 @@
+# 1
 # ======================================================================================
 # OmniFlow-D2D : Demand Forecasting Intelligence Module
 # ======================================================================================
@@ -19,11 +20,8 @@ warnings.filterwarnings("ignore")
 india_holidays = holidays.India()
 if "demand_products" not in st.session_state:
     st.session_state["demand_products"] = []
-if "selected_product" not in st.session_state:
-    st.session_state["selected_product"] = None
 if "forecast_range" not in st.session_state:
     st.session_state["forecast_range"] = None
-st.set_page_config(page_title="Demand Forecasting Intelligence", layout="wide")
 def inject_css():
     st.markdown("""
     <style>
@@ -438,40 +436,43 @@ def demand_forecasting_page():
     with tab2:
         raw_df = build_demand_dataset()
         raw_df = raw_df.sort_values(["product_id","date"])
-        product_mode = st.radio(
-            "Product View Mode",["Single Product", "Multiple Products"],
-            horizontal=True, key="product_mode"
-        )     
+        # ---------------- PRODUCT SELECTION FIX ---------------- #
         product_list = sorted(raw_df["product_id"].unique())
-        if product_mode == "Single Product":   
-            if ("selected_product" not in st.session_state
-                or st.session_state.selected_product not in product_list
-            ):
-                st.session_state.selected_product = product_list[0]
-            product = st.selectbox("Select Product", product_list,
-                index=product_list.index(st.session_state.selected_product),
-            ) 
-            st.session_state.selected_product = product
-            df_selected = raw_df[raw_df["product_id"] == product].copy() 
+        if "demand_products" not in st.session_state:
+            st.session_state["demand_products"] = []  
+        if "select_all_products" not in st.session_state:
+            st.session_state["select_all_products"] = False        
+        col1, col2, col3 = st.columns([3,3,2])        
+        with col1:
+            product_mode = st.radio("Product Mode",
+                ["Single", "Multiple"], horizontal=True
+            )    
+        with col2:
+            selected_products = st.multiselect("Select Products",
+                product_list, default=st.session_state["demand_products"]
+            )
+        with col3:
+            select_all = st.checkbox("Select All",
+                value=st.session_state["select_all_products"]
+            )
+        if select_all:
+            st.session_state["demand_products"] = product_list
         else:
-            col1, col2 = st.columns([4, 1])  
-            with col1:
-                selected_products = st.multiselect("Select Products", product_list,
-                    default=st.session_state.get("demand_products", [])
-                )
-            with col2:
-                select_all = st.checkbox("Select All")
-            if select_all:
-                selected_products = product_list
-            st.session_state["demand_products"] = selected_products
+            st.session_state["demand_products"] = selected_products 
+        st.session_state["select_all_products"] = select_all      
+        selected_products = st.session_state["demand_products"]
+        if product_mode == "Single":
             if len(selected_products) == 0:
-                df_selected = raw_df.copy()
-            else:
-                df_selected = raw_df[raw_df["product_id"].isin(selected_products)].copy()
+                selected_products = [product_list[0]]
+            df_selected = raw_df[raw_df["product_id"] == selected_products[0]].copy()
+        else:
+            if len(selected_products) == 0:
+                st.warning("Please select at least one product")
+                st.stop()
+            df_selected = raw_df[raw_df["product_id"].isin(selected_products)].copy()
         if st.button("🔄 Reset Product Selection"):
             st.session_state["demand_products"] = []
-            if len(product_list) > 0:
-                st.session_state["selected_product"] = product_list[0]
+            st.session_state["select_all_products"] = False
             st.rerun()
         if len(df_selected) < 15:
             st.warning("⚠️ This product has limited history. Forecast accuracy may be lower.")
@@ -563,7 +564,7 @@ def demand_forecasting_page():
         )       
         max_allowed_date = pd.Timestamp("2026-06-30")
         default_start = df["date"].max() + pd.Timedelta(days=1)
-        default_end = min(default_start + pd.Timedelta(days=90), max_allowed_date)      
+        default_end = min(default_start + pd.Timedelta(days=30), max_allowed_date)      
         default_start_d = default_start.date()
         default_end_d = default_end.date()
         max_allowed_d = max_allowed_date.date()
@@ -616,7 +617,7 @@ def demand_forecasting_page():
         if df.empty:
             st.warning("No data available for forecasting.")
             st.stop()
-        for pid in df["product_id"].unique():            
+        for pid in selected_products:            
             prod_df = df[df["product_id"] == pid].copy()
             history = prod_df.copy()
             regime = history["demand_regime"].iloc[-1]
@@ -717,11 +718,11 @@ def demand_forecasting_page():
                 st.write(f"**{k}:** {v}")
         if "all_forecasts" not in st.session_state:
             st.session_state["all_forecasts"] = pd.DataFrame()        
-        if not st.session_state["all_forecasts"].empty and "product" in locals():
+        if not st.session_state["all_forecasts"].empty:
             st.session_state["all_forecasts"] = (
                 st.session_state["all_forecasts"]
-                [st.session_state["all_forecasts"]["product_id"] != product]
-            )        
+                [~st.session_state["all_forecasts"]["product_id"].isin(selected_products)]
+            )       
         st.session_state["all_forecasts"] = pd.concat(
             [st.session_state["all_forecasts"], df_fc], ignore_index=True
         )
