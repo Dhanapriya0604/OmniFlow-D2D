@@ -180,16 +180,13 @@ def prepare_features(df):
     df["cos_month"] = np.cos(2*np.pi*df["month"]/12)
     df["lag_1"]  = df.groupby("product_id")["daily_sales"].shift(1)
     df["lag_7"]  = df.groupby("product_id")["daily_sales"].shift(7)
-    df["rolling_7"] = (
-        df.groupby("product_id")["daily_sales"]
+    df["rolling_7"] = (df.groupby("product_id")["daily_sales"]
         .rolling(7).mean().reset_index(level=0, drop=True)
     )
-    df["rolling_14"] = (
-       df.groupby("product_id")["daily_sales"]
+    df["rolling_14"] = (df.groupby("product_id")["daily_sales"]
        .rolling(14).mean().reset_index(level=0, drop=True)
     )   
-    df["rolling_30"] = (
-       df.groupby("product_id")["daily_sales"]
+    df["rolling_30"] = (df.groupby("product_id")["daily_sales"]
        .rolling(30).mean().reset_index(level=0, drop=True)
     )
     df["lag_365"] = df.groupby("product_id")["daily_sales"].shift(365)    
