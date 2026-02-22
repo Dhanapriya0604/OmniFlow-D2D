@@ -303,7 +303,7 @@ def logistics_optimization_page():
             ("Avg Delay Rate", round(opt_df["avg_delay_rate"].mean(),2)),
             ("Avg Transit Days", round(opt_df["avg_transit_days"].mean(),1)),
             ("Planning Shipments", int(opt_df["shipping_need_14d"].sum())),   
-            ("Optimized Cost", int(
+            ("Shipping Cost", int(
                 (opt_df["shipments_required"] * opt_df["avg_shipping_cost"] * (1 - opt_df["delay_score"])).sum()
             ))
         ]
