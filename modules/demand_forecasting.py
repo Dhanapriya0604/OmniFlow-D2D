@@ -614,13 +614,16 @@ def demand_forecasting_page():
         if df.empty:
             st.warning("No data available for forecasting.")
             st.stop()
-        for pid in selected_products:            
+        for pid in df["product_id"].unique():             
             prod_df = df[df["product_id"] == pid].copy()
-            history = prod_df.copy()
-            regime = history["demand_regime"].iloc[-1]
             future_preds = []
             if prod_df.empty:
                 continue
+            history = prod_df.copy()
+            if "demand_regime" in history.columns and len(history) > 0:
+                regime = history["demand_regime"].iloc[-1]
+            else:
+                regime = "Stable" 
             for i in range(FORECAST_DAYS):     
                 row = future_df.iloc[i].copy()
                 row["lag_1"] = history.iloc[-1]["daily_sales"]
