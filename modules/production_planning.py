@@ -227,7 +227,7 @@ def production_profiling(df):
 
 def production_planning_page():
     inject_css()
-    tab1, tab2 = st.tabs(["📘 Overview", "🏭 Application"])
+    tab1, tab2 = st.tabs(["Overview", "Application"])
     with tab1:
         st.markdown('<div class="section-title">Production Planning Overview</div>', unsafe_allow_html=True)
         st.markdown("""
@@ -269,9 +269,9 @@ def production_planning_page():
             st.rerun()
         schedule_df = auto_production_schedule(prod_df)
         line_schedule_df = allocate_production_lines(schedule_df)
-        with st.expander("📘 Data Dictionary"):
+        with st.expander("Data Dictionary"):
             st.dataframe(PRODUCTION_DATA_DICTIONARY, use_container_width=True)
-        with st.expander("🔍 Data Profiling "):
+        with st.expander("Data Profiling "):
             profile = production_profiling(view_prod_df)
             for k, v in profile.items():
                 st.write(f"**{k}:** {v}")
