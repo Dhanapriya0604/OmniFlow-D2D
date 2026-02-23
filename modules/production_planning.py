@@ -120,8 +120,9 @@ def production_planning(forecast_df, inventory_df, manufacturing_df):
     planning_need = df["avg_daily_demand"] * planning_days    
     safety_buffer = planning_need * 0.05  
     base_requirement = planning_need + safety_buffer - df["current_stock"]  
+    reorder_point = planning_need * 1.05   # SAME LOGIC BASE AS INVENTORY
     df["production_required"] = np.where(
-        df["current_stock"] < planning_need, np.maximum(0, base_requirement), 0
+        df["current_stock"] <= reorder_point, np.maximum(0, base_requirement), 0
     )
     mfg_agg = (
         manufacturing_df.groupby("product_id", as_index=False)
