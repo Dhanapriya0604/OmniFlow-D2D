@@ -288,7 +288,8 @@ def production_planning_page():
             ("Total Batches",
              int(view_prod_df["production_batches"].sum())),
             ("Products Needing Production",
-             int((view_prod_df["production_required"] > 0).sum()))
+             int((view_prod_df["current_stock"] <= view_prod_df["planning_demand"] * 1.05)
+             .sum()))
         ]
         for col, (k, v) in zip([c1, c2, c3], metrics):
             with col:
