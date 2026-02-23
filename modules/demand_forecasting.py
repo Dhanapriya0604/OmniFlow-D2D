@@ -461,7 +461,7 @@ def demand_forecasting_page():
                     default=st.session_state.get("demand_products", [])
                 )
             with col2:
-                select_all = st.checkbox("Select All")
+                select_all = st.checkbox("Select All", key="select_all_products")
             if select_all:
                 selected_products = product_list
             st.session_state["demand_products"] = selected_products
@@ -470,9 +470,11 @@ def demand_forecasting_page():
             else:
                 df_selected = raw_df[raw_df["product_id"].isin(selected_products)].copy()
         if st.button("🔄 Reset Product Selection"):
-            st.session_state["demand_products"] = []
             if len(product_list) > 0:
                 st.session_state["selected_product"] = product_list[0]
+            st.session_state["demand_products"] = []
+            st.session_state["select_all_products"] = False
+            st.session_state["product_mode"] = "Single Product" 
             st.rerun()
         if len(df_selected) < 15:
             st.warning("⚠️ This product has limited history. Forecast accuracy may be lower.")
@@ -802,7 +804,7 @@ def demand_forecasting_page():
         )       
         preview_cols = ["date","product_id","forecast","lower_ci","upper_ci"]       
         today = pd.Timestamp.today().normalize()
-        future_limit = today + pd.Timedelta(days=90)     
+        future_limit = today + pd.Timedelta(days=30)     
         preview_df = df_fc[(df_fc["date"] >= today) & (df_fc["date"] <= future_limit)]      
         st.dataframe(preview_df[preview_cols], use_container_width=True)
         st.download_button("⬇ Download Forecast Output",
