@@ -460,10 +460,12 @@ def demand_forecasting_page():
             col1, col2 = st.columns([4, 1])  
             with col1:
                 selected_products = st.multiselect("Select Products",
-                    product_list, key="demand_products"
+                    product_list, default=st.session_state.get("demand_products", [])
                 )    
             with col2:
-                select_all = st.checkbox("Select All",key="select_all_products")
+                select_all = st.checkbox("Select All",
+                    value=st.session_state.get("select_all_products", False)
+                )
             if st.session_state["select_all_products"]:
                 st.session_state["demand_products"] = product_list
                 selected_products = product_list
