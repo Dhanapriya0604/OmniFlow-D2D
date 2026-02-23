@@ -111,19 +111,18 @@ def compute_insights(forecast, inventory, production, logistics):
     risk_products = []  
     if not inventory.empty:  
         inventory.columns = inventory.columns.str.lower()   
-        if {"product_id", "current_stock", "reorder_point"}.issubset(inventory.columns):
-            risk_df = inventory[inventory["current_stock"]<= inventory["reorder_point"]]
-            risk_products = risk_df["product_id"].tolist()
-        elif "stock_status" in inventory.columns:  
-            risk_df = inventory[inventory["stock_status"].astype(str).str.contains("critical|reorder", case=False, na=False)]
+        if "stock_status" in inventory.columns:
+            risk_df = inventory[
+                inventory["stock_status"].isin(["🔴 Critical", "🟠 Reorder Required"])
+            ]
             risk_products = risk_df["product_id"].tolist()
     production_needed = [] 
     if (not production.empty and
         {"product_id","production_required"}.issubset(production.columns)
     ):   
-        production_needed = production[production["production_required"] > 0]["product_id"].tolist()
-    if not production_needed:
-        production_needed = risk_products.copy()
+        production_needed = list(set(risk_products) & set(
+            production[production["production_required"] > 0]["product_id"].tolist()
+        ))
     delay_regions = []   
     if not logistics.empty:  
         logistics.columns = logistics.columns.str.lower()   
