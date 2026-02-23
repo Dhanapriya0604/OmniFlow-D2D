@@ -482,8 +482,9 @@ def demand_forecasting_page():
         if st.button("🔄 Reset Product Selection"):
             st.session_state["selected_product"] = product_list[0]
             st.session_state["demand_products"] = []
-            st.session_state["select_all_products"] = False
-            st.session_state["product_mode"] = "Single Product" 
+            if "select_all_products" in st.session_state:
+                del st.session_state["select_all_products"]      
+            st.session_state["product_mode"] = "Single Product"
             st.rerun()
         if len(df_selected) < 15:
             st.warning("⚠️ This product has limited history. Forecast accuracy may be lower.")
