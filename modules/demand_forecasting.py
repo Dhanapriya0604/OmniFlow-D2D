@@ -748,9 +748,15 @@ def demand_forecasting_page():
         st.dataframe(results_df, use_container_width=True)
         st.markdown('<div class="section-title">Executive KPIs</div>', unsafe_allow_html=True)
         c1,c2,c3,c4,c5 = st.columns(5)
+        if not df_fc.empty:
+            top_product = (df_fc.groupby("product_id")["forecast"]
+                .mean().sort_values(ascending=False).index[0]
+            )
+        else:
+            top_product = "N/A"
         metrics = [
             ("Best Model", best_model),
-            ("Product", df_fc["product_id"].iloc[0] if not df_fc.empty else "N/A"),
+            ("Top Product", top_product),
             ("Avg Forecast", int(df_fc.forecast.mean())),
             ("RMSE", round(results_df.iloc[0]["RMSE"],2)),
             ("NRMSE", round(results_df.iloc[0]["NRMSE"],3))
