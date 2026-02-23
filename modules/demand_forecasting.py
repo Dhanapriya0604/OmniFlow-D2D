@@ -564,7 +564,7 @@ def demand_forecasting_page():
         )       
         max_allowed_date = pd.Timestamp("2026-06-30")
         default_start = df["date"].max() + pd.Timedelta(days=1)
-        default_end = min(default_start + pd.Timedelta(days=90), max_allowed_date)      
+        default_end = min(default_start + pd.Timedelta(days=30), max_allowed_date)      
         default_start_d = default_start.date()
         default_end_d = default_end.date()
         max_allowed_d = max_allowed_date.date()
