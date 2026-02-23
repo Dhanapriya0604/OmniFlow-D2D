@@ -464,17 +464,10 @@ def demand_forecasting_page():
                     key="demand_products"
                 )    
             with col2:
-                select_all = st.checkbox("Select All",
-                    value=st.session_state.get("select_all_products", False),
-                    key="select_all_products"                     
-                )
-            if st.session_state["select_all_products"]:
-                st.session_state["demand_products"] = product_list
-            if set(st.session_state["demand_products"]) != set(product_list):
-                st.session_state["select_all_products"] = False
-            else:
-                st.session_state["select_all_products"] = True   
-            selected_products = st.session_state["demand_products"]
+                select_all = st.checkbox("Select All",key="select_all_products")
+            if st.session_state.get("select_all_products", False):
+                st.session_state["demand_products"] = product_list        
+            selected_products = st.session_state.get("demand_products", [])
             if len(selected_products) == 0:
                 df_selected = raw_df.copy()
             else:
