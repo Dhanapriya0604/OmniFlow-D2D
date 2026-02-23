@@ -270,7 +270,7 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
     return df   
 def logistics_optimization_page():
     inject_css()
-    tab1, tab2 = st.tabs(["📘 Overview", "🚚 Application"])
+    tab1, tab2 = st.tabs(["Overview", "Application"])
     with tab1:
         st.markdown(
             '<div class="section-title">Logistics Optimization Overview</div>',unsafe_allow_html=True
