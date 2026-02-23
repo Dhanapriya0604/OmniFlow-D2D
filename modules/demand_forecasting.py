@@ -24,6 +24,8 @@ if "selected_product" not in st.session_state:
     st.session_state["selected_product"] = None
 if "forecast_range" not in st.session_state:
     st.session_state["forecast_range"] = None
+if "select_all_products" not in st.session_state:
+    st.session_state["select_all_products"] = False
 st.set_page_config(page_title="Demand Forecasting Intelligence", layout="wide")
 def inject_css():
     st.markdown("""
@@ -457,14 +459,16 @@ def demand_forecasting_page():
         else:
             col1, col2 = st.columns([4, 1])  
             with col1:
-                selected_products = st.multiselect("Select Products", product_list,
-                    default=st.session_state.get("demand_products", [])
-                )
+                selected_products = st.multiselect("Select Products",
+                    product_list, key="demand_products"
+                )    
             with col2:
-                select_all = st.checkbox("Select All", key="select_all_products")
-            if select_all:
+                select_all = st.checkbox("Select All",key="select_all_products")
+            if st.session_state["select_all_products"]:
                 selected_products = product_list
-            st.session_state["demand_products"] = selected_products
+                st.session_state["demand_products"] = product_list
+            else:
+                selected_products = st.session_state["demand_products"]
             if len(selected_products) == 0:
                 df_selected = raw_df.copy()
             else:
