@@ -747,8 +747,8 @@ def demand_forecasting_page():
         st.dataframe(results_df, use_container_width=True)
         st.markdown('<div class="section-title">Executive KPIs</div>', unsafe_allow_html=True)
         c1,c2,c3,c4,c5 = st.columns(5)
-        if not df_selected.empty:
-            top_product = (df_selected.groupby("product_id")["daily_sales"]
+        if not df.empty and "daily_sales" in df.columns:
+            top_product = (df.groupby("product_id")["daily_sales"]
                 .mean().sort_values(ascending=False).index[0]
             )
         else:
