@@ -191,19 +191,22 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
     )   
     df = df.merge(fallback_region, on="product_id", how="left")
     df["destination_region"] = df["destination_region"].fillna(df["region"])
-    df["destination_region"] = df["destination_region"].astype(str)
+    df["destination_region"] = (df["destination_region"].astype(str).str.upper().str.strip())
     df["destination_region"] = df["destination_region"].replace(
         {"1": "NORTH", "2": "SOUTH", "3": "WEST", "4": "EAST"}
     )
+    df["destination_region"] = df["destination_region"].replace(["NAN","NONE",""],"WEST")
     warehouse_region_map = {
         "WH01": "NORTH",
         "WH02": "SOUTH",
         "WH03": "WEST",
         "WH04": "EAST"
     }    
+    df["destination_region"] = df["destination_region"].replace(["NAN", "UNKNOWN"], np.nan)
     df["destination_region"] = df["destination_region"].fillna(
         df["warehouse_id"].map(warehouse_region_map)
-    )
+    )  
+    df["destination_region"] = df["destination_region"].fillna("WEST")
     df.drop(columns=["region"], errors="ignore", inplace=True)
     logistics_df["destination_region"] = (
         logistics_df["destination_region"].astype(str).str.strip().str.upper()
@@ -253,7 +256,9 @@ def logistics_optimization(forecast_df, inventory_df, production_df, logistics_d
     df["shipping_need_14d"] = df["shipping_need_14d"].clip(lower=0)
     df = df.sort_values("shipping_priority", ascending=False)
     df["warehouse_id"] = df["warehouse_id"].fillna("WH_UNKNOWN")
-    df["destination_region"] = (df["destination_region"].fillna("UNKNOWN").astype(str).str.upper())
+    df["destination_region"] = (
+        df["destination_region"].astype(str).str.upper().replace(["NAN", "UNKNOWN", ""], "WEST")
+    )
     df["recommended_carrier"] = df["recommended_carrier"].fillna("STANDARD")
     df["avg_delay_rate"] = df["avg_delay_rate"].fillna(0)
     df["avg_transit_days"] = df["avg_transit_days"].fillna(
