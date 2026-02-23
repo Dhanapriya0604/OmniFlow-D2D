@@ -177,7 +177,7 @@ def inventory_nlp(df, q):
     )
 def inventory_optimization_page():
     inject_css()
-    tab1, tab2 = st.tabs(["📘 Overview", "📦 Application"])
+    tab1, tab2 = st.tabs(["Overview", "Application"])
     with tab1:
         st.markdown('<div class="section-title">Inventory Optimization – Overview</div>', unsafe_allow_html=True)
         st.markdown("""
@@ -236,9 +236,9 @@ def inventory_optimization_page():
             view_df = opt_df[opt_df["product_id"] == product]
         else:
             view_df = opt_df.copy()
-        with st.expander("📘 Data Dictionary"):
+        with st.expander("Data Dictionary"):
             st.dataframe(DATA_DICTIONARY, use_container_width=True)
-        with st.expander("🔍 Data Profiling "):
+        with st.expander("Data Profiling "):
             profile = data_profiling(view_df)
             for k, v in profile.items():
                 st.write(f"**{k}:** {v}")
