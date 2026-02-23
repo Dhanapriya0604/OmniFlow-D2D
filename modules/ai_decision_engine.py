@@ -233,7 +233,7 @@ def decision_intelligence_page():
     forecast, inventory, production, logistics = st.session_state["data_loaded"]
     insights = compute_insights(forecast, inventory, production, logistics)
     summary = generate_decision_summary(insights)
-    st.title("🧠 AI Decision Intelligence")
+    st.title("AI Decision Intelligence")
     if st.button("🔄 Refresh Data"):
         st.cache_data.clear()
         st.session_state.clear()
