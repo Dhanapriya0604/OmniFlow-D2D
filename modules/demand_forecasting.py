@@ -392,7 +392,7 @@ def fit_final_model(model, X, y):
     return model
 def demand_forecasting_page():
     inject_css()
-    tab1, tab2 = st.tabs(["📘 Overview", "📊 Application"])
+    tab1, tab2 = st.tabs(["Overview", "Application"])
     with tab1:
         st.markdown('<div class="section-title">Demand Forecasting Module – Overview</div>', unsafe_allow_html=True)
         st.markdown("""
@@ -702,11 +702,11 @@ def demand_forecasting_page():
         df_fc["upper_ci"] = (df_fc["forecast"] + 1.96 * df_fc["sigma"])
         total_future_demand = df_fc["forecast"].sum()
         peak_day = df_fc.loc[df_fc["forecast"].idxmax(),"date"]
-        with st.expander("📘 Data Dictionary "):
+        with st.expander("Data Dictionary "):
             st.dataframe( DATA_DICTIONARY[DATA_DICTIONARY["Column"].isin(df_fc.columns)],
                 use_container_width=True
             ) 
-        with st.expander("🔍 Data Profiling "):
+        with st.expander("Data Profiling "):
             profile_fc = {
                 "Total Forecast Records": len(df_fc),
                 "Future Date Range": f"{df_fc['date'].min().date()} → {df_fc['date'].max().date()}",
