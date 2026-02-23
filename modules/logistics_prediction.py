@@ -300,14 +300,12 @@ def logistics_optimization_page():
             opt_df["destination_region"] == "WEST", 100,
             np.where(opt_df["destination_region"] == "NORTH", 80, 60)
         )     
-        opt_df["shipments_required"] = np.ceil(opt_df["shipping_need_14d"] / opt_df["shipment_size"])
+        opt_df["shipments_required"]= np.ceil(opt_df["shipping_need_14d"] / opt_df["shipment_size"])
         metrics = [
             ("Avg Delay Rate", round(opt_df["avg_delay_rate"].mean(),2)),
             ("Avg Transit Days", round(opt_df["avg_transit_days"].mean(),1)),
             ("Planning Shipments", int(opt_df["shipping_need_14d"].sum())),   
-            ("Shipping Cost", int(
-                (opt_df["shipments_required"] * opt_df["avg_shipping_cost"]).sum()
-            ))
+            ("Shipping Cost", int((opt_df["shipments_required"]*opt_df["avg_shipping_cost"]).sum()))
         ]
         for col, (k, v) in zip([c1, c2, c3, c4], metrics):
             with col:
@@ -335,14 +333,24 @@ def logistics_optimization_page():
             opt_df.groupby("destination_region")["shipping_need_14d"].sum().reset_index()
         )
         st.plotly_chart(
-            px.bar(region_ship,x="destination_region",y="shipping_need_14d"),use_container_width=True
-        )   
+            px.bar(region_ship,x="destination_region",y="shipping_need_14d",
+                color="destination_region",color_discrete_map={
+                    "NORTH":"#1f77b4","SOUTH":"#2ca02c","EAST":"#ff7f0e","WEST":"#d62728"
+                }
+            ),use_container_width=True
+        )  
+        st.markdown(
+            '<div class="section-title">Delay Rate by Region</div>',unsafe_allow_html=True
+        )
         region_delay = (
             opt_df.groupby("destination_region")["avg_delay_rate"].mean().reset_index()
         )
         st.plotly_chart(
             px.bar(region_delay,x="destination_region",y="avg_delay_rate",
-                title="Delay Rate by Region"),use_container_width=True
+                color="destination_region",color_discrete_map={
+                    "NORTH":"#1f77b4","SOUTH":"#2ca02c","EAST":"#ff7f0e","WEST":"#d62728"
+                },
+            ),use_container_width=True
         )
         st.markdown(
             '<div class="section-title">Delay Risk Split</div>',unsafe_allow_html=True
