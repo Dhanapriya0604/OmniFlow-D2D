@@ -577,7 +577,18 @@ def page_logistics():
             xaxis=dict(showgrid=False),yaxis=dict(showgrid=True,gridcolor="#1e2d45"),
             legend=dict(bgcolor="rgba(0,0,0,0)"))
         st.plotly_chart(fig2,use_container_width=True)
-
+        cm = df.groupby([df["Order_Date"].dt.to_period("M"), "Courier_Partner"])["Order_ID"].count().unstack(fill_value=0)
+        fig_future = go.Figure()    
+        for i, c in enumerate(cm.columns):
+            s = cm[c].rename("value")
+            f = forecast_series(s, 6)
+            fut = f[f["type"]=="forecast"] 
+            fig_future.add_trace(go.Scatter(
+                x=fut["ds"],y=fut["y"],name=c,mode="lines+markers",
+                line=dict(color=COLORS[i], dash="dot")
+            ))     
+        fig_future.update_layout(**chart_defaults(), height=250)
+        st.plotly_chart(fig_future, use_container_width=True)
     # ── TAB 2: DELAY INTELLIGENCE ─────────────────────────────────────────────
     with t2:
         st.markdown("<div class='section-title'>Delay Hotspot Analysis</div>",unsafe_allow_html=True)
@@ -619,7 +630,15 @@ def page_logistics():
         fig_h.update_layout(**chart_defaults(),height=260,
             xaxis=dict(showgrid=False,tickangle=-30),yaxis=dict(showgrid=False))
         st.plotly_chart(fig_h,use_container_width=True)
-
+        delay_series = df.groupby("YearMonth")["Delivery_Days"].mean().rename("value")
+        f = forecast_series(delay_series, 6)
+        fut = f[f["type"]=="forecast"]  
+        fig_delay = go.Figure()
+        fig_delay.add_trace(go.Scatter(
+            x=fut["ds"], y=fut["y"],mode="lines+markers",line=dict(color="#ff6b35")
+        ))  
+        fig_delay.update_layout(**chart_defaults(),height=250,title="Future Delivery Delay Trend")
+        st.plotly_chart(fig_delay, use_container_width=True)
     # ── TAB 3: WAREHOUSE ──────────────────────────────────────────────────────
     with t3:
         st.markdown("<div class='section-title'>Warehouse Shipment Trend</div>",unsafe_allow_html=True)
