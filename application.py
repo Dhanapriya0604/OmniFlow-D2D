@@ -19,145 +19,143 @@ st.set_page_config(page_title="OmniFlow D2D Intelligence", page_icon="🔮",
 # ── Global CSS ─────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Inter:wght@300;400;500;600&display=swap');
 :root{
-    --bg:#f7f9fc;
-    --card:rgba(255,255,255,0.85);
-    --border:#e6ebf2;
-    --primary:#5b7cfa;        
-    --primary-soft:#eef2ff;
-    --text:#1e293b;
-    --muted:#7b8794;
-    --green:#4ade80;         
-    --orange:#fb923c;      
-    --red:#f87171;         
-    --purple:#a78bfa;       
-    --sky:#38bdf8;        
-    --shadow:0 8px 24px rgba(0,0,0,0.05);
-    --glass:blur(10px);
+    --bg:#f4f7fb;
+    --card:rgba(255,255,255,0.75);
+    --border:#e2e8f0;
+    --text:#0f172a;
+    --muted:#64748b;
+    --c1:#5b7cfa;
+    --c2:#38bdf8;
+    --c3:#4ade80;
+    --c4:#fb923c;
+    --c5:#f87171;
+    --c6:#a78bfa;
+    --shadow:0 10px 30px rgba(0,0,0,0.06);
 }
 html, body, [class*="css"]{
     font-family:'Inter', sans-serif;
-    background-color:var(--bg)!important;
+    background:linear-gradient(135deg,#f8fafc,#eef2ff);
     color:var(--text)!important;
 }
-section[data-testid="stSidebar"]{
-    background:var(--card)!important;
-    border-right:1px solid var(--border)!important;
-}
-h1, h2, h3, h4, h5, h6 {
-    font-weight:800 !important;
-    color:var(--text)!important;
+h1,h2,h3,h4{
+    font-family:'Syne', sans-serif!important;
+    font-weight:800!important;
+    letter-spacing:-0.02em;
 }
 h1{
-    font-size:2rem!important;
-    color:var(--primary)!important;
+    font-size:2.4rem!important;
+    background:linear-gradient(90deg,#5b7cfa,#38bdf8);
+    -webkit-background-clip:text;
+    -webkit-text-fill-color:transparent;
 }
-.section-title{
-    font-weight:800!important;
-    font-size:1.05rem;
-    color:var(--text);
+section[data-testid="stSidebar"]{
+    background:rgba(255,255,255,0.8)!important;
+    backdrop-filter:blur(14px);
+    border-right:1px solid var(--border);
 }
 .metric-card{
     background:var(--card);
-    backdrop-filter:var(--glass);
+    backdrop-filter:blur(12px);
     border:1px solid var(--border);
-    border-radius:16px;
-    padding:18px;
+    border-radius:18px;
+    padding:20px;
     box-shadow:var(--shadow);
-    transition:all 0.3s ease;
+    transition:all 0.35s ease;
+    position:relative;
+    overflow:hidden;
+}
+.metric-card::before{
+    content:"";
+    position:absolute;
+    top:0;
+    left:0;
+    right:0;
+    height:3px;
+    background:linear-gradient(90deg,#5b7cfa,#38bdf8,#a78bfa);
 }
 .metric-card:hover{
-    transform:translateY(-4px) scale(1.01);
-    box-shadow:0 12px 30px rgba(0,0,0,0.08);
+    transform:translateY(-8px) scale(1.02);
+    box-shadow:0 20px 50px rgba(0,0,0,0.12);
 }
 .metric-label{
     font-size:0.75rem;
-    color:var(--muted);
     text-transform:uppercase;
-    letter-spacing:0.06em;
+    color:var(--muted);
+    letter-spacing:.08em;
 }
 .metric-value{
-    font-size:1.9rem;
-    font-weight:700;
+    font-size:2rem;
+    font-weight:800;
     margin-top:6px;
 }
-.alert-box{
-    background:var(--card);
-    border-left:4px solid var(--primary);
-    padding:12px 16px;
-    border-radius:10px;
-    box-shadow:var(--shadow);
+.section-title{
+    font-weight:800;
+    font-size:1.1rem;
+    margin-bottom:8px;
 }
 .stButton>button{
     background:linear-gradient(135deg,#5b7cfa,#38bdf8)!important;
     color:white!important;
     border:none!important;
-    border-radius:10px!important;
+    border-radius:12px!important;
     font-weight:600!important;
-    transition:0.25s;
+    transition:all 0.3s ease;
 }
 .stButton>button:hover{
-    transform:scale(1.05);
-    box-shadow:0 8px 20px rgba(91,124,250,0.25);
+    transform:scale(1.06);
+    box-shadow:0 10px 25px rgba(91,124,250,0.35);
 }
-.stTextInput input, .stSelectbox div{
-    border-radius:8px!important;
-    border:1px solid var(--border)!important;
-}
-.stTabs [data-baseweb="tab"]{
-    color:var(--muted)!important;
-    font-weight:500;
-}
-.stTabs [aria-selected="true"]{
-    color:var(--primary)!important;
-    border-bottom:2px solid var(--primary)!important;
-}
-[data-testid="stExpander"]{
-    background:var(--card)!important;
-    border:1px solid var(--border)!important;
+.stTextInput input{
     border-radius:10px!important;
-}
-.stDataFrame{
-    background:var(--card)!important;
-    border-radius:10px!important;
-}
-div[style*="background:#0"]{
-    background:var(--card)!important;
-    color:var(--text)!important;
-}
-.chat-user-bubble{
-    background:#eef2ff;
-    padding:10px 14px;
-    border-radius:12px;
-}
-.chat-ai-bubble{
-    background:var(--card);
-    border:1px solid var(--border);
-    padding:12px 14px;
-    border-radius:12px;
+    border:1px solid var(--border)!important;
 }
 .tag{
-    padding:4px 10px;
-    border-radius:20px;
-    font-size:0.7rem;
+    padding:5px 12px;
+    border-radius:999px;
+    font-size:.72rem;
     font-weight:600;
+    margin:3px;
+    display:inline-block;
 }
+.tag-blue{background:#e0e7ff;color:#3730a3;}
 .tag-green{background:#dcfce7;color:#166534;}
 .tag-orange{background:#ffedd5;color:#9a3412;}
 .tag-red{background:#fee2e2;color:#7f1d1d;}
-.tag-blue{background:#e0e7ff;color:#1e3a8a;}
 .tag-purple{background:#f3e8ff;color:#6b21a8;}
-.stSlider [role="slider"]{
-    background:var(--primary)!important;
+
+.chat-user-bubble{
+    background:#eef2ff;
+    border-radius:14px;
+    padding:10px 14px;
+}
+.chat-ai-bubble{
+    background:white;
+    border:1px solid var(--border);
+    border-radius:14px;
+    padding:12px 14px;
+}
+.metric-card, .stPlotlyChart, .stDataFrame{
+    animation:fadeUp 0.6s ease;
+}
+@keyframes fadeUp{
+    from{
+        opacity:0;
+        transform:translateY(20px);
+    }
+    to{
+        opacity:1;
+        transform:translateY(0);
+    }
 }
 .js-plotly-plot{
     background:transparent!important;
 }
-footer {visibility: hidden;}
+footer{visibility:hidden;}
 </style>
 """, unsafe_allow_html=True)
+
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
