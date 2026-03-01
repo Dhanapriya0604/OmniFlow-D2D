@@ -1182,35 +1182,18 @@ SUGGESTIONS = [
 ]
 
 def call_claude(messages, system):
-    api_key = os.getenv("ANTHROPIC_API_KEY")
-    if not api_key:
-        return "❌ API Key not found. Add it in Streamlit secrets."
-    headers = {
-        "x-api-key": api_key,
-        "anthropic-version": "2023-06-01",
-        "content-type": "application/json"
-    }
-    payload = {
-        "model": "claude-sonnet-4-20250514",
-        "max_tokens": 1000,
-        "system": system,
-        "messages": messages
-    }
-    try:
-        response = requests.post(
-            "https://api.anthropic.com/v1/messages",
-            headers=headers, json=payload
-        )
-        if response.status_code != 200:
-            return f"⚠️ API Error ({response.status_code}): {response.text}"
-        data = response.json()
-        return "".join(
-            block.get("text", "")
-            for block in data.get("content", [])
-            if block.get("type") == "text"
-        )
-    except Exception as e:
-        return f"⚠️ Connection error: {str(e)}"
+    api_key = os.getenv("GEMINI_API_KEY")
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+    
+    # Combine system + messages
+    full_messages = [{"role": "user", "parts": [{"text": system}]},
+                     {"role": "model", "parts": [{"text": "Understood."}]}]
+    for m in messages:
+        role = "user" if m["role"] == "user" else "model"
+        full_messages.append({"role": role, "parts": [{"text": m["content"]}]})
+    
+    response = requests.post(url, json={"contents": full_messages})
+    return response.json()["candidates"][0]["content"]["parts"][0]["text"]
 def page_chatbot():
     df  = load_data()
 
