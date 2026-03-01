@@ -46,14 +46,18 @@ section[data-testid="stSidebar"]{
     background:var(--card)!important;
     border-right:1px solid var(--border)!important;
 }
+h1, h2, h3, h4, h5, h6 {
+    font-weight:800 !important;
+    color:var(--text)!important;
+}
 h1{
     font-size:2rem!important;
-    font-weight:700!important;
     color:var(--primary)!important;
 }
-h2, h3{
-    font-weight:600!important;
-    color:var(--text)!important;
+.section-title{
+    font-weight:800!important;
+    font-size:1.05rem;
+    color:var(--text);
 }
 .metric-card{
     background:var(--card);
