@@ -19,23 +19,23 @@ st.set_page_config(page_title="OmniFlow D2D Intelligence", page_icon="🔮",
 # ── Global CSS ─────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
 :root{
-    --bg:#f6f8fc;
+    --bg:#f8fafc;
     --card:#ffffff;
-    --border:#e2e8f0;
+    --border:#e5eaf2;
     --primary:#3b5fcf;
-    --primary-soft:#e0e7ff;
+    --primary-soft:#eef2ff;
     --text:#1e293b;
     --muted:#64748b;
-    --success:#10b981;
-    --warning:#f59e0b;
-    --danger:#ef4444;
-    --shadow:0 4px 14px rgba(0,0,0,0.06);
+    --green:#10b981;
+    --orange:#f59e0b;
+    --red:#ef4444;
+    --shadow:0 6px 18px rgba(0,0,0,0.06);
 }
 html, body, [class*="css"]{
-    font-family:'Inter',sans-serif;
+    font-family:'Inter', sans-serif;
     background-color:var(--bg)!important;
     color:var(--text)!important;
 }
@@ -43,72 +43,68 @@ section[data-testid="stSidebar"]{
     background:var(--card)!important;
     border-right:1px solid var(--border)!important;
 }
-h1, h2, h3{
+h1{
+    font-size:2rem!important;
     font-weight:700!important;
     color:var(--primary)!important;
-    letter-spacing:-0.3px;
 }
-.section-title{
-    font-size:1.1rem;
-    font-weight:600;
-    color:var(--text);
-    margin:16px 0 8px;
+h2, h3{
+    font-weight:600!important;
+    color:var(--text)!important;
 }
 .metric-card{
     background:var(--card);
     border:1px solid var(--border);
     border-radius:14px;
-    padding:18px 22px;
+    padding:18px 20px;
     box-shadow:var(--shadow);
     transition:all 0.25s ease;
 }
-    transform:translateY(-3px);
-    box-shadow:0 10px 24px rgba(0,0,0,0.08);
-}
-.metric-value{
-    font-size:1.8rem;
-    font-weight:700;
-    color:var(--primary);
+.metric-card:hover{
+    transform:translateY(-4px);
+    box-shadow:0 12px 28px rgba(0,0,0,0.08);
 }
 .metric-label{
-    font-size:.75rem;
+    font-size:0.75rem;
     color:var(--muted);
     text-transform:uppercase;
+    letter-spacing:0.06em;
+}
+.metric-value{
+    font-size:1.9rem;
+    font-weight:700;
+    margin-top:6px;
+}
+.alert-box{
+    background:var(--card);
+    border-left:4px solid var(--primary);
+    padding:12px 16px;
+    border-radius:10px;
+    box-shadow:var(--shadow);
 }
 .stButton>button{
     background:linear-gradient(135deg,#3b5fcf,#6c8cff)!important;
     color:white!important;
     border:none!important;
     border-radius:8px!important;
-    font-weight:600!important;
     padding:6px 14px!important;
+    font-weight:600!important;
+    transition:0.2s;
 }
-.stTextInput input{
+.stButton>button:hover{
+    transform:scale(1.03);
+}
+.stTextInput input, .stSelectbox div{
     border-radius:8px!important;
     border:1px solid var(--border)!important;
 }
-.tag{
-    padding:4px 10px;
-    border-radius:20px;
-    font-size:.7rem;
-    font-weight:600;
+.stTabs [data-baseweb="tab"]{
+    color:var(--muted)!important;
+    font-weight:500;
 }
-.tag-green{background:#d1fae5;color:#065f46;}
-.tag-orange{background:#fef3c7;color:#92400e;}
-.tag-red{background:#fee2e2;color:#7f1d1d;}
-.tag-blue{background:#e0e7ff;color:#1e3a8a;}
-.alert-box{
-    background:#ffffff;
-    border-left:4px solid var(--primary);
-    padding:12px 16px;
-    border-radius:8px;
-    box-shadow:var(--shadow);
-    color:var(--text);
-}
-div[style*="background:#0"]{
-    background:#ffffff!important;
-    color:var(--text)!important;
-    border:1px solid var(--border)!important;
+.stTabs [aria-selected="true"]{
+    color:var(--primary)!important;
+    border-bottom:2px solid var(--primary)!important;
 }
 [data-testid="stExpander"]{
     background:var(--card)!important;
@@ -116,33 +112,41 @@ div[style*="background:#0"]{
     border-radius:10px!important;
 }
 .stDataFrame{
-    background:white!important;
+    background:var(--card)!important;
     border-radius:10px!important;
 }
-.stSlider [role="slider"]{
-    background:var(--primary)!important;
-}
-.stTabs [data-baseweb="tab"]{
-    color:var(--muted)!important;
-}
-.stTabs [aria-selected="true"]{
-    color:var(--primary)!important;
-    border-bottom:2px solid var(--primary)!important;
+div[style*="background:#0"]{
+    background:var(--card)!important;
+    color:var(--text)!important;
 }
 .chat-user-bubble{
     background:#eef2ff;
-    border-radius:10px;
-    padding:10px;
+    padding:10px 14px;
+    border-radius:12px;
 }
 .chat-ai-bubble{
-    background:white;
+    background:var(--card);
     border:1px solid var(--border);
-    border-radius:10px;
-    padding:10px;
+    padding:12px 14px;
+    border-radius:12px;
+}
+.tag{
+    padding:4px 10px;
+    border-radius:20px;
+    font-size:0.7rem;
+    font-weight:600;
+}
+.tag-green{background:#d1fae5;color:#065f46;}
+.tag-orange{background:#fef3c7;color:#92400e;}
+.tag-red{background:#fee2e2;color:#7f1d1d;}
+.tag-blue{background:#e0e7ff;color:#1e3a8a;}
+.stSlider [role="slider"]{
+    background:var(--primary)!important;
 }
 .js-plotly-plot{
     background:transparent!important;
 }
+footer {visibility: hidden;}
 </style>
 """, unsafe_allow_html=True)
 import pandas as pd
@@ -609,7 +613,7 @@ def page_inventory():
         st.markdown("<div class='section-title'>Stock Status Distribution</div>",
                     unsafe_allow_html=True)
         sc = inv["Status"].value_counts()
-        # Map status emoji to colors
+        
         color_map = {"🔴 Critical": "#dc2626", "🟡 Low": "#f59e0b", "🟢 Adequate": "#10b981"}
         pie_colors = [color_map.get(s, "#64748b") for s in sc.index]
         fig = go.Figure(go.Pie(
@@ -1089,7 +1093,6 @@ def page_logistics():
         st.plotly_chart(fig_rf, use_container_width=True)
 
 def build_context(df: pd.DataFrame) -> str:
-    # Demand
     m_qty   = df.groupby("YearMonth")["Quantity"].sum().rename("value")
     d_fore  = forecast_series(m_qty, 6)
     fut_d   = d_fore[d_fore["type"]=="forecast"]
