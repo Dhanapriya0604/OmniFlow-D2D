@@ -1181,7 +1181,7 @@ SUGGESTIONS = [
     "Optimal reorder strategy for Home & Kitchen?",
 ]
 
-def call_claude_api(messages, system):
+def call_claude(messages, system):
     api_key = os.getenv("ANTHROPIC_API_KEY")
     if not api_key:
         return "❌ API Key not found. Add it in Streamlit secrets."
