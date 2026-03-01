@@ -19,151 +19,132 @@ st.set_page_config(page_title="OmniFlow D2D Intelligence", page_icon="🔮",
 # ── Global CSS ─────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 
-:root {
-    --bg: #f6f8fc;
-    --surface: #ffffff;
-    --border: #e5eaf2;
-
-    --primary: #2b4eff;
-    --primary-soft: #eef2ff;
-
-    --text: #1e293b;
-    --muted: #64748b;
-
-    --shadow: 0 6px 20px rgba(0,0,0,0.05);
-    --hover-shadow: 0 12px 30px rgba(0,0,0,0.08);
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+:root{
+    --bg:#f6f8fc;
+    --card:#ffffff;
+    --border:#e2e8f0;
+    --primary:#3b5fcf;
+    --primary-soft:#e0e7ff;
+    --text:#1e293b;
+    --muted:#64748b;
+    --success:#10b981;
+    --warning:#f59e0b;
+    --danger:#ef4444;
+    --shadow:0 4px 14px rgba(0,0,0,0.06);
 }
-
-html, body, [class*="css"] {
-    font-family: 'Plus Jakarta Sans', sans-serif;
-    background: var(--bg);
-    color: var(--text);
+html, body, [class*="css"]{
+    font-family:'Inter',sans-serif;
+    background-color:var(--bg)!important;
+    color:var(--text)!important;
 }
-
-h1 {
-    font-size: 34px !important;
-    font-weight: 800 !important;
-    letter-spacing: -0.5px;
-    color: #1e293b !important;
+section[data-testid="stSidebar"]{
+    background:var(--card)!important;
+    border-right:1px solid var(--border)!important;
 }
-
-h2 {
-    font-size: 26px !important;
-    font-weight: 700 !important;
-    margin-top: 20px;
+h1, h2, h3{
+    font-weight:700!important;
+    color:var(--primary)!important;
+    letter-spacing:-0.3px;
 }
-
-.card, .metric-card {
-    background: var(--surface);
-    border-radius: 16px;
-    padding: 20px;
-    border: 1px solid var(--border);
-    box-shadow: var(--shadow);
-    transition: all 0.3s ease;
+.section-title{
+    font-size:1.1rem;
+    font-weight:600;
+    color:var(--text);
+    margin:16px 0 8px;
 }
-
-.card:hover, .metric-card:hover {
-    transform: translateY(-6px) scale(1.01);
-    box-shadow: var(--hover-shadow);
+.metric-card{
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:14px;
+    padding:18px 22px;
+    box-shadow:var(--shadow);
+    transition:all 0.25s ease;
 }
-
-.metric-value {
-    font-size: 26px;
-    font-weight: 800;
-    color: var(--primary);
+    transform:translateY(-3px);
+    box-shadow:0 10px 24px rgba(0,0,0,0.08);
 }
-
-.metric-label {
-    font-size: 12px;
-    color: var(--muted);
+.metric-value{
+    font-size:1.8rem;
+    font-weight:700;
+    color:var(--primary);
 }
-
-.stButton > button {
-    background: linear-gradient(135deg, #2b4eff, #6c8cff);
-    color: white;
-    border-radius: 10px;
-    font-weight: 600;
-    border: none;
-    padding: 8px 18px;
-    transition: all 0.25s ease;
+.metric-label{
+    font-size:.75rem;
+    color:var(--muted);
+    text-transform:uppercase;
 }
-.stButton > button:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 20px rgba(43,78,255,0.3);
+.stButton>button{
+    background:linear-gradient(135deg,#3b5fcf,#6c8cff)!important;
+    color:white!important;
+    border:none!important;
+    border-radius:8px!important;
+    font-weight:600!important;
+    padding:6px 14px!important;
 }
-
-.stDataFrame {
-    border-radius: 12px;
-    border: 1px solid var(--border);
-    box-shadow: var(--shadow);
+.stTextInput input{
+    border-radius:8px!important;
+    border:1px solid var(--border)!important;
 }
-
-[data-testid="stExpander"] {
-    background: white;
-    border-radius: 12px;
-    border: 1px solid var(--border);
-    box-shadow: var(--shadow);
+.tag{
+    padding:4px 10px;
+    border-radius:20px;
+    font-size:.7rem;
+    font-weight:600;
 }
-
-.stTabs [data-baseweb="tab"] {
-    background: #f1f5f9;
-    border-radius: 10px;
-    padding: 8px 14px;
-    color: var(--muted);
+.tag-green{background:#d1fae5;color:#065f46;}
+.tag-orange{background:#fef3c7;color:#92400e;}
+.tag-red{background:#fee2e2;color:#7f1d1d;}
+.tag-blue{background:#e0e7ff;color:#1e3a8a;}
+.alert-box{
+    background:#ffffff;
+    border-left:4px solid var(--primary);
+    padding:12px 16px;
+    border-radius:8px;
+    box-shadow:var(--shadow);
+    color:var(--text);
 }
-.stTabs [aria-selected="true"] {
-    background: white;
-    color: var(--primary);
-    font-weight: 700;
-    box-shadow: var(--shadow);
+div[style*="background:#0"]{
+    background:#ffffff!important;
+    color:var(--text)!important;
+    border:1px solid var(--border)!important;
 }
-
-.chat-user-bubble {
-    background: var(--primary-soft);
-    border-radius: 12px;
-    padding: 10px;
+[data-testid="stExpander"]{
+    background:var(--card)!important;
+    border:1px solid var(--border)!important;
+    border-radius:10px!important;
 }
-
-.chat-ai-bubble {
-    background: white;
-    border-radius: 12px;
-    padding: 12px;
-    border: 1px solid var(--border);
-    box-shadow: var(--shadow);
+.stDataFrame{
+    background:white!important;
+    border-radius:10px!important;
 }
-
-@keyframes fadeIn {
-    from {opacity: 0; transform: translateY(10px);}
-    to {opacity: 1; transform: translateY(0);}
+.stSlider [role="slider"]{
+    background:var(--primary)!important;
 }
-
-.card, .metric-card, .stDataFrame {
-    animation: fadeIn 0.5s ease;
+.stTabs [data-baseweb="tab"]{
+    color:var(--muted)!important;
 }
-
-div[data-testid="stMetric"] {
-    background: white;
-    border-radius: 14px;
-    border: 1px solid var(--border);
-    padding: 14px;
-    box-shadow: var(--shadow);
-    transition: 0.3s;
+.stTabs [aria-selected="true"]{
+    color:var(--primary)!important;
+    border-bottom:2px solid var(--primary)!important;
 }
-div[data-testid="stMetric"]:hover {
-    transform: translateY(-4px);
-    box-shadow: var(--hover-shadow);
+.chat-user-bubble{
+    background:#eef2ff;
+    border-radius:10px;
+    padding:10px;
 }
-
-.stTextInput input {
-    border-radius: 8px;
-    border: 1px solid var(--border);
+.chat-ai-bubble{
+    background:white;
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:10px;
 }
-
+.js-plotly-plot{
+    background:transparent!important;
+}
 </style>
 """, unsafe_allow_html=True)
-
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
@@ -356,7 +337,7 @@ def page_overview():
            -webkit-background-clip:text;-webkit-text-fill-color:transparent;line-height:1.1'>
         OmniFlow D2D Intelligence</div>
       <div style='color:#64748b;font-size:.95rem;margin-top:6px'>
-        End-to-end supply chain analytics · India D2D · Jan 2024 – Jun 2026 forecast
+        Predictive Logistics & AI-Powered Demand-to-Delivery Optimization System
       </div></div>""", unsafe_allow_html=True)
 
     st.markdown("""
@@ -365,7 +346,7 @@ def page_overview():
       <div style='position:absolute;top:0;left:0;right:0;height:3px;
            background:linear-gradient(90deg,#00e5ff,#7c3aed,#ff6b35)'></div>
       <div style='font-family:Syne,sans-serif;font-size:1.1rem;font-weight:700;
-           color:#00e5ff;margin-bottom:8px'>📋 About This Platform</div>
+           color:#00e5ff;margin-bottom:8px'>About This Platform</div>
       <p style='color:#cbd5e1;line-height:1.8;margin:0'>
         <b style='color:#e2e8f0'>OmniFlow</b> is an AI-driven supply chain intelligence platform
         built on <b>5,200 D2D orders</b> across India (Jan 2024–Dec 2025). Six interconnected
@@ -373,11 +354,11 @@ def page_overview():
         production, which informs logistics. The AI chatbot synthesises all module outputs.
       </p>
       <div style='margin-top:12px'>
-        <span class='tag tag-blue'>📈 Demand → Jun 2026</span>
-        <span class='tag tag-green'>📦 Inventory EOQ/ROP</span>
-        <span class='tag' style='background:#7c3aed'>🏭 Production Plan</span>
-        <span class='tag tag-orange'>🚚 Logistics Intel</span>
-        <span class='tag tag-red'>🤖 AI Chatbot</span>
+        <span class='tag tag-blue'>Demand → Jun 2026</span>
+        <span class='tag tag-green'>Inventory EOQ/ROP</span>
+        <span class='tag' style='background:#7c3aed'>Production Plan</span>
+        <span class='tag tag-orange'>Logistics Intel</span>
+        <span class='tag tag-red'>AI Chatbot</span>
       </div></div>""", unsafe_allow_html=True)
 
     c1,c2,c3,c4,c5,c6 = st.columns(6)
@@ -1359,7 +1340,6 @@ LIVE SUPPLY CHAIN CONTEXT (all 4 modules):
                 </div>""", unsafe_allow_html=True)
                 last = row["y"]
 
-        # High delay regions (from logistics)
         st.markdown("**⚠️ High Delay + Return Regions**")
         df["Delayed"] = df["Delivery_Days"] > 7
         risk = df.groupby("Region").agg(
@@ -1383,9 +1363,7 @@ LIVE SUPPLY CHAIN CONTEXT (all 4 modules):
 st.sidebar.markdown("""
 <div style='padding:12px 0 20px'>
   <div style='font-family:Syne,sans-serif;font-size:1.4rem;font-weight:800;color:#00e5ff'>
-    OmniFlow</div>
-  <div style='font-size:.7rem;color:#64748b;letter-spacing:.1em;text-transform:uppercase'>
-    D2D Supply Intelligence</div>
+    OmniFlow D2D</div>
 </div>""", unsafe_allow_html=True)
 
 PAGES = {
