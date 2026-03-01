@@ -23,11 +23,11 @@ st.set_page_config(
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap');
-:root{--bg:#0a0e1a;--surface:#111827;--border:#1e2d45;--accent:#00e5ff;
-      --accent2:#ff6b35;--accent3:#7c3aed;--text:#e2e8f0;--muted:#64748b;}
+:root{--bg:#f0f4f8;--surface:#ffffff;--border:#d1dce8;--accent:#0066cc;
+      --accent2:#e85d04;--accent3:#6d28d9;--text:#1e293b;--muted:#64748b;}
 html,body,[class*="css"]{font-family:'DM Sans',sans-serif;
   background-color:var(--bg)!important;color:var(--text)!important;}
-h1,h2,h3,h4{font-family:'Syne',sans-serif!important;}
+h1,h2,h3,h4{font-family:'Syne',sans-serif!important;color:var(--text)!important;}
 .stApp{background-color:var(--bg)!important;}
 section[data-testid="stSidebar"]{background:var(--surface)!important;
   border-right:1px solid var(--border)!important;}
@@ -35,7 +35,8 @@ section[data-testid="stSidebar"]{background:var(--surface)!important;
   color:#fff!important;border:none!important;border-radius:8px!important;
   font-family:'Syne',sans-serif!important;font-weight:600!important;}
 .metric-card{background:var(--surface);border:1px solid var(--border);
-  border-radius:12px;padding:20px 24px;position:relative;overflow:hidden;margin-bottom:4px;}
+  border-radius:12px;padding:20px 24px;position:relative;overflow:hidden;
+  margin-bottom:4px;box-shadow:0 2px 8px rgba(0,0,0,0.06);}
 .metric-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;
   background:linear-gradient(90deg,var(--accent),var(--accent3));}
 .metric-value{font-family:'Syne',sans-serif;font-size:1.9rem;font-weight:800;color:var(--accent);}
@@ -47,18 +48,28 @@ section[data-testid="stSidebar"]{background:var(--surface)!important;
 .tag-green{background:#059669;}.tag-orange{background:#d97706;}
 .tag-red{background:#dc2626;}.tag-blue{background:#2563eb;}
 .chat-user{display:flex;justify-content:flex-end;margin:10px 0;}
-.chat-user-bubble{background:#1e2d45;border:1px solid #2d3f55;border-radius:12px 12px 2px 12px;
-  padding:10px 16px;max-width:75%;color:#e2e8f0;font-size:.88rem;line-height:1.6;}
+.chat-user-bubble{background:#e8f0fb;border:1px solid #c2d4f0;border-radius:12px 12px 2px 12px;
+  padding:10px 16px;max-width:75%;color:#1e293b;font-size:.88rem;line-height:1.6;}
 .chat-ai{display:flex;justify-content:flex-start;margin:10px 0;gap:10px;align-items:flex-start;}
 .chat-avatar{width:30px;height:30px;border-radius:50%;
-  background:linear-gradient(135deg,#7c3aed,#00e5ff);
+  background:linear-gradient(135deg,#6d28d9,#0066cc);
   display:flex;align-items:center;justify-content:center;font-size:.85rem;flex-shrink:0;
   margin-top:2px;}
-.chat-ai-bubble{background:#111827;border:1px solid #1e2d45;
+.chat-ai-bubble{background:#ffffff;border:1px solid #d1dce8;
   border-radius:2px 12px 12px 12px;padding:12px 16px;max-width:78%;
-  color:#e2e8f0;font-size:.88rem;line-height:1.7;}
-.feed-badge{display:inline-block;background:#0f2030;border:1px solid #00e5ff;
-  border-radius:6px;padding:4px 10px;font-size:.72rem;color:#00e5ff;margin:2px;}
+  color:#1e293b;font-size:.88rem;line-height:1.7;box-shadow:0 1px 4px rgba(0,0,0,0.06);}
+.feed-badge{display:inline-block;background:#e8f0fb;border:1px solid #0066cc;
+  border-radius:6px;padding:4px 10px;font-size:.72rem;color:#0066cc;margin:2px;}
+
+/* Fix Streamlit native elements for light theme */
+.stSelectbox label, .stSlider label, .stMultiSelect label,
+.stNumberInput label, .stTextInput label, .stRadio label{color:var(--text)!important;}
+.stDataFrame{background:white!important;}
+[data-testid="stExpander"]{background:white!important;border:1px solid var(--border)!important;border-radius:8px!important;}
+[data-testid="stExpander"] summary{color:var(--text)!important;}
+.stTabs [data-baseweb="tab"]{color:var(--muted)!important;}
+.stTabs [aria-selected="true"]{color:var(--accent)!important;}
+div[data-testid="stMetric"]{background:white;border-radius:8px;padding:12px;border:1px solid var(--border);}
 </style>
 """, unsafe_allow_html=True)
 
