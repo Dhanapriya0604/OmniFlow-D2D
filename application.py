@@ -638,10 +638,10 @@ def CD():
 
 def grid_y():
     return dict(showgrid=True, gridcolor="rgba(255,255,255,0.04)", gridwidth=1,
-                zeroline=False, color="#4a5e7a")
+                zeroline=False, tickcolor="#4a5e7a")
 
 def grid_x():
-    return dict(showgrid=False, zeroline=False, color="#4a5e7a")
+    return dict(showgrid=False, zeroline=False, tickcolor="#4a5e7a")
 
 def kpi(col, label, value, accent_class="amber", sub=""):
     col.markdown(f"""
@@ -731,7 +731,7 @@ def page_overview():
             hovertemplate="<b>%{x|%b %Y}</b><br>₹%{y:,.0f}<extra></extra>"
         ))
         fig.update_layout(**CD(), height=260,
-            xaxis=dict(**grid_x(), color="#4a5e7a"),
+            xaxis=dict(**grid_x()),
             yaxis=dict(**grid_y(), tickformat=",.0f"),
             showlegend=False)
         st.plotly_chart(fig, use_container_width=True)
@@ -784,7 +784,7 @@ def page_overview():
             hovertemplate="<b>%{x}</b><br>₹%{y:,.0f}<extra></extra>"
         ))
         fig4.update_layout(**CD(), height=250,
-            xaxis=dict(**grid_x(), tickangle=-30, color="#8a9dc0"),
+            xaxis=dict(**grid_x(), tickangle=-30),
             yaxis=dict(**grid_y()))
         st.plotly_chart(fig4, use_container_width=True)
 
@@ -1227,8 +1227,7 @@ def page_logistics():
                 )
             ))
         fig.update_layout(**CD(), height=320, showlegend=False,
-            xaxis=dict(**grid_x(), title="Avg Delivery Days", showgrid=True,
-                       gridcolor="rgba(255,255,255,0.04)"),
+            xaxis=dict(**grid_y(), title="Avg Delivery Days"),
             yaxis=dict(**grid_y(), title="Avg Shipping Cost ₹"))
         st.plotly_chart(fig, use_container_width=True)
 
