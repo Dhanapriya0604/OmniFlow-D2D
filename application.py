@@ -20,340 +20,353 @@ st.set_page_config(
 )
 
 # ── Global CSS ─────────────────────────────────────────────────────────────────
-st.markdown("""
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+def inject_css():
+    st.markdown("""
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
 
-:root{
-  --bg:#f7f9fc;
-  --surface:#ffffff;
-  --border:#e0e7f0;
-  --accent:#1e3fa0;
-  --accent-soft:#3b5fcf;
-  --text:#1a2b4a;
-  --muted:#7a8fa6;
-  --card-shadow:0 2px 12px rgba(30,63,160,0.07);
-  --card-hover-shadow:0 8px 32px rgba(30,63,160,0.15);
-}
+    :root {
+        --bg: #f7f9fc;
+        --text: #1a2b4a;
+        --muted: #7a8fa6;
+        --primary: #1e3fa0;
+        --border: #e0e7f0;
+        --accent: #edf1fc;
+        --surface: #ffffff;
+        --card-shadow: 0 2px 12px rgba(30,63,160,0.07);
+        --card-hover-shadow: 0 8px 32px rgba(30,63,160,0.15);
+    }
 
-/* ── Base ── */
-html,body,[class*="css"]{
-  font-family:'Plus Jakarta Sans',sans-serif!important;
-  background-color:var(--bg)!important;
-  color:var(--text)!important;
-  font-size:15px!important;
-}
-h1,h2,h3,h4,h5,h6{
-  font-family:'Plus Jakarta Sans',sans-serif!important;
-  color:var(--text)!important;
-  font-weight:700!important;
-  letter-spacing:-0.01em!important;
-}
-.stApp{
-  background-color:var(--bg)!important;
-}
+    html, body, [class*="css"] {
+        background-color: var(--bg) !important;
+        color: var(--text) !important;
+        font-family: 'Plus Jakarta Sans', sans-serif !important;
+        font-size: 15px !important;
+    }
 
-/* ── Sidebar — exactly like screenshot ── */
-section[data-testid="stSidebar"]{
-  background:#f8f9fb!important;
-  border-right:1px solid var(--border)!important;
-  box-shadow:none!important;
-}
-section[data-testid="stSidebar"] .stRadio label{
-  font-family:'Plus Jakarta Sans',sans-serif!important;
-  font-size:.92rem!important;
-  font-weight:500!important;
-  color:#3a4f6e!important;
-  padding:4px 0!important;
-}
-section[data-testid="stSidebar"] .stRadio [aria-checked="true"] + div{
-  color:var(--accent)!important;
-  font-weight:700!important;
-}
+    h1, h2, h3, h4, h5, h6 {
+        font-family: 'Plus Jakarta Sans', sans-serif !important;
+        font-weight: 800 !important;
+        color: var(--text) !important;
+        letter-spacing: -0.02em !important;
+    }
 
-/* ── Buttons ── */
-.stButton>button{
-  background:linear-gradient(135deg,#1e3fa0,#3b5fcf)!important;
-  color:#fff!important;border:none!important;
-  border-radius:8px!important;
-  font-family:'Plus Jakarta Sans',sans-serif!important;
-  font-weight:700!important;
-  font-size:.88rem!important;
-  letter-spacing:0.02em!important;
-  padding:9px 20px!important;
-  box-shadow:0 2px 10px rgba(30,63,160,0.22)!important;
-  transition:all 0.22s cubic-bezier(0.34,1.56,0.64,1)!important;
-}
-.stButton>button:hover{
-  transform:translateY(-3px) scale(1.02)!important;
-  box-shadow:0 8px 24px rgba(30,63,160,0.32)!important;
-  background:linear-gradient(135deg,#1630820,#4a6de0)!important;
-}
-.stButton>button:active{
-  transform:translateY(0) scale(0.98)!important;
-}
+    .stApp {
+        background-color: var(--bg) !important;
+    }
 
-/* ── Metric Cards — floating with hover ── */
-.metric-card{
-  background:var(--surface);
-  border:1px solid var(--border);
-  border-radius:14px;
-  padding:22px 24px;
-  position:relative;
-  overflow:hidden;
-  margin-bottom:6px;
-  box-shadow:var(--card-shadow);
-  transition:transform 0.28s cubic-bezier(0.34,1.56,0.64,1),
-             box-shadow 0.28s ease;
-  animation:cardFloat 0.5s ease both;
-}
-.metric-card:hover{
-  transform:translateY(-6px);
-  box-shadow:var(--card-hover-shadow);
-}
-.metric-card::before{
-  content:'';position:absolute;
-  top:0;left:0;right:0;height:3px;
-  background:linear-gradient(90deg,#1e3fa0,#3b5fcf,#7b9ef0);
-  background-size:200%;
-  animation:shimmer 4s linear infinite;
-}
-@keyframes shimmer{
-  0%{background-position:0% 50%;}
-  100%{background-position:200% 50%;}
-}
-@keyframes cardFloat{
-  from{opacity:0;transform:translateY(18px);}
-  to{opacity:1;transform:translateY(0);}
-}
+    section.main > div {
+        animation: fadeIn 0.45s ease-in-out;
+    }
 
-.metric-value{
-  font-family:'Plus Jakarta Sans',sans-serif!important;
-  font-size:2rem;font-weight:800;
-  color:var(--accent);
-  line-height:1.15;
-  letter-spacing:-0.02em;
-  transition:color 0.2s;
-}
-.metric-card:hover .metric-value{color:#3b5fcf;}
-.metric-label{
-  font-family:'Plus Jakarta Sans',sans-serif!important;
-  font-size:.72rem;color:var(--muted);
-  text-transform:uppercase;
-  letter-spacing:.12em;font-weight:600;
-  margin-bottom:6px;
-}
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(8px); }
+        to   { opacity: 1; transform: translateY(0); }
+    }
 
-/* ── Section Titles — exactly like screenshot ── */
-.section-title{
-  font-family:'Plus Jakarta Sans',sans-serif!important;
-  font-size:1.35rem;font-weight:800;
-  color:var(--text);
-  margin:24px 0 14px;
-  padding-bottom:0;
-  border-bottom:none;
-  letter-spacing:-0.02em;
-}
+    /* ── Sidebar ── */
+    section[data-testid="stSidebar"] {
+        background: #f8f9fb !important;
+        border-right: 1px solid var(--border) !important;
+        box-shadow: none !important;
+    }
+    section[data-testid="stSidebar"] label {
+        font-family: 'Plus Jakarta Sans', sans-serif !important;
+        font-size: .92rem !important;
+        font-weight: 500 !important;
+        color: #3a4f6e !important;
+    }
 
-/* ── Tags ── */
-.tag{
-  display:inline-block;
-  background:#edf1fc;color:#1e3fa0;
-  padding:3px 12px;border-radius:20px;
-  font-size:.72rem;font-weight:700;
-  font-family:'Plus Jakarta Sans',sans-serif!important;
-  letter-spacing:.05em;margin:2px;
-  border:1px solid #c8d5f5;
-  transition:all 0.2s ease;
-}
-.tag:hover{background:#1e3fa0;color:white;transform:translateY(-2px);
-  box-shadow:0 4px 10px rgba(30,63,160,0.2);}
-.tag-green{background:#e6f5ee;color:#1a7a4a;border-color:#a8d9be;}
-.tag-orange{background:#fef3e6;color:#b45309;border-color:#f8d09a;}
-.tag-red{background:#fdeaea;color:#b91c1c;border-color:#f5b8b8;}
-.tag-blue{background:#edf1fc;color:#1e3fa0;border-color:#c8d5f5;}
+    /* ── Section Title ── */
+    .section-title {
+        font-family: 'Plus Jakarta Sans', sans-serif !important;
+        font-size: 26px;
+        font-weight: 800;
+        color: var(--text);
+        margin: 28px 0 14px 0;
+        letter-spacing: -0.02em;
+    }
 
-/* ── Chat Bubbles ── */
-.chat-user{
-  display:flex;justify-content:flex-end;margin:10px 0;
-  animation:slideInRight 0.3s ease;
-}
-@keyframes slideInRight{
-  from{opacity:0;transform:translateX(16px);}
-  to{opacity:1;transform:translateX(0);}
-}
-.chat-user-bubble{
-  background:linear-gradient(135deg,#edf1fc,#e2eafb);
-  border:1px solid #c8d5f5;
-  border-radius:14px 14px 4px 14px;
-  padding:11px 16px;max-width:75%;
-  color:var(--text);font-size:.88rem;line-height:1.6;
-  font-family:'Plus Jakarta Sans',sans-serif!important;
-  font-weight:500;
-  box-shadow:0 2px 8px rgba(30,63,160,0.08);
-}
-.chat-ai{
-  display:flex;justify-content:flex-start;
-  margin:10px 0;gap:10px;align-items:flex-start;
-  animation:slideInLeft 0.3s ease;
-}
-@keyframes slideInLeft{
-  from{opacity:0;transform:translateX(-16px);}
-  to{opacity:1;transform:translateX(0);}
-}
-.chat-avatar{
-  width:34px;height:34px;border-radius:50%;
-  background:linear-gradient(135deg,#1e3fa0,#3b5fcf);
-  display:flex;align-items:center;justify-content:center;
-  font-size:.85rem;flex-shrink:0;margin-top:2px;
-  box-shadow:0 4px 12px rgba(30,63,160,0.3);
-  animation:avatarPulse 2.5s ease infinite;
-}
-@keyframes avatarPulse{
-  0%,100%{box-shadow:0 4px 12px rgba(30,63,160,0.3);}
-  50%{box-shadow:0 4px 22px rgba(30,63,160,0.5);}
-}
-.chat-ai-bubble{
-  background:var(--surface);
-  border:1px solid var(--border);
-  border-radius:4px 14px 14px 14px;
-  padding:13px 17px;max-width:78%;
-  color:var(--text);font-size:.88rem;line-height:1.7;
-  font-family:'Plus Jakarta Sans',sans-serif!important;
-  font-weight:400;
-  box-shadow:var(--card-shadow);
-  transition:box-shadow 0.25s ease;
-}
-.chat-ai-bubble:hover{box-shadow:var(--card-hover-shadow);}
+    /* ── Generic Card ── */
+    .card {
+        background: var(--surface);
+        padding: 22px;
+        border-radius: 16px;
+        border: 1px solid var(--border);
+        box-shadow: var(--card-shadow);
+        transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+        font-family: 'Plus Jakarta Sans', sans-serif !important;
+    }
+    .card:hover {
+        transform: translateY(-5px);
+        box-shadow: var(--card-hover-shadow);
+    }
 
-/* ── Feed Badge ── */
-.feed-badge{
-  display:inline-block;
-  background:#edf1fc;border:1px solid #b8ccee;
-  border-radius:8px;padding:4px 12px;
-  font-size:.72rem;color:#1e3fa0;margin:3px;
-  font-family:'Plus Jakarta Sans',sans-serif!important;
-  font-weight:600;
-  transition:all 0.2s ease;
-  box-shadow:0 1px 4px rgba(30,63,160,0.08);
-}
-.feed-badge:hover{
-  background:#1e3fa0;color:white;
-  transform:translateY(-2px);
-  box-shadow:0 4px 12px rgba(30,63,160,0.22);
-}
+    /* ── Metric Card — matches screenshot KPI cards exactly ── */
+    .metric-card {
+        background: linear-gradient(180deg, #edf1fc, #ffffff);
+        padding: 20px 18px;
+        text-align: center;
+        border-radius: 16px;
+        border: 1px solid var(--border);
+        box-shadow: 0 4px 18px rgba(30,63,160,0.10);
+        transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+        position: relative;
+        overflow: hidden;
+        animation: cardFloat 0.5s ease both;
+    }
+    .metric-card::before {
+        content: '';
+        position: absolute;
+        top: 0; left: 0; right: 0;
+        height: 3px;
+        background: linear-gradient(90deg, #1e3fa0, #3b5fcf, #7b9ef0);
+        background-size: 200%;
+        animation: shimmer 4s linear infinite;
+    }
+    .metric-card:hover {
+        transform: translateY(-6px);
+        box-shadow: 0 16px 36px rgba(30,63,160,0.18);
+    }
 
-/* ── Streamlit Inputs ── */
-.stSelectbox label,.stSlider label,.stMultiSelect label,
-.stNumberInput label,.stTextInput label,.stRadio label{
-  color:var(--text)!important;
-  font-family:'Plus Jakarta Sans',sans-serif!important;
-  font-weight:600!important;font-size:.85rem!important;
-}
-.stTextInput input,.stNumberInput input{
-  border:1.5px solid var(--border)!important;
-  border-radius:9px!important;background:white!important;
-  font-family:'Plus Jakarta Sans',sans-serif!important;
-  color:var(--text)!important;
-  transition:border-color 0.2s,box-shadow 0.2s!important;
-}
-.stTextInput input:focus,.stNumberInput input:focus{
-  border-color:#1e3fa0!important;
-  box-shadow:0 0 0 3px rgba(30,63,160,0.1)!important;
-}
+    @keyframes cardFloat {
+        from { opacity: 0; transform: translateY(18px); }
+        to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes shimmer {
+        0%   { background-position: 0% 50%; }
+        100% { background-position: 200% 50%; }
+    }
 
-/* ── DataFrames — exactly like screenshot table ── */
-.stDataFrame{
-  background:white!important;
-  border-radius:12px!important;
-  border:1px solid var(--border)!important;
-  box-shadow:var(--card-shadow)!important;
-  font-family:'Plus Jakarta Sans',sans-serif!important;
-  overflow:hidden!important;
-}
+    .metric-label {
+        font-family: 'Plus Jakarta Sans', sans-serif !important;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: .10em;
+        margin-bottom: 6px;
+    }
+    .metric-value {
+        font-family: 'Plus Jakarta Sans', sans-serif !important;
+        font-size: 30px;
+        font-weight: 900;
+        color: var(--primary);
+        letter-spacing: -0.02em;
+        line-height: 1.15;
+        transition: color 0.2s;
+    }
+    .metric-card:hover .metric-value {
+        color: #3b5fcf;
+    }
 
-/* ── Expanders ── */
-[data-testid="stExpander"]{
-  background:white!important;
-  border:1px solid var(--border)!important;
-  border-radius:12px!important;
-  box-shadow:var(--card-shadow)!important;
-  transition:box-shadow 0.25s,transform 0.25s!important;
-}
-[data-testid="stExpander"]:hover{
-  box-shadow:var(--card-hover-shadow)!important;
-  transform:translateY(-2px)!important;
-}
-[data-testid="stExpander"] summary{
-  color:var(--text)!important;
-  font-family:'Plus Jakarta Sans',sans-serif!important;
-  font-weight:600!important;font-size:.95rem!important;
-}
+    /* ── Tabs ── */
+    .stTabs [data-baseweb="tab-list"] {
+        background: #f0f4fb !important;
+        border-radius: 12px !important;
+        padding: 4px !important;
+        gap: 4px !important;
+        border: 1px solid var(--border) !important;
+    }
+    .stTabs [data-baseweb="tab"] {
+        background: #f1f5f9;
+        border-radius: 10px !important;
+        padding: 10px 18px !important;
+        font-family: 'Plus Jakarta Sans', sans-serif !important;
+        font-weight: 600 !important;
+        color: var(--muted) !important;
+        transition: all 0.2s ease !important;
+    }
+    .stTabs [aria-selected="true"] {
+        background: white !important;
+        color: var(--primary) !important;
+        box-shadow: 0 4px 14px rgba(30,63,160,0.12) !important;
+    }
 
-/* ── Tabs ── */
-.stTabs [data-baseweb="tab-list"]{
-  background:#f0f4fb!important;
-  border-radius:10px!important;
-  padding:4px!important;
-  gap:4px!important;
-  border:1px solid var(--border)!important;
-}
-.stTabs [data-baseweb="tab"]{
-  color:var(--muted)!important;
-  font-family:'Plus Jakarta Sans',sans-serif!important;
-  font-weight:600!important;
-  border-radius:7px!important;
-  transition:all 0.2s ease!important;
-}
-.stTabs [aria-selected="true"]{
-  color:#1e3fa0!important;
-  background:white!important;
-  box-shadow:0 2px 8px rgba(30,63,160,0.1)!important;
-}
+    /* ── Buttons ── */
+    .stButton > button {
+        background: linear-gradient(135deg, #1e3fa0, #3b5fcf) !important;
+        color: #fff !important;
+        border: none !important;
+        border-radius: 10px !important;
+        font-family: 'Plus Jakarta Sans', sans-serif !important;
+        font-weight: 700 !important;
+        font-size: .88rem !important;
+        padding: 9px 20px !important;
+        box-shadow: 0 3px 12px rgba(30,63,160,0.22) !important;
+        transition: all 0.22s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+    }
+    .stButton > button:hover {
+        transform: translateY(-3px) scale(1.02) !important;
+        box-shadow: 0 8px 24px rgba(30,63,160,0.32) !important;
+    }
+    .stButton > button:active {
+        transform: translateY(0) scale(0.98) !important;
+    }
 
-/* ── Native Metrics ── */
-div[data-testid="stMetric"]{
-  background:white!important;border-radius:12px!important;
-  padding:16px!important;border:1px solid var(--border)!important;
-  font-family:'Plus Jakarta Sans',sans-serif!important;
-  box-shadow:var(--card-shadow)!important;
-  transition:transform 0.28s cubic-bezier(0.34,1.56,0.64,1),
-             box-shadow 0.28s ease!important;
-}
-div[data-testid="stMetric"]:hover{
-  transform:translateY(-5px)!important;
-  box-shadow:var(--card-hover-shadow)!important;
-}
-div[data-testid="stMetric"] label{
-  color:var(--muted)!important;font-size:.75rem!important;
-  text-transform:uppercase!important;letter-spacing:.1em!important;
-  font-weight:600!important;
-}
-div[data-testid="stMetric"] [data-testid="stMetricValue"]{
-  color:var(--accent)!important;font-weight:800!important;
-  font-size:1.8rem!important;letter-spacing:-0.02em!important;
-}
+    /* ── Inputs ── */
+    .stSelectbox label, .stSlider label, .stMultiSelect label,
+    .stNumberInput label, .stTextInput label, .stRadio label {
+        color: var(--text) !important;
+        font-family: 'Plus Jakarta Sans', sans-serif !important;
+        font-weight: 600 !important;
+        font-size: .85rem !important;
+    }
+    .stTextInput input, .stNumberInput input {
+        border: 1.5px solid var(--border) !important;
+        border-radius: 9px !important;
+        background: white !important;
+        font-family: 'Plus Jakarta Sans', sans-serif !important;
+        color: var(--text) !important;
+        transition: border-color 0.2s, box-shadow 0.2s !important;
+    }
+    .stTextInput input:focus, .stNumberInput input:focus {
+        border-color: #1e3fa0 !important;
+        box-shadow: 0 0 0 3px rgba(30,63,160,0.10) !important;
+    }
 
-/* ── Page load animation ── */
-.main .block-container{
-  animation:pageLoad 0.5s ease both;
-  padding-top:2rem!important;
-}
-@keyframes pageLoad{
-  from{opacity:0;transform:translateY(14px);}
-  to{opacity:1;transform:translateY(0);}
-}
+    /* ── DataFrames / Tables — matches screenshot table ── */
+    .stDataFrame {
+        background: white !important;
+        border-radius: 12px !important;
+        border: 1px solid var(--border) !important;
+        box-shadow: var(--card-shadow) !important;
+        font-family: 'Plus Jakarta Sans', sans-serif !important;
+        overflow: hidden !important;
+    }
 
-/* ── Scrollbar ── */
-::-webkit-scrollbar{width:5px;height:5px;}
-::-webkit-scrollbar-track{background:#f0f4fb;}
-::-webkit-scrollbar-thumb{background:#c8d5f5;border-radius:10px;}
-::-webkit-scrollbar-thumb:hover{background:#1e3fa0;}
+    /* ── Expanders ── */
+    [data-testid="stExpander"] {
+        background: white !important;
+        border: 1px solid var(--border) !important;
+        border-radius: 12px !important;
+        box-shadow: var(--card-shadow) !important;
+        transition: box-shadow 0.25s, transform 0.25s !important;
+    }
+    [data-testid="stExpander"]:hover {
+        box-shadow: var(--card-hover-shadow) !important;
+        transform: translateY(-2px) !important;
+    }
+    [data-testid="stExpander"] summary {
+        font-family: 'Plus Jakarta Sans', sans-serif !important;
+        font-weight: 600 !important;
+        color: var(--text) !important;
+        font-size: .95rem !important;
+    }
 
-p,span,li,div{font-family:'Plus Jakarta Sans',sans-serif!important;}
-code,pre{font-family:'JetBrains Mono',monospace!important;font-size:.85rem!important;}
-</style>
-""", unsafe_allow_html=True)
+    /* ── Native Streamlit Metrics ── */
+    div[data-testid="stMetric"] {
+        background: linear-gradient(180deg, #edf1fc, #ffffff) !important;
+        border-radius: 14px !important;
+        padding: 16px !important;
+        border: 1px solid var(--border) !important;
+        box-shadow: 0 4px 18px rgba(30,63,160,0.10) !important;
+        font-family: 'Plus Jakarta Sans', sans-serif !important;
+        transition: transform 0.25s cubic-bezier(0.34,1.56,0.64,1),
+                    box-shadow 0.25s ease !important;
+    }
+    div[data-testid="stMetric"]:hover {
+        transform: translateY(-5px) !important;
+        box-shadow: 0 16px 36px rgba(30,63,160,0.18) !important;
+    }
+    div[data-testid="stMetric"] label {
+        color: var(--muted) !important;
+        font-size: .72rem !important;
+        text-transform: uppercase !important;
+        letter-spacing: .10em !important;
+        font-weight: 600 !important;
+    }
+    div[data-testid="stMetric"] [data-testid="stMetricValue"] {
+        color: var(--primary) !important;
+        font-weight: 900 !important;
+        font-size: 1.8rem !important;
+        letter-spacing: -0.02em !important;
+    }
+
+    /* ── Feed Badge ── */
+    .feed-badge {
+        display: inline-block;
+        background: #edf1fc;
+        border: 1px solid #b8ccee;
+        border-radius: 8px;
+        padding: 4px 12px;
+        font-size: .72rem;
+        color: #1e3fa0;
+        margin: 3px;
+        font-family: 'Plus Jakarta Sans', sans-serif !important;
+        font-weight: 600;
+        transition: all 0.2s ease;
+    }
+    .feed-badge:hover {
+        background: #1e3fa0;
+        color: white;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(30,63,160,0.22);
+    }
+
+    /* ── Tags ── */
+    .tag {
+        display: inline-block;
+        background: #edf1fc; color: #1e3fa0;
+        padding: 3px 12px; border-radius: 20px;
+        font-size: .70rem; font-weight: 700;
+        font-family: 'Plus Jakarta Sans', sans-serif !important;
+        letter-spacing: .06em; margin: 2px;
+        border: 1px solid #c8d5f5;
+        transition: all 0.2s ease;
+    }
+    .tag:hover { background: #1e3fa0; color: white; transform: translateY(-2px); }
+    .tag-green  { background: #e6f5ee; color: #1a7a4a; border-color: #a8d9be; }
+    .tag-orange { background: #fef3e6; color: #b45309; border-color: #f8d09a; }
+    .tag-red    { background: #fdeaea; color: #b91c1c; border-color: #f5b8b8; }
+    .tag-blue   { background: #edf1fc; color: #1e3fa0; border-color: #c8d5f5; }
+
+    /* ── Chat ── */
+    .chat-user { display:flex; justify-content:flex-end; margin:10px 0; animation: slideInRight 0.3s ease; }
+    @keyframes slideInRight { from{opacity:0;transform:translateX(14px);} to{opacity:1;transform:translateX(0);} }
+    .chat-user-bubble {
+        background: linear-gradient(135deg,#edf1fc,#e2eafb);
+        border: 1px solid #c8d5f5; border-radius: 14px 14px 4px 14px;
+        padding: 11px 16px; max-width: 75%;
+        color: var(--text); font-size: .88rem; line-height: 1.6;
+        font-family: 'Plus Jakarta Sans', sans-serif !important;
+        font-weight: 500; box-shadow: 0 2px 8px rgba(30,63,160,0.08);
+    }
+    .chat-ai { display:flex; justify-content:flex-start; margin:10px 0; gap:10px; align-items:flex-start; animation: slideInLeft 0.3s ease; }
+    @keyframes slideInLeft { from{opacity:0;transform:translateX(-14px);} to{opacity:1;transform:translateX(0);} }
+    .chat-avatar {
+        width:34px; height:34px; border-radius:50%;
+        background: linear-gradient(135deg,#1e3fa0,#3b5fcf);
+        display:flex; align-items:center; justify-content:center;
+        font-size:.85rem; flex-shrink:0; margin-top:2px;
+        box-shadow: 0 4px 12px rgba(30,63,160,0.3);
+        animation: avatarPulse 2.5s ease infinite;
+    }
+    @keyframes avatarPulse {
+        0%,100% { box-shadow: 0 4px 12px rgba(30,63,160,0.3); }
+        50%      { box-shadow: 0 4px 22px rgba(30,63,160,0.5); }
+    }
+    .chat-ai-bubble {
+        background: white; border: 1px solid var(--border);
+        border-radius: 4px 14px 14px 14px;
+        padding: 13px 17px; max-width: 78%;
+        color: var(--text); font-size: .88rem; line-height: 1.7;
+        font-family: 'Plus Jakarta Sans', sans-serif !important;
+        box-shadow: var(--card-shadow);
+        transition: box-shadow 0.25s ease;
+    }
+    .chat-ai-bubble:hover { box-shadow: var(--card-hover-shadow); }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: #f0f4fb; }
+    ::-webkit-scrollbar-thumb { background: #c8d5f5; border-radius: 10px; }
+    ::-webkit-scrollbar-thumb:hover { background: #1e3fa0; }
+
+    p, span, li, div { font-family: 'Plus Jakarta Sans', sans-serif !important; }
+    code, pre { font-family: 'JetBrains Mono', monospace !important; font-size: .85rem !important; }
+    </style>
+    """, unsafe_allow_html=True)
 # ── Imports ────────────────────────────────────────────────────────────────────
 import pandas as pd
 import numpy as np
