@@ -1167,7 +1167,6 @@ CATEGORIES: {cat_str}
 TOP REGIONS: {reg_str}
 TOP PRODUCTS: {sku_str}"""
 
-
 # ══════════════════════════════════════════════════════════════════════════════
 # PAGE: DECISION CHATBOT  (Module 5 — synthesises all module outputs)
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1182,33 +1181,36 @@ SUGGESTIONS = [
     "Optimal reorder strategy for Home & Kitchen?",
 ]
 
-def call_claude(messages: list, system: str) -> str:
+def call_claude_api(messages, system):
+    api_key = os.getenv("ANTHROPIC_API_KEY")
+    if not api_key:
+        return "❌ API Key not found. Add it in Streamlit secrets."
+    headers = {
+        "x-api-key": api_key,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json"
+    }
+    payload = {
+        "model": "claude-sonnet-4-20250514",
+        "max_tokens": 1000,
+        "system": system,
+        "messages": messages
+    }
     try:
-        resp = requests.post(
+        response = requests.post(
             "https://api.anthropic.com/v1/messages",
-            headers={"Content-Type": "application/json"},
-            json={
-                "model":      "claude-sonnet-4-20250514",
-                "max_tokens": 1024,
-                "system":     system,
-                "messages":   messages,
-            },
-            timeout=30,
+            headers=headers, json=payload
         )
-        data = resp.json()
-        if resp.status_code == 200 and "content" in data:
-            return "".join(
-                blk.get("text", "") for blk in data["content"] if blk.get("type") == "text"
-            ).strip()
-        # Surface the real error message
-        err = data.get("error", {})
-        return f"⚠️ API Error ({resp.status_code}): {err.get('message', str(data))}"
-    except requests.exceptions.Timeout:
-        return "⚠️ Request timed out. Please try again."
+        if response.status_code != 200:
+            return f"⚠️ API Error ({response.status_code}): {response.text}"
+        data = response.json()
+        return "".join(
+            block.get("text", "")
+            for block in data.get("content", [])
+            if block.get("type") == "text"
+        )
     except Exception as e:
-        return f"⚠️ Connection error: {e}"
-
-
+        return f"⚠️ Connection error: {str(e)}"
 def page_chatbot():
     df  = load_data()
 
