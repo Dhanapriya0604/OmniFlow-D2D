@@ -20,275 +20,58 @@ st.set_page_config(
 )
 
 # ── Global CSS ─────────────────────────────────────────────────────────────────
-def inject_css():
-    st.markdown("""
-    <style>
-    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&display=swap');
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap');
+:root{--bg:#f0f4f8;--surface:#ffffff;--border:#d1dce8;--accent:#0066cc;
+      --accent2:#e85d04;--accent3:#6d28d9;--text:#1e293b;--muted:#64748b;}
+html,body,[class*="css"]{font-family:'DM Sans',sans-serif;
+  background-color:var(--bg)!important;color:var(--text)!important;}
+h1,h2,h3,h4{font-family:'Syne',sans-serif!important;color:var(--text)!important;}
+.stApp{background-color:var(--bg)!important;}
+section[data-testid="stSidebar"]{background:var(--surface)!important;
+  border-right:1px solid var(--border)!important;}
+.stButton>button{background:linear-gradient(135deg,var(--accent3),var(--accent))!important;
+  color:#fff!important;border:none!important;border-radius:8px!important;
+  font-family:'Syne',sans-serif!important;font-weight:600!important;}
+.metric-card{background:var(--surface);border:1px solid var(--border);
+  border-radius:12px;padding:20px 24px;position:relative;overflow:hidden;
+  margin-bottom:4px;box-shadow:0 2px 8px rgba(0,0,0,0.06);}
+.metric-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;
+  background:linear-gradient(90deg,var(--accent),var(--accent3));}
+.metric-value{font-family:'Syne',sans-serif;font-size:1.9rem;font-weight:800;color:var(--accent);}
+.metric-label{font-size:.76rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;}
+.section-title{font-family:'Syne',sans-serif;font-size:1.2rem;font-weight:700;
+  color:var(--accent);margin:18px 0 10px;border-bottom:1px solid var(--border);padding-bottom:6px;}
+.tag{display:inline-block;background:var(--accent3);color:white;padding:2px 10px;
+  border-radius:20px;font-size:.72rem;font-weight:600;letter-spacing:.06em;margin:2px;}
+.tag-green{background:#059669;}.tag-orange{background:#d97706;}
+.tag-red{background:#dc2626;}.tag-blue{background:#2563eb;}
+.chat-user{display:flex;justify-content:flex-end;margin:10px 0;}
+.chat-user-bubble{background:#e8f0fb;border:1px solid #c2d4f0;border-radius:12px 12px 2px 12px;
+  padding:10px 16px;max-width:75%;color:#1e293b;font-size:.88rem;line-height:1.6;}
+.chat-ai{display:flex;justify-content:flex-start;margin:10px 0;gap:10px;align-items:flex-start;}
+.chat-avatar{width:30px;height:30px;border-radius:50%;
+  background:linear-gradient(135deg,#6d28d9,#0066cc);
+  display:flex;align-items:center;justify-content:center;font-size:.85rem;flex-shrink:0;
+  margin-top:2px;}
+.chat-ai-bubble{background:#ffffff;border:1px solid #d1dce8;
+  border-radius:2px 12px 12px 12px;padding:12px 16px;max-width:78%;
+  color:#1e293b;font-size:.88rem;line-height:1.7;box-shadow:0 1px 4px rgba(0,0,0,0.06);}
+.feed-badge{display:inline-block;background:#e8f0fb;border:1px solid #0066cc;
+  border-radius:6px;padding:4px 10px;font-size:.72rem;color:#0066cc;margin:2px;}
 
-    :root {
-        --bg: #f7f9fc;
-        --text: #1a2b4a;
-        --muted: #7a8fa6;
-        --primary: #1e3fa0;
-        --border: #e0e7f0;
-        --accent: #edf1fc;
-        --surface: #ffffff;
-        --card-shadow: 0 2px 12px rgba(30,63,160,0.07);
-        --card-hover-shadow: 0 10px 32px rgba(30,63,160,0.16);
-    }
-
-    html, body, [class*="css"] {
-        background-color: var(--bg) !important;
-        color: var(--text) !important;
-        font-family: 'Plus Jakarta Sans', sans-serif !important;
-        font-size: 15px !important;
-    }
-
-    h1, h2, h3, h4, h5, h6 {
-        font-family: 'Plus Jakarta Sans', sans-serif !important;
-        font-weight: 800 !important;
-        color: var(--text) !important;
-        letter-spacing: -0.02em !important;
-    }
-
-    .stApp {
-        background-color: var(--bg) !important;
-    }
-
-    section.main > div {
-        animation: fadeIn 0.4s ease-in-out;
-    }
-
-    @keyframes fadeIn {
-        from { opacity: 0; transform: translateY(6px); }
-        to   { opacity: 1; transform: translateY(0); }
-    }
-
-    /* ── Section Title ── */
-    .section-title {
-        font-family: 'Plus Jakarta Sans', sans-serif !important;
-        font-size: 26px;
-        font-weight: 800;
-        color: var(--text);
-        margin: 28px 0 14px 0;
-        letter-spacing: -0.02em;
-    }
-
-    /* ── Generic Card ── */
-    .card {
-        background: var(--surface);
-        padding: 22px;
-        border-radius: 16px;
-        border: 1px solid var(--border);
-        box-shadow: var(--card-shadow);
-        transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
-        font-family: 'Plus Jakarta Sans', sans-serif !important;
-        position: relative;
-        overflow: hidden;
-    }
-    .card::before {
-        content: '';
-        position: absolute;
-        top: 0; left: 0; right: 0;
-        height: 3px;
-        background: linear-gradient(90deg, #1e3fa0, #3b5fcf, #7b9ef0);
-        background-size: 200%;
-        animation: shimmer 4s linear infinite;
-    }
-    .card:hover {
-        transform: translateY(-5px);
-        box-shadow: var(--card-hover-shadow);
-    }
-
-    /* ── Metric Card ── */
-    .metric-card {
-        background: linear-gradient(180deg, #edf1fc, #ffffff);
-        padding: 20px 18px;
-        text-align: center;
-        border-radius: 16px;
-        border: 1px solid var(--border);
-        box-shadow: 0 4px 18px rgba(30,63,160,0.10);
-        transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
-        position: relative;
-        overflow: hidden;
-        animation: cardFloat 0.5s ease both;
-    }
-    .metric-card::before {
-        content: '';
-        position: absolute;
-        top: 0; left: 0; right: 0;
-        height: 3px;
-        background: linear-gradient(90deg, #1e3fa0, #3b5fcf, #7b9ef0);
-        background-size: 200%;
-        animation: shimmer 4s linear infinite;
-    }
-    .metric-card:hover {
-        transform: translateY(-6px);
-        box-shadow: 0 16px 36px rgba(30,63,160,0.18);
-    }
-
-    @keyframes cardFloat {
-        from { opacity: 0; transform: translateY(18px); }
-        to   { opacity: 1; transform: translateY(0); }
-    }
-    @keyframes shimmer {
-        0%   { background-position: 0% 50%; }
-        100% { background-position: 200% 50%; }
-    }
-
-    .metric-label {
-        font-family: 'Plus Jakarta Sans', sans-serif !important;
-        font-size: 13px;
-        font-weight: 600;
-        color: var(--muted);
-        text-transform: uppercase;
-        letter-spacing: 0.10em;
-        margin-bottom: 6px;
-    }
-    .metric-value {
-        font-family: 'Plus Jakarta Sans', sans-serif !important;
-        font-size: 30px;
-        font-weight: 900;
-        color: var(--primary);
-        letter-spacing: -0.02em;
-        line-height: 1.15;
-        transition: color 0.2s;
-    }
-    .metric-card:hover .metric-value {
-        color: #3b5fcf;
-    }
-
-    /* ── Tabs ── */
-    .stTabs [data-baseweb="tab-list"] {
-        background: #f0f4fb !important;
-        border-radius: 12px !important;
-        padding: 4px !important;
-        gap: 4px !important;
-        border: 1px solid var(--border) !important;
-    }
-    .stTabs [data-baseweb="tab"] {
-        background: #f1f5f9;
-        border-radius: 10px !important;
-        padding: 10px 18px !important;
-        font-family: 'Plus Jakarta Sans', sans-serif !important;
-        font-weight: 600 !important;
-        color: var(--muted) !important;
-        transition: all 0.2s ease !important;
-    }
-    .stTabs [aria-selected="true"] {
-        background: white !important;
-        color: var(--primary) !important;
-        box-shadow: 0 4px 14px rgba(30,63,160,0.12) !important;
-    }
-
-    /* ── Buttons ── */
-    .stButton > button {
-        background: linear-gradient(135deg, #1e3fa0, #3b5fcf) !important;
-        color: #fff !important;
-        border: none !important;
-        border-radius: 10px !important;
-        font-family: 'Plus Jakarta Sans', sans-serif !important;
-        font-weight: 700 !important;
-        font-size: .88rem !important;
-        padding: 9px 20px !important;
-        box-shadow: 0 3px 12px rgba(30,63,160,0.22) !important;
-        transition: all 0.22s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
-    }
-    .stButton > button:hover {
-        transform: translateY(-3px) scale(1.02) !important;
-        box-shadow: 0 8px 24px rgba(30,63,160,0.32) !important;
-    }
-    .stButton > button:active {
-        transform: translateY(0) scale(0.98) !important;
-    }
-
-    /* ── Inputs ── */
-    .stSelectbox label, .stSlider label, .stMultiSelect label,
-    .stNumberInput label, .stTextInput label, .stRadio label {
-        color: var(--text) !important;
-        font-family: 'Plus Jakarta Sans', sans-serif !important;
-        font-weight: 600 !important;
-        font-size: .85rem !important;
-    }
-    .stTextInput input, .stNumberInput input {
-        border: 1.5px solid var(--border) !important;
-        border-radius: 9px !important;
-        background: white !important;
-        font-family: 'Plus Jakarta Sans', sans-serif !important;
-        transition: border-color 0.2s, box-shadow 0.2s !important;
-    }
-    .stTextInput input:focus, .stNumberInput input:focus {
-        border-color: #1e3fa0 !important;
-        box-shadow: 0 0 0 3px rgba(30,63,160,0.10) !important;
-    }
-
-    /* ── DataFrames ── */
-    .stDataFrame {
-        background: white !important;
-        border-radius: 12px !important;
-        border: 1px solid var(--border) !important;
-        box-shadow: var(--card-shadow) !important;
-        font-family: 'Plus Jakarta Sans', sans-serif !important;
-        overflow: hidden !important;
-    }
-
-    /* ── Expanders ── */
-    [data-testid="stExpander"] {
-        background: white !important;
-        border: 1px solid var(--border) !important;
-        border-radius: 12px !important;
-        box-shadow: var(--card-shadow) !important;
-        transition: box-shadow 0.25s, transform 0.25s !important;
-    }
-    [data-testid="stExpander"]:hover {
-        box-shadow: var(--card-hover-shadow) !important;
-        transform: translateY(-2px) !important;
-    }
-    [data-testid="stExpander"] summary {
-        font-family: 'Plus Jakarta Sans', sans-serif !important;
-        font-weight: 600 !important;
-        color: var(--text) !important;
-    }
-
-    /* ── Native Metrics ── */
-    div[data-testid="stMetric"] {
-        background: linear-gradient(180deg, #edf1fc, #ffffff) !important;
-        border-radius: 14px !important;
-        padding: 16px !important;
-        border: 1px solid var(--border) !important;
-        box-shadow: 0 4px 18px rgba(30,63,160,0.10) !important;
-        transition: transform 0.25s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.25s !important;
-    }
-    div[data-testid="stMetric"]:hover {
-        transform: translateY(-5px) !important;
-        box-shadow: 0 16px 36px rgba(30,63,160,0.18) !important;
-    }
-    div[data-testid="stMetric"] label {
-        color: var(--muted) !important;
-        font-size: .72rem !important;
-        text-transform: uppercase !important;
-        letter-spacing: .10em !important;
-        font-weight: 600 !important;
-    }
-    div[data-testid="stMetric"] [data-testid="stMetricValue"] {
-        color: var(--primary) !important;
-        font-weight: 900 !important;
-        font-size: 1.8rem !important;
-        letter-spacing: -0.02em !important;
-    }
-
-    /* ── Sidebar ── */
-    section[data-testid="stSidebar"] {
-        background: #f8f9fb !important;
-        border-right: 1px solid var(--border) !important;
-        box-shadow: none !important;
-    }
-
-    /* ── Scrollbar ── */
-    ::-webkit-scrollbar { width: 5px; height: 5px; }
-    ::-webkit-scrollbar-track { background: #f0f4fb; }
-    ::-webkit-scrollbar-thumb { background: #c8d5f5; border-radius: 10px; }
-    ::-webkit-scrollbar-thumb:hover { background: #1e3fa0; }
+/* Fix Streamlit native elements for light theme */
+.stSelectbox label, .stSlider label, .stMultiSelect label,
+.stNumberInput label, .stTextInput label, .stRadio label{color:var(--text)!important;}
+.stDataFrame{background:white!important;}
+[data-testid="stExpander"]{background:white!important;border:1px solid var(--border)!important;border-radius:8px!important;}
+[data-testid="stExpander"] summary{color:var(--text)!important;}
+.stTabs [data-baseweb="tab"]{color:var(--muted)!important;}
+.stTabs [aria-selected="true"]{color:var(--accent)!important;}
+div[data-testid="stMetric"]{background:white;border-radius:8px;padding:12px;border:1px solid var(--border);}
+</style>
+""", unsafe_allow_html=True)
 # ── Imports ────────────────────────────────────────────────────────────────────
 import pandas as pd
 import numpy as np
