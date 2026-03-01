@@ -22,17 +22,20 @@ st.markdown("""
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
 :root{
-    --bg:#f8fafc;
-    --card:#ffffff;
-    --border:#e5eaf2;
-    --primary:#3b5fcf;
+    --bg:#f7f9fc;
+    --card:rgba(255,255,255,0.85);
+    --border:#e6ebf2;
+    --primary:#5b7cfa;        
     --primary-soft:#eef2ff;
     --text:#1e293b;
-    --muted:#64748b;
-    --green:#10b981;
-    --orange:#f59e0b;
-    --red:#ef4444;
-    --shadow:0 6px 18px rgba(0,0,0,0.06);
+    --muted:#7b8794;
+    --green:#4ade80;         
+    --orange:#fb923c;      
+    --red:#f87171;         
+    --purple:#a78bfa;       
+    --sky:#38bdf8;        
+    --shadow:0 8px 24px rgba(0,0,0,0.05);
+    --glass:blur(10px);
 }
 html, body, [class*="css"]{
     font-family:'Inter', sans-serif;
@@ -54,15 +57,16 @@ h2, h3{
 }
 .metric-card{
     background:var(--card);
+    backdrop-filter:var(--glass);
     border:1px solid var(--border);
-    border-radius:14px;
-    padding:18px 20px;
+    border-radius:16px;
+    padding:18px;
     box-shadow:var(--shadow);
-    transition:all 0.25s ease;
+    transition:all 0.3s ease;
 }
 .metric-card:hover{
-    transform:translateY(-4px);
-    box-shadow:0 12px 28px rgba(0,0,0,0.08);
+    transform:translateY(-4px) scale(1.01);
+    box-shadow:0 12px 30px rgba(0,0,0,0.08);
 }
 .metric-label{
     font-size:0.75rem;
@@ -83,16 +87,16 @@ h2, h3{
     box-shadow:var(--shadow);
 }
 .stButton>button{
-    background:linear-gradient(135deg,#3b5fcf,#6c8cff)!important;
+    background:linear-gradient(135deg,#5b7cfa,#38bdf8)!important;
     color:white!important;
     border:none!important;
-    border-radius:8px!important;
-    padding:6px 14px!important;
+    border-radius:10px!important;
     font-weight:600!important;
-    transition:0.2s;
+    transition:0.25s;
 }
 .stButton>button:hover{
-    transform:scale(1.03);
+    transform:scale(1.05);
+    box-shadow:0 8px 20px rgba(91,124,250,0.25);
 }
 .stTextInput input, .stSelectbox div{
     border-radius:8px!important;
@@ -136,10 +140,11 @@ div[style*="background:#0"]{
     font-size:0.7rem;
     font-weight:600;
 }
-.tag-green{background:#d1fae5;color:#065f46;}
-.tag-orange{background:#fef3c7;color:#92400e;}
+.tag-green{background:#dcfce7;color:#166534;}
+.tag-orange{background:#ffedd5;color:#9a3412;}
 .tag-red{background:#fee2e2;color:#7f1d1d;}
 .tag-blue{background:#e0e7ff;color:#1e3a8a;}
+.tag-purple{background:#f3e8ff;color:#6b21a8;}
 .stSlider [role="slider"]{
     background:var(--primary)!important;
 }
@@ -156,8 +161,7 @@ import requests, os
 
 DATA_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                          "OmniFlow_D2D_India_Unified_5200.csv")
-COLORS = ["#2b4eff","#6c8cff","#94a3f3","#10b981","#f59e0b","#ef4444","#64748b"]
-
+COLORS = ["#5b7cfa","#38bdf8","#4ade80","#fb923c","#f87171","#a78bfa"]
 @st.cache_data(show_spinner="Loading supply chain data…")
 def load_data():
     df = pd.read_csv(DATA_FILE, parse_dates=["Order_Date"])
