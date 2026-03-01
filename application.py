@@ -23,7 +23,7 @@ st.set_page_config(
 def inject_css():
     st.markdown("""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&display=swap');
 
     :root {
         --bg: #f7f9fc;
@@ -34,7 +34,7 @@ def inject_css():
         --accent: #edf1fc;
         --surface: #ffffff;
         --card-shadow: 0 2px 12px rgba(30,63,160,0.07);
-        --card-hover-shadow: 0 8px 32px rgba(30,63,160,0.15);
+        --card-hover-shadow: 0 10px 32px rgba(30,63,160,0.16);
     }
 
     html, body, [class*="css"] {
@@ -56,25 +56,12 @@ def inject_css():
     }
 
     section.main > div {
-        animation: fadeIn 0.45s ease-in-out;
+        animation: fadeIn 0.4s ease-in-out;
     }
 
     @keyframes fadeIn {
-        from { opacity: 0; transform: translateY(8px); }
+        from { opacity: 0; transform: translateY(6px); }
         to   { opacity: 1; transform: translateY(0); }
-    }
-
-    /* ── Sidebar ── */
-    section[data-testid="stSidebar"] {
-        background: #f8f9fb !important;
-        border-right: 1px solid var(--border) !important;
-        box-shadow: none !important;
-    }
-    section[data-testid="stSidebar"] label {
-        font-family: 'Plus Jakarta Sans', sans-serif !important;
-        font-size: .92rem !important;
-        font-weight: 500 !important;
-        color: #3a4f6e !important;
     }
 
     /* ── Section Title ── */
@@ -96,13 +83,24 @@ def inject_css():
         box-shadow: var(--card-shadow);
         transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
         font-family: 'Plus Jakarta Sans', sans-serif !important;
+        position: relative;
+        overflow: hidden;
+    }
+    .card::before {
+        content: '';
+        position: absolute;
+        top: 0; left: 0; right: 0;
+        height: 3px;
+        background: linear-gradient(90deg, #1e3fa0, #3b5fcf, #7b9ef0);
+        background-size: 200%;
+        animation: shimmer 4s linear infinite;
     }
     .card:hover {
         transform: translateY(-5px);
         box-shadow: var(--card-hover-shadow);
     }
 
-    /* ── Metric Card — matches screenshot KPI cards exactly ── */
+    /* ── Metric Card ── */
     .metric-card {
         background: linear-gradient(180deg, #edf1fc, #ffffff);
         padding: 20px 18px;
@@ -144,7 +142,7 @@ def inject_css():
         font-weight: 600;
         color: var(--muted);
         text-transform: uppercase;
-        letter-spacing: .10em;
+        letter-spacing: 0.10em;
         margin-bottom: 6px;
     }
     .metric-value {
@@ -217,7 +215,6 @@ def inject_css():
         border-radius: 9px !important;
         background: white !important;
         font-family: 'Plus Jakarta Sans', sans-serif !important;
-        color: var(--text) !important;
         transition: border-color 0.2s, box-shadow 0.2s !important;
     }
     .stTextInput input:focus, .stNumberInput input:focus {
@@ -225,7 +222,7 @@ def inject_css():
         box-shadow: 0 0 0 3px rgba(30,63,160,0.10) !important;
     }
 
-    /* ── DataFrames / Tables — matches screenshot table ── */
+    /* ── DataFrames ── */
     .stDataFrame {
         background: white !important;
         border-radius: 12px !important;
@@ -251,19 +248,16 @@ def inject_css():
         font-family: 'Plus Jakarta Sans', sans-serif !important;
         font-weight: 600 !important;
         color: var(--text) !important;
-        font-size: .95rem !important;
     }
 
-    /* ── Native Streamlit Metrics ── */
+    /* ── Native Metrics ── */
     div[data-testid="stMetric"] {
         background: linear-gradient(180deg, #edf1fc, #ffffff) !important;
         border-radius: 14px !important;
         padding: 16px !important;
         border: 1px solid var(--border) !important;
         box-shadow: 0 4px 18px rgba(30,63,160,0.10) !important;
-        font-family: 'Plus Jakarta Sans', sans-serif !important;
-        transition: transform 0.25s cubic-bezier(0.34,1.56,0.64,1),
-                    box-shadow 0.25s ease !important;
+        transition: transform 0.25s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.25s !important;
     }
     div[data-testid="stMetric"]:hover {
         transform: translateY(-5px) !important;
@@ -283,90 +277,18 @@ def inject_css():
         letter-spacing: -0.02em !important;
     }
 
-    /* ── Feed Badge ── */
-    .feed-badge {
-        display: inline-block;
-        background: #edf1fc;
-        border: 1px solid #b8ccee;
-        border-radius: 8px;
-        padding: 4px 12px;
-        font-size: .72rem;
-        color: #1e3fa0;
-        margin: 3px;
-        font-family: 'Plus Jakarta Sans', sans-serif !important;
-        font-weight: 600;
-        transition: all 0.2s ease;
+    /* ── Sidebar ── */
+    section[data-testid="stSidebar"] {
+        background: #f8f9fb !important;
+        border-right: 1px solid var(--border) !important;
+        box-shadow: none !important;
     }
-    .feed-badge:hover {
-        background: #1e3fa0;
-        color: white;
-        transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(30,63,160,0.22);
-    }
-
-    /* ── Tags ── */
-    .tag {
-        display: inline-block;
-        background: #edf1fc; color: #1e3fa0;
-        padding: 3px 12px; border-radius: 20px;
-        font-size: .70rem; font-weight: 700;
-        font-family: 'Plus Jakarta Sans', sans-serif !important;
-        letter-spacing: .06em; margin: 2px;
-        border: 1px solid #c8d5f5;
-        transition: all 0.2s ease;
-    }
-    .tag:hover { background: #1e3fa0; color: white; transform: translateY(-2px); }
-    .tag-green  { background: #e6f5ee; color: #1a7a4a; border-color: #a8d9be; }
-    .tag-orange { background: #fef3e6; color: #b45309; border-color: #f8d09a; }
-    .tag-red    { background: #fdeaea; color: #b91c1c; border-color: #f5b8b8; }
-    .tag-blue   { background: #edf1fc; color: #1e3fa0; border-color: #c8d5f5; }
-
-    /* ── Chat ── */
-    .chat-user { display:flex; justify-content:flex-end; margin:10px 0; animation: slideInRight 0.3s ease; }
-    @keyframes slideInRight { from{opacity:0;transform:translateX(14px);} to{opacity:1;transform:translateX(0);} }
-    .chat-user-bubble {
-        background: linear-gradient(135deg,#edf1fc,#e2eafb);
-        border: 1px solid #c8d5f5; border-radius: 14px 14px 4px 14px;
-        padding: 11px 16px; max-width: 75%;
-        color: var(--text); font-size: .88rem; line-height: 1.6;
-        font-family: 'Plus Jakarta Sans', sans-serif !important;
-        font-weight: 500; box-shadow: 0 2px 8px rgba(30,63,160,0.08);
-    }
-    .chat-ai { display:flex; justify-content:flex-start; margin:10px 0; gap:10px; align-items:flex-start; animation: slideInLeft 0.3s ease; }
-    @keyframes slideInLeft { from{opacity:0;transform:translateX(-14px);} to{opacity:1;transform:translateX(0);} }
-    .chat-avatar {
-        width:34px; height:34px; border-radius:50%;
-        background: linear-gradient(135deg,#1e3fa0,#3b5fcf);
-        display:flex; align-items:center; justify-content:center;
-        font-size:.85rem; flex-shrink:0; margin-top:2px;
-        box-shadow: 0 4px 12px rgba(30,63,160,0.3);
-        animation: avatarPulse 2.5s ease infinite;
-    }
-    @keyframes avatarPulse {
-        0%,100% { box-shadow: 0 4px 12px rgba(30,63,160,0.3); }
-        50%      { box-shadow: 0 4px 22px rgba(30,63,160,0.5); }
-    }
-    .chat-ai-bubble {
-        background: white; border: 1px solid var(--border);
-        border-radius: 4px 14px 14px 14px;
-        padding: 13px 17px; max-width: 78%;
-        color: var(--text); font-size: .88rem; line-height: 1.7;
-        font-family: 'Plus Jakarta Sans', sans-serif !important;
-        box-shadow: var(--card-shadow);
-        transition: box-shadow 0.25s ease;
-    }
-    .chat-ai-bubble:hover { box-shadow: var(--card-hover-shadow); }
 
     /* ── Scrollbar ── */
     ::-webkit-scrollbar { width: 5px; height: 5px; }
     ::-webkit-scrollbar-track { background: #f0f4fb; }
     ::-webkit-scrollbar-thumb { background: #c8d5f5; border-radius: 10px; }
     ::-webkit-scrollbar-thumb:hover { background: #1e3fa0; }
-
-    p, span, li, div { font-family: 'Plus Jakarta Sans', sans-serif !important; }
-    code, pre { font-family: 'JetBrains Mono', monospace !important; font-size: .85rem !important; }
-    </style>
-    """, unsafe_allow_html=True)
 # ── Imports ────────────────────────────────────────────────────────────────────
 import pandas as pd
 import numpy as np
