@@ -335,25 +335,25 @@ def page_overview():
         Predictive Logistics & AI-Powered Demand-to-Delivery Optimization System
       </div></div>""", unsafe_allow_html=True)
    st.markdown("""
-    <div style='background:#111827;border:1px solid #1e2d45;border-radius:12px;
-         padding:22px 28px;margin-bottom:20px;position:relative;overflow:hidden'>
-      <div style='position:absolute;top:0;left:0;right:0;height:3px;
-           background:linear-gradient(90deg,#00e5ff,#7c3aed,#ff6b35)'></div>
-      <div style='font-family:Syne,sans-serif;font-size:1.1rem;font-weight:700;
-           color:#00e5ff;margin-bottom:8px'>About This Platform</div>
-      <p style='color:#cbd5e1;line-height:1.8;margin:0'>
-        <b style='color:#e2e8f0'>OmniFlow</b> is an AI-driven supply chain intelligence platform
-        built on <b>5,200 D2D orders</b> across India (Jan 2024–Dec 2025). Six interconnected
-        modules feed each other in sequence — demand signals drive inventory, which drives
-        production, which informs logistics. The AI chatbot synthesises all module outputs.
-      </p>
-      <div style='margin-top:12px'>
-        <span class='tag tag-blue'>Demand → Jun 2026</span>
-        <span class='tag tag-green'>Inventory EOQ/ROP</span>
-        <span class='tag' style='background:#7c3aed'>Production Plan</span>
-        <span class='tag tag-orange'>Logistics Intel</span>
-        <span class='tag tag-red'>AI Chatbot</span>
-      </div></div>""", unsafe_allow_html=True)
+      <div style='background:#111827;border:1px solid #1e2d45;border-radius:12px;
+           padding:22px 28px;margin-bottom:20px;position:relative;overflow:hidden'>
+        <div style='position:absolute;top:0;left:0;right:0;height:3px;
+             background:linear-gradient(90deg,#00e5ff,#7c3aed,#ff6b35)'></div>
+        <div style='font-family:Syne,sans-serif;font-size:1.1rem;font-weight:700;
+             color:#00e5ff;margin-bottom:8px'>About This Platform</div>
+        <p style='color:#cbd5e1;line-height:1.8;margin:0'>
+          <b style='color:#e2e8f0'>OmniFlow</b> is an AI-driven supply chain intelligence platform
+          built on <b>5,200 D2D orders</b> across India (Jan 2024–Dec 2025). Six interconnected
+          modules feed each other in sequence — demand signals drive inventory, which drives
+          production, which informs logistics. The AI chatbot synthesises all module outputs.
+        </p>
+        <div style='margin-top:12px'>
+          <span class='tag tag-blue'>Demand → Jun 2026</span>
+          <span class='tag tag-green'>Inventory EOQ/ROP</span>
+          <span class='tag' style='background:#7c3aed'>Production Plan</span>
+          <span class='tag tag-orange'>Logistics Intel</span>
+          <span class='tag tag-red'>AI Chatbot</span>
+        </div></div>""", unsafe_allow_html=True)
 
     c1,c2,c3,c4,c5,c6 = st.columns(6)
     kpi(c1, "Total Revenue",  f"₹{df['Revenue_INR'].sum()/1e7:.1f}Cr", "#00e5ff", "all time")
