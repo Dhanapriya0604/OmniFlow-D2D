@@ -1182,41 +1182,35 @@ SUGGESTIONS = [
 ]
 
 def call_claude(messages, system):
-    api_key = os.getenv("GEMINI_API_KEY")
+    api_key = os.getenv("GROQ_API_KEY")
     if not api_key:
-        return "❌ GEMINI_API_KEY not found. Add it in Streamlit secrets."
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}"
-   
-    full_messages = [
-        {"role": "user", "parts": [{"text": system}]},
-        {"role": "model", "parts": [{"text": "Understood. I am OmniFlow, your supply chain AI assistant."}]}
-    ]
-    for m in messages:
-        role = "user" if m["role"] == "user" else "model"
-        full_messages.append({"role": role, "parts": [{"text": m["content"]}]})
+        return "❌ GROQ_API_KEY not found. Add it in Streamlit secrets."
+    
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "model": "llama-3.3-70b-versatile",
+        "messages": [{"role": "system", "content": system}] + messages,
+        "max_tokens": 1000,
+        "temperature": 0.7
+    }
+    
     try:
-        response = requests.post(url, json={"contents": full_messages}, timeout=30)   
+        response = requests.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers=headers, json=payload, timeout=30
+        )
+        
+        if response.status_code == 429:
+            return "⚠️ Rate limit hit. Please wait a few seconds and try again."
+        
         if response.status_code != 200:
-            return f"⚠️ Gemini API Error ({response.status_code}): {response.text}"
+            return f"⚠️ Groq API Error ({response.status_code}): {response.text}"
+        
         data = response.json()
-       
-        candidates = data.get("candidates", [])
-        if not candidates:
-            feedback = data.get("promptFeedback", {})
-            block_reason = feedback.get("blockReason", "Unknown")
-            return f"⚠️ Response blocked by Gemini: {block_reason}. Try rephrasing."
-        
-        candidate = candidates[0]
-        finish_reason = candidate.get("finishReason", "")
-        if finish_reason == "SAFETY":
-            return "⚠️ Response blocked by Gemini safety filters. Try rephrasing."
-        
-        content = candidate.get("content", {})
-        parts = content.get("parts", [])
-        if not parts:
-            return "⚠️ Empty response from Gemini. Please try again."
-        
-        return parts[0].get("text", "⚠️ No text in response.")
+        return data["choices"][0]["message"]["content"]
     
     except requests.exceptions.Timeout:
         return "⚠️ Request timed out. Please try again."
