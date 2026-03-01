@@ -214,17 +214,13 @@ def compute_demand_forecast():
 
 @st.cache_data(show_spinner=False)
 def compute_inventory_table(order_cost=500, hold_pct=0.20, lead_time=7, z=1.65):
-    """MODULE 2 OUTPUT: SKU-level inventory table with stock status.
-    Uses demand forecast growth rate to adjust annual demand."""
     df = load_data()
-
     sku_agg = df.groupby(["SKU_ID", "Product_Name", "Category"]).agg(
         total_qty  = ("Quantity", "sum"),
         num_months = ("YearMonth", lambda x: x.nunique()),
         avg_price  = ("Sell_Price", "mean")
     ).reset_index()
     sku_agg["monthly_avg"] = sku_agg["total_qty"] / sku_agg["num_months"]
-
     sku_monthly = (
         df.groupby(["SKU_ID", "YearMonth"])["Quantity"]
         .sum().unstack(fill_value=0)
@@ -265,17 +261,13 @@ def compute_inventory_table(order_cost=500, hold_pct=0.20, lead_time=7, z=1.65):
 
 @st.cache_data(show_spinner=False)
 def compute_production_plan(cap=1.0, buf=0.15):
-    """MODULE 3 OUTPUT: monthly production targets per category.
-    Feeds from: demand forecast (Module 1) + inventory status (Module 2)."""
     df = load_data()
     inv = compute_inventory_table()
-
     cat_critical = (
         inv[inv["Status"] == "🔴 Critical"]
         .groupby("Category")["monthly_avg"].sum()
         .rename("critical_monthly")
     )
-
     cat_monthly = df.groupby(["YearMonth", "Category"])["Quantity"].sum().unstack(fill_value=0)
     plans = []
     for cat in cat_monthly.columns:
@@ -286,7 +278,6 @@ def compute_production_plan(cap=1.0, buf=0.15):
         fut = fore[fore["type"] == "forecast"]
         crit_extra = float(cat_critical.get(cat, 0)) * 0.5
         cur_stock  = float(series.iloc[-3:].mean() * 1.5)
-
         for _, row in fut.iterrows():
             net  = max(row["y"] - cur_stock / 6 + crit_extra, 0)
             prod = net * (1 + buf) * cap
@@ -304,14 +295,12 @@ def compute_production_plan(cap=1.0, buf=0.15):
     return pd.DataFrame(plans)
 
 def CD():
-    """Chart defaults — transparent bg, no padding."""
     return dict(
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(color="#94a3b8"),
+        paper_bgcolor="#f7f9fc",   
+        plot_bgcolor="#ffffff",   
+        font=dict(color="#1e293b"),
         margin=dict(l=0, r=0, t=16, b=0),
     )
-
 def kpi(col, label, value, color="#00e5ff", sub=""):
     col.markdown(f"""
     <div class='metric-card'>
@@ -324,7 +313,6 @@ def feed_badge(text):
     st.markdown(f"<span class='feed-badge'>⬆ feeds from {text}</span>", unsafe_allow_html=True)
 
 def ci_band(fig, fore, color="rgba(255,107,53,0.12)"):
-    """Add confidence interval band to a plotly figure."""
     ds_fwd  = list(fore["ds"]) + list(fore["ds"])[::-1]
     y_band  = list(fore["yhat_upper"]) + list(fore["yhat_lower"])[::-1]
     fig.add_trace(go.Scatter(
@@ -337,7 +325,6 @@ def ci_band(fig, fore, color="rgba(255,107,53,0.12)"):
 def page_overview():
     df  = load_data()
     raw = load_all_statuses()
-
     st.markdown("""
     <div style='padding:24px 0 10px'>
       <div style='font-family:Syne,sans-serif;font-size:2.6rem;font-weight:800;
@@ -347,16 +334,36 @@ def page_overview():
       <div style='color:#64748b;font-size:.95rem;margin-top:6px'>
         Predictive Logistics & AI-Powered Demand-to-Delivery Optimization System
       </div></div>""", unsafe_allow_html=True)
-
-    st.markdown("""
-    <div style='background:#111827;border:1px solid #1e2d45;border-radius:12px;
-         padding:22px 28px;margin-bottom:20px;position:relative;overflow:hidden'>
-      <div style='position:absolute;top:0;left:0;right:0;height:3px;
-           background:linear-gradient(90deg,#00e5ff,#7c3aed,#ff6b35)'></div>
-      <div style='font-family:Syne,sans-serif;font-size:1.1rem;font-weight:700;
-           color:#00e5ff;margin-bottom:8px'>About This Platform</div>
-      <p style='color:#cbd5e1;line-height:1.8;margin:0'>
-        <b style='color:#e2e8f0'>OmniFlow</b> is an AI-driven supply chain intelligence platform
+   st.markdown("""
+    <div style='
+        background:#ffffff;
+        border:1px solid #e5eaf2;
+        border-radius:14px;
+        padding:22px 28px;
+        margin-bottom:20px;
+        position:relative;
+        overflow:hidden;
+        box-shadow:0 6px 18px rgba(0,0,0,0.05);
+    '>
+      <div style='
+            position:absolute;
+            top:0;left:0;right:0;height:3px;
+            background:linear-gradient(90deg,#5b7cfa,#38bdf8,#a78bfa);
+      '></div>
+      <div style='
+            font-size:1.1rem;
+            font-weight:700;
+            color:#3b5fcf;
+            margin-bottom:8px;
+      '>
+        About This Platform
+      </div>
+      <p style='
+            color:#64748b;
+            line-height:1.8;
+            margin:0;
+      '>
+        <b style='color:#1e293b'>OmniFlow</b> is an AI-driven supply chain intelligence platform
         built on <b>5,200 D2D orders</b> across India (Jan 2024–Dec 2025). Six interconnected
         modules feed each other in sequence — demand signals drive inventory, which drives
         production, which informs logistics. The AI chatbot synthesises all module outputs.
@@ -364,10 +371,12 @@ def page_overview():
       <div style='margin-top:12px'>
         <span class='tag tag-blue'>Demand → Jun 2026</span>
         <span class='tag tag-green'>Inventory EOQ/ROP</span>
-        <span class='tag' style='background:#7c3aed'>Production Plan</span>
+        <span class='tag tag-purple'>Production Plan</span>
         <span class='tag tag-orange'>Logistics Intel</span>
         <span class='tag tag-red'>AI Chatbot</span>
-      </div></div>""", unsafe_allow_html=True)
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
 
     c1,c2,c3,c4,c5,c6 = st.columns(6)
     kpi(c1, "Total Revenue",  f"₹{df['Revenue_INR'].sum()/1e7:.1f}Cr", "#00e5ff", "all time")
