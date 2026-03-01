@@ -301,7 +301,7 @@ def compute_production_plan(cap=1.0, buf=0.15):
 def CD():
     return dict(
         paper_bgcolor="#f7f9fc",   
-        plot_bgcolor="#ffffff",   
+        plot_bgcolor="rgba(255,255,255,0.9)",   
         font=dict(color="#1e293b"),
         margin=dict(l=0, r=0, t=16, b=0),
     )
@@ -344,15 +344,15 @@ def page_overview():
         <div style='position:absolute;top:0;left:0;right:0;height:3px;
              background:linear-gradient(90deg,#00e5ff,#7c3aed,#ff6b35)'></div>
         <div style='font-family:Syne,sans-serif;font-size:1.1rem;font-weight:700;
-             color:#00e5ff;margin-bottom:8px'>About This Platform</div>
-        <p style='color:#cbd5e1;line-height:1.8;margin:0'>
-          <b style='color:#e2e8f0'>OmniFlow</b> is an AI-driven supply chain intelligence platform
+             color:#0f172a;margin-bottom:8px'>About This Platform</div>
+        <p style='color:#1e293b;line-height:1.8;margin:0'>
+          <b style='color:#0f172a'>OmniFlow</b> is an AI-driven supply chain intelligence platform
           built on <b>5,200 D2D orders</b> across India (Jan 2024–Dec 2025). Six interconnected
           modules feed each other in sequence — demand signals drive inventory, which drives
           production, which informs logistics. The AI chatbot synthesises all module outputs.
         </p>
         <div style='margin-top:12px'>
-          <span class='tag tag-blue'>Demand → Jun 2026</span>
+          <span class='tag tag-blue' style='color:#1e293b'>Demand → Jun 2026</span>
           <span class='tag tag-green'>Inventory EOQ/ROP</span>
           <span class='tag' style='background:#7c3aed'>Production Plan</span>
           <span class='tag tag-orange'>Logistics Intel</span>
@@ -379,7 +379,7 @@ def page_overview():
             fillcolor="rgba(0,229,255,0.07)", name="Revenue"))
         fig.update_layout(**CD(), height=270,
             xaxis=dict(showgrid=False, color="#475569"),
-            yaxis=dict(showgrid=True, gridcolor="#1e2d45", color="#475569", tickformat=",.0f"),
+            yaxis=dict(showgrid=True, gridcolor="#e6ebf2", color="#475569", tickformat=",.0f"),
             showlegend=False)
         st.plotly_chart(fig, use_container_width=True)
     with c_r:
@@ -408,7 +408,7 @@ def page_overview():
             marker=dict(color=list(reg.values), colorscale=[[0,"#1e2d45"],[1,"#00e5ff"]])))
         fig4.update_layout(**CD(), height=240,
             xaxis=dict(showgrid=False, tickangle=-30),
-            yaxis=dict(showgrid=True, gridcolor="#1e2d45"))
+            yaxis=dict(showgrid=True, gridcolor="#e6ebf2"))
         st.plotly_chart(fig4, use_container_width=True)
     with c3c:
         st.markdown("<div class='section-title'>Order Status Split</div>", unsafe_allow_html=True)
@@ -417,7 +417,7 @@ def page_overview():
         fig5 = go.Figure(go.Bar(x=sc.index, y=sc.values,
             marker_color=colors_sc[:len(sc)]))
         fig5.update_layout(**CD(), height=240,
-            xaxis=dict(showgrid=False), yaxis=dict(showgrid=True, gridcolor="#1e2d45"))
+            xaxis=dict(showgrid=False), yaxis=dict(showgrid=True, gridcolor="#e6ebf2"))
         st.plotly_chart(fig5, use_container_width=True)
 
     st.markdown("<div class='section-title'>Module Dependency Flow</div>", unsafe_allow_html=True)
@@ -492,7 +492,7 @@ def page_demand():
         ci_band(fig, fore)
         fig.update_layout(**CD(), height=300,
             xaxis=dict(showgrid=False, color="#475569"),
-            yaxis=dict(showgrid=True, gridcolor="#1e2d45"),
+            yaxis=dict(showgrid=True, gridcolor="#e6ebf2"),
             legend=dict(bgcolor="rgba(0,0,0,0)"),
             title=dict(text=title, font=dict(color="#94a3b8", size=12)))
         st.plotly_chart(fig, use_container_width=True)
@@ -535,7 +535,7 @@ def page_demand():
             textfont=dict(color="#94a3b8")))
         fig_g.update_layout(**CD(), height=240,
             xaxis=dict(showgrid=False),
-            yaxis=dict(showgrid=True, gridcolor="#1e2d45", title="YoY Growth %"))
+            yaxis=dict(showgrid=True, gridcolor="#e6ebf2", title="YoY Growth %"))
         st.plotly_chart(fig_g, use_container_width=True)
 
     st.markdown("<div class='section-title'>Category Demand Forecast (fed to Production & Inventory)</div>",
@@ -627,7 +627,7 @@ def page_inventory():
                                   marker_color=COLORS[i]))
         fig2.update_layout(**CD(), height=260, barmode="group",
             xaxis=dict(showgrid=False, tickangle=-15),
-            yaxis=dict(showgrid=True, gridcolor="#1e2d45"),
+            yaxis=dict(showgrid=True, gridcolor="#e6ebf2"),
             legend=dict(bgcolor="rgba(0,0,0,0)"))
         st.plotly_chart(fig2, use_container_width=True)
 
@@ -641,7 +641,7 @@ def page_inventory():
     ci_band(fig3, fut, "rgba(0,229,255,0.08)")
     fig3.update_layout(**CD(), height=230,
         xaxis=dict(showgrid=False),
-        yaxis=dict(showgrid=True, gridcolor="#1e2d45", title="Units"),
+        yaxis=dict(showgrid=True, gridcolor="#e6ebf2", title="Units"),
         legend=dict(bgcolor="rgba(0,0,0,0)"))
     st.plotly_chart(fig3, use_container_width=True)
 
@@ -728,7 +728,7 @@ def page_production():
         mode="lines+markers", line=dict(color="#00e5ff", width=2.5), marker=dict(size=8)))
     fig.update_layout(**CD(), height=300, barmode="stack",
         xaxis=dict(showgrid=False),
-        yaxis=dict(showgrid=True, gridcolor="#1e2d45"),
+        yaxis=dict(showgrid=True, gridcolor="#e6ebf2"),
         legend=dict(bgcolor="rgba(0,0,0,0)"))
     st.plotly_chart(fig, use_container_width=True)
 
@@ -741,7 +741,7 @@ def page_production():
             name=cat, marker_color=COLORS[i % len(COLORS)]))
     fig2.update_layout(**CD(), height=300, barmode="stack",
         xaxis=dict(showgrid=False),
-        yaxis=dict(showgrid=True, gridcolor="#1e2d45"),
+        yaxis=dict(showgrid=True, gridcolor="#e6ebf2"),
         legend=dict(bgcolor="rgba(0,0,0,0)", orientation="h", y=-0.25))
     st.plotly_chart(fig2, use_container_width=True)
 
@@ -756,7 +756,7 @@ def page_production():
     fig3.add_hline(y=0, line_dash="dash", line_color="#475569")
     fig3.update_layout(**CD(), height=210,
         xaxis=dict(showgrid=False),
-        yaxis=dict(showgrid=True, gridcolor="#1e2d45", title="Units Surplus / Deficit"))
+        yaxis=dict(showgrid=True, gridcolor="#e6ebf2", title="Units Surplus / Deficit"))
     st.plotly_chart(fig3, use_container_width=True)
 
     st.markdown("<div class='section-title'>Detailed Production Schedule</div>",
@@ -821,8 +821,8 @@ def page_logistics():
                 )
             ))
         fig.update_layout(**CD(), height=320, showlegend=False,
-            xaxis=dict(title="Avg Delivery Days", showgrid=True, gridcolor="#1e2d45"),
-            yaxis=dict(title="Avg Shipping Cost ₹", showgrid=True, gridcolor="#1e2d45"))
+            xaxis=dict(title="Avg Delivery Days", showgrid=True, gridcolor="#e6ebf2"),
+            yaxis=dict(title="Avg Shipping Cost ₹", showgrid=True, gridcolor="#e6ebf2"))
         st.plotly_chart(fig, use_container_width=True)
 
         d2 = cs.copy()
@@ -842,7 +842,7 @@ def page_logistics():
                 line=dict(color=COLORS[i % len(COLORS)], width=2)))
         fig2.update_layout(**CD(), height=240,
             xaxis=dict(showgrid=False),
-            yaxis=dict(showgrid=True, gridcolor="#1e2d45"),
+            yaxis=dict(showgrid=True, gridcolor="#e6ebf2"),
             legend=dict(bgcolor="rgba(0,0,0,0)"))
         st.plotly_chart(fig2, use_container_width=True)
 
@@ -860,7 +860,7 @@ def page_logistics():
                 marker=dict(size=7)))
         fig_fc.update_layout(**CD(), height=240,
             xaxis=dict(showgrid=False),
-            yaxis=dict(showgrid=True, gridcolor="#1e2d45", title="Orders"),
+            yaxis=dict(showgrid=True, gridcolor="#e6ebf2", title="Orders"),
             legend=dict(bgcolor="rgba(0,0,0,0)"))
         st.plotly_chart(fig_fc, use_container_width=True)
 
@@ -914,7 +914,7 @@ def page_logistics():
                 textfont=dict(color="#94a3b8")))
             fig_c.update_layout(**CD(), height=320,
                 xaxis=dict(showgrid=False),
-                yaxis=dict(showgrid=True, gridcolor="#1e2d45", title="Delay %"))
+                yaxis=dict(showgrid=True, gridcolor="#e6ebf2", title="Delay %"))
             st.plotly_chart(fig_c, use_container_width=True)
 
         st.markdown("<div class='section-title'>Carrier × Region Delay Heatmap</div>",
@@ -947,7 +947,7 @@ def page_logistics():
             ci_band(fig_delay, fut_d, "rgba(255,107,53,0.1)")
             fig_delay.update_layout(**CD(), height=250,
                 xaxis=dict(showgrid=False),
-                yaxis=dict(showgrid=True, gridcolor="#1e2d45", title="Avg Delivery Days"),
+                yaxis=dict(showgrid=True, gridcolor="#e6ebf2", title="Avg Delivery Days"),
                 legend=dict(bgcolor="rgba(0,0,0,0)"))
             st.plotly_chart(fig_delay, use_container_width=True)
 
@@ -961,7 +961,7 @@ def page_logistics():
                 name=wh, marker_color=COLORS[i % len(COLORS)]))
         fig_wh.update_layout(**CD(), height=280, barmode="stack",
             xaxis=dict(showgrid=False),
-            yaxis=dict(showgrid=True, gridcolor="#1e2d45"),
+            yaxis=dict(showgrid=True, gridcolor="#e6ebf2"),
             legend=dict(bgcolor="rgba(0,0,0,0)"))
         st.plotly_chart(fig_wh, use_container_width=True)
 
@@ -987,7 +987,7 @@ def page_logistics():
                     marker=dict(size=8)))
             fig_wf.update_layout(**CD(), height=260,
                 xaxis=dict(showgrid=False),
-                yaxis=dict(showgrid=True, gridcolor="#1e2d45"),
+                yaxis=dict(showgrid=True, gridcolor="#e6ebf2"),
                 legend=dict(bgcolor="rgba(0,0,0,0)"))
             st.plotly_chart(fig_wf, use_container_width=True)
 
@@ -1033,7 +1033,7 @@ def page_logistics():
             textfont=dict(color="#94a3b8")))
         fig_r.update_layout(**CD(), height=300,
             xaxis=dict(showgrid=False, tickangle=-30),
-            yaxis=dict(showgrid=True, gridcolor="#1e2d45"))
+            yaxis=dict(showgrid=True, gridcolor="#e6ebf2"))
         st.plotly_chart(fig_r, use_container_width=True)
 
         c_l, c_r = st.columns(2)
@@ -1082,7 +1082,7 @@ def page_logistics():
                 marker=dict(size=8)))
         fig_rf.update_layout(**CD(), height=280,
             xaxis=dict(showgrid=False),
-            yaxis=dict(showgrid=True, gridcolor="#1e2d45"),
+            yaxis=dict(showgrid=True, gridcolor="#e6ebf2"),
             legend=dict(bgcolor="rgba(0,0,0,0)"))
         st.plotly_chart(fig_rf, use_container_width=True)
 
