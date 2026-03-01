@@ -283,7 +283,7 @@ def page_demand():
             x=pd.concat([fore["ds"],fore["ds"][::-1]]),
             y=pd.concat([fore["yhat_upper"],fore["yhat_lower"][::-1]]),
             fill="toself",fillcolor="rgba(255,107,53,0.10)",
-            line=dict(color="transparent"),name="95% CI"))
+            line=dict(color="rgba(0,0,0,0)"),name="95% CI"))
         fig.update_layout(**chart_defaults(),height=300,
             xaxis=dict(showgrid=False,color="#475569"),
             yaxis=dict(showgrid=True,gridcolor="#1e2d45"),
