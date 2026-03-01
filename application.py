@@ -19,41 +19,30 @@ st.markdown("""
 @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Outfit:wght@300;400;500;600;700;800;900&family=Playfair+Display:wght@700;800&display=swap');
 
 :root {
-    /* Core palette */
     --midnight: #080e1a;
     --deep:     #0d1829;
     --surface:  #111e30;
     --panel:    #162236;
     --border:   rgba(255,255,255,0.07);
     --border2:  rgba(255,255,255,0.12);
-    
-    /* Accents */
     --amber:    #f5a623;
     --coral:    #ff6b6b;
     --teal:     #2ed8c3;
     --sky:      #5ba4e5;
     --lavender: #9b87d4;
     --mint:     #56e0a0;
-    
-    /* Text */
     --text-1:   #f0f4ff;
     --text-2:   #8a9dc0;
     --text-3:   #4a5e7a;
-    
-    /* Shadows */
     --glow-amber: 0 0 40px rgba(245,166,35,0.15);
     --glow-teal:  0 0 40px rgba(46,216,195,0.12);
     --card-shadow: 0 8px 32px rgba(0,0,0,0.4), 0 1px 0 rgba(255,255,255,0.05);
 }
-
-/* === RESET & BASE === */
 html, body, [class*="css"] {
     font-family: 'Outfit', sans-serif !important;
     background: var(--midnight) !important;
     color: var(--text-1) !important;
 }
-
-/* Gradient mesh background */
 .stApp {
     background:
         radial-gradient(ellipse 80% 50% at 20% -10%, rgba(91,164,229,0.08) 0%, transparent 60%),
@@ -62,8 +51,6 @@ html, body, [class*="css"] {
         var(--midnight) !important;
     min-height: 100vh;
 }
-
-/* === SIDEBAR === */
 section[data-testid="stSidebar"] {
     background: linear-gradient(180deg, var(--deep) 0%, var(--midnight) 100%) !important;
     border-right: 1px solid var(--border2) !important;
@@ -76,14 +63,10 @@ section[data-testid="stSidebar"]::before {
     height: 2px;
     background: linear-gradient(90deg, var(--amber), var(--coral), var(--teal));
 }
-
-/* === TYPOGRAPHY === */
 h1, h2, h3, h4 {
     font-family: 'Outfit', sans-serif !important;
     letter-spacing: -0.03em;
 }
-
-/* === METRIC CARDS === */
 .metric-card {
     background: linear-gradient(135deg, var(--panel) 0%, var(--surface) 100%);
     border: 1px solid var(--border);
@@ -107,7 +90,6 @@ h1, h2, h3, h4 {
 .metric-card.sky::before   { background: linear-gradient(90deg, var(--sky), #3d87d4); box-shadow: 0 0 20px rgba(91,164,229,0.5); }
 .metric-card.lav::before   { background: linear-gradient(90deg, var(--lavender), #7b6bbf); box-shadow: 0 0 20px rgba(155,135,212,0.5); }
 .metric-card.mint::before  { background: linear-gradient(90deg, var(--mint), #3ec47a); box-shadow: 0 0 20px rgba(86,224,160,0.5); }
-
 .metric-card::after {
     content: "";
     position: absolute;
@@ -126,7 +108,6 @@ h1, h2, h3, h4 {
     bottom: -10px; right: -10px;
     width: 130px; height: 130px;
 }
-
 .metric-label {
     font-size: 0.68rem;
     text-transform: uppercase;
@@ -148,8 +129,6 @@ h1, h2, h3, h4 {
     margin-top: 6px;
     font-family: 'DM Mono', monospace !important;
 }
-
-/* === SECTION HEADERS === */
 .section-header {
     display: flex;
     align-items: center;
@@ -169,8 +148,6 @@ h1, h2, h3, h4 {
     color: var(--text-2);
     font-family: 'DM Mono', monospace !important;
 }
-
-/* === PAGE TITLE BLOCK === */
 .page-title-block {
     padding: 28px 0 20px;
     position: relative;
@@ -188,8 +165,6 @@ h1, h2, h3, h4 {
     font-size: 0.85rem;
     font-family: 'DM Mono', monospace !important;
 }
-
-/* === FEED BADGES === */
 .badge-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
 .badge {
     display: inline-flex;
@@ -210,8 +185,6 @@ h1, h2, h3, h4 {
 .badge-coral { background: rgba(255,107,107,0.1); color: var(--coral); border-color: rgba(255,107,107,0.3); }
 .badge-sky   { background: rgba(91,164,229,0.1); color: var(--sky); border-color: rgba(91,164,229,0.3); }
 .badge-lav   { background: rgba(155,135,212,0.1); color: var(--lavender); border-color: rgba(155,135,212,0.3); }
-
-/* === INFO BANNERS === */
 .info-banner {
     border-radius: 12px;
     padding: 14px 18px;
@@ -233,8 +206,6 @@ h1, h2, h3, h4 {
 .banner-coral::before { background: var(--coral); }
 .banner-amber  { background: rgba(245,166,35,0.06); border-color: rgba(245,166,35,0.2); color: var(--text-2); }
 .banner-amber::before { background: var(--amber); }
-
-/* === ABOUT CARD === */
 .about-card {
     background: linear-gradient(135deg, rgba(22,34,54,0.9) 0%, rgba(17,30,48,0.9) 100%);
     border: 1px solid var(--border2);
@@ -262,8 +233,6 @@ h1, h2, h3, h4 {
     color: white;
     pointer-events: none;
 }
-
-/* === FLOW DIAGRAM === */
 .flow-wrap {
     background: linear-gradient(135deg, var(--panel), var(--surface));
     border: 1px solid var(--border);
@@ -308,8 +277,6 @@ h1, h2, h3, h4 {
     font-weight: 300;
     opacity: 0.4;
 }
-
-/* === CHART CONTAINER === */
 .chart-panel {
     background: linear-gradient(135deg, var(--panel) 0%, var(--surface) 100%);
     border: 1px solid var(--border);
@@ -322,8 +289,6 @@ h1, h2, h3, h4 {
 .chart-panel:hover {
     border-color: var(--border2);
 }
-
-/* === BUTTONS === */
 .stButton > button {
     background: linear-gradient(135deg, rgba(245,166,35,0.15), rgba(255,107,107,0.1)) !important;
     color: var(--amber) !important;
@@ -343,8 +308,6 @@ h1, h2, h3, h4 {
     box-shadow: 0 8px 20px rgba(245,166,35,0.2) !important;
     color: #ffe066 !important;
 }
-
-/* === INPUTS === */
 .stTextInput input, .stSelectbox select {
     background: var(--panel) !important;
     border: 1px solid var(--border2) !important;
@@ -356,15 +319,11 @@ h1, h2, h3, h4 {
     border-color: rgba(245,166,35,0.5) !important;
     box-shadow: 0 0 0 3px rgba(245,166,35,0.1) !important;
 }
-
-/* === DATAFRAME === */
 .stDataFrame {
     border-radius: 12px !important;
     overflow: hidden !important;
     border: 1px solid var(--border) !important;
 }
-
-/* === CHAT BUBBLES === */
 .chat-user-bubble {
     background: linear-gradient(135deg, rgba(245,166,35,0.12), rgba(255,107,107,0.08));
     border: 1px solid rgba(245,166,35,0.2);
@@ -385,8 +344,6 @@ h1, h2, h3, h4 {
     margin-right: 10%;
 }
 .chat-spacing { margin: 10px 0; }
-
-/* === ALERT CARDS === */
 .alert-item {
     border-radius: 10px;
     padding: 10px 14px;
@@ -404,8 +361,6 @@ h1, h2, h3, h4 {
 .alert-critical { border-color: var(--coral); }
 .alert-warn     { border-color: var(--amber); }
 .alert-ok       { border-color: var(--mint); }
-
-/* === ANIMATIONS === */
 @keyframes fadeUp {
     from { opacity: 0; transform: translateY(24px); }
     to   { opacity: 1; transform: translateY(0); }
@@ -422,22 +377,17 @@ h1, h2, h3, h4 {
     0%, 100% { border-color: rgba(245,166,35,0.2); }
     50%       { border-color: rgba(245,166,35,0.5); }
 }
-
 .metric-card     { animation: fadeUp 0.5s ease both; }
 .chart-panel     { animation: fadeUp 0.6s ease both; }
 .about-card      { animation: fadeIn 0.7s ease both; }
 .badge           { animation: fadeIn 0.4s ease both; }
 .flow-wrap       { animation: fadeUp 0.8s ease both; }
-
-/* Stagger cards */
 .metric-card:nth-child(1) { animation-delay: 0.05s; }
 .metric-card:nth-child(2) { animation-delay: 0.10s; }
 .metric-card:nth-child(3) { animation-delay: 0.15s; }
 .metric-card:nth-child(4) { animation-delay: 0.20s; }
 .metric-card:nth-child(5) { animation-delay: 0.25s; }
 .metric-card:nth-child(6) { animation-delay: 0.30s; }
-
-/* === SIDEBAR RADIO === */
 .stRadio label {
     font-family: 'DM Mono', monospace !important;
     font-size: 0.78rem !important;
@@ -447,8 +397,6 @@ h1, h2, h3, h4 {
     transition: color 0.2s ease !important;
 }
 .stRadio label:hover { color: var(--amber) !important; }
-
-/* === EXPANDER === */
 .streamlit-expanderHeader {
     background: var(--panel) !important;
     border: 1px solid var(--border) !important;
@@ -456,11 +404,7 @@ h1, h2, h3, h4 {
     font-family: 'DM Mono', monospace !important;
     font-size: 0.78rem !important;
 }
-
-/* === COLUMNS SPACING === */
 [data-testid="column"] > div { padding: 0 8px; }
-
-/* === TABS === */
 .stTabs [data-baseweb="tab-list"] {
     background: var(--panel) !important;
     border-radius: 12px !important;
@@ -480,16 +424,11 @@ h1, h2, h3, h4 {
     background: linear-gradient(135deg, rgba(245,166,35,0.2), rgba(255,107,107,0.1)) !important;
     color: var(--amber) !important;
 }
-
-/* === SCROLLBAR === */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: var(--midnight); }
 ::-webkit-scrollbar-thumb { background: var(--panel); border-radius: 99px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--border2); }
-
-/* === PLOTLY === */
 .js-plotly-plot, .plot-container { background: transparent !important; }
-
 footer { visibility: hidden; }
 #MainMenu { visibility: hidden; }
 </style>
@@ -500,10 +439,8 @@ import numpy as np
 import plotly.graph_objects as go
 import requests, os
 
-DATA_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                         "OmniFlow_D2D_India_Unified_5200.csv")
+DATA_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),"OmniFlow_D2D_India_Unified_5200.csv")
 
-# Refined plotly color palette — warm, earthy, harmonious
 COLORS = ["#f5a623", "#56e0a0", "#ff6b6b", "#5ba4e5", "#e87adb", "#2ed8c3"]
 COLORS_SOFT = ["#e8963f", "#4ecf94", "#e85c5c", "#4d90d4", "#cc68c4", "#28c4b0"]
 
@@ -563,10 +500,7 @@ def compute_inventory_table(order_cost=500, hold_pct=0.20, lead_time=7, z=1.65):
         avg_price  = ("Sell_Price", "mean")
     ).reset_index()
     sku_agg["monthly_avg"] = sku_agg["total_qty"] / sku_agg["num_months"]
-    sku_monthly = (
-        df.groupby(["SKU_ID", "YearMonth"])["Quantity"]
-        .sum().unstack(fill_value=0)
-    )
+    sku_monthly = (df.groupby(["SKU_ID", "YearMonth"])["Quantity"].sum().unstack(fill_value=0))
     sku_std = sku_monthly.std(axis=1).rename("monthly_std").reset_index()
     sku_agg = sku_agg.merge(sku_std, on="SKU_ID", how="left")
     sku_agg["monthly_std"] = sku_agg["monthly_std"].fillna(0)
@@ -680,12 +614,12 @@ def page_overview():
     <div class='page-title-block'>
       <div style='font-family:DM Mono,monospace;font-size:0.7rem;color:#4a5e7a;
            letter-spacing:0.15em;text-transform:uppercase;margin-bottom:10px'>
-        ⬡ D2D SUPPLY CHAIN INTELLIGENCE PLATFORM
+        ⬡ END TO END UNIFIED INTELLIGENCE PLATFORM
       </div>
       <div class='page-title' style='background:linear-gradient(135deg,#f5a623,#ff6b6b,#2ed8c3);
            -webkit-background-clip:text;-webkit-text-fill-color:transparent;font-size:3rem'>
-        OmniFlow</div>
-      <div class='page-subtitle'>Predictive Logistics · AI-Powered · Demand-to-Delivery Optimization · India</div>
+        OmniFlow D2D</div>
+      <div class='page-subtitle'>Predictive Logistics & AI-Powered Demand-to-Delivery Optimization</div>
     </div>""", unsafe_allow_html=True)
 
     st.markdown("""
@@ -1637,7 +1571,7 @@ def page_chatbot():
     </div>""", unsafe_allow_html=True)
 
     ctx = build_context(df)
-    with st.expander("📊 Live Module Context (fed to AI)", expanded=False):
+    with st.expander("Live Module Context (fed to AI)", expanded=False):
         st.code(ctx, language="text")
 
     system_prompt = f"""You are OmniFlow, an expert AI supply chain decision assistant for an India D2D e-commerce operation.
@@ -1787,12 +1721,12 @@ st.sidebar.markdown("""
 </div>""", unsafe_allow_html=True)
 
 PAGES = {
-    "⬡  Overview":               page_overview,
-    "📈  Demand Forecasting":     page_demand,
-    "📦  Inventory Optimization": page_inventory,
-    "🏭  Production Planning":    page_production,
-    "🚚  Logistics Intelligence": page_logistics,
-    "💬  Decision Chatbot":       page_chatbot,
+    "Overview":               page_overview,
+    "Demand Forecasting":     page_demand,
+    "Inventory Optimization": page_inventory,
+    "Production Planning":    page_production,
+    "Logistics Intelligence": page_logistics,
+    "Decision Chatbot":       page_chatbot,
 }
 
 sel = st.sidebar.radio("Navigate", list(PAGES.keys()), label_visibility="collapsed")
