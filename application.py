@@ -339,7 +339,7 @@ def page_overview():
         Predictive Logistics & AI-Powered Demand-to-Delivery Optimization System
       </div></div>""", unsafe_allow_html=True)
     st.markdown("""
-      <div style='background:#111827;border:1px solid #1e2d45;border-radius:12px;
+      <div style='background:#ffffff;border:1px solid #1e2d45;border-radius:12px;
            padding:22px 28px;margin-bottom:20px;position:relative;overflow:hidden'>
         <div style='position:absolute;top:0;left:0;right:0;height:3px;
              background:linear-gradient(90deg,#00e5ff,#7c3aed,#ff6b35)'></div>
@@ -387,7 +387,7 @@ def page_overview():
         cat = df.groupby("Category")["Revenue_INR"].sum().sort_values(ascending=False)
         fig2 = go.Figure(go.Pie(labels=cat.index, values=cat.values, hole=.55,
             marker=dict(colors=COLORS), textinfo="label+percent",
-            textfont=dict(size=9, color="#e2e8f0")))
+            textfont=dict(size=11, color="#1e293b")))
         fig2.update_layout(**CD(), height=270, showlegend=False)
         st.plotly_chart(fig2, use_container_width=True)
 
@@ -422,29 +422,29 @@ def page_overview():
 
     st.markdown("<div class='section-title'>Module Dependency Flow</div>", unsafe_allow_html=True)
     st.markdown("""
-    <div style='background:#111827;border:1px solid #1e2d45;border-radius:12px;
+    <div style='background:#ffffff;border:1px solid #e6ebf2;border-radius:12px;
          padding:20px;display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:8px'>
-      <div style='background:#0a1520;border:1px solid #00e5ff;border-radius:8px;
+      <div style='background:#f8fafc;border:1px solid #00e5ff;border-radius:8px;
            padding:10px 14px;color:#00e5ff;font-weight:700;font-family:Syne,sans-serif;
            font-size:.8rem;text-align:center;min-width:90px'>
         Demand<br><span style='font-size:.66rem;color:#64748b'>→ Jun 2026</span></div>
       <div style='color:#7c3aed;font-size:1.3rem;font-weight:800'>→</div>
-      <div style='background:#0a1520;border:1px solid #10b981;border-radius:8px;
+      <div style='background:#f8fafc;border:1px solid #10b981;border-radius:8px;
            padding:10px 14px;color:#10b981;font-weight:700;font-family:Syne,sans-serif;
            font-size:.8rem;text-align:center;min-width:90px'>
         Inventory<br><span style='font-size:.66rem;color:#64748b'>EOQ+ROP</span></div>
       <div style='color:#7c3aed;font-size:1.3rem;font-weight:800'>→</div>
-      <div style='background:#0a1520;border:1px solid #7c3aed;border-radius:8px;
+      <div style='background:#f8fafc;border:1px solid #7c3aed;border-radius:8px;
            padding:10px 14px;color:#a78bfa;font-weight:700;font-family:Syne,sans-serif;
            font-size:.8rem;text-align:center;min-width:90px'>
         Production<br><span style='font-size:.66rem;color:#64748b'>D+Inv driven</span></div>
       <div style='color:#7c3aed;font-size:1.3rem;font-weight:800'>→</div>
-      <div style='background:#0a1520;border:1px solid #ff6b35;border-radius:8px;
+      <div style='background:#f8fafc;border:1px solid #ff6b35;border-radius:8px;
            padding:10px 14px;color:#ff6b35;font-weight:700;font-family:Syne,sans-serif;
            font-size:.8rem;text-align:center;min-width:90px'>
         Logistics<br><span style='font-size:.66rem;color:#64748b'>Prod+carrier</span></div>
       <div style='color:#7c3aed;font-size:1.3rem;font-weight:800'>→</div>
-      <div style='background:#0a1520;border:1px solid #f59e0b;border-radius:8px;
+      <div style='background:#f8fafc;border:1px solid #f59e0b;border-radius:8px;
            padding:10px 14px;color:#f59e0b;font-weight:700;font-family:Syne,sans-serif;
            font-size:.8rem;text-align:center;min-width:90px'>
         Chatbot<br><span style='font-size:.66rem;color:#64748b'>All outputs</span></div>
@@ -613,7 +613,7 @@ def page_inventory():
         fig = go.Figure(go.Pie(
             labels=sc.index, values=sc.values, hole=.55,
             marker_colors=pie_colors, textinfo="label+value",
-            textfont=dict(size=10, color="#e2e8f0")))
+            textfont=dict(size=11, color="#1e293b")))
         fig.update_layout(**CD(), height=260, showlegend=False)
         st.plotly_chart(fig, use_container_width=True)
 
