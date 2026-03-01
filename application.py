@@ -413,11 +413,13 @@ def page_inventory():
     fig3 = go.Figure()
     fig3.add_trace(go.Scatter(x=fut["ds"],y=fut["y"],mode="lines+markers",
         line=dict(color="#00e5ff",width=2.5),marker=dict(size=8),name="Forecast Demand"))
-    fig3.add_trace(go.Scatter(
-        x=pd.concat([fut["ds"],fut["ds"][::-1]]),
-        y=pd.concat([fut["yhat_upper"],fut["yhat_lower"][::-1]]),
-        fill="toself",fillcolor="rgba(0,229,255,0.07)",
-        line=dict(color="transparent"),name="CI"))
+    if not fut.empty:
+        fig3.add_trace(go.Scatter(
+            x=list(fut["ds"]) + list(fut["ds"])[::-1],
+            y=list(fut["yhat_upper"]) + list(fut["yhat_lower"])[::-1],
+            fill="toself",fillcolor="rgba(0,229,255,0.07)",
+            line=dict(color="rgba(0,0,0,0)"), name="CI"
+        ))
     fig3.update_layout(**chart_defaults(),height=230,
         xaxis=dict(showgrid=False),yaxis=dict(showgrid=True,gridcolor="#1e2d45"),
         legend=dict(bgcolor="rgba(0,0,0,0)"))
