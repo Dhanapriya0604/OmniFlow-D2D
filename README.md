@@ -1,103 +1,58 @@
-# OMNIFLOW D2D  
-## Predictive Logistics & AI-Powered Demand-to-Delivery Optimization System
+# OmniFlow D2D Intelligence Platform
 
----
+AI-powered supply chain analytics for India D2D e-commerce.
 
-## Abstract
+## 📁 Project Structure
+```
+omniflow_app/
+├── app.py                          # Main entry point
+├── requirements.txt
+├── OmniFlow_D2D_India_Unified_5200.csv   # ← place CSV here
+└── modules/
+    ├── __init__.py
+    ├── data_loader.py              # Shared cached data loader
+    ├── overview.py                 # Overview + KPI dashboard
+    ├── demand.py                   # Demand forecasting to Jun 2026
+    ├── inventory.py                # EOQ + Safety Stock optimisation
+    ├── production.py               # Production planning
+    ├── logistics.py                # Carrier, delay, warehouse analytics
+    └── chatbot.py                  # AI decision chatbot (Claude API)
+```
 
-**OmniFlow D2D** is an AI-driven, end-to-end enterprise optimization platform that integrates **demand forecasting, supply chain planning, manufacturing optimization, transportation logistics, and Gen-AI powered decision intelligence** into a unified system.
+## 🚀 Setup
 
-The platform eliminates operational silos by ensuring that **market demand signals directly drive procurement, production scheduling, inventory allocation, and delivery planning**. OmniFlow D2D functions as a **closed-loop intelligence engine** that continuously predicts demand, optimizes execution, and improves decisions using real-time data and artificial intelligence.
+### 1. Install dependencies
+```bash
+pip install -r requirements.txt
+```
 
----
+### 2. Place data file
+Copy `OmniFlow_D2D_India_Unified_5200.csv` into the `omniflow_app/` folder.
 
-## Tools & Technologies
+### 3. Run the app
+```bash
+cd omniflow_app
+streamlit run app.py
+```
 
-- **Python, SQL, Pandas, NumPy**  
-  Data handling, querying, and processing
+The app will open at http://localhost:8501
 
-- **Scikit-Learn**  
-  Machine learning for regression and classification
+## 📊 Module Overview
 
-- **Time-Series Models (Prophet / SARIMA)**  
-  Demand forecasting and trend analysis
+| Module | Description | Depends On |
+|--------|-------------|------------|
+| Overview | Project KPIs, revenue trends, module flow | Raw data |
+| Demand Forecasting | Linear trend + seasonal forecast to Jun 2026 | Raw data |
+| Inventory Optimization | EOQ, Safety Stock, Reorder Points | Demand forecast |
+| Production Planning | Monthly production targets + gap analysis | Demand + Inventory |
+| Logistics Intelligence | Carrier perf, delay hotspots, warehouse forecast | Raw data + Demand |
+| Decision Chatbot | Claude-powered Q&A with live SC context | All modules |
 
-- **Optimization Models (Linear Programming)**  
-  Supply chain and resource optimization
+## 🤖 Chatbot Notes
+The chatbot uses the Anthropic Claude API via the claude.ai environment proxy.
+It automatically builds a live context snapshot from all 5,200 orders + forecasts.
 
-- **Power BI / Tableau**  
-  Dashboards and interactive visualizations
-
-- **Streamlit**  
-  Interactive web applications for analytics
-
-- **Gen AI (LLMs, RAG)**  
-  Predictive insights and recommendation systems
-
-- **Visualization Libraries (Matplotlib / Plotly)**  
-  Analytical and interactive charts
-
----
-
-## What Can Be Done
-
-### Demand Intelligence
-- Forecast product demand using historical and real-time data  
-- Reduce overstocking and understocking issues
-
-### Supply Chain Optimization
-- Optimize inventory allocation across warehouses  
-- Improve warehouse distribution efficiency  
-- Optimize delivery routes for cost efficiency  
-- Analyze production performance for efficiency gains  
-- Predict maintenance needs and downtime risks
-
-### Predictive Logistics
-- Forecast shipping delays  
-- Optimize transportation schedules  
-- Reduce lead times and delivery costs
-
-### AI Insights Layer
-- Generate actionable insights via dashboards and reports  
-- Support managers with AI-based decision recommendations
-
----
-
-## Why It Is Needed
-
-### Challenges
-- Inventory wastage and frequent stockouts  
-- Logistics delays and unreliable delivery timelines  
-- High operational costs due to inefficient supply chain processes
-
-### Solutions by OmniFlow D2D
-- AI-driven demand forecasting reduces wastage  
-- Optimized inventory and routing minimize costs  
-- Real-time analytics enable proactive decision-making
-
----
-
-## Who Can Use It
-
-### Enterprise Roles
-- Supply Chain Managers  
-- Production Planners  
-- Logistics Coordinators  
-- Data Scientists  
-- Data Analysts  
-- Business Analysts  
-
-### Industry Sectors
-- Retail  
-- Manufacturing  
-- E-commerce  
-- FMCG  
-- Pharmaceuticals  
-
----
-
-## Project Vision
-
-OmniFlow D2D aims to transform traditional supply chains into **intelligent, adaptive, and AI-driven ecosystems** that align demand with execution in real time, delivering **cost efficiency, operational resilience, and strategic decision support**.
-
----
+## 🎨 Design
+- Dark theme: deep navy (#0a0e1a) with cyan (#00e5ff) and violet (#7c3aed) accents
+- Fonts: Syne (headers) + DM Sans (body)
+- All charts: Plotly with transparent backgrounds
