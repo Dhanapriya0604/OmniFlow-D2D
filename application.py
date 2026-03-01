@@ -298,10 +298,10 @@ def compute_production_plan(cap=1.0, buf=0.15):
 
 def CD():
     return dict(
-        paper_bgcolor="#f7f9fc",   
-        plot_bgcolor="rgba(255,255,255,0.9)",   
+        paper_bgcolor="#f7f9fc",
+        plot_bgcolor="#ffffff",
         font=dict(color="#1e293b"),
-        margin=dict(l=0, r=0, t=16, b=0),
+        margin=dict(l=20, r=20, t=40, b=20)  
     )
 def kpi(col, label, value, color="#00e5ff", sub=""):
     col.markdown(f"""
