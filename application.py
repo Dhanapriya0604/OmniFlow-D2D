@@ -104,8 +104,9 @@ def forecast_series(series: pd.Series, periods: int = 6) -> pd.DataFrame:
     return pd.concat([hist_df, fore_df], ignore_index=True)
 
 def chart_defaults():
-    return dict(paper_bgcolor="transparent", plot_bgcolor="transparent",
-                font_color="#94a3b8", margin=dict(l=0,r=0,t=10,b=0))
+    return dict(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",   
+        font=dict(color="#94a3b8"), margin=dict(l=0, r=0, t=10, b=0)
+    )
 
 def kpi_card(col, label, value, color="#00e5ff", sub=""):
     col.markdown(f"""<div class='metric-card'>
