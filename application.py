@@ -359,7 +359,10 @@ def page_inventory():
     inv = pd.DataFrame(rows)
 
     def eoq(d,oc,h,uc): return int(np.sqrt(2*d*oc/(uc*h))) if d>0 and uc*h>0 else 0
-    def ss(std,lt,z):   return int(z*std*np.sqrt(lt/30))
+    def ss(std, lt, z):
+        if pd.isna(std) or std <= 0:
+            return 0
+        return int(z * float(std) * np.sqrt(lt / 30))
     def rop(avg,lt,ss): return int(avg/30*lt+ss)
 
     inv["annual"]  = inv["monthly_avg"]*12
