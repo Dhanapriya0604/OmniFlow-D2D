@@ -1185,10 +1185,8 @@ def call_claude(messages, system):
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
         return "❌ GEMINI_API_KEY not found. Add it in Streamlit secrets."
-    
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
-    
-    # Build conversation history
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}"
+   
     full_messages = [
         {"role": "user", "parts": [{"text": system}]},
         {"role": "model", "parts": [{"text": "Understood. I am OmniFlow, your supply chain AI assistant."}]}
@@ -1196,16 +1194,12 @@ def call_claude(messages, system):
     for m in messages:
         role = "user" if m["role"] == "user" else "model"
         full_messages.append({"role": role, "parts": [{"text": m["content"]}]})
-    
     try:
-        response = requests.post(url, json={"contents": full_messages}, timeout=30)
-        
+        response = requests.post(url, json={"contents": full_messages}, timeout=30)   
         if response.status_code != 200:
             return f"⚠️ Gemini API Error ({response.status_code}): {response.text}"
-        
         data = response.json()
-        
-        # Safe extraction with fallbacks
+       
         candidates = data.get("candidates", [])
         if not candidates:
             feedback = data.get("promptFeedback", {})
@@ -1242,7 +1236,6 @@ def page_chatbot():
       <span class='feed-badge'>⬆ context from: Demand + Inventory + Production + Logistics</span>
     </div>""", unsafe_allow_html=True)
 
-    # Build context once per render
     ctx = build_context(df)
 
     with st.expander("📊 Live Module Context (fed to AI)", expanded=False):
