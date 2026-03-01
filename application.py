@@ -377,8 +377,8 @@ def page_inventory():
     growth= (fut["y"].mean()/m_qty.iloc[-3:].mean())-1 if len(m_qty)>3 else 0
     inv["Forecast_Annual"] = (inv["annual"]*(1+growth)).astype(int)
     inv["Status"] = inv.apply(lambda r:
-        "🔴 Critical" if r["total_qty"]<r["SS"] else
-        ("🟡 Low" if r["total_qty"]<r["ROP"] else "🟢 Adequate"), axis=1)
+        "🔴 Critical" if r["total_qty"] <= r["SS"] * 1.2 else
+        ("🟡 Low" if r["total_qty"] <= r["ROP"] * 1.5 else "🟢 Adequate"), axis=1)
 
     # KPIs
     c1,c2,c3,c4 = st.columns(4)
