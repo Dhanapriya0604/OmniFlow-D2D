@@ -905,26 +905,136 @@ def page_demand():
                     fore["Forecast"] = fore["Forecast"].round(0).astype(int)
                     st.dataframe(fore, use_container_width=True, hide_index=True)
 
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    # YoY SECTION — ENHANCED: Historic 2024→2025 PLUS 2025→2026 Forecast
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
-    section_title("YoY Category Growth (2024 → 2025)", "📊")
+    section_title("YoY Category Growth — 2024→2025 Actual + 2025→2026 Forecast", "📊")
+
+    # Build year-level actuals
     yr = df.groupby([df["Order_Date"].dt.year, "Category"])["Revenue_INR"].sum().unstack(fill_value=0)
+
+    # Build 2026 projected revenue per category via 12-month forecast
+    cat_monthly_fc = df.groupby(["YearMonth", "Category"])["Revenue_INR"].sum().unstack(fill_value=0)
+    proj_2026 = {}
+    for cat in cat_monthly_fc.columns:
+        s = cat_monthly_fc[cat].rename("value")
+        f = forecast_series(s, 12)   # forecast 12 months → covers calendar year 2026
+        if f.empty:
+            continue
+        fut = f[f["type"] == "forecast"]
+        # Sum months that fall in 2026
+        y2026 = fut[fut["ds"].dt.year == 2026]["y"].sum()
+        proj_2026[cat] = y2026
+    proj_2026_s = pd.Series(proj_2026)
+
     if 2024 in yr.index and 2025 in yr.index:
-        g = ((yr.loc[2025] - yr.loc[2024]) / yr.loc[2024] * 100).sort_values(ascending=False)
+        g_actual = (
+            (yr.loc[2025] - yr.loc[2024]) / yr.loc[2024].replace(0, np.nan) * 100
+        ).fillna(0).sort_values(ascending=False)
+
+        g_forecast_vals = {}
+        for cat in g_actual.index:
+            rev25 = yr.loc[2025, cat]
+            rev26 = proj_2026_s.get(cat, 0)
+            g_forecast_vals[cat] = ((rev26 - rev25) / rev25 * 100) if rev25 > 0 else 0
+        g_forecast_s = pd.Series(g_forecast_vals).reindex(g_actual.index).fillna(0)
+
         cat_palette = ["#f5a623", "#2ed8c3", "#9b87d4", "#5ba4e5", "#e87adb", "#56e0a0"]
-        bar_cols = [cat_palette[i % len(cat_palette)] if v >= 0 else "#ff6b6b"
-                    for i, v in enumerate(g.values)]
-        fig_g = go.Figure(go.Bar(
-            x=g.index, y=g.values,
-            marker=dict(color=bar_cols, line=dict(color="rgba(0,0,0,0)")),
-            text=[f"{v:.1f}%" for v in g.values], textposition="outside",
-            textfont=dict(color="#8a9dc0", size=11),
-            hovertemplate="<b>%{x}</b><br>%{y:.1f}% YoY growth (2024→2025)<extra></extra>"
+
+        fig_g = go.Figure()
+
+        # ── Actual bars (2024→2025) ────────────────────────────────────────────
+        bar_cols_act = [
+            cat_palette[i % len(cat_palette)] if v >= 0 else "#ff6b6b"
+            for i, v in enumerate(g_actual.values)
+        ]
+        fig_g.add_trace(go.Bar(
+            name="2024 → 2025  (Actual)",
+            x=g_actual.index,
+            y=g_actual.values,
+            marker=dict(
+                color=bar_cols_act,
+                opacity=0.92,
+                line=dict(color="rgba(0,0,0,0)")
+            ),
+            text=[f"{v:.1f}%" for v in g_actual.values],
+            textposition="outside",
+            textfont=dict(color="#8a9dc0", size=10),
+            hovertemplate="<b>%{x}</b><br>2024 → 2025 Actual: %{y:.1f}%<extra></extra>"
         ))
-        fig_g.update_layout(**CD(), height=260,
+
+        # ── Forecast bars (2025→2026) — hatched / lighter to signal projection ─
+        bar_cols_fore = [
+            "rgba(245,166,35,0.42)" if v >= 0 else "rgba(255,107,107,0.42)"
+            for v in g_forecast_s.values
+        ]
+        fig_g.add_trace(go.Bar(
+            name="2025 → 2026  (Forecast ⟵ proj)",
+            x=g_forecast_s.index,
+            y=g_forecast_s.values,
+            marker=dict(
+                color=bar_cols_fore,
+                line=dict(color="#f5a623", width=1.4),
+                pattern=dict(shape="/", fgcolor="rgba(245,166,35,0.22)", size=6)
+            ),
+            text=[f"{v:.1f}%" for v in g_forecast_s.values],
+            textposition="outside",
+            textfont=dict(color="#f5a623", size=10),
+            hovertemplate="<b>%{x}</b><br>2025 → 2026 Forecast: %{y:.1f}%<extra></extra>"
+        ))
+
+        fig_g.add_hline(y=0, line_dash="dash", line_color="rgba(255,255,255,0.08)")
+
+        fig_g.update_layout(
+            **CD(), height=310,
+            barmode="group",
             xaxis=dict(**grid_x()),
-            yaxis=dict(**grid_y(), title="YoY Revenue Growth %"))
+            yaxis=dict(**grid_y(), title="YoY Revenue Growth %"),
+            legend=dict(
+                **legend_style(),
+                orientation="h",
+                x=0.0, y=1.14,
+                xanchor="left"
+            )
+        )
         st.plotly_chart(fig_g, use_container_width=True)
 
+    # ── Companion info banner ────────────────────────────────────────────────
+    st.markdown("""
+    <div class='info-banner banner-amber'>
+      <b style='color:#f5a623'>How 2026 is projected:</b>
+      Each category's monthly revenue is forecast 12 months ahead using the same
+      linear-trend + seasonal decomposition model. Calendar-year 2026 months are
+      summed to produce the projected annual revenue, then compared to 2025 actuals
+      for the YoY% shown above (hatched bars = projected).
+    </div>""", unsafe_allow_html=True)
+
+    # ── Summary comparison table: 2024 | 2025 | 2026 projected ─────────────
+    section_title("Revenue by Category — 2024 / 2025 / 2026 Projection", "📋")
+    rows = []
+    if 2024 in yr.index and 2025 in yr.index:
+        for cat in yr.columns:
+            r24  = yr.loc[2024, cat] if 2024 in yr.index else 0
+            r25  = yr.loc[2025, cat] if 2025 in yr.index else 0
+            r26  = proj_2026_s.get(cat, 0)
+            g_25 = round((r25 - r24) / r24 * 100, 1) if r24 > 0 else 0
+            g_26 = round((r26 - r25) / r25 * 100, 1) if r25 > 0 else 0
+            rows.append({
+                "Category":             cat,
+                "2024 Revenue (₹M)":    round(r24 / 1e6, 1),
+                "2025 Revenue (₹M)":    round(r25 / 1e6, 1),
+                "YoY 24→25":            f"{g_25:+.1f}%",
+                "2026 Projected (₹M)":  round(r26 / 1e6, 1),
+                "YoY 25→26 (Forecast)": f"{g_26:+.1f}% ⟵ proj",
+            })
+    if rows:
+        tbl = pd.DataFrame(rows).sort_values("2026 Projected (₹M)", ascending=False)
+        st.dataframe(tbl, use_container_width=True, hide_index=True)
+
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    # Category demand forecast (fed to Production & Inventory) — unchanged
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     section_title("Category Demand Forecast (fed to Production & Inventory)", "🔮")
     cat_monthly = df.groupby(["YearMonth","Category"])["Quantity"].sum().unstack(fill_value=0)
     cat_fore_rows = []
@@ -1023,7 +1133,6 @@ def page_inventory():
         st.plotly_chart(fig2, use_container_width=True)
 
     section_title("Future Inventory Need by Category — from Demand Forecast", "📈")
-    # Per-category individual forecast lines
     df_inv = load_data()
     cat_monthly_inv = df_inv.groupby(["YearMonth","Category"])["Quantity"].sum().unstack(fill_value=0)
     fig3 = go.Figure()
@@ -1035,13 +1144,11 @@ def page_inventory():
         fut_cat = f_cat[f_cat["type"] == "forecast"]
         hist_cat = f_cat[f_cat["type"] == "historical"]
         clr = cat_palette_inv[i % len(cat_palette_inv)]
-        # Faint historical trace
         fig3.add_trace(go.Scatter(
             x=hist_cat["ds"], y=hist_cat["y"], name=f"{cat} (hist)",
             line=dict(color=clr, width=1, dash="dot"),
             opacity=0.25, showlegend=False
         ))
-        # Bold forecast trace
         fig3.add_trace(go.Scatter(
             x=fut_cat["ds"], y=fut_cat["y"], name=cat, mode="lines+markers",
             line=dict(color=clr, width=2.5),
@@ -1697,11 +1804,8 @@ LIVE SUPPLY CHAIN CONTEXT (all 4 modules):
             else:
                 import re as _re
                 raw = msg["content"]
-                # Escape HTML
                 raw = raw.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;")
-                # Convert **bold** → styled span
                 raw = _re.sub(r'\*\*(.+?)\*\*', r'<span style="color:#f0f4ff;font-weight:700">\1</span>', raw)
-                # Convert leading "* " or "- " bullet lines → styled list items
                 lines = raw.split("\n")
                 rendered = []
                 for line in lines:
