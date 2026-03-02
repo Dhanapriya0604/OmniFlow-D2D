@@ -463,22 +463,34 @@ h1, h2, h3, h4 {
 /* === TABS === */
 .stTabs [data-baseweb="tab-list"] {
     background: var(--panel) !important;
-    border-radius: 12px !important;
-    padding: 4px !important;
-    gap: 4px !important;
+    border-radius: 14px !important;
+    padding: 6px 8px !important;
+    gap: 6px !important;
     border: 1px solid var(--border) !important;
+    flex-wrap: wrap !important;
 }
 .stTabs [data-baseweb="tab"] {
     background: transparent !important;
-    border-radius: 8px !important;
+    border-radius: 10px !important;
     color: var(--text-3) !important;
     font-family: 'DM Mono', monospace !important;
-    font-size: 0.75rem !important;
+    font-size: 0.76rem !important;
     font-weight: 600 !important;
+    padding: 10px 20px !important;
+    min-width: 120px !important;
+    text-align: center !important;
+    white-space: nowrap !important;
+    letter-spacing: 0.03em !important;
+    transition: color 0.2s ease, background 0.2s ease !important;
+}
+.stTabs [data-baseweb="tab"]:hover {
+    background: rgba(255,255,255,0.04) !important;
+    color: var(--text-2) !important;
 }
 .stTabs [aria-selected="true"] {
     background: linear-gradient(135deg, rgba(245,166,35,0.2), rgba(255,107,107,0.1)) !important;
     color: var(--amber) !important;
+    box-shadow: 0 2px 12px rgba(245,166,35,0.12) !important;
 }
 
 /* === SCROLLBAR === */
