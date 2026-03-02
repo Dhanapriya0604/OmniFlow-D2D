@@ -1,59 +1,35 @@
-"""
-OmniFlow D2D Supply Chain Intelligence
-Streamlit Cloud entry point: application.py
-REDESIGNED: Premium dark UI with glassmorphism, animations, and cohesive color system
-"""
-
 import streamlit as st
+st.set_page_config(page_title="OmniFlow D2D Intelligence",page_icon="⬡",layout="wide",initial_sidebar_state="expanded")
 
-st.set_page_config(
-    page_title="OmniFlow D2D Intelligence",
-    page_icon="⬡",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
-
-# ── Global CSS ─────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Outfit:wght@300;400;500;600;700;800;900&family=Playfair+Display:wght@700;800&display=swap');
 
 :root {
-    /* Core palette */
     --midnight: #080e1a;
     --deep:     #0d1829;
     --surface:  #111e30;
     --panel:    #162236;
     --border:   rgba(255,255,255,0.07);
     --border2:  rgba(255,255,255,0.12);
-    
-    /* Accents */
     --amber:    #f5a623;
     --coral:    #ff6b6b;
     --teal:     #2ed8c3;
     --sky:      #5ba4e5;
     --lavender: #9b87d4;
     --mint:     #56e0a0;
-    
-    /* Text */
     --text-1:   #f0f4ff;
     --text-2:   #8a9dc0;
     --text-3:   #4a5e7a;
-    
-    /* Shadows */
     --glow-amber: 0 0 40px rgba(245,166,35,0.15);
     --glow-teal:  0 0 40px rgba(46,216,195,0.12);
     --card-shadow: 0 8px 32px rgba(0,0,0,0.4), 0 1px 0 rgba(255,255,255,0.05);
 }
-
-/* === RESET & BASE === */
 html, body, [class*="css"] {
     font-family: 'Outfit', sans-serif !important;
     background: var(--midnight) !important;
     color: var(--text-1) !important;
 }
-
-/* Gradient mesh background */
 .stApp {
     background:
         radial-gradient(ellipse 80% 50% at 20% -10%, rgba(91,164,229,0.08) 0%, transparent 60%),
@@ -62,8 +38,6 @@ html, body, [class*="css"] {
         var(--midnight) !important;
     min-height: 100vh;
 }
-
-/* === SIDEBAR === */
 section[data-testid="stSidebar"] {
     background: linear-gradient(180deg, var(--deep) 0%, var(--midnight) 100%) !important;
     border-right: 1px solid var(--border2) !important;
@@ -76,14 +50,10 @@ section[data-testid="stSidebar"]::before {
     height: 2px;
     background: linear-gradient(90deg, var(--amber), var(--coral), var(--teal));
 }
-
-/* === TYPOGRAPHY === */
 h1, h2, h3, h4 {
     font-family: 'Outfit', sans-serif !important;
     letter-spacing: -0.03em;
 }
-
-/* === METRIC CARDS === */
 .metric-card {
     background: linear-gradient(135deg, var(--panel) 0%, var(--surface) 100%);
     border: 1px solid var(--border);
@@ -107,7 +77,6 @@ h1, h2, h3, h4 {
 .metric-card.sky::before   { background: linear-gradient(90deg, var(--sky), #3d87d4); box-shadow: 0 0 20px rgba(91,164,229,0.5); }
 .metric-card.lav::before   { background: linear-gradient(90deg, var(--lavender), #7b6bbf); box-shadow: 0 0 20px rgba(155,135,212,0.5); }
 .metric-card.mint::before  { background: linear-gradient(90deg, var(--mint), #3ec47a); box-shadow: 0 0 20px rgba(86,224,160,0.5); }
-
 .metric-card::after {
     content: "";
     position: absolute;
@@ -126,7 +95,6 @@ h1, h2, h3, h4 {
     bottom: -10px; right: -10px;
     width: 130px; height: 130px;
 }
-
 .metric-label {
     font-size: 0.68rem;
     text-transform: uppercase;
@@ -148,8 +116,6 @@ h1, h2, h3, h4 {
     margin-top: 6px;
     font-family: 'DM Mono', monospace !important;
 }
-
-/* === SECTION HEADERS === */
 .section-header {
     display: flex;
     align-items: center;
@@ -169,8 +135,6 @@ h1, h2, h3, h4 {
     color: var(--text-2);
     font-family: 'DM Mono', monospace !important;
 }
-
-/* === PAGE TITLE BLOCK === */
 .page-title-block {
     padding: 28px 0 20px;
     position: relative;
@@ -188,8 +152,6 @@ h1, h2, h3, h4 {
     font-size: 0.85rem;
     font-family: 'DM Mono', monospace !important;
 }
-
-/* === FEED BADGES === */
 .badge-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
 .badge {
     display: inline-flex;
@@ -210,8 +172,6 @@ h1, h2, h3, h4 {
 .badge-coral { background: rgba(255,107,107,0.1); color: var(--coral); border-color: rgba(255,107,107,0.3); }
 .badge-sky   { background: rgba(91,164,229,0.1); color: var(--sky); border-color: rgba(91,164,229,0.3); }
 .badge-lav   { background: rgba(155,135,212,0.1); color: var(--lavender); border-color: rgba(155,135,212,0.3); }
-
-/* === INFO BANNERS === */
 .info-banner {
     border-radius: 12px;
     padding: 14px 18px;
@@ -233,8 +193,6 @@ h1, h2, h3, h4 {
 .banner-coral::before { background: var(--coral); }
 .banner-amber  { background: rgba(245,166,35,0.06); border-color: rgba(245,166,35,0.2); color: var(--text-2); }
 .banner-amber::before { background: var(--amber); }
-
-/* === ABOUT CARD === */
 .about-card {
     background: linear-gradient(135deg, rgba(22,34,54,0.9) 0%, rgba(17,30,48,0.9) 100%);
     border: 1px solid var(--border2);
@@ -262,8 +220,6 @@ h1, h2, h3, h4 {
     color: white;
     pointer-events: none;
 }
-
-/* === FLOW DIAGRAM === */
 .flow-wrap {
     background: linear-gradient(135deg, var(--panel), var(--surface));
     border: 1px solid var(--border);
@@ -308,8 +264,6 @@ h1, h2, h3, h4 {
     font-weight: 300;
     opacity: 0.4;
 }
-
-/* === CHART CONTAINER === */
 .chart-panel {
     background: linear-gradient(135deg, var(--panel) 0%, var(--surface) 100%);
     border: 1px solid var(--border);
@@ -322,8 +276,6 @@ h1, h2, h3, h4 {
 .chart-panel:hover {
     border-color: var(--border2);
 }
-
-/* === BUTTONS === */
 .stButton > button {
     background: linear-gradient(135deg, rgba(245,166,35,0.15), rgba(255,107,107,0.1)) !important;
     color: var(--amber) !important;
@@ -343,8 +295,6 @@ h1, h2, h3, h4 {
     box-shadow: 0 8px 20px rgba(245,166,35,0.2) !important;
     color: #ffe066 !important;
 }
-
-/* === INPUTS === */
 .stTextInput input, .stSelectbox select {
     background: var(--panel) !important;
     border: 1px solid var(--border2) !important;
@@ -356,15 +306,11 @@ h1, h2, h3, h4 {
     border-color: rgba(245,166,35,0.5) !important;
     box-shadow: 0 0 0 3px rgba(245,166,35,0.1) !important;
 }
-
-/* === DATAFRAME === */
 .stDataFrame {
     border-radius: 12px !important;
     overflow: hidden !important;
     border: 1px solid var(--border) !important;
 }
-
-/* === CHAT BUBBLES === */
 .chat-user-bubble {
     background: linear-gradient(135deg, rgba(245,166,35,0.12), rgba(255,107,107,0.08));
     border: 1px solid rgba(245,166,35,0.2);
@@ -385,8 +331,6 @@ h1, h2, h3, h4 {
     margin-right: 10%;
 }
 .chat-spacing { margin: 10px 0; }
-
-/* === ALERT CARDS === */
 .alert-item {
     border-radius: 10px;
     padding: 10px 14px;
@@ -404,8 +348,6 @@ h1, h2, h3, h4 {
 .alert-critical { border-color: var(--coral); }
 .alert-warn     { border-color: var(--amber); }
 .alert-ok       { border-color: var(--mint); }
-
-/* === ANIMATIONS === */
 @keyframes fadeUp {
     from { opacity: 0; transform: translateY(24px); }
     to   { opacity: 1; transform: translateY(0); }
@@ -422,22 +364,17 @@ h1, h2, h3, h4 {
     0%, 100% { border-color: rgba(245,166,35,0.2); }
     50%       { border-color: rgba(245,166,35,0.5); }
 }
-
 .metric-card     { animation: fadeUp 0.5s ease both; }
 .chart-panel     { animation: fadeUp 0.6s ease both; }
 .about-card      { animation: fadeIn 0.7s ease both; }
 .badge           { animation: fadeIn 0.4s ease both; }
 .flow-wrap       { animation: fadeUp 0.8s ease both; }
-
-/* Stagger cards */
 .metric-card:nth-child(1) { animation-delay: 0.05s; }
 .metric-card:nth-child(2) { animation-delay: 0.10s; }
 .metric-card:nth-child(3) { animation-delay: 0.15s; }
 .metric-card:nth-child(4) { animation-delay: 0.20s; }
 .metric-card:nth-child(5) { animation-delay: 0.25s; }
 .metric-card:nth-child(6) { animation-delay: 0.30s; }
-
-/* === SIDEBAR RADIO === */
 .stRadio label {
     font-family: 'DM Mono', monospace !important;
     font-size: 0.78rem !important;
@@ -447,8 +384,6 @@ h1, h2, h3, h4 {
     transition: color 0.2s ease !important;
 }
 .stRadio label:hover { color: var(--amber) !important; }
-
-/* === EXPANDER === */
 .streamlit-expanderHeader {
     background: var(--panel) !important;
     border: 1px solid var(--border) !important;
@@ -456,11 +391,7 @@ h1, h2, h3, h4 {
     font-family: 'DM Mono', monospace !important;
     font-size: 0.78rem !important;
 }
-
-/* === COLUMNS SPACING === */
 [data-testid="column"] > div { padding: 0 8px; }
-
-/* === TABS === */
 .stTabs [data-baseweb="tab-list"] {
     background: var(--panel) !important;
     border-radius: 14px !important;
@@ -492,16 +423,11 @@ h1, h2, h3, h4 {
     color: var(--amber) !important;
     box-shadow: 0 2px 12px rgba(245,166,35,0.12) !important;
 }
-
-/* === SCROLLBAR === */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: var(--midnight); }
 ::-webkit-scrollbar-thumb { background: var(--panel); border-radius: 99px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--border2); }
-
-/* === PLOTLY === */
 .js-plotly-plot, .plot-container { background: transparent !important; }
-
 footer { visibility: hidden; }
 #MainMenu { visibility: hidden; }
 </style>
@@ -512,8 +438,7 @@ import numpy as np
 import plotly.graph_objects as go
 import requests, os
 
-DATA_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                         "OmniFlow_D2D_India_Unified_5200.csv")
+DATA_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),"OmniFlow_D2D_India_Unified_5200.csv")
 
 # Refined plotly color palette — warm, earthy, harmonious
 COLORS = ["#f5a623", "#56e0a0", "#ff6b6b", "#5ba4e5", "#e87adb", "#2ed8c3"]
@@ -575,10 +500,7 @@ def compute_inventory_table(order_cost=500, hold_pct=0.20, lead_time=7, z=1.65):
         avg_price  = ("Sell_Price", "mean")
     ).reset_index()
     sku_agg["monthly_avg"] = sku_agg["total_qty"] / sku_agg["num_months"]
-    sku_monthly = (
-        df.groupby(["SKU_ID", "YearMonth"])["Quantity"]
-        .sum().unstack(fill_value=0)
-    )
+    sku_monthly = (df.groupby(["SKU_ID", "YearMonth"])["Quantity"].sum().unstack(fill_value=0))
     sku_std = sku_monthly.std(axis=1).rename("monthly_std").reset_index()
     sku_agg = sku_agg.merge(sku_std, on="SKU_ID", how="left")
     sku_agg["monthly_std"] = sku_agg["monthly_std"].fillna(0)
@@ -690,14 +612,10 @@ def page_overview():
 
     st.markdown("""
     <div class='page-title-block'>
-      <div style='font-family:DM Mono,monospace;font-size:0.7rem;color:#4a5e7a;
-           letter-spacing:0.15em;text-transform:uppercase;margin-bottom:10px'>
-        ⬡ D2D SUPPLY CHAIN INTELLIGENCE PLATFORM
-      </div>
       <div class='page-title' style='background:linear-gradient(135deg,#f5a623,#ff6b6b,#2ed8c3);
            -webkit-background-clip:text;-webkit-text-fill-color:transparent;font-size:3rem'>
-        OmniFlow</div>
-      <div class='page-subtitle'>Predictive Logistics · AI-Powered · Demand-to-Delivery Optimization · India</div>
+        OmniFlow D2D</div>
+      <div class='page-subtitle'>Predictive Logistics & AI-Powered Demand-to-Delivery Optimization</div>
     </div>""", unsafe_allow_html=True)
 
     st.markdown("""
@@ -730,7 +648,7 @@ def page_overview():
 
     c_l, c_r = st.columns([3, 2], gap="large")
     with c_l:
-        section_title("Monthly Revenue Trend", "📈")
+        section_title("Monthly Revenue Trend")
         m = df.groupby(df["Order_Date"].dt.to_period("M"))["Revenue_INR"].sum().reset_index()
         m["Order_Date"] = m["Order_Date"].dt.to_timestamp()
         fig = go.Figure()
@@ -749,7 +667,7 @@ def page_overview():
         st.plotly_chart(fig, use_container_width=True)
 
     with c_r:
-        section_title("Revenue by Category", "🥧")
+        section_title("Revenue by Category")
         cat = df.groupby("Category")["Revenue_INR"].sum().sort_values(ascending=False)
         fig2 = go.Figure(go.Pie(
             labels=cat.index, values=cat.values, hole=.6,
@@ -768,7 +686,7 @@ def page_overview():
     c3a, c3b, c3c = st.columns(3, gap="large")
 
     with c3a:
-        section_title("Orders by Channel", "📦")
+        section_title("Orders by Channel")
         ch = df["Sales_Channel"].value_counts().head(6)
         fig3 = go.Figure(go.Bar(
             x=ch.values, y=ch.index, orientation="h",
@@ -785,7 +703,7 @@ def page_overview():
         st.plotly_chart(fig3, use_container_width=True)
 
     with c3b:
-        section_title("Top Regions Revenue", "🗺️")
+        section_title("Top Regions Revenue")
         reg = df.groupby("Region")["Revenue_INR"].sum().sort_values(ascending=False).head(8)
         fig4 = go.Figure(go.Bar(
             x=reg.index, y=reg.values,
@@ -801,7 +719,7 @@ def page_overview():
         st.plotly_chart(fig4, use_container_width=True)
 
     with c3c:
-        section_title("Order Status Split", "🔄")
+        section_title("Order Status Split")
         sc = raw["Order_Status"].value_counts()
         colors_sc = ["#56e0a0", "#ff6b6b", "#f5a623", "#5ba4e5", "#2ed8c3"]
         fig5 = go.Figure(go.Bar(
@@ -815,7 +733,7 @@ def page_overview():
         st.plotly_chart(fig5, use_container_width=True)
 
     st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
-    section_title("Module Dependency Flow", "⬡")
+    section_title("Module Dependency Flow")
     st.markdown("""
     <div class='flow-wrap'>
       <div class='flow-node' style='border-color:rgba(245,166,35,0.4);color:#f5a623'>
@@ -900,7 +818,7 @@ def page_demand():
             fore["Month"] = fore["Month"].dt.strftime("%b %Y")
             for c2 in ["Forecast","Lower (95%)","Upper (95%)"]:
                 fore[c2] = fore[c2].round(0).astype(int)
-            section_title("Forecast Table", "📊")
+            section_title("Forecast Table")
             st.dataframe(fore, use_container_width=True, hide_index=True)
     else:
         grp_map = {"Category":"Category","Region":"Region","Sales Channel":"Sales_Channel"}
@@ -917,16 +835,11 @@ def page_demand():
                     fore["Forecast"] = fore["Forecast"].round(0).astype(int)
                     st.dataframe(fore, use_container_width=True, hide_index=True)
 
-    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    # YoY SECTION — ENHANCED: Historic 2024→2025 PLUS 2025→2026 Forecast
-    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
-    section_title("YoY Category Growth — 2024→2025 Actual + 2025→2026 Forecast", "📊")
+    section_title("YoY Category Growth — Actual + Forecast")
 
-    # Build year-level actuals
     yr = df.groupby([df["Order_Date"].dt.year, "Category"])["Revenue_INR"].sum().unstack(fill_value=0)
 
-    # Build 2026 projected revenue per category via 12-month forecast
     cat_monthly_fc = df.groupby(["YearMonth", "Category"])["Revenue_INR"].sum().unstack(fill_value=0)
     proj_2026 = {}
     for cat in cat_monthly_fc.columns:
@@ -956,7 +869,6 @@ def page_demand():
 
         fig_g = go.Figure()
 
-        # ── Actual bars (2024→2025) ────────────────────────────────────────────
         bar_cols_act = [
             cat_palette[i % len(cat_palette)] if v >= 0 else "#ff6b6b"
             for i, v in enumerate(g_actual.values)
@@ -976,7 +888,6 @@ def page_demand():
             hovertemplate="<b>%{x}</b><br>2024 → 2025 Actual: %{y:.1f}%<extra></extra>"
         ))
 
-        # ── Forecast bars (2025→2026) — hatched / lighter to signal projection ─
         bar_cols_fore = [
             "rgba(245,166,35,0.42)" if v >= 0 else "rgba(255,107,107,0.42)"
             for v in g_forecast_s.values
@@ -1012,7 +923,6 @@ def page_demand():
         )
         st.plotly_chart(fig_g, use_container_width=True)
 
-    # ── Companion info banner ────────────────────────────────────────────────
     st.markdown("""
     <div class='info-banner banner-amber'>
       <b style='color:#f5a623'>How 2026 is projected:</b>
@@ -1022,8 +932,7 @@ def page_demand():
       for the YoY% shown above (hatched bars = projected).
     </div>""", unsafe_allow_html=True)
 
-    # ── Summary comparison table: 2024 | 2025 | 2026 projected ─────────────
-    section_title("Revenue by Category — 2024 / 2025 / 2026 Projection", "📋")
+    section_title("Revenue by Category")
     rows = []
     if 2024 in yr.index and 2025 in yr.index:
         for cat in yr.columns:
@@ -1044,10 +953,7 @@ def page_demand():
         tbl = pd.DataFrame(rows).sort_values("2026 Projected (₹M)", ascending=False)
         st.dataframe(tbl, use_container_width=True, hide_index=True)
 
-    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    # Category demand forecast (fed to Production & Inventory) — unchanged
-    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    section_title("Category Demand Forecast (fed to Production & Inventory)", "🔮")
+    section_title("Category Demand Forecast")
     cat_monthly = df.groupby(["YearMonth","Category"])["Quantity"].sum().unstack(fill_value=0)
     cat_fore_rows = []
     for cat in cat_monthly.columns:
@@ -1080,7 +986,7 @@ def page_inventory():
       <span class='badge badge-sky'>→ Chatbot</span>
     </div>""", unsafe_allow_html=True)
 
-    with st.expander("⚙ Inventory Parameters", expanded=False):
+    with st.expander("Inventory Parameters", expanded=False):
         p1, p2, p3 = st.columns(3)
         order_cost = p1.number_input("Order Cost ₹", 100, 5000, 500, 50)
         hold_pct   = p2.slider("Holding Cost %", 5, 40, 20) / 100
@@ -1111,7 +1017,7 @@ def page_inventory():
 
     cl, cr = st.columns([1, 2], gap="large")
     with cl:
-        section_title("Stock Status Distribution", "🥧")
+        section_title("Stock Status Distribution")
         color_map = {"🔴 Critical": "#ff6b6b", "🟡 Low": "#f5a623", "🟢 Adequate": "#56e0a0"}
         sc = inv["Status"].value_counts()
         pie_colors = [color_map.get(s, "#4a5e7a") for s in sc.index]
@@ -1128,7 +1034,7 @@ def page_inventory():
         st.plotly_chart(fig, use_container_width=True)
 
     with cr:
-        section_title("EOQ / Safety Stock / ROP by Category", "📦")
+        section_title("EOQ / Safety Stock / ROP by Category")
         ci2 = inv.groupby("Category")[["EOQ","SS","ROP"]].mean().reset_index()
         fig2 = go.Figure()
         bar_colors = ["#f5a623", "#2ed8c3", "#9b87d4"]
@@ -1144,7 +1050,7 @@ def page_inventory():
             legend=dict(**legend_style()))
         st.plotly_chart(fig2, use_container_width=True)
 
-    section_title("Future Inventory Need by Category — from Demand Forecast", "📈")
+    section_title("Future Inventory Need by Category — from Demand Forecast")
     df_inv = load_data()
     cat_monthly_inv = df_inv.groupby(["YearMonth","Category"])["Quantity"].sum().unstack(fill_value=0)
     fig3 = go.Figure()
@@ -1173,7 +1079,7 @@ def page_inventory():
         legend=dict(**legend_style()))
     st.plotly_chart(fig3, use_container_width=True)
 
-    section_title("SKU-Level Inventory Recommendations", "📋")
+    section_title("SKU-Level Inventory Recommendations")
     cats = st.multiselect("Filter Category", sorted(df["Category"].unique().tolist()),
                           default=sorted(df["Category"].unique().tolist()))
     status_filter = st.multiselect("Filter Status",
@@ -1239,7 +1145,7 @@ def page_production():
       across 6 months to replenish critical stock.
     </div>""", unsafe_allow_html=True)
 
-    section_title("Production Plan vs Demand Forecast", "🏭")
+    section_title("Production Plan vs Demand Forecast")
     fig = go.Figure()
     fig.add_trace(go.Bar(
         x=agg["Month_dt"], y=agg["Production"],
@@ -1265,7 +1171,7 @@ def page_production():
 
     cl, cr = st.columns(2, gap="large")
     with cl:
-        section_title("Production by Category (Stacked)", "📊")
+        section_title("Production by Category (Stacked)")
         fig2 = go.Figure()
         for i, cat in enumerate(plan["Category"].unique()):
             s = plan[plan["Category"] == cat].sort_values("Month_dt")
@@ -1281,7 +1187,7 @@ def page_production():
         st.plotly_chart(fig2, use_container_width=True)
 
     with cr:
-        section_title("Production – Demand Gap", "📉")
+        section_title("Production – Demand Gap")
         agg["Gap"] = agg["Production"] - agg["Demand"]
         fig3 = go.Figure(go.Bar(
             x=agg["Month_dt"], y=agg["Gap"],
@@ -1298,7 +1204,7 @@ def page_production():
             yaxis=dict(**grid_y(), title="Units Surplus / Deficit"))
         st.plotly_chart(fig3, use_container_width=True)
 
-    section_title("Detailed Production Schedule", "📋")
+    section_title("Detailed Production Schedule")
     filt = st.selectbox("Category filter", ["All"] + list(plan["Category"].unique()))
     d = plan if filt == "All" else plan[plan["Category"] == filt]
     d2 = d[["Month","Category","Demand","Inv_Boost","Buffer","Production","CI_Lo","CI_Hi"]].copy()
@@ -1325,10 +1231,10 @@ def page_logistics():
     plan = compute_production_plan()
     prod_by_cat = plan.groupby("Category")["Production"].sum() if not plan.empty else pd.Series()
 
-    t1, t2, t3, t4 = st.tabs(["🚚 Carrier", "⚠ Delay Intel", "🏭 Warehouse Forecast", "🗺 Regions"])
+    t1, t2, t3, t4 = st.tabs(["Carrier", "⚠ Delay Intel", "Warehouse Forecast", "🗺 Regions"])
 
     with t1:
-        section_title("Carrier Performance Scorecard", "🚚")
+        section_title("Carrier Performance Scorecard")
         cs = df.groupby("Courier_Partner").agg(
             Orders   = ("Order_ID", "count"),
             Avg_Del  = ("Delivery_Days", "mean"),
@@ -1374,7 +1280,7 @@ def page_logistics():
         st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
         cl, cr = st.columns(2, gap="large")
         with cl:
-            section_title("Historical Carrier Orders Trend", "📈")
+            section_title("Historical Carrier Orders Trend")
             cm = df.groupby([df["Order_Date"].dt.to_period("M"), "Courier_Partner"])["Order_ID"].count().unstack(fill_value=0)
             fig2 = go.Figure()
             for i, c in enumerate(cm.columns):
@@ -1389,7 +1295,7 @@ def page_logistics():
             st.plotly_chart(fig2, use_container_width=True)
 
         with cr:
-            section_title("Carrier Order Forecast → Jun 2026", "🔮")
+            section_title("Carrier Order Forecast → Jun 2026")
             fig_fc = go.Figure()
             for i, c in enumerate(cm.columns):
                 s = cm[c].rename("value")
@@ -1408,7 +1314,7 @@ def page_logistics():
             st.plotly_chart(fig_fc, use_container_width=True)
 
         if not prod_by_cat.empty:
-            section_title("Carrier Recommendation (based on Production Plan)", "⭐")
+            section_title("Carrier Recommendation (based on Production Plan)")
             best_carrier = (
                 df.groupby(["Category", "Courier_Partner"])["Delivery_Days"]
                 .mean().reset_index()
@@ -1435,7 +1341,7 @@ def page_logistics():
 
         cl, cr = st.columns(2, gap="large")
         with cl:
-            section_title("Delay Rate by Region", "🗺️")
+            section_title("Delay Rate by Region")
             fig_r = go.Figure(go.Bar(
                 x=rd["Rate"], y=rd["Region"], orientation="h",
                 marker=dict(
@@ -1451,7 +1357,7 @@ def page_logistics():
             st.plotly_chart(fig_r, use_container_width=True)
 
         with cr:
-            section_title("Delay Rate by Carrier", "🚚")
+            section_title("Delay Rate by Carrier")
             cd = df2.groupby("Courier_Partner").agg(T=("Order_ID","count"), D=("Delayed","sum")).reset_index()
             cd["Rate"] = (cd["D"] / cd["T"] * 100).round(1)
             fig_c = go.Figure(go.Bar(
@@ -1468,7 +1374,7 @@ def page_logistics():
                 yaxis=dict(**grid_y(), title="Delay %"))
             st.plotly_chart(fig_c, use_container_width=True)
 
-        section_title("Carrier × Region Delay Heatmap", "🌡️")
+        section_title("Carrier × Region Delay Heatmap")
         pv = df2.groupby(["Courier_Partner","Region"])["Delayed"].mean().unstack(fill_value=0) * 100
         fig_h = go.Figure(go.Heatmap(
             z=pv.values, x=list(pv.columns), y=list(pv.index),
@@ -1482,7 +1388,7 @@ def page_logistics():
             yaxis=dict(showgrid=False, color="#8a9dc0"))
         st.plotly_chart(fig_h, use_container_width=True)
 
-        section_title("Delivery Delay Trend Forecast → Jun 2026", "📈")
+        section_title("Delivery Delay Trend Forecast → Jun 2026")
         delay_monthly = df.groupby("YearMonth")["Delivery_Days"].mean().rename("value")
         f_delay = forecast_series(delay_monthly, 6)
         if not f_delay.empty:
@@ -1507,7 +1413,7 @@ def page_logistics():
             st.plotly_chart(fig_delay, use_container_width=True)
 
     with t3:
-        section_title("Warehouse Shipment Trend (Historical)", "🏭")
+        section_title("Warehouse Shipment Trend")
         wm = df.groupby([df["Order_Date"].dt.to_period("M"), "Warehouse"])["Quantity"].sum().unstack(fill_value=0)
         fig_wh = go.Figure()
         for i, wh in enumerate(wm.columns):
@@ -1521,7 +1427,7 @@ def page_logistics():
             legend=dict(**legend_style()))
         st.plotly_chart(fig_wh, use_container_width=True)
 
-        section_title("Warehouse Demand Forecast → Jun 2026", "🔮")
+        section_title("Warehouse Demand Forecast → Jun 2026")
         wf_rows = []
         for wh in wm.columns:
             s = wm[wh].rename("value")
@@ -1554,7 +1460,7 @@ def page_logistics():
             st.dataframe(wfd_tbl.sort_values(["Month","Warehouse"]),
                          use_container_width=True, hide_index=True)
 
-        section_title("Top Products per Warehouse", "🏆")
+        section_title("Top Products per Warehouse")
         wsel = st.selectbox("Warehouse", sorted(df["Warehouse"].unique()))
         tp = (df[df["Warehouse"] == wsel]
               .groupby("Product_Name")["Quantity"].sum()
@@ -1573,7 +1479,7 @@ def page_logistics():
         st.plotly_chart(fig_tp, use_container_width=True)
 
     with t4:
-        section_title("Region Performance Overview", "🗺️")
+        section_title("Region Performance Overview")
         rs = df.groupby("Region").agg(
             Orders  = ("Order_ID", "count"),
             Revenue = ("Revenue_INR", "sum"),
@@ -1597,7 +1503,7 @@ def page_logistics():
 
         c_l, c_r = st.columns(2, gap="large")
         with c_l:
-            section_title("Best Carrier per Region", "⭐")
+            section_title("Best Carrier per Region")
             bc = (df.groupby(["Region","Courier_Partner"])["Delivery_Days"]
                   .mean().reset_index().sort_values("Delivery_Days")
                   .groupby("Region").first().reset_index())
@@ -1606,7 +1512,7 @@ def page_logistics():
             st.dataframe(bc, use_container_width=True, hide_index=True)
 
         with c_r:
-            section_title("Region Return Rate Ranking", "🔄")
+            section_title("Region Return Rate Ranking")
             rr = df.groupby("Region")["Return_Flag"].mean().sort_values(ascending=False) * 100
             fig_ret = go.Figure(go.Bar(
                 x=rr.values, y=rr.index, orientation="h",
@@ -1621,7 +1527,7 @@ def page_logistics():
                 xaxis=dict(**grid_x()), yaxis=dict(showgrid=False, color="#8a9dc0"))
             st.plotly_chart(fig_ret, use_container_width=True)
 
-        section_title("Region Revenue Forecast → Jun 2026", "📈")
+        section_title("Region Revenue Forecast → Jun 2026")
         top_reg = df["Region"].value_counts().head(5).index.tolist()
         fig_rf = go.Figure()
         for i, reg in enumerate(top_reg):
@@ -1770,7 +1676,7 @@ def page_chatbot():
     </div>""", unsafe_allow_html=True)
 
     ctx = build_context(df)
-    with st.expander("📊 Live Module Context (fed to AI)", expanded=False):
+    with st.expander("Live Module Context (fed to AI)", expanded=False):
         st.code(ctx, language="text")
 
     system_prompt = f"""You are OmniFlow, an expert AI supply chain decision assistant for an India D2D e-commerce operation.
@@ -1923,7 +1829,6 @@ LIVE SUPPLY CHAIN CONTEXT (all 4 modules):
                     accent,
                     f"Del: {row['Delay_Rate']*100:.1f}% · Ret: {row['Return_Rate']*100:.1f}%")
 
-# ── SIDEBAR ───────────────────────────────────────────────────────────────────
 st.sidebar.markdown("""
 <div style='padding:20px 0 28px'>
   <div style='font-family:DM Mono,monospace;font-size:0.62rem;letter-spacing:0.16em;
@@ -1938,12 +1843,12 @@ st.sidebar.markdown("""
 </div>""", unsafe_allow_html=True)
 
 PAGES = {
-    "⬡  Overview":               page_overview,
-    "📈  Demand Forecasting":     page_demand,
-    "📦  Inventory Optimization": page_inventory,
-    "🏭  Production Planning":    page_production,
-    "🚚  Logistics Intelligence": page_logistics,
-    "💬  Decision Chatbot":       page_chatbot,
+    "Overview":               page_overview,
+    "Demand Forecasting":     page_demand,
+    "Inventory Optimization": page_inventory,
+    "Production Planning":    page_production,
+    "Logistics Intelligence": page_logistics,
+    "Decision Chatbot":       page_chatbot,
 }
 
 sel = st.sidebar.radio("Navigate", list(PAGES.keys()), label_visibility="collapsed")
