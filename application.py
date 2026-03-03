@@ -13,232 +13,280 @@ st.set_page_config(
 
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
-:root{
-  --bg:#FFFFFF;--bg2:#FAFAFA;--surface:#F1F3F5;--card:#FFFFFF;--panel:#F8F9FA;
-  --border:#E2E8F0;--border2:#CBD5E1;
-  --blue:#1D4ED8;--blue-l:#3B82F6;--green:#15803D;--amber:#B45309;
-  --red:#B91C1C;--purple:#6D28D9;--cyan:#0E7490;--orange:#C2410C;
-  --text1:#000000;--text2:#111111;--text3:#333333;--text4:#555555;
-  --accent:#1D4ED8;
-  --shadow:0 1px 3px rgba(0,0,0,0.08),0 1px 2px rgba(0,0,0,0.04);
-  --shadow-md:0 4px 12px rgba(0,0,0,0.08),0 2px 4px rgba(0,0,0,0.04);
-  --radius:14px;
-}
-html,body,[class*="css"]{
-  font-family:'Inter',sans-serif!important;
-  background:var(--bg)!important;
-  color:var(--text1)!important;
-}
-.stApp{background:var(--bg)!important;}
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
-section[data-testid="stSidebar"]{
-  background:var(--bg2)!important;
-  border-right:1px solid var(--border)!important;
-  box-shadow:var(--shadow)!important;
+:root {
+  --bg:       #FFFFFF;
+  --bg2:      #F8F9FA;
+  --surface:  #F1F3F4;
+  --card:     #FFFFFF;
+  --border:   #E0E0E0;
+  --border2:  #CCCCCC;
+
+  /* card tint colors matching screenshots */
+  --card-blue:   #EBF3FF;
+  --card-green:  #E8F5E9;
+  --card-amber:  #FFF8E1;
+  --card-red:    #FFEBEE;
+  --card-purple: #F3E5F5;
+  --card-teal:   #E0F7FA;
+
+  /* value colors */
+  --blue:   #1565C0;
+  --green:  #2E7D32;
+  --amber:  #E65100;
+  --red:    #C62828;
+  --purple: #6A1B9A;
+  --cyan:   #00695C;
+
+  --text1: #000000;
+  --text2: #1A1A1A;
+  --text3: #333333;
+  --text4: #555555;
+
+  --shadow: 0 1px 4px rgba(0,0,0,0.08);
+  --radius: 12px;
 }
-section[data-testid="stSidebar"]::before{
-  content:"";position:absolute;top:0;left:0;right:0;height:3px;
-  background:linear-gradient(90deg,var(--blue),var(--blue-l));
+
+html, body, [class*="css"] {
+  font-family: 'Inter', sans-serif !important;
+  background: #FFFFFF !important;
+  color: #000000 !important;
+}
+.stApp { background: #FFFFFF !important; }
+
+/* ── Sidebar ── */
+section[data-testid="stSidebar"] {
+  background: #F8F9FA !important;
+  border-right: 1px solid #E0E0E0 !important;
+  box-shadow: none !important;
 }
 
 /* ── Metric Cards ── */
-.metric-card{
-  background:var(--card);
-  border:1px solid var(--border);
-  border-radius:var(--radius);
-  padding:18px 20px;
-  box-shadow:var(--shadow);
-  position:relative;overflow:hidden;
-  transition:box-shadow 0.2s ease,border-color 0.2s ease;
-  cursor:default;
+.metric-card {
+  border: 1px solid #E0E0E0;
+  border-radius: var(--radius);
+  padding: 20px 22px;
+  box-shadow: var(--shadow);
+  position: relative;
+  transition: box-shadow 0.2s;
+  cursor: default;
 }
-.metric-card::after{
-  content:"";position:absolute;top:0;left:0;right:0;height:3px;
-  border-radius:var(--radius) var(--radius) 0 0;
+.metric-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.12); }
+
+/* Tinted card backgrounds per color class */
+.metric-card.amber  { background: var(--card-amber); }
+.metric-card.teal   { background: var(--card-teal); }
+.metric-card.coral  { background: var(--card-red); }
+.metric-card.sky    { background: var(--card-blue); }
+.metric-card.lav    { background: var(--card-purple); }
+.metric-card.mint   { background: var(--card-green); }
+
+/* remove old top stripe */
+.metric-card::after { display: none !important; }
+.metric-card::before { display: none !important; }
+
+.metric-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  color: #555555;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+  margin-bottom: 10px;
+  font-family: 'JetBrains Mono', monospace !important;
 }
-.metric-card.amber::after{background:var(--amber);}
-.metric-card.teal::after{background:var(--cyan);}
-.metric-card.coral::after{background:var(--red);}
-.metric-card.sky::after{background:var(--blue);}
-.metric-card.lav::after{background:var(--purple);}
-.metric-card.mint::after{background:var(--green);}
-.metric-card:hover{
-  box-shadow:var(--shadow-md);
-  border-color:var(--border2);
+.metric-value {
+  font-size: 2.1rem;
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: #000000;
 }
-.metric-label{
-  font-size:0.68rem;text-transform:uppercase;color:var(--text3);
-  letter-spacing:0.1em;font-weight:600;margin-bottom:8px;
-  font-family:'JetBrains Mono',monospace!important;
-}
-.metric-value{
-  font-size:1.9rem;font-weight:800;line-height:1.1;
-  letter-spacing:-0.02em;color:var(--text1);
-}
-.metric-sub{
-  font-size:0.68rem;color:#444444;margin-top:5px;
-  font-family:'JetBrains Mono',monospace!important;
+/* colored values per card type */
+.metric-card.sky    .metric-value { color: var(--blue); }
+.metric-card.mint   .metric-value { color: var(--green); }
+.metric-card.amber  .metric-value { color: var(--amber); }
+.metric-card.coral  .metric-value { color: var(--red); }
+.metric-card.lav    .metric-value { color: var(--purple); }
+.metric-card.teal   .metric-value { color: var(--cyan); }
+
+.metric-sub {
+  font-size: 0.7rem;
+  color: #555555;
+  margin-top: 5px;
+  font-family: 'JetBrains Mono', monospace !important;
 }
 
 /* ── Section Headers ── */
-.section-header{display:flex;align-items:center;gap:10px;margin:24px 0 14px;}
-.section-header-line{flex:1;height:1px;background:var(--border);}
-.section-title{
-  font-weight:700;font-size:0.72rem;text-transform:uppercase;
-  letter-spacing:0.12em;color:#333333;
-  font-family:'JetBrains Mono',monospace!important;
+.section-header { display:flex; align-items:center; gap:10px; margin:28px 0 16px; }
+.section-header-line { flex:1; height:1px; background:#E0E0E0; }
+.section-title {
+  font-weight: 700;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #333333;
+  font-family: 'JetBrains Mono', monospace !important;
 }
 
 /* ── Page Titles ── */
-.page-title{
-  font-family:'Inter',sans-serif!important;
-  font-size:1.9rem;font-weight:800;
-  letter-spacing:-0.025em;line-height:1.2;
-  margin-bottom:4px;padding:14px 0 4px;
-  color:#000000;
+.page-title {
+  font-family: 'Inter', sans-serif !important;
+  font-size: 2rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+  color: #000000 !important;
+  margin-bottom: 4px;
+  padding: 16px 0 4px;
 }
-.page-subtitle{
-  color:#333333;font-size:0.73rem;
-  font-family:'JetBrains Mono',monospace!important;
-  margin-bottom:14px;letter-spacing:0.02em;
+.page-subtitle {
+  color: #555555;
+  font-size: 0.78rem;
+  font-family: 'JetBrains Mono', monospace !important;
+  margin-bottom: 16px;
+  letter-spacing: 0.02em;
 }
 
 /* ── Badges ── */
-.badge{
-  display:inline-flex;align-items:center;gap:4px;
-  padding:2px 9px;border-radius:4px;
-  font-size:0.64rem;font-weight:600;letter-spacing:0.05em;
-  border:1px solid;font-family:'JetBrains Mono',monospace!important;margin:2px;
+.badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 10px; border-radius: 6px;
+  font-size: 0.67rem; font-weight: 600; letter-spacing: 0.04em;
+  border: 1px solid;
+  font-family: 'JetBrains Mono', monospace !important;
+  margin: 2px;
 }
-.badge-amber{background:#FEF3C7;color:#92400E;border-color:#FCD34D;}
-.badge-teal{background:#CFFAFE;color:#155E75;border-color:#67E8F9;}
-.badge-coral{background:#FEE2E2;color:#991B1B;border-color:#FCA5A5;}
-.badge-sky{background:#DBEAFE;color:#1E40AF;border-color:#93C5FD;}
-.badge-lav{background:#EDE9FE;color:#5B21B6;border-color:#C4B5FD;}
-.badge-mint{background:#DCFCE7;color:#166534;border-color:#86EFAC;}
+.badge-amber  { background:#FFF8E1; color:#E65100; border-color:#FFCC80; }
+.badge-teal   { background:#E0F7FA; color:#00695C; border-color:#80DEEA; }
+.badge-coral  { background:#FFEBEE; color:#C62828; border-color:#EF9A9A; }
+.badge-sky    { background:#EBF3FF; color:#1565C0; border-color:#90CAF9; }
+.badge-lav    { background:#F3E5F5; color:#6A1B9A; border-color:#CE93D8; }
+.badge-mint   { background:#E8F5E9; color:#2E7D32; border-color:#A5D6A7; }
 
 /* ── Info Banners ── */
-.info-banner{
-  border-radius:var(--radius);padding:10px 14px;margin:8px 0 14px;
-  font-size:0.79rem;border:1px solid;position:relative;overflow:hidden;
+.info-banner {
+  border-radius: var(--radius); padding: 12px 16px; margin: 8px 0 14px;
+  font-size: 0.82rem; border: 1px solid; position:relative; overflow:hidden;
 }
-.info-banner::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;}
-.banner-teal{background:#F0FDFA;border-color:#99F6E4;color:var(--text2);}
-.banner-teal::before{background:var(--cyan);}
-.banner-amber{background:#FFFBEB;border-color:#FDE68A;color:var(--text2);}
-.banner-amber::before{background:var(--amber);}
-.banner-coral{background:#FFF1F2;border-color:#FECDD3;color:var(--text2);}
-.banner-coral::before{background:var(--red);}
-.banner-mint{background:#F0FDF4;border-color:#BBF7D0;color:var(--text2);}
-.banner-mint::before{background:var(--green);}
+.info-banner::before { content:""; position:absolute; left:0; top:0; bottom:0; width:4px; }
+.banner-teal   { background:#E0F7FA; border-color:#80DEEA; color:#004D40; }
+.banner-teal::before   { background:#00897B; }
+.banner-amber  { background:#FFF8E1; border-color:#FFCC80; color:#E65100; }
+.banner-amber::before  { background:#FB8C00; }
+.banner-coral  { background:#FFEBEE; border-color:#EF9A9A; color:#B71C1C; }
+.banner-coral::before  { background:#E53935; }
+.banner-mint   { background:#E8F5E9; border-color:#A5D6A7; color:#1B5E20; }
+.banner-mint::before   { background:#43A047; }
 
 /* ── About Card ── */
-.about-card{
-  background:var(--card);
-  border:1px solid var(--border);border-radius:var(--radius);
-  padding:22px 26px;margin-bottom:20px;position:relative;overflow:hidden;
-  box-shadow:var(--shadow);
+.about-card {
+  background: #F8F9FA;
+  border: 1px solid #E0E0E0;
+  border-radius: var(--radius);
+  padding: 22px 26px; margin-bottom: 20px;
+  box-shadow: var(--shadow);
 }
-.about-card::before{display:none;}
+.about-card::before { display:none; }
 
 /* ── Model Quality Cards ── */
-.model-quality-card{
-  border-radius:var(--radius);padding:14px 18px;margin:10px 0 8px;
-  border:1px solid;position:relative;overflow:hidden;
-  font-family:'JetBrains Mono',monospace;
-  background:var(--card);
-  color:#000000;
+.model-quality-card {
+  border-radius: var(--radius); padding: 16px 20px; margin: 10px 0 8px;
+  border: 1px solid; position:relative; overflow:hidden;
+  font-family: 'JetBrains Mono', monospace;
+  color: #000000;
 }
-.model-quality-card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;}
-.mqc-excellent{border-color:#BBF7D0;color:#000000;}
-.mqc-excellent::before{background:var(--green);}
-.mqc-good{border-color:#BFDBFE;color:#000000;}
-.mqc-good::before{background:var(--blue);}
-.mqc-acceptable{border-color:#FDE68A;color:#000000;}
-.mqc-acceptable::before{background:var(--amber);}
-.mqc-poor{border-color:#FECACA;color:#000000;}
-.mqc-poor::before{background:var(--red);}
+.model-quality-card::before { content:""; position:absolute; left:0; top:0; bottom:0; width:4px; }
+.mqc-excellent  { background:#E8F5E9; border-color:#A5D6A7; color:#000000; }
+.mqc-excellent::before  { background:#2E7D32; }
+.mqc-good       { background:#EBF3FF; border-color:#90CAF9; color:#000000; }
+.mqc-good::before       { background:#1565C0; }
+.mqc-acceptable { background:#FFF8E1; border-color:#FFCC80; color:#000000; }
+.mqc-acceptable::before { background:#FB8C00; }
+.mqc-poor       { background:#FFEBEE; border-color:#EF9A9A; color:#000000; }
+.mqc-poor::before       { background:#E53935; }
 
 /* ── Alert Items ── */
-.alert-item{
-  border-radius:var(--radius);padding:8px 12px;margin:4px 0;
-  font-size:0.75rem;border-left:3px solid;
-  background:var(--surface);
-  font-family:'JetBrains Mono',monospace!important;
-  transition:background 0.15s ease;
+.alert-item {
+  border-radius: 8px; padding: 9px 13px; margin: 4px 0;
+  font-size: 0.76rem; border-left: 4px solid;
+  background: #F8F9FA;
+  font-family: 'JetBrains Mono', monospace !important;
+  color: #000000;
+  transition: background 0.15s;
 }
-.alert-item:hover{background:var(--bg2);}
-.alert-critical{border-color:var(--red);}
-.alert-warn{border-color:var(--amber);}
-.alert-ok{border-color:var(--green);}
+.alert-item:hover { background: #FFFFFF; }
+.alert-critical { border-color: #E53935; }
+.alert-warn     { border-color: #FB8C00; }
+.alert-ok       { border-color: #43A047; }
 
 /* ── Chat Bubbles ── */
-.chat-user-bubble{
-  background:#EFF6FF;
-  border:1px solid #BFDBFE;
-  border-radius:8px 8px 2px 8px;
-  padding:10px 14px;font-size:0.85rem;margin-left:20%;
-  color:var(--text1);
+.chat-user-bubble {
+  background: #EBF3FF;
+  border: 1px solid #90CAF9;
+  border-radius: 12px 12px 4px 12px;
+  padding: 10px 14px; font-size: 0.86rem; margin-left: 18%;
+  color: #000000;
 }
-.chat-ai-bubble{
-  background:var(--card);
-  border:1px solid var(--border);
-  border-radius:8px 8px 8px 2px;
-  padding:12px 16px;font-size:0.85rem;
-  color:var(--text2);line-height:1.7;margin-right:10%;
-  box-shadow:var(--shadow);
+.chat-ai-bubble {
+  background: #F8F9FA;
+  border: 1px solid #E0E0E0;
+  border-radius: 12px 12px 12px 4px;
+  padding: 12px 16px; font-size: 0.86rem;
+  color: #1A1A1A; line-height: 1.7; margin-right: 10%;
+  box-shadow: var(--shadow);
 }
 
 /* ── Tabs ── */
-.stTabs [data-baseweb="tab-list"]{
-  background:var(--surface)!important;border-radius:var(--radius)!important;
-  padding:4px!important;gap:2px!important;
-  border:1px solid var(--border)!important;
+.stTabs [data-baseweb="tab-list"] {
+  background: #F1F3F4 !important;
+  border-radius: 10px !important;
+  padding: 4px !important; gap: 2px !important;
+  border: 1px solid #E0E0E0 !important;
 }
-.stTabs [data-baseweb="tab"]{
-  background:transparent!important;border-radius:4px!important;
-  color:var(--text3)!important;
-  font-family:'JetBrains Mono',monospace!important;
-  font-size:0.72rem!important;font-weight:500!important;
-  padding:7px 14px!important;transition:all 0.15s!important;
+.stTabs [data-baseweb="tab"] {
+  background: transparent !important;
+  border-radius: 7px !important;
+  color: #555555 !important;
+  font-family: 'Inter', sans-serif !important;
+  font-size: 0.78rem !important;
+  font-weight: 500 !important;
+  padding: 8px 16px !important;
+  transition: all 0.15s !important;
 }
-.stTabs [aria-selected="true"]{
-  background:var(--card)!important;
-  color:var(--blue)!important;
-  box-shadow:var(--shadow)!important;
-  font-weight:600!important;
+.stTabs [aria-selected="true"] {
+  background: #FFFFFF !important;
+  color: #000000 !important;
+  font-weight: 700 !important;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.1) !important;
 }
 
 /* ── Buttons ── */
-.stButton>button{
-  background:var(--card)!important;
-  color:var(--text2)!important;
-  border:1px solid var(--border2)!important;
-  border-radius:var(--radius)!important;
-  font-weight:500!important;font-size:0.76rem!important;
-  font-family:'JetBrains Mono',monospace!important;
-  transition:all 0.15s!important;box-shadow:var(--shadow)!important;
+.stButton > button {
+  background: #FFFFFF !important;
+  color: #000000 !important;
+  border: 1px solid #CCCCCC !important;
+  border-radius: 8px !important;
+  font-weight: 600 !important;
+  font-size: 0.78rem !important;
+  font-family: 'Inter', sans-serif !important;
+  transition: all 0.15s !important;
+  box-shadow: var(--shadow) !important;
 }
-.stButton>button:hover{
-  background:var(--surface)!important;
-  color:var(--text1)!important;
-  border-color:var(--blue)!important;
-  box-shadow:var(--shadow-md)!important;
+.stButton > button:hover {
+  background: #F1F3F4 !important;
+  border-color: #1565C0 !important;
+  color: #1565C0 !important;
 }
-
-/* ── Streamlit overrides ── */
-.stDataFrame{border:1px solid var(--border)!important;border-radius:var(--radius)!important;}
-.stSelectbox>div>div{background:var(--card)!important;border-color:var(--border2)!important;}
-.stSlider .stSlider>div{color:var(--text1)!important;}
 
 /* ── Scrollbar ── */
-::-webkit-scrollbar{width:5px;height:5px;}
-::-webkit-scrollbar-track{background:var(--bg);}
-::-webkit-scrollbar-thumb{background:var(--border2);border-radius:99px;}
-::-webkit-scrollbar-thumb:hover{background:var(--text4);}
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: #F8F9FA; }
+::-webkit-scrollbar-thumb { background: #CCCCCC; border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: #AAAAAA; }
 
-footer{visibility:hidden;}#MainMenu{visibility:hidden;}
+footer { visibility: hidden; }
+#MainMenu { visibility: hidden; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -253,19 +301,19 @@ import requests as _requests
 
 DATA_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "india_ecommerce_orders.csv")
 
-COLORS   = ["#2563EB","#16A34A","#D97706","#DC2626","#7C3AED","#0E7490"]
-COLORS_S = ["#3B82F6","#22C55E","#F59E0B","#EF4444","#8B5CF6","#06B6D4"]
+COLORS   = ["#1565C0","#2E7D32","#E65100","#C62828","#6A1B9A","#00695C"]
+COLORS_S = ["#1976D2","#388E3C","#F57C00","#D32F2F","#7B1FA2","#00796B"]
 
 def CD():
     return dict(
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(color="#64748B", family="JetBrains Mono, monospace", size=11),
+        font=dict(color="#333333", family="Inter, sans-serif", size=11),
         margin=dict(l=8,r=8,t=34,b=14)
     )
 
-def gY(): return dict(showgrid=True, gridcolor="rgba(0,0,0,0.06)", zeroline=False, tickcolor="#64748B")
-def gX(): return dict(showgrid=False, zeroline=False, tickcolor="#64748B")
-def leg(): return dict(bgcolor="rgba(255,255,255,0.95)", bordercolor="rgba(0,0,0,0.08)", borderwidth=1, font=dict(color="#334155",size=10))
+def gY(): return dict(showgrid=True, gridcolor="rgba(0,0,0,0.07)", zeroline=False, tickcolor="#555555")
+def gX(): return dict(showgrid=False, zeroline=False, tickcolor="#555555")
+def leg(): return dict(bgcolor="rgba(255,255,255,0.95)", bordercolor="#E0E0E0", borderwidth=1, font=dict(color="#333333",size=10))
 
 def kpi(col, label, value, cls="amber", sub=""):
     col.markdown(f"""<div class='metric-card {cls}'>
@@ -349,7 +397,7 @@ def render_model_quality(res):
         </div>
       </div>
       <div style='font-size:0.8rem;color:#8a9dc0;line-height:1.6;border-top:1px solid rgba(255,255,255,0.05);padding-top:9px'>
-        📋 <b style='color:#f0f4ff'>Interpretation:</b> {explanation}
+        📋 <b style='color:#000000'>Interpretation:</b> {explanation}
       </div>
       <div style='margin-top:10px;display:flex;gap:18px;font-size:0.7rem;color:#4a5e7a'>
         <span>NRMSE &lt;10% → Excellent &nbsp;|&nbsp; &lt;20% → Good &nbsp;|&nbsp; &lt;25% → Acceptable &nbsp;|&nbsp; ≥25% → Weak</span>
@@ -734,7 +782,7 @@ def page_chatbot():
     ops = ops.copy()
     ops["YM"] = ops["Order_Date"].dt.to_period("M")
 
-    st.markdown("<div class='page-title' style='color:#5ba4e5'>Decision Intelligence Chatbot</div>", unsafe_allow_html=True)
+    st.markdown("<div class='page-title' style='color:#000000'>Decision Intelligence Chatbot</div>", unsafe_allow_html=True)
     st.markdown("<div class='page-subtitle'>LLaMA-3.3-70B via Groq · Full supply chain context · Multi-turn</div>", unsafe_allow_html=True)
     st.markdown("""<div style='margin-bottom:16px'>
       <span class='badge badge-amber'>⬆ Demand</span>
@@ -771,9 +819,9 @@ def page_chatbot():
     key_ok = bool(api_key and len(api_key.strip()) > 10)
     if not key_ok:
         st.markdown("""<div class='info-banner banner-amber'>
-          <b style='color:#f5a623'>⚠️ Groq API Key Required:</b>
+          <b style='color:#000000'>⚠️ Groq API Key Required:</b>
           Go to the left sidebar → 🤖 Groq AI Config and paste your key (starts with <code>gsk_</code>).
-          Get one free at <b style='color:#56e0a0'>console.groq.com</b> — no credit card needed.
+          Get one free at <b style='color:#000000'>console.groq.com</b> — no credit card needed.
         </div>""", unsafe_allow_html=True)
 
     if "chat_msgs" not in st.session_state:
@@ -820,8 +868,8 @@ def page_chatbot():
             st.markdown(f"<div style='margin:10px 0'><div class='chat-user-bubble'>{content}</div></div>", unsafe_allow_html=True)
         else:
             safe = content.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;")
-            safe = _re.sub(r'\*\*(.+?)\*\*', r'<span style="color:#f0f4ff;font-weight:700">\1</span>', safe)
-            safe = _re.sub(r'\*(.+?)\*',     r'<span style="color:#000000;font-style:italic">\1</span>', safe)
+            safe = _re.sub(r'\*\*(.+?)\*\*', r'<span style="color:#000000;font-weight:700">\1</span>', safe)
+            safe = _re.sub(r'\*(.+?)\*',     r'<span style="color:#8a9dc0;font-style:italic">\1</span>', safe)
             html_parts = []
             for line in safe.split("\n"):
                 line = line.strip()
@@ -829,11 +877,11 @@ def page_chatbot():
                     html_parts.append("<div style='height:5px'></div>")
                 elif _re.match(r"^[▸\-•] ", line):
                     body = line[2:].strip()
-                    html_parts.append(f"<div style='display:flex;gap:8px;margin:5px 0'><span style='color:#f5a623;flex-shrink:0;margin-top:2px'>▸</span><span style='color:#c8d4e8;line-height:1.65'>{body}</span></div>")
+                    html_parts.append(f"<div style='display:flex;gap:8px;margin:5px 0'><span style='color:#000000;flex-shrink:0;margin-top:2px'>▸</span><span style='color:#c8d4e8;line-height:1.65'>{body}</span></div>")
                 elif line.startswith("**") and line.endswith("**"):
-                    html_parts.append(f"<div style='color:#f0f4ff;font-weight:700;margin:8px 0 3px'>{line[2:-2]}</div>")
+                    html_parts.append(f"<div style='color:#000000;font-weight:700;margin:8px 0 3px'>{line[2:-2]}</div>")
                 else:
-                    html_parts.append(f"<div style='color:#000000;line-height:1.65;margin:3px 0'>{line}</div>")
+                    html_parts.append(f"<div style='color:#8a9dc0;line-height:1.65;margin:3px 0'>{line}</div>")
             st.markdown(f"<div style='margin:10px 0'><div class='chat-ai-bubble'>{chr(10).join(html_parts)}</div></div>", unsafe_allow_html=True)
 
     sp()
@@ -868,7 +916,7 @@ def page_chatbot():
                 🔴 Critical SKUs — Reorder NOW</div>""", unsafe_allow_html=True)
             inv = compute_inventory()
             for _, r in inv[inv["Status"]=="🔴 Critical"][["Product_Name","Category","Current_Stock","ROP"]].head(5).iterrows():
-                st.markdown(f"<div class='alert-item alert-critical'><b style='color:#f0f4ff'>{r['Product_Name']}</b> <span style='color:#333333'>[{r['Category']}]</span><br><span style='color:#333333;font-size:0.71rem'>Stock: {r['Current_Stock']} · ROP: {r['ROP']}</span></div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='alert-item alert-critical'><b style='color:#000000'>{r['Product_Name']}</b> <span style='color:#4a5e7a'>[{r['Category']}]</span><br><span style='color:#4a5e7a;font-size:0.71rem'>Stock: {r['Current_Stock']} · ROP: {r['ROP']}</span></div>", unsafe_allow_html=True)
         with al2:
             st.markdown("""<div style='font-size:0.74rem;font-weight:700;color:#f5a623;
                 letter-spacing:0.06em;text-transform:uppercase;font-family:DM Mono,monospace;margin-bottom:10px'>
@@ -876,7 +924,7 @@ def page_chatbot():
             _, _, opt, _ = compute_logistics()
             for _, r in opt.sort_values("Potential_Saving", ascending=False).head(5).iterrows():
                 if r["Potential_Saving"] > 0:
-                    st.markdown(f"<div class='alert-item alert-warn'><b style='color:#f0f4ff'>{r['Region']}</b> → <b style='color:#56e0a0'>{r['Optimal_Carrier']}</b><br><span style='color:#333333;font-size:0.71rem'>Save ₹{r['Potential_Saving']:,.0f} ({r['Saving_Pct']:.1f}%)</span></div>", unsafe_allow_html=True)
+                    st.markdown(f"<div class='alert-item alert-warn'><b style='color:#000000'>{r['Region']}</b> → <b style='color:#000000'>{r['Optimal_Carrier']}</b><br><span style='color:#4a5e7a;font-size:0.71rem'>Save ₹{r['Potential_Saving']:,.0f} ({r['Saving_Pct']:.1f}%)</span></div>", unsafe_allow_html=True)
 
         sp()
         sec("Revenue Forecast — Next 3 Months", "📈")
@@ -900,18 +948,19 @@ def page_overview():
     ops = ops.copy()
     ops["YM"] = ops["Order_Date"].dt.to_period("M")
 
-    st.markdown("""<div class='page-title' style='color:#000000;'>OmniFlow D2D</div>
+    st.markdown("""<div class='page-title' style='background:linear-gradient(135deg,#f5a623,#ff6b6b,#2ed8c3);
+         -webkit-background-clip:text;-webkit-text-fill-color:transparent'>OmniFlow D2D</div>
     <div class='page-subtitle'>Predictive Logistics & AI-Powered Demand-to-Delivery Intelligence · India</div>
     """, unsafe_allow_html=True)
 
     st.markdown("""<div class='about-card'>
-      <div style='font-size:1.0rem;font-weight:700;color:#000000;margin-bottom:10px'>About This Platform</div>
-      <p style='color:#333333;line-height:1.85;margin:0;font-size:0.86rem'>
-        <b style='color:#000000;font-weight:700'>OmniFlow</b> is a full-stack supply-chain intelligence platform built on
-        <b style='color:#f0f4ff'>5,200 D2D orders</b> across India (Jan 2024–Dec 2025).
+      <div style='font-size:1.0rem;font-weight:700;color:#f0f4ff;margin-bottom:10px'>About This Platform</div>
+      <p style='color:#8a9dc0;line-height:1.85;margin:0;font-size:0.86rem'>
+        <b style='color:#000000'>OmniFlow</b> is a full-stack supply-chain intelligence platform built on
+        <b style='color:#000000'>5,200 D2D orders</b> across India (Jan 2024–Dec 2025).
         Modules are causally connected: Demand signals drive Inventory EOQ/SS,
         which drives Production targets, which informs Logistics optimisation.
-        All forecasting uses <b style='color:#2ed8c3'>Ridge Regression with structural-break detection</b>.
+        All forecasting uses <b style='color:#000000'>Ridge Regression with structural-break detection</b>.
         Revenue KPIs are net of returns. Geographic data is corrected (Pune → Maharashtra).
       </p>
       <div style='margin-top:14px'>
@@ -1008,19 +1057,19 @@ def page_overview():
       <div style='background:var(--deep);border-radius:12px;padding:11px 17px;font-weight:700;font-size:0.78rem;
            text-align:center;min-width:95px;border:1px solid rgba(245,166,35,0.4);color:#f5a623;font-family:DM Mono,monospace'>
            Demand<span style='display:block;font-size:0.58rem;font-weight:400;color:#4a5e7a;margin-top:3px'>Forecast</span></div>
-      <div style='color:#333333;font-size:1.2rem;padding:0 8px;opacity:0.5'>→</div>
+      <div style='color:#4a5e7a;font-size:1.2rem;padding:0 8px;opacity:0.5'>→</div>
       <div style='background:var(--deep);border-radius:12px;padding:11px 17px;font-weight:700;font-size:0.78rem;
            text-align:center;min-width:95px;border:1px solid rgba(86,224,160,0.4);color:#56e0a0;font-family:DM Mono,monospace'>
            Inventory<span style='display:block;font-size:0.58rem;font-weight:400;color:#4a5e7a;margin-top:3px'>EOQ + ROP</span></div>
-      <div style='color:#333333;font-size:1.2rem;padding:0 8px;opacity:0.5'>→</div>
+      <div style='color:#4a5e7a;font-size:1.2rem;padding:0 8px;opacity:0.5'>→</div>
       <div style='background:var(--deep);border-radius:12px;padding:11px 17px;font-weight:700;font-size:0.78rem;
            text-align:center;min-width:95px;border:1px solid rgba(155,135,212,0.4);color:#9b87d4;font-family:DM Mono,monospace'>
            Production<span style='display:block;font-size:0.58rem;font-weight:400;color:#4a5e7a;margin-top:3px'>6-Month Plan</span></div>
-      <div style='color:#333333;font-size:1.2rem;padding:0 8px;opacity:0.5'>→</div>
+      <div style='color:#4a5e7a;font-size:1.2rem;padding:0 8px;opacity:0.5'>→</div>
       <div style='background:var(--deep);border-radius:12px;padding:11px 17px;font-weight:700;font-size:0.78rem;
            text-align:center;min-width:95px;border:1px solid rgba(255,107,107,0.4);color:#ff6b6b;font-family:DM Mono,monospace'>
            Logistics<span style='display:block;font-size:0.58rem;font-weight:400;color:#4a5e7a;margin-top:3px'>+ Cost Opt</span></div>
-      <div style='color:#333333;font-size:1.2rem;padding:0 8px;opacity:0.5'>→</div>
+      <div style='color:#4a5e7a;font-size:1.2rem;padding:0 8px;opacity:0.5'>→</div>
       <div style='background:var(--deep);border-radius:12px;padding:11px 17px;font-weight:700;font-size:0.78rem;
            text-align:center;min-width:95px;border:1px solid rgba(91,164,229,0.4);color:#5ba4e5;font-family:DM Mono,monospace'>
            AI Chatbot<span style='display:block;font-size:0.58rem;font-weight:400;color:#4a5e7a;margin-top:3px'>Groq LLaMA</span></div>
@@ -1035,7 +1084,7 @@ def page_demand():
     ops = ops.copy()
     ops["YM"] = ops["Order_Date"].dt.to_period("M")
 
-    st.markdown("<div class='page-title' style='color:#f5a623'>Demand Forecasting</div>", unsafe_allow_html=True)
+    st.markdown("<div class='page-title' style='color:#000000'>Demand Forecasting</div>", unsafe_allow_html=True)
     st.markdown("<div class='page-subtitle'>Ridge Regression · Structural Break · Fourier Seasonality · RMSE / NRMSE / R² / Accuracy</div>", unsafe_allow_html=True)
     st.markdown("""<div style='margin-bottom:16px'>
       <span class='badge badge-amber'>OUTPUT → Inventory</span>
@@ -1044,7 +1093,7 @@ def page_demand():
       <span class='badge badge-sky'>→ Chatbot</span>
     </div>""", unsafe_allow_html=True)
 
-    banner("""<b style='color:#f5a623'>Model:</b> Ridge Regression with trend (t, t²),
+    banner("""<b style='color:#000000'>Model:</b> Ridge Regression with trend (t, t²),
     Fourier seasonal terms (2 harmonics), structural-break dummy for business scale-up,
     and trend×regime interaction. 4-month hold-out evaluation. 90% CI from residual std.""", "amber")
 
@@ -1161,7 +1210,7 @@ def page_inventory():
     ops = ops.copy()
     ops["YM"] = ops["Order_Date"].dt.to_period("M")
 
-    st.markdown("<div class='page-title' style='color:#56e0a0'>Inventory Optimisation</div>", unsafe_allow_html=True)
+    st.markdown("<div class='page-title' style='color:#000000'>Inventory Optimisation</div>", unsafe_allow_html=True)
     st.markdown("<div class='page-subtitle'>Wilson EOQ · Safety Stock Formula · Simulated (s,Q) Policy · 6-Month Stock Forecast</div>", unsafe_allow_html=True)
     st.markdown("""<div style='margin-bottom:16px'>
       <span class='badge badge-amber'>⬆ from Demand Forecast</span>
@@ -1169,7 +1218,7 @@ def page_inventory():
       <span class='badge badge-sky'>→ Chatbot</span>
     </div>""", unsafe_allow_html=True)
 
-    banner("""<b style='color:#2ed8c3'>Methodology:</b>
+    banner("""<b style='color:#000000'>Methodology:</b>
     EOQ = √(2DS / hC) (Wilson formula).
     Safety Stock = z × σ_daily × √LT where σ_daily = monthly_std / √30.
     Stock levels simulated using (s,Q) policy over actual demand history.""", "teal")
@@ -1241,10 +1290,10 @@ def page_inventory():
     sp()
     sec("6-Month Stock Level Forecast — Depletion & Replenishment Simulation", "🔮")
     banner("""
-    <b style='color:#2ed8c3'>How this works:</b>
+    <b style='color:#000000'>How this works:</b>
     Starting from current simulated stock, each month's forecasted demand is subtracted.
-    When stock hits the <b style='color:#f5a623'>Reorder Point (ROP)</b>, an EOQ batch is triggered automatically (📦).
-    Stock never falls below <b style='color:#ff6b6b'>Safety Stock (SS)</b>.
+    When stock hits the <b style='color:#000000'>Reorder Point (ROP)</b>, an EOQ batch is triggered automatically (📦).
+    Stock never falls below <b style='color:#000000'>Safety Stock (SS)</b>.
     This shows future vulnerability <i>before</i> it becomes a stockout.
     """, "teal")
 
@@ -1392,17 +1441,17 @@ def page_inventory():
             # Status warning inline
             if n_crit_cat > 0:
                 st.markdown(f"""<div class='info-banner banner-coral'>
-                  🔴 <b style='color:#ff6b6b'>{n_crit_cat} Critical SKU(s)</b> in this category are below Safety Stock right now.
+                  🔴 <b style='color:#000000'>{n_crit_cat} Critical SKU(s)</b> in this category are below Safety Stock right now.
                   Immediate replenishment required — do not wait for the forecast window.
                 </div>""", unsafe_allow_html=True)
             elif n_low_cat > 0:
                 st.markdown(f"""<div class='info-banner banner-amber'>
-                  🟡 <b style='color:#f5a623'>{n_low_cat} SKU(s)</b> approaching ROP.
+                  🟡 <b style='color:#000000'>{n_low_cat} SKU(s)</b> approaching ROP.
                   Place orders this week to avoid stockout within the forecast horizon.
                 </div>""", unsafe_allow_html=True)
             else:
                 st.markdown(f"""<div class='info-banner banner-mint'>
-                  ✅ All SKUs in <b style='color:#56e0a0'>{cat}</b> are currently Adequate.
+                  ✅ All SKUs in <b style='color:#000000'>{cat}</b> are currently Adequate.
                   Monitor the forecast — next reorder triggered at ROP = {avg_rop} units.
                 </div>""", unsafe_allow_html=True)
 
@@ -1423,7 +1472,7 @@ def page_inventory():
 # PAGE — PRODUCTION
 # ═══════════════════════════════════════════════════════════
 def page_production():
-    st.markdown("<div class='page-title' style='color:#9b87d4'>Production Planning</div>", unsafe_allow_html=True)
+    st.markdown("<div class='page-title' style='color:#000000'>Production Planning</div>", unsafe_allow_html=True)
     st.markdown("<div class='page-subtitle'>6-Month Targets · Demand + Inventory Signal-Driven · Capacity Simulation</div>", unsafe_allow_html=True)
     st.markdown("""<div style='margin-bottom:16px'>
       <span class='badge badge-amber'>⬆ from Demand Forecast</span>
@@ -1453,9 +1502,9 @@ def page_production():
     kpi(c4,"Peak Month",       peak.strftime("%b %Y"),"amber","highest demand")
     sp()
 
-    banner(f"""<b style='color:#ff6b6b'>Inventory Signal Active:</b>
+    banner(f"""<b style='color:#000000'>Inventory Signal Active:</b>
     {n_crit} Critical SKUs detected. Production targets include replenishment boost of
-    <b style='color:#f5a623'>+{agg['Crit_Boost'].sum():,.0f} units</b> (critical) and
+    <b style='color:#000000'>+{agg['Crit_Boost'].sum():,.0f} units</b> (critical) and
     +{agg['Low_Boost'].sum():,.0f} units (low stock) over 6 months.""", "coral")
 
     sec("Production Target vs Demand Forecast — Historical + 6-Month Plan")
@@ -1531,7 +1580,7 @@ def page_logistics():
     ops["YM"] = ops["Order_Date"].dt.to_period("M")
     del_df = get_delivered(df)
 
-    st.markdown("<div class='page-title' style='color:#ff6b6b'>Logistics Optimisation</div>", unsafe_allow_html=True)
+    st.markdown("<div class='page-title' style='color:#000000'>Logistics Optimisation</div>", unsafe_allow_html=True)
     st.markdown("<div class='page-subtitle'>Carrier Scorecard · Delay Intel · Cost Optimisation · Warehouse Forecast · Region Analysis</div>", unsafe_allow_html=True)
     st.markdown("""<div style='margin-bottom:16px'>
       <span class='badge badge-amber'>⬆ Demand Forecast</span>
@@ -1544,7 +1593,7 @@ def page_logistics():
 
     with t1:
         sec("Carrier Performance Scorecard")
-        banner("""<b style='color:#5ba4e5'>Performance Score</b> = (1/Delay_Index) × (1−Return_Rate) × (1/Cost_Score). Higher is better.""", "teal")
+        banner("""<b style='color:#000000'>Performance Score</b> = (1/Delay_Index) × (1−Return_Rate) × (1/Cost_Score). Higher is better.""", "teal")
         fig = go.Figure()
         for i, (_, r) in enumerate(carr.iterrows()):
             fig.add_trace(go.Scatter(x=[r["Avg_Days"]], y=[r["Avg_Cost"]], mode="markers+text",
@@ -1616,10 +1665,10 @@ def page_logistics():
         kpi(c3,"Total Saving Potential",f"₹{total_saving:,.0f}","amber","by region switch")
         kpi(c4,"Saving %",              f"{total_saving/total_current*100:.1f}%","sky","of total spend")
         sp()
-        banner(f"""<b style='color:#f5a623'>Optimisation Logic:</b>
+        banner(f"""<b style='color:#000000'>Optimisation Logic:</b>
         For each region, identify the carrier with lowest avg shipping cost.
         Potential saving = (Current Avg − Min Avg) × Orders.
-        Total potential: <b style='color:#56e0a0'>₹{total_saving:,.0f}</b>""", "amber")
+        Total potential: <b style='color:#000000'>₹{total_saving:,.0f}</b>""", "amber")
 
         sec("Region-Level Cost Comparison")
         fig_cost = go.Figure()
@@ -1813,13 +1862,13 @@ sel = st.sidebar.radio("Navigate", list(PAGES.keys()), label_visibility="collaps
 
 st.sidebar.markdown("""<div style='border-top:1px solid rgba(255,255,255,0.06);padding-top:18px;margin-top:8px'>
   <div style='font-family:DM Mono,monospace;font-size:0.62rem;color:#4a5e7a;line-height:2.1;letter-spacing:0.04em'>
-    <span style='color:#000000'>DATA RANGE</span><br>Jan 2024 – Dec 2025<br>
-    <span style='color:#000000'>DATASET</span><br>5,200 orders · 50 SKUs · 🇮🇳 India D2D<br>
-    <span style='color:#000000'>MODEL</span><br>Ridge + Structural Break<br>
-    <span style='color:#000000'>CHATBOT</span><br>Groq LLaMA-3.3-70B<br>
+    <span style='color:#8a9dc0'>DATA RANGE</span><br>Jan 2024 – Dec 2025<br>
+    <span style='color:#8a9dc0'>DATASET</span><br>5,200 orders · 50 SKUs · 🇮🇳 India D2D<br>
+    <span style='color:#8a9dc0'>MODEL</span><br>Ridge + Structural Break<br>
+    <span style='color:#8a9dc0'>CHATBOT</span><br>Groq LLaMA-3.3-70B<br>
   </div>
   <div style='margin-top:14px;font-family:DM Mono,monospace;font-size:0.6rem;color:#4a5e7a'>
-    <span style='color:#f5a623'>PIPELINE</span><br>
+    <span style='color:#000000'>PIPELINE</span><br>
     Demand → Inventory → Production → Logistics → Chatbot
   </div>
 </div>""", unsafe_allow_html=True)
