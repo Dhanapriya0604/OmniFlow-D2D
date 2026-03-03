@@ -75,12 +75,12 @@ section[data-testid="stSidebar"] {
 .metric-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.12); }
 
 /* Tinted card backgrounds per color class */
-.metric-card.amber  { background: var(--card-amber); }
-.metric-card.teal   { background: var(--card-teal); }
-.metric-card.coral  { background: var(--card-red); }
-.metric-card.sky    { background: var(--card-blue); }
-.metric-card.lav    { background: var(--card-purple); }
-.metric-card.mint   { background: var(--card-green); }
+.metric-card.amber  { background: #FFFBEB; border-color: #FDE68A; }
+.metric-card.teal   { background: #ECFEFF; border-color: #A5F3FC; }
+.metric-card.coral  { background: #FFF1F2; border-color: #FECDD3; }
+.metric-card.sky    { background: #EFF6FF; border-color: #BFDBFE; }
+.metric-card.lav    { background: #FAF5FF; border-color: #E9D5FF; }
+.metric-card.mint   { background: #F0FDF4; border-color: #BBF7D0; }
 
 /* remove old top stripe */
 .metric-card::after { display: none !important; }
@@ -311,8 +311,8 @@ def CD():
         margin=dict(l=8,r=8,t=34,b=14)
     )
 
-def gY(): return dict(showgrid=True, gridcolor="rgba(0,0,0,0.07)", zeroline=False, tickcolor="#555555")
-def gX(): return dict(showgrid=False, zeroline=False, tickcolor="#555555")
+def gY(): return dict(showgrid=True, gridcolor="rgba(0,0,0,0.07)", zeroline=False, tickcolor="#333333")
+def gX(): return dict(showgrid=False, zeroline=False, tickcolor="#333333")
 def leg(): return dict(bgcolor="rgba(255,255,255,0.95)", bordercolor="#E0E0E0", borderwidth=1, font=dict(color="#333333",size=10))
 
 def kpi(col, label, value, cls="amber", sub=""):
@@ -1423,7 +1423,7 @@ def page_inventory():
                 legend={**leg(), "orientation": "h", "y": -0.25},
                 title=dict(
                     text=f"{cat} — Avg across {len(cat_inv)} SKUs  |  Starting stock: {avg_stock} units",
-                    font=dict(color="#4a5e7a", size=11)
+                    font=dict(color="#333333", size=11)
                 )
             )
             st.plotly_chart(fig, use_container_width=True, key=f"inv_stock_{cat}")
@@ -1462,7 +1462,7 @@ def page_inventory():
         r = ml_forecast(cat_monthly_qty[cat].values.astype(float), cat_monthly_qty.index, 6)
         if r is None: continue
         clr = COLORS[i % len(COLORS)]
-        fig3.add_trace(go.Scatter(x=r["hist_ds"], y=r["hist_y"], line=dict(color=clr,width=1,dash="dot"), opacity=0.2, showlegend=False))
+        fig3.add_trace(go.Scatter(x=r["hist_ds"], y=r["hist_y"], line=dict(color=clr,width=1,dash="dot"), opacity=0.6, showlegend=False))
         fig3.add_trace(go.Scatter(x=r["fut_ds"], y=r["forecast"], name=cat,
             mode="lines+markers", line=dict(color=clr,width=2.5), marker=dict(size=7,color=clr,line=dict(color="#FFFFFF",width=2))))
     fig3.update_layout(**CD(), height=280, xaxis=gX(), yaxis={**gY(),"title":"Forecast Units"}, legend=leg())
@@ -1543,7 +1543,7 @@ def page_production():
             if cat in cat_hist.columns:
                 fig2.add_trace(go.Scatter(x=cat_hist_ts, y=cat_hist[cat].values,
                     name=f"{cat} (hist)", line=dict(color=clr, width=1.5, dash="dot"),
-                    opacity=0.4, showlegend=False,
+                    opacity=0.6, showlegend=False,
                     hovertemplate=f"<b>{cat}</b><br>%{{x|%b %Y}}<br>%{{y:,.0f}} actual<extra></extra>"))
             # Future bars
             s = plan[plan["Category"]==cat].sort_values("Month_dt")
@@ -1831,7 +1831,7 @@ def page_logistics():
             r = ml_forecast(s.values.astype(float), s.index, 6)
             if r is None: continue
             fig_rf.add_trace(go.Scatter(x=r["hist_ds"], y=r["hist_y"], name=reg,
-                line=dict(color=COLORS[i],width=1.5,dash="solid"), opacity=0.25, showlegend=False))
+                line=dict(color=COLORS[i],width=1.5,dash="solid"), opacity=0.65, showlegend=False))
             fig_rf.add_trace(go.Scatter(x=r["fut_ds"], y=r["forecast"], name=reg,
                 mode="lines+markers", line=dict(color=COLORS[i],width=2.5,dash="dot"),
                 marker=dict(size=8,line=dict(color="#FFFFFF",width=2))))
