@@ -597,39 +597,8 @@ TOP PRODUCTS: {sku_str}"""
 
 import requests as _requests
 
-def call_llm(messages: list, system: str, api_key: str, provider: str) -> str:
-    """Unified caller for Anthropic or Groq."""
-
-    if provider == "anthropic":
-        hdrs = {
-            "x-api-key":         api_key,
-            "anthropic-version": "2023-06-01",
-            "Content-Type":      "application/json",
-        }
-        body = {
-            "model":      "claude-sonnet-4-20250514",
-            "max_tokens": 1800,
-            "system":     system,
-            "messages":   messages,
-        }
-        try:
-            r = _requests.post("https://api.anthropic.com/v1/messages",
-                               headers=hdrs, json=body, timeout=50)
-            if r.status_code == 401:
-                return "❌ Invalid Anthropic API key — check the key in the sidebar."
-            if r.status_code == 429:
-                return "⚠️ Rate-limit reached. Wait a few seconds and retry."
-            if r.status_code != 200:
-                return f"⚠️ Anthropic error ({r.status_code}): {r.text[:300]}"
-            data = r.json()
-            return " ".join(b["text"] for b in data.get("content", [])
-                            if b.get("type") == "text")
-        except _requests.exceptions.Timeout:
-            return "⚠️ Anthropic request timed out — please retry."
-        except Exception as exc:
-            return f"⚠️ Anthropic call failed: {exc}"
-
-    # ── Groq ──────────────────────────────────────────────────
+def call_llm(messages: list, system: str, api_key: str, provider: str = "groq") -> str:
+    """Calls Groq API (LLaMA-3.3-70B) for AI chatbot responses."""
     hdrs = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type":  "application/json",
@@ -641,17 +610,19 @@ def call_llm(messages: list, system: str, api_key: str, provider: str) -> str:
         "messages":    [{"role": "system", "content": system}] + messages,
     }
     try:
-        r = _requests.post("https://api.groq.com/openai/v1/chat/completions",
-                           headers=hdrs, json=body, timeout=50)
+        r = _requests.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers=hdrs, json=body, timeout=50
+        )
         if r.status_code == 401:
-            return "❌ Invalid Groq API key — check the key in the sidebar."
+            return "❌ Invalid Groq API key. Get a free key at console.groq.com"
         if r.status_code == 429:
-            return "⚠️ Groq rate-limit. Wait a moment and retry."
+            return "⚠️ Groq rate-limit reached. Wait a few seconds and retry."
         if r.status_code != 200:
             return f"⚠️ Groq error ({r.status_code}): {r.text[:300]}"
         return r.json()["choices"][0]["message"]["content"]
     except _requests.exceptions.Timeout:
-        return "⚠️ Groq request timed out — please retry."
+        return "⚠️ Request timed out. Please retry."
     except Exception as exc:
         return f"⚠️ Groq call failed: {exc}"
 
@@ -707,32 +678,25 @@ def page_chatbot():
 
     # ── Sidebar — API key config ──────────────────────────────
     with st.sidebar:
-        st.markdown("""<div style='margin-top:18px;border-top:1px solid rgba(255,255,255,0.06);
+        st.markdown("""<div style=\'margin-top:18px;border-top:1px solid rgba(255,255,255,0.06);
             padding-top:16px;font-family:DM Mono,monospace;font-size:0.65rem;
             color:#4a5e7a;letter-spacing:0.08em;text-transform:uppercase;
-            margin-bottom:8px'>🤖 AI Chatbot Config</div>""", unsafe_allow_html=True)
+            margin-bottom:8px\'>🤖 Groq AI Config</div>""", unsafe_allow_html=True)
 
-        provider = st.selectbox(
-            "Provider",
-            ["Anthropic Claude Sonnet", "Groq LLaMA-3.3 (free)"],
-            key="llm_provider"
-        )
-        is_anthropic = provider.startswith("Anthropic")
-        provider_code = "anthropic" if is_anthropic else "groq"
+        provider_code = "groq"
 
         api_key = st.text_input(
-            "Anthropic API Key" if is_anthropic else "Groq API Key",
+            "Groq API Key",
             type="password",
             key="llm_api_key",
-            placeholder="sk-ant-..." if is_anthropic else "gsk_...",
-            help=("Get yours at console.anthropic.com"
-                  if is_anthropic else "Free tier at console.groq.com")
+            placeholder="gsk_...",
+            help="Free API key at console.groq.com — no credit card needed"
         )
-        note = ("console.anthropic.com" if is_anthropic
-                else "console.groq.com — free tier available")
-        st.markdown(f"<div style='font-size:0.6rem;color:#4a5e7a;font-family:DM Mono,"
-                    f"monospace;margin-top:4px'>{note}</div>", unsafe_allow_html=True)
-
+        st.markdown(
+            "<div style=\'font-size:0.6rem;color:#4a5e7a;font-family:DM Mono,"
+            "monospace;margin-top:4px\'>console.groq.com — free tier</div>",
+            unsafe_allow_html=True
+        )
     # ── Build context & system prompt ─────────────────────────
     ctx    = build_context()
     system = build_system_prompt(ctx)
