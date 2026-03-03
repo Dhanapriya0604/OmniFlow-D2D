@@ -200,21 +200,20 @@ def get_delivered(df):
     return df[df["Order_Status"] == "Delivered"].copy()
 
 # ─── ML FORECASTING ─────────────────────────────────────────
+def _to_timestamp_index(idx):
+    """Safely convert any period/datetime index to DatetimeIndex."""
+    if hasattr(idx, 'to_timestamp'):
+        return idx.to_timestamp()
+    return pd.DatetimeIndex(idx)
+
 def build_features(n_hist, n_future, ds_hist, regime_start_idx):
-    all_t = np.arange(n_hist + n_future)
-
-    # Safely extract month values regardless of index type
-    try:
-        ts = ds_hist.to_timestamp()
-    except AttributeError:
-        ts = pd.DatetimeIndex(ds_hist)
-
+    all_t       = np.arange(n_hist + n_future)
+    ts          = _to_timestamp_index(ds_hist)
     hist_months = ts.month.values
     last_month  = int(hist_months[-1])
     fut_months  = np.array([(last_month + i - 1) % 12 + 1 for i in range(1, n_future + 1)])
-    mn = np.concatenate([hist_months, fut_months])
-
-    regime = (all_t >= regime_start_idx).astype(float)
+    mn          = np.concatenate([hist_months, fut_months])
+    regime      = (all_t >= regime_start_idx).astype(float)
     X = np.column_stack([
         all_t, all_t ** 2,
         np.sin(2 * np.pi * mn / 12), np.cos(2 * np.pi * mn / 12),
@@ -264,14 +263,12 @@ def ml_forecast(series_values, ds_index, n_future=6, alpha=0.5):
     X_fut_s  = sc2.transform(X_fut)
     forecast = np.maximum(mdl_full.predict(X_fut_s), 0)
 
-    try:
-        last_dt = ds_index.to_timestamp().iloc[-1]
-    except AttributeError:
-        last_dt = pd.DatetimeIndex(ds_index)[-1]
+    ts_index = _to_timestamp_index(ds_index)
+    last_dt  = ts_index[-1]
     fut_dates = pd.date_range(last_dt + pd.offsets.MonthBegin(1), periods=n_future, freq="MS")
 
     return {
-        "hist_ds":     ds_index.to_timestamp(),
+        "hist_ds":     ts_index,
         "hist_y":      series_values,
         "fitted":      fitted,
         "fut_ds":      fut_dates,
@@ -285,7 +282,7 @@ def ml_forecast(series_values, ds_index, n_future=6, alpha=0.5):
         "resid_std":   resid_std,
         "eval_actual": yte,
         "eval_pred":   ypred_eval,
-        "eval_ds":     ds_index.to_timestamp().iloc[-h:],
+        "eval_ds":     ts_index[-h:],
     }
 
 # ─── INVENTORY ──────────────────────────────────────────────
@@ -293,6 +290,7 @@ def ml_forecast(series_values, ds_index, n_future=6, alpha=0.5):
 def compute_inventory(order_cost=500, hold_pct=0.20, lead_time=7, z=1.65):
     df  = load_data()
     ops = get_ops(df)
+    ops = ops.copy()
     ops["YM"] = ops["Order_Date"].dt.to_period("M")
 
     sku_monthly = (ops.groupby(["SKU_ID","YM"])["Quantity"]
@@ -361,6 +359,7 @@ def compute_production(cap_mult=1.0, buffer_pct=0.15):
     df  = load_data()
     ops = get_ops(df)
     inv = compute_inventory()
+    ops = ops.copy()
     ops["YM"] = ops["Order_Date"].dt.to_period("M")
 
     cat_monthly = ops.groupby(["YM","Category"])["Quantity"].sum().unstack(fill_value=0)
@@ -437,6 +436,7 @@ def compute_logistics():
 def build_context():
     df  = load_data()
     ops = get_ops(df)
+    ops = ops.copy()
     ops["YM"] = ops["Order_Date"].dt.to_period("M")
 
     m_orders = ops.groupby("YM")["Order_ID"].count().rename("v")
@@ -553,6 +553,7 @@ Streamlit dashboard for an India D2D e-commerce business.
 def page_chatbot():
     df  = load_data()
     ops = get_ops(df)
+    ops = ops.copy()
     ops["YM"] = ops["Order_Date"].dt.to_period("M")
 
     st.markdown("<div class='page-title' style='color:#5ba4e5'>Decision Intelligence Chatbot</div>", unsafe_allow_html=True)
@@ -718,6 +719,7 @@ def page_chatbot():
 def page_overview():
     df  = load_data()
     ops = get_ops(df)
+    ops = ops.copy()
     ops["YM"] = ops["Order_Date"].dt.to_period("M")
 
     st.markdown("""<div class='page-title' style='background:linear-gradient(135deg,#f5a623,#ff6b6b,#2ed8c3);
@@ -840,6 +842,7 @@ def page_overview():
 def page_demand():
     df  = load_data()
     ops = get_ops(df)
+    ops = ops.copy()
     ops["YM"] = ops["Order_Date"].dt.to_period("M")
 
     st.markdown("<div class='page-title' style='color:#f5a623'>Demand Forecasting</div>", unsafe_allow_html=True)
@@ -937,9 +940,10 @@ def page_demand():
     if 2024 in yr_rev.index and 2025 in yr_rev.index:
         rows_yoy = []
         for cat in yr_rev.columns:
-            r24 = yr_rev.loc[2024,cat]; r25 = yr_rev.loc[2025,cat]
-            r_proj = proj_next.get(cat,0)
-            g25 = (r25-r24)/r24*100 if r24>0 else 0
+            r24    = yr_rev.loc[2024, cat]
+            r25    = yr_rev.loc[2025, cat]
+            r_proj = proj_next.get(cat, 0)
+            g25    = (r25-r24)/r24*100 if r24>0 else 0
             g_proj = (r_proj-r25)/r25*100 if r25>0 else 0
             rows_yoy.append({"Category":cat,
                 "2024 (₹M)":round(r24/1e6,1), "2025 (₹M)":round(r25/1e6,1),
@@ -962,6 +966,7 @@ def page_demand():
 def page_inventory():
     df  = load_data()
     ops = get_ops(df)
+    ops = ops.copy()
     ops["YM"] = ops["Order_Date"].dt.to_period("M")
 
     st.markdown("<div class='page-title' style='color:#56e0a0'>Inventory Optimisation</div>", unsafe_allow_html=True)
@@ -1069,8 +1074,8 @@ def page_production():
     cap = p1.slider("Capacity Multiplier", 0.5, 2.0, 1.0, 0.1)
     buf = p2.slider("Safety Buffer %", 5, 40, 15) / 100
 
-    plan = compute_production(cap, buf)
-    inv  = compute_inventory()
+    plan   = compute_production(cap, buf)
+    inv    = compute_inventory()
     n_crit = (inv["Status"]=="🔴 Critical").sum()
 
     if plan.empty:
@@ -1138,6 +1143,7 @@ def page_production():
 def page_logistics():
     df     = load_data()
     ops    = get_ops(df)
+    ops    = ops.copy()
     ops["YM"] = ops["Order_Date"].dt.to_period("M")
     del_df = get_delivered(df)
 
