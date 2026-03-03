@@ -202,11 +202,18 @@ def get_delivered(df):
 # ─── ML FORECASTING ─────────────────────────────────────────
 def build_features(n_hist, n_future, ds_hist, regime_start_idx):
     all_t = np.arange(n_hist + n_future)
-    # FIX: use .to_timestamp().month to safely get month from PeriodIndex
-    last_month = ds_hist.to_timestamp().iloc[-1].month
-    hist_months = ds_hist.to_timestamp().month.values
+
+    # Safely extract month values regardless of index type
+    try:
+        ts = ds_hist.to_timestamp()
+    except AttributeError:
+        ts = pd.DatetimeIndex(ds_hist)
+
+    hist_months = ts.month.values
+    last_month  = int(hist_months[-1])
     fut_months  = np.array([(last_month + i - 1) % 12 + 1 for i in range(1, n_future + 1)])
     mn = np.concatenate([hist_months, fut_months])
+
     regime = (all_t >= regime_start_idx).astype(float)
     X = np.column_stack([
         all_t, all_t ** 2,
@@ -257,7 +264,10 @@ def ml_forecast(series_values, ds_index, n_future=6, alpha=0.5):
     X_fut_s  = sc2.transform(X_fut)
     forecast = np.maximum(mdl_full.predict(X_fut_s), 0)
 
-    last_dt   = ds_index.to_timestamp().iloc[-1]
+    try:
+        last_dt = ds_index.to_timestamp().iloc[-1]
+    except AttributeError:
+        last_dt = pd.DatetimeIndex(ds_index)[-1]
     fut_dates = pd.date_range(last_dt + pd.offsets.MonthBegin(1), periods=n_future, freq="MS")
 
     return {
