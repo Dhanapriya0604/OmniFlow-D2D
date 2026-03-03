@@ -15,7 +15,7 @@ st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Outfit:wght@300;400;500;600;700;800;900&display=swap');
 :root{
-  --midnight:#E8E8E8;--deep:#DCDCDC;--surface:#D0D0D0;--panel:#C8C8C8;
+  --midnight:#F7F7F7;--deep:#EFEFEF;--surface:#E8E8E8;--panel:#E0E0E0;
   --border:rgba(0,0,0,0.08);--border2:rgba(0,0,0,0.14);
   --amber:#b86f08;--coral:#c94040;--teal:#167a6e;--sky:#1d5fa8;
   --lav:#5a44a8;--mint:#16804a;
@@ -39,7 +39,7 @@ section[data-testid="stSidebar"]::before{
   background:linear-gradient(90deg,var(--amber),var(--coral),var(--teal));
 }
 .metric-card{
-  background:linear-gradient(135deg,#ffffff 0%,#ebebeb 100%);
+  background:linear-gradient(135deg,#ffffff 0%,#f4f4f4 100%);
   border:1px solid var(--border);border-radius:16px;padding:20px 22px;
   box-shadow:var(--shadow);position:relative;overflow:hidden;
   transition:transform 0.3s ease,box-shadow 0.3s ease;cursor:default;
@@ -116,11 +116,11 @@ section[data-testid="stSidebar"]::before{
   border:1px solid rgba(184,111,8,0.22);border-radius:14px 14px 4px 14px;
   padding:11px 15px;font-size:0.87rem;margin-left:18%;}
 .chat-ai-bubble{
-  background:linear-gradient(135deg,#ffffff,#e8e8e8);
+  background:linear-gradient(135deg,#ffffff,#f4f4f4);
   border:1px solid var(--border2);border-radius:14px 14px 14px 4px;
   padding:13px 17px;font-size:0.87rem;color:var(--text2);line-height:1.7;margin-right:8%;}
 .stTabs [data-baseweb="tab-list"]{
-  background:#d8d8d8!important;border-radius:14px!important;
+  background:#e8e8e8!important;border-radius:14px!important;
   padding:5px 7px!important;gap:5px!important;border:1px solid var(--border)!important;
 }
 .stTabs [data-baseweb="tab"]{
@@ -143,8 +143,8 @@ section[data-testid="stSidebar"]::before{
   transform:translateY(-2px)!important;box-shadow:0 6px 16px rgba(184,111,8,0.16)!important;
 }
 ::-webkit-scrollbar{width:5px;height:5px;}
-::-webkit-scrollbar-track{background:#e0e0e0;}
-::-webkit-scrollbar-thumb{background:#aaaaaa;border-radius:99px;}
+::-webkit-scrollbar-track{background:#f0f0f0;}
+::-webkit-scrollbar-thumb{background:#cccccc;border-radius:99px;}
 footer{visibility:hidden;}#MainMenu{visibility:hidden;}
 @keyframes fadeUp{from{opacity:0;transform:translateY(20px);}to{opacity:1;transform:translateY(0);}}
 .metric-card{animation:fadeUp 0.45s ease both;}
