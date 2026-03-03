@@ -15,31 +15,31 @@ st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Outfit:wght@300;400;500;600;700;800;900&display=swap');
 :root{
-  --midnight:#080e1a;--deep:#0d1829;--surface:#111e30;--panel:#162236;
-  --border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.12);
-  --amber:#f5a623;--coral:#ff6b6b;--teal:#2ed8c3;--sky:#5ba4e5;
-  --lav:#9b87d4;--mint:#56e0a0;
-  --text1:#f0f4ff;--text2:#8a9dc0;--text3:#4a5e7a;
-  --shadow:0 8px 32px rgba(0,0,0,0.4),0 1px 0 rgba(255,255,255,0.05);
+  --midnight:#F5F2EE;--deep:#EDE9E4;--surface:#E8E4DF;--panel:#DEDAD4;
+  --border:rgba(0,0,0,0.08);--border2:rgba(0,0,0,0.14);
+  --amber:#b86f08;--coral:#c94040;--teal:#167a6e;--sky:#1d5fa8;
+  --lav:#5a44a8;--mint:#16804a;
+  --text1:#1c1c1c;--text2:#444444;--text3:#777777;
+  --shadow:0 4px 20px rgba(0,0,0,0.08),0 1px 0 rgba(255,255,255,0.8);
 }
 html,body,[class*="css"]{font-family:'Outfit',sans-serif!important;background:var(--midnight)!important;color:var(--text1)!important;}
 .stApp{
   background:
-    radial-gradient(ellipse 80% 50% at 20% -10%,rgba(91,164,229,0.08) 0%,transparent 60%),
-    radial-gradient(ellipse 60% 40% at 80% 100%,rgba(46,216,195,0.06) 0%,transparent 60%),
+    radial-gradient(ellipse 80% 50% at 20% -10%,rgba(29,95,168,0.04) 0%,transparent 60%),
+    radial-gradient(ellipse 60% 40% at 80% 100%,rgba(22,122,110,0.03) 0%,transparent 60%),
     var(--midnight)!important;
 }
 section[data-testid="stSidebar"]{
   background:linear-gradient(180deg,var(--deep) 0%,var(--midnight) 100%)!important;
   border-right:1px solid var(--border2)!important;
-  box-shadow:4px 0 24px rgba(0,0,0,0.5)!important;
+  box-shadow:4px 0 16px rgba(0,0,0,0.06)!important;
 }
 section[data-testid="stSidebar"]::before{
   content:"";position:absolute;top:0;left:0;right:0;height:2px;
   background:linear-gradient(90deg,var(--amber),var(--coral),var(--teal));
 }
 .metric-card{
-  background:linear-gradient(135deg,var(--panel) 0%,var(--surface) 100%);
+  background:linear-gradient(135deg,#ffffff 0%,#f5f2ee 100%);
   border:1px solid var(--border);border-radius:16px;padding:20px 22px;
   box-shadow:var(--shadow);position:relative;overflow:hidden;
   transition:transform 0.3s ease,box-shadow 0.3s ease;cursor:default;
@@ -54,7 +54,7 @@ section[data-testid="stSidebar"]::before{
 .metric-card:hover{transform:translateY(-4px);box-shadow:0 20px 48px rgba(0,0,0,0.5);}
 .metric-label{font-size:0.65rem;text-transform:uppercase;color:var(--text3);
   letter-spacing:0.12em;font-weight:600;margin-bottom:8px;font-family:'DM Mono',monospace!important;}
-.metric-value{font-size:2rem;font-weight:800;line-height:1;letter-spacing:-0.03em;}
+.metric-value{font-size:2rem;font-weight:800;line-height:1;letter-spacing:-0.03em;color:var(--text1);}
 .metric-sub{font-size:0.7rem;color:var(--text3);margin-top:5px;font-family:'DM Mono',monospace!important;}
 .section-header{display:flex;align-items:center;gap:10px;margin:24px 0 14px;}
 .section-header-line{flex:1;height:1px;background:linear-gradient(90deg,var(--border2),transparent);}
@@ -75,16 +75,16 @@ section[data-testid="stSidebar"]::before{
 .info-banner{border-radius:12px;padding:13px 17px;margin:10px 0 18px;
   font-size:0.82rem;border:1px solid;position:relative;overflow:hidden;}
 .info-banner::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;}
-.banner-teal{background:rgba(46,216,195,0.06);border-color:rgba(46,216,195,0.2);color:var(--text2);}
+.banner-teal{background:rgba(22,122,110,0.06);border-color:rgba(22,122,110,0.22);color:var(--text2);}
 .banner-teal::before{background:var(--teal);}
-.banner-amber{background:rgba(245,166,35,0.06);border-color:rgba(245,166,35,0.2);color:var(--text2);}
+.banner-amber{background:rgba(184,111,8,0.06);border-color:rgba(184,111,8,0.22);color:var(--text2);}
 .banner-amber::before{background:var(--amber);}
-.banner-coral{background:rgba(255,107,107,0.06);border-color:rgba(255,107,107,0.2);color:var(--text2);}
+.banner-coral{background:rgba(201,64,64,0.06);border-color:rgba(201,64,64,0.22);color:var(--text2);}
 .banner-coral::before{background:var(--coral);}
-.banner-mint{background:rgba(86,224,160,0.06);border-color:rgba(86,224,160,0.2);color:var(--text2);}
+.banner-mint{background:rgba(22,128,74,0.06);border-color:rgba(22,128,74,0.22);color:var(--text2);}
 .banner-mint::before{background:var(--mint);}
 .about-card{
-  background:linear-gradient(135deg,rgba(22,34,54,0.9),rgba(17,30,48,0.9));
+  background:linear-gradient(135deg,rgba(255,255,255,0.9),rgba(237,233,228,0.9));
   border:1px solid var(--border2);border-radius:20px;padding:26px 30px;
   margin-bottom:24px;position:relative;overflow:hidden;
 }
@@ -96,55 +96,55 @@ section[data-testid="stSidebar"]::before{
   font-family:'DM Mono',monospace;
 }
 .model-quality-card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;}
-.mqc-excellent{background:rgba(86,224,160,0.07);border-color:rgba(86,224,160,0.3);}
+.mqc-excellent{background:rgba(22,128,74,0.07);border-color:rgba(22,128,74,0.28);}
 .mqc-excellent::before{background:#56e0a0;}
-.mqc-good{background:rgba(91,164,229,0.07);border-color:rgba(91,164,229,0.3);}
+.mqc-good{background:rgba(29,95,168,0.07);border-color:rgba(29,95,168,0.28);}
 .mqc-good::before{background:#5ba4e5;}
-.mqc-acceptable{background:rgba(245,166,35,0.07);border-color:rgba(245,166,35,0.3);}
+.mqc-acceptable{background:rgba(184,111,8,0.07);border-color:rgba(184,111,8,0.28);}
 .mqc-acceptable::before{background:#f5a623;}
-.mqc-poor{background:rgba(255,107,107,0.07);border-color:rgba(255,107,107,0.3);}
+.mqc-poor{background:rgba(201,64,64,0.07);border-color:rgba(201,64,64,0.28);}
 .mqc-poor::before{background:#ff6b6b;}
 .alert-item{border-radius:10px;padding:9px 13px;margin:5px 0;font-size:0.78rem;
-  border-left:3px solid;background:var(--panel);font-family:'DM Mono',monospace!important;
+  border-left:3px solid;background:#ffffff;font-family:'DM Mono',monospace!important;
   transition:transform 0.2s ease;}
 .alert-item:hover{transform:translateX(3px);background:var(--surface);}
 .alert-critical{border-color:var(--coral);}
 .alert-warn{border-color:var(--amber);}
 .alert-ok{border-color:var(--mint);}
 .chat-user-bubble{
-  background:linear-gradient(135deg,rgba(245,166,35,0.12),rgba(255,107,107,0.08));
-  border:1px solid rgba(245,166,35,0.2);border-radius:14px 14px 4px 14px;
+  background:linear-gradient(135deg,rgba(184,111,8,0.08),rgba(201,64,64,0.06));
+  border:1px solid rgba(184,111,8,0.22);border-radius:14px 14px 4px 14px;
   padding:11px 15px;font-size:0.87rem;margin-left:18%;}
 .chat-ai-bubble{
-  background:linear-gradient(135deg,var(--panel),var(--surface));
+  background:linear-gradient(135deg,#ffffff,#f0ede8);
   border:1px solid var(--border2);border-radius:14px 14px 14px 4px;
   padding:13px 17px;font-size:0.87rem;color:var(--text2);line-height:1.7;margin-right:8%;}
 .stTabs [data-baseweb="tab-list"]{
-  background:var(--panel)!important;border-radius:14px!important;
+  background:#e8e4df!important;border-radius:14px!important;
   padding:5px 7px!important;gap:5px!important;border:1px solid var(--border)!important;
 }
 .stTabs [data-baseweb="tab"]{
-  background:transparent!important;border-radius:10px!important;color:var(--text3)!important;
+  background:transparent!important;border-radius:10px!important;color:var(--text2)!important;
   font-family:'DM Mono',monospace!important;font-size:0.74rem!important;font-weight:600!important;
   padding:9px 18px!important;transition:all 0.2s!important;
 }
 .stTabs [aria-selected="true"]{
-  background:linear-gradient(135deg,rgba(245,166,35,0.2),rgba(255,107,107,0.1))!important;
-  color:var(--amber)!important;box-shadow:0 2px 12px rgba(245,166,35,0.12)!important;
+  background:linear-gradient(135deg,rgba(184,111,8,0.14),rgba(201,64,64,0.08))!important;
+  color:var(--amber)!important;box-shadow:0 2px 8px rgba(184,111,8,0.12)!important;
 }
 .stButton>button{
-  background:linear-gradient(135deg,rgba(245,166,35,0.15),rgba(255,107,107,0.1))!important;
-  color:var(--amber)!important;border:1px solid rgba(245,166,35,0.3)!important;
+  background:linear-gradient(135deg,rgba(184,111,8,0.10),rgba(201,64,64,0.07))!important;
+  color:var(--amber)!important;border:1px solid rgba(184,111,8,0.35)!important;
   border-radius:10px!important;font-weight:600!important;font-size:0.78rem!important;
   font-family:'DM Mono',monospace!important;transition:all 0.25s!important;
 }
 .stButton>button:hover{
-  background:linear-gradient(135deg,rgba(245,166,35,0.28),rgba(255,107,107,0.18))!important;
-  transform:translateY(-2px)!important;box-shadow:0 6px 18px rgba(245,166,35,0.2)!important;
+  background:linear-gradient(135deg,rgba(184,111,8,0.20),rgba(201,64,64,0.13))!important;
+  transform:translateY(-2px)!important;box-shadow:0 6px 16px rgba(184,111,8,0.16)!important;
 }
 ::-webkit-scrollbar{width:5px;height:5px;}
-::-webkit-scrollbar-track{background:var(--midnight);}
-::-webkit-scrollbar-thumb{background:var(--panel);border-radius:99px;}
+::-webkit-scrollbar-track{background:#ede9e4;}
+::-webkit-scrollbar-thumb{background:#c5c0b8;border-radius:99px;}
 footer{visibility:hidden;}#MainMenu{visibility:hidden;}
 @keyframes fadeUp{from{opacity:0;transform:translateY(20px);}to{opacity:1;transform:translateY(0);}}
 .metric-card{animation:fadeUp 0.45s ease both;}
@@ -168,13 +168,13 @@ COLORS_S = ["#e8963f","#4ecf94","#e85c5c","#4d90d4","#cc68c4","#28c4b0"]
 def CD():
     return dict(
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(color="#8a9dc0", family="DM Mono, monospace", size=11),
+        font=dict(color="#555555", family="DM Mono, monospace", size=11),
         margin=dict(l=8,r=8,t=34,b=14)
     )
 
-def gY(): return dict(showgrid=True, gridcolor="rgba(255,255,255,0.04)", zeroline=False, tickcolor="#4a5e7a")
-def gX(): return dict(showgrid=False, zeroline=False, tickcolor="#4a5e7a")
-def leg(): return dict(bgcolor="rgba(0,0,0,0)", bordercolor="rgba(255,255,255,0.06)", borderwidth=1, font=dict(color="#8a9dc0",size=10))
+def gY(): return dict(showgrid=True, gridcolor="rgba(0,0,0,0.06)", zeroline=False, tickcolor="#777777")
+def gX(): return dict(showgrid=False, zeroline=False, tickcolor="#777777")
+def leg(): return dict(bgcolor="rgba(255,255,255,0.75)", bordercolor="rgba(0,0,0,0.08)", borderwidth=1, font=dict(color="#444444",size=10))
 
 def kpi(col, label, value, cls="amber", sub=""):
     col.markdown(f"""<div class='metric-card {cls}'>
