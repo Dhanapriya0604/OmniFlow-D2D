@@ -15,11 +15,11 @@ st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 :root{
-  --bg:#F8F9FA;--bg2:#FFFFFF;--surface:#F1F3F5;--card:#FFFFFF;--panel:#F8F9FA;
+  --bg:#FFFFFF;--bg2:#FAFAFA;--surface:#F1F3F5;--card:#FFFFFF;--panel:#F8F9FA;
   --border:#E2E8F0;--border2:#CBD5E1;
   --blue:#1D4ED8;--blue-l:#3B82F6;--green:#15803D;--amber:#B45309;
   --red:#B91C1C;--purple:#6D28D9;--cyan:#0E7490;--orange:#C2410C;
-  --text1:#0F172A;--text2:#334155;--text3:#64748B;--text4:#94A3B8;
+  --text1:#000000;--text2:#111111;--text3:#333333;--text4:#555555;
   --accent:#1D4ED8;
   --shadow:0 1px 3px rgba(0,0,0,0.08),0 1px 2px rgba(0,0,0,0.04);
   --shadow-md:0 4px 12px rgba(0,0,0,0.08),0 2px 4px rgba(0,0,0,0.04);
@@ -73,7 +73,7 @@ section[data-testid="stSidebar"]::before{
   font-family:'JetBrains Mono',monospace!important;
 }
 .metric-value{
-  font-size:1.85rem;font-weight:700;line-height:1.1;
+  font-size:1.9rem;font-weight:800;line-height:1.1;
   letter-spacing:-0.02em;color:var(--text1);
 }
 .metric-sub{
@@ -85,7 +85,7 @@ section[data-testid="stSidebar"]::before{
 .section-header{display:flex;align-items:center;gap:10px;margin:24px 0 14px;}
 .section-header-line{flex:1;height:1px;background:var(--border);}
 .section-title{
-  font-weight:600;font-size:0.68rem;text-transform:uppercase;
+  font-weight:700;font-size:0.72rem;text-transform:uppercase;
   letter-spacing:0.12em;color:var(--text3);
   font-family:'JetBrains Mono',monospace!important;
 }
@@ -93,7 +93,7 @@ section[data-testid="stSidebar"]::before{
 /* ── Page Titles ── */
 .page-title{
   font-family:'Inter',sans-serif!important;
-  font-size:1.75rem;font-weight:700;
+  font-size:1.9rem;font-weight:800;
   letter-spacing:-0.025em;line-height:1.2;
   margin-bottom:4px;padding:14px 0 4px;
   color:var(--text1);
