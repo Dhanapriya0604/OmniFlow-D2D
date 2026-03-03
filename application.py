@@ -13,147 +13,222 @@ st.set_page_config(
 
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Outfit:wght@300;400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap');
 :root{
-  --midnight:#0b0f19;--deep:#121826;--surface:#1a2236;--panel:#151c2e;
-  --border:rgba(255,255,255,0.06);--border2:rgba(255,255,255,0.12);
-  --amber:#f5a623;--coral:#ff6b6b;--teal:#2ed8c3;
-  --sky:#5ba4e5;--lav:#9b87d4;--mint:#56e0a0;
-  --text1:#f0f4ff;--text2:#c8d4e8;--text3:#8a9dc0;
-  --shadow:0 10px 30px rgba(0,0,0,0.6);
+  --bg:#0F1117;--bg2:#161B27;--bg3:#1C2333;--card:#1E2638;--card2:#232D42;
+  --border:rgba(255,255,255,0.06);--border2:rgba(255,255,255,0.10);
+  --blue:#4C8BF5;--blue2:#2563EB;--green:#22C55E;--amber:#F59E0B;
+  --red:#EF4444;--purple:#8B5CF6;--cyan:#06B6D4;--orange:#F97316;
+  --text1:#F1F5F9;--text2:#94A3B8;--text3:#475569;
+  --shadow:0 4px 24px rgba(0,0,0,0.4);
+  --radius:8px;
 }
-html,body,[class*="css"]{font-family:'Outfit',sans-serif!important;background:var(--midnight)!important;color:var(--text1)!important;}
-.stApp{
-  background:
-    radial-gradient(circle at 20% 20%, rgba(91,164,229,0.12), transparent 40%),
-    radial-gradient(circle at 80% 80%, rgba(46,216,195,0.10), transparent 40%),
-    var(--midnight)!important;
+html,body,[class*="css"]{
+  font-family:'IBM Plex Sans',sans-serif!important;
+  background:var(--bg)!important;color:var(--text1)!important;
 }
+.stApp{background:var(--bg)!important;}
+
 section[data-testid="stSidebar"]{
-  background:linear-gradient(180deg,#0f1424,#0b0f19)!important;
+  background:var(--bg2)!important;
   border-right:1px solid var(--border2)!important;
+  box-shadow:none!important;
 }
 section[data-testid="stSidebar"]::before{
-  content:"";position:absolute;top:0;left:0;right:0;height:2px;
-  background:linear-gradient(90deg,var(--amber),var(--coral),var(--teal));
+  content:"";position:absolute;top:0;left:0;right:0;height:1px;
+  background:var(--blue);opacity:0.6;
 }
+
+/* ── Metric Cards ── */
 .metric-card{
-  background:linear-gradient(145deg, #151c2e, #101726);
+  background:var(--card);
   border:1px solid var(--border);
-  border-radius:18px;
-  padding:20px;
+  border-radius:var(--radius);
+  padding:18px 20px;
   box-shadow:var(--shadow);
-  transition:all 0.3s ease;
+  position:relative;overflow:hidden;
+  transition:border-color 0.2s ease,transform 0.2s ease;cursor:default;
 }
+.metric-card::before{
+  content:"";position:absolute;top:0;left:0;bottom:0;width:3px;
+}
+.metric-card.amber::before{background:var(--amber);}
+.metric-card.teal::before{background:var(--cyan);}
+.metric-card.coral::before{background:var(--red);}
+.metric-card.sky::before{background:var(--blue);}
+.metric-card.lav::before{background:var(--purple);}
+.metric-card.mint::before{background:var(--green);}
 .metric-card:hover{
-  transform:translateY(-6px) scale(1.01);
-  box-shadow:0 20px 50px rgba(0,0,0,0.8);
+  border-color:var(--border2);
+  transform:translateY(-2px);
+  box-shadow:0 8px 32px rgba(0,0,0,0.5);
 }
-.metric-card::before{content:"";position:absolute;top:0;left:0;right:0;height:2px;}
-.metric-card.amber::before{background:linear-gradient(90deg,var(--amber),#ff8c42);}
-.metric-card.teal::before{background:linear-gradient(90deg,var(--teal),#22b8a5);}
-.metric-card.coral::before{background:linear-gradient(90deg,var(--coral),#ff4f4f);}
-.metric-card.sky::before{background:linear-gradient(90deg,var(--sky),#3d87d4);}
-.metric-card.lav::before{background:linear-gradient(90deg,var(--lav),#7b6bbf);}
-.metric-card.mint::before{background:linear-gradient(90deg,var(--mint),#3ec47a);}
-.metric-card:hover{transform:translateY(-4px);box-shadow:0 20px 48px rgba(0,0,0,0.5);}
-.metric-label{font-size:0.65rem;text-transform:uppercase;color:#333333;
-  letter-spacing:0.12em;font-weight:600;margin-bottom:8px;font-family:'DM Mono',monospace!important;}
-.metric-value{font-size:2rem;font-weight:800;line-height:1;letter-spacing:-0.03em;color:var(--text1);}
-.metric-sub{font-size:0.7rem;color:#333333;margin-top:5px;font-family:'DM Mono',monospace!important;}
-.section-header{display:flex;align-items:center;gap:10px;margin:24px 0 14px;}
-.section-header-line{flex:1;height:1px;background:linear-gradient(90deg,var(--border2),transparent);}
-.section-title{font-weight:700;font-size:0.78rem;text-transform:uppercase;
-  letter-spacing:0.1em;color:#000000;font-family:'DM Mono',monospace!important;}
-.page-title{font-family:'Outfit',sans-serif!important;font-size:2.4rem;font-weight:900;
-  letter-spacing:-0.04em;line-height:1.1;margin-bottom:6px;padding:20px 0 6px;}
-.page-subtitle{color:#333333;font-size:0.82rem;font-family:'DM Mono',monospace!important;margin-bottom:16px;}
-.badge{display:inline-flex;align-items:center;gap:5px;padding:4px 11px;border-radius:999px;
-  font-size:0.68rem;font-weight:600;letter-spacing:0.05em;border:1px solid;
-  font-family:'DM Mono',monospace!important;margin:3px;}
-.badge-amber{background:rgba(245,166,35,0.1);color:var(--amber);border-color:rgba(245,166,35,0.3);}
-.badge-teal{background:rgba(46,216,195,0.1);color:var(--teal);border-color:rgba(46,216,195,0.3);}
-.badge-coral{background:rgba(255,107,107,0.1);color:var(--coral);border-color:rgba(255,107,107,0.3);}
-.badge-sky{background:rgba(91,164,229,0.1);color:var(--sky);border-color:rgba(91,164,229,0.3);}
-.badge-lav{background:rgba(155,135,212,0.1);color:var(--lav);border-color:rgba(155,135,212,0.3);}
-.badge-mint{background:rgba(86,224,160,0.1);color:var(--mint);border-color:rgba(86,224,160,0.3);}
-.info-banner{border-radius:12px;padding:13px 17px;margin:10px 0 18px;
-  font-size:0.82rem;border:1px solid;position:relative;overflow:hidden;}
+.metric-label{
+  font-size:0.62rem;text-transform:uppercase;color:var(--text3);
+  letter-spacing:0.14em;font-weight:500;margin-bottom:10px;
+  font-family:'IBM Plex Mono',monospace!important;
+}
+.metric-value{
+  font-size:1.9rem;font-weight:700;line-height:1;
+  letter-spacing:-0.02em;color:var(--text1);
+}
+.metric-sub{
+  font-size:0.68rem;color:var(--text3);margin-top:6px;
+  font-family:'IBM Plex Mono',monospace!important;
+}
+
+/* ── Section Headers ── */
+.section-header{display:flex;align-items:center;gap:12px;margin:28px 0 16px;}
+.section-header-line{flex:1;height:1px;background:var(--border);}
+.section-title{
+  font-weight:600;font-size:0.7rem;text-transform:uppercase;
+  letter-spacing:0.14em;color:var(--text3);
+  font-family:'IBM Plex Mono',monospace!important;
+}
+
+/* ── Page Titles ── */
+.page-title{
+  font-family:'IBM Plex Sans',sans-serif!important;
+  font-size:1.9rem;font-weight:700;
+  letter-spacing:-0.02em;line-height:1.2;
+  margin-bottom:4px;padding:16px 0 4px;
+  color:var(--text1);
+}
+.page-subtitle{
+  color:var(--text3);font-size:0.75rem;
+  font-family:'IBM Plex Mono',monospace!important;
+  margin-bottom:16px;letter-spacing:0.04em;
+}
+
+/* ── Badges ── */
+.badge{
+  display:inline-flex;align-items:center;gap:4px;
+  padding:3px 10px;border-radius:4px;
+  font-size:0.65rem;font-weight:600;letter-spacing:0.06em;
+  border:1px solid;font-family:'IBM Plex Mono',monospace!important;margin:2px;
+}
+.badge-amber{background:rgba(245,158,11,0.1);color:var(--amber);border-color:rgba(245,158,11,0.25);}
+.badge-teal{background:rgba(6,182,212,0.1);color:var(--cyan);border-color:rgba(6,182,212,0.25);}
+.badge-coral{background:rgba(239,68,68,0.1);color:var(--red);border-color:rgba(239,68,68,0.25);}
+.badge-sky{background:rgba(76,139,245,0.1);color:var(--blue);border-color:rgba(76,139,245,0.25);}
+.badge-lav{background:rgba(139,92,246,0.1);color:var(--purple);border-color:rgba(139,92,246,0.25);}
+.badge-mint{background:rgba(34,197,94,0.1);color:var(--green);border-color:rgba(34,197,94,0.25);}
+
+/* ── Info Banners ── */
+.info-banner{
+  border-radius:var(--radius);padding:11px 16px;margin:8px 0 16px;
+  font-size:0.8rem;border:1px solid;position:relative;overflow:hidden;
+}
 .info-banner::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;}
-.banner-teal{background:rgba(22,122,110,0.06);border-color:rgba(22,122,110,0.22);color:var(--text2);}
-.banner-teal::before{background:var(--teal);}
-.banner-amber{background:rgba(184,111,8,0.06);border-color:rgba(184,111,8,0.22);color:var(--text2);}
+.banner-teal{background:rgba(6,182,212,0.05);border-color:rgba(6,182,212,0.18);color:var(--text2);}
+.banner-teal::before{background:var(--cyan);}
+.banner-amber{background:rgba(245,158,11,0.05);border-color:rgba(245,158,11,0.18);color:var(--text2);}
 .banner-amber::before{background:var(--amber);}
-.banner-coral{background:rgba(201,64,64,0.06);border-color:rgba(201,64,64,0.22);color:var(--text2);}
-.banner-coral::before{background:var(--coral);}
-.banner-mint{background:rgba(22,128,74,0.06);border-color:rgba(22,128,74,0.22);color:var(--text2);}
-.banner-mint::before{background:var(--mint);}
+.banner-coral{background:rgba(239,68,68,0.05);border-color:rgba(239,68,68,0.18);color:var(--text2);}
+.banner-coral::before{background:var(--red);}
+.banner-mint{background:rgba(34,197,94,0.05);border-color:rgba(34,197,94,0.18);color:var(--text2);}
+.banner-mint::before{background:var(--green);}
+
+/* ── About Card ── */
 .about-card{
-  background:linear-gradient(135deg,rgba(255,255,255,0.9),rgba(220,220,220,0.9));
-  border:1px solid var(--border2);border-radius:20px;padding:26px 30px;
-  margin-bottom:24px;position:relative;overflow:hidden;
+  background:var(--card);
+  border:1px solid var(--border2);border-radius:var(--radius);
+  padding:24px 28px;margin-bottom:24px;position:relative;overflow:hidden;
 }
-.about-card::before{content:"";position:absolute;top:0;left:0;right:0;height:2px;
-  background:linear-gradient(90deg,var(--amber),var(--coral),var(--teal),var(--sky));}
+.about-card::before{
+  content:"";position:absolute;top:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,var(--blue),var(--purple),var(--cyan));
+}
+
+/* ── Model Quality Cards ── */
 .model-quality-card{
-  border-radius:16px;padding:18px 22px;margin:14px 0 8px;
+  border-radius:var(--radius);padding:16px 20px;margin:12px 0 8px;
   border:1px solid;position:relative;overflow:hidden;
-  font-family:'DM Mono',monospace;
+  font-family:'IBM Plex Mono',monospace;
 }
-.model-quality-card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;}
-.mqc-excellent{background:rgba(22,128,74,0.07);border-color:rgba(22,128,74,0.28);}
-.mqc-excellent::before{background:#56e0a0;}
-.mqc-good{background:rgba(29,95,168,0.07);border-color:rgba(29,95,168,0.28);}
-.mqc-good::before{background:#5ba4e5;}
-.mqc-acceptable{background:rgba(184,111,8,0.07);border-color:rgba(184,111,8,0.28);}
-.mqc-acceptable::before{background:#f5a623;}
-.mqc-poor{background:rgba(201,64,64,0.07);border-color:rgba(201,64,64,0.28);}
-.mqc-poor::before{background:#ff6b6b;}
-.alert-item{border-radius:10px;padding:9px 13px;margin:5px 0;font-size:0.78rem;
-  border-left:3px solid;background:#f8f8f8;font-family:'DM Mono',monospace!important;
-  transition:transform 0.2s ease;}
-.alert-item:hover{transform:translateX(3px);background:var(--surface);}
-.alert-critical{border-color:var(--coral);}
+.model-quality-card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;}
+.mqc-excellent{background:rgba(34,197,94,0.05);border-color:rgba(34,197,94,0.2);}
+.mqc-excellent::before{background:var(--green);}
+.mqc-good{background:rgba(76,139,245,0.05);border-color:rgba(76,139,245,0.2);}
+.mqc-good::before{background:var(--blue);}
+.mqc-acceptable{background:rgba(245,158,11,0.05);border-color:rgba(245,158,11,0.2);}
+.mqc-acceptable::before{background:var(--amber);}
+.mqc-poor{background:rgba(239,68,68,0.05);border-color:rgba(239,68,68,0.2);}
+.mqc-poor::before{background:var(--red);}
+
+/* ── Alert Items ── */
+.alert-item{
+  border-radius:var(--radius);padding:9px 13px;margin:4px 0;
+  font-size:0.76rem;border-left:3px solid;
+  background:var(--card);font-family:'IBM Plex Mono',monospace!important;
+  transition:background 0.15s ease;
+}
+.alert-item:hover{background:var(--card2);}
+.alert-critical{border-color:var(--red);}
 .alert-warn{border-color:var(--amber);}
-.alert-ok{border-color:var(--mint);}
+.alert-ok{border-color:var(--green);}
+
+/* ── Chat Bubbles ── */
 .chat-user-bubble{
-  background:linear-gradient(135deg,rgba(184,111,8,0.08),rgba(201,64,64,0.06));
-  border:1px solid rgba(184,111,8,0.22);border-radius:14px 14px 4px 14px;
-  padding:11px 15px;font-size:0.87rem;margin-left:18%;}
+  background:rgba(76,139,245,0.08);
+  border:1px solid rgba(76,139,245,0.2);
+  border-radius:8px 8px 2px 8px;
+  padding:10px 14px;font-size:0.85rem;margin-left:20%;
+  color:var(--text1);
+}
 .chat-ai-bubble{
-  background:#ffffff;
-  border:1px solid var(--border2);border-radius:14px 14px 14px 4px;
-  padding:13px 17px;font-size:0.87rem;color:var(--text2);line-height:1.7;margin-right:8%;}
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:8px 8px 8px 2px;
+  padding:12px 16px;font-size:0.85rem;
+  color:var(--text2);line-height:1.7;margin-right:10%;
+}
+
+/* ── Tabs ── */
 .stTabs [data-baseweb="tab-list"]{
-  background:#121826!important;
-  border-radius:14px!important;
+  background:var(--bg2)!important;border-radius:var(--radius)!important;
+  padding:4px 6px!important;gap:4px!important;
   border:1px solid var(--border)!important;
 }
 .stTabs [data-baseweb="tab"]{
-  background:transparent!important;border-radius:10px!important;color:#111111!important;
-  font-family:'DM Mono',monospace!important;font-size:0.74rem!important;font-weight:600!important;
-  padding:9px 18px!important;transition:all 0.2s!important;
+  background:transparent!important;border-radius:6px!important;
+  color:var(--text3)!important;
+  font-family:'IBM Plex Mono',monospace!important;
+  font-size:0.72rem!important;font-weight:500!important;
+  padding:8px 16px!important;transition:all 0.15s!important;
 }
 .stTabs [aria-selected="true"]{
-  background:linear-gradient(135deg,rgba(184,111,8,0.14),rgba(201,64,64,0.08))!important;
-  color:var(--amber)!important;box-shadow:0 2px 8px rgba(184,111,8,0.12)!important;
+  background:var(--card)!important;
+  color:var(--blue)!important;
+  box-shadow:0 1px 6px rgba(0,0,0,0.3)!important;
 }
+
+/* ── Buttons ── */
 .stButton>button{
-  background:linear-gradient(135deg,rgba(184,111,8,0.10),rgba(201,64,64,0.07))!important;
-  color:var(--amber)!important;border:1px solid rgba(184,111,8,0.35)!important;
-  border-radius:10px!important;font-weight:600!important;font-size:0.78rem!important;
-  font-family:'DM Mono',monospace!important;transition:all 0.25s!important;
+  background:var(--card)!important;
+  color:var(--text2)!important;
+  border:1px solid var(--border2)!important;
+  border-radius:var(--radius)!important;
+  font-weight:500!important;font-size:0.76rem!important;
+  font-family:'IBM Plex Mono',monospace!important;
+  transition:all 0.15s!important;
 }
 .stButton>button:hover{
-  background:linear-gradient(135deg,rgba(184,111,8,0.20),rgba(201,64,64,0.13))!important;
-  transform:translateY(-2px)!important;box-shadow:0 6px 16px rgba(184,111,8,0.16)!important;
+  background:var(--card2)!important;
+  color:var(--text1)!important;
+  border-color:var(--blue)!important;
+  transform:none!important;
+  box-shadow:0 0 0 1px var(--blue)!important;
 }
-::-webkit-scrollbar{width:5px;height:5px;}
-::-webkit-scrollbar-track{background:#f5f5f5;}
-::-webkit-scrollbar-thumb{background:#cccccc;border-radius:99px;}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar{width:4px;height:4px;}
+::-webkit-scrollbar-track{background:var(--bg);}
+::-webkit-scrollbar-thumb{background:var(--card2);border-radius:99px;}
+
 footer{visibility:hidden;}#MainMenu{visibility:hidden;}
-@keyframes fadeUp{from{opacity:0;transform:translateY(20px);}to{opacity:1;transform:translateY(0);}}
-.metric-card{animation:fadeUp 0.45s ease both;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(12px);}to{opacity:1;transform:translateY(0);}}
+.metric-card{animation:fadeUp 0.3s ease both;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -168,20 +243,19 @@ import requests as _requests
 
 DATA_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "india_ecommerce_orders.csv")
 
-COLORS   = ["#f5a623","#56e0a0","#ff6b6b","#5ba4e5","#e87adb","#2ed8c3"]
-COLORS_S = ["#e8963f","#4ecf94","#e85c5c","#4d90d4","#cc68c4","#28c4b0"]
+COLORS   = ["#4C8BF5","#22C55E","#F59E0B","#EF4444","#8B5CF6","#06B6D4"]
+COLORS_S = ["#2563EB","#16A34A","#D97706","#DC2626","#7C3AED","#0891B2"]
 
 def CD():
     return dict(
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(color="#f0f4ff", family="DM Mono, monospace", size=11),
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(color="#94A3B8", family="IBM Plex Mono, monospace", size=11),
         margin=dict(l=8,r=8,t=34,b=14)
     )
 
-def gY(): return dict(showgrid=True, gridcolor="rgba(0,0,0,0.06)", zeroline=False, tickcolor="#333333")
-def gX(): return dict(showgrid=False, zeroline=False, tickcolor="#333333")
-def leg(): return dict(bgcolor="rgba(255,255,255,0.75)", bordercolor="rgba(0,0,0,0.08)", borderwidth=1, font=dict(color="#111111",size=10))
+def gY(): return dict(showgrid=True, gridcolor="rgba(255,255,255,0.04)", zeroline=False, tickcolor="#475569")
+def gX(): return dict(showgrid=False, zeroline=False, tickcolor="#475569")
+def leg(): return dict(bgcolor="rgba(30,38,56,0.9)", bordercolor="rgba(255,255,255,0.08)", borderwidth=1, font=dict(color="#94A3B8",size=10))
 
 def kpi(col, label, value, cls="amber", sub=""):
     col.markdown(f"""<div class='metric-card {cls}'>
@@ -898,7 +972,7 @@ def page_overview():
         fig3 = go.Figure(go.Bar(x=ch.values, y=ch.index, orientation="h",
             marker=dict(color=COLORS[:len(ch)], line=dict(color="rgba(0,0,0,0)")),
             text=ch.values, textposition="outside", textfont=dict(color="#4a5e7a",size=10)))
-        fig3.update_layout(**CD(), height=240, xaxis=gX(), yaxis=dict(showgrid=False,color="#222222"))
+        fig3.update_layout(**CD(), height=240, xaxis=gX(), yaxis=dict(showgrid=False,color="#94A3B8"))
         st.plotly_chart(fig3, use_container_width=True, key="chart_3")
 
     with c3b:
@@ -1577,7 +1651,7 @@ def page_logistics():
             fig_r = go.Figure(go.Bar(x=rd_s["Rate"], y=rd_s["Region"], orientation="h",
                 marker=dict(color=[f"rgba(255,107,107,{min(v/60+0.25,0.9):.2f})" for v in rd_s["Rate"]], line=dict(color="rgba(0,0,0,0)")),
                 text=[f"{v}%" for v in rd_s["Rate"]], textposition="outside", textfont=dict(color="#4a5e7a")))
-            fig_r.update_layout(**CD(), height=300, xaxis={**gX(),"title":"Delay %"}, yaxis=dict(showgrid=False,color="#222222"))
+            fig_r.update_layout(**CD(), height=300, xaxis={**gX(),"title":"Delay %"}, yaxis=dict(showgrid=False,color="#94A3B8"))
             st.plotly_chart(fig_r, use_container_width=True, key="chart_18")
         with cr3:
             sec("Delay Rate by Carrier")
@@ -1596,8 +1670,8 @@ def page_logistics():
             text=np.round(pv.values,1), texttemplate="%{text}%", textfont=dict(size=10),
             colorbar=dict(tickfont=dict(color="#8a9dc0",size=10))))
         fig_h.update_layout(**CD(), height=260,
-            xaxis=dict(showgrid=False,tickangle=-25,color="#222222"),
-            yaxis=dict(showgrid=False,color="#222222"))
+            xaxis=dict(showgrid=False,tickangle=-25,color="#94A3B8"),
+            yaxis=dict(showgrid=False,color="#94A3B8"))
         st.plotly_chart(fig_h, use_container_width=True, key="chart_20")
 
         sec("Avg Delivery Days Forecast")
@@ -1657,7 +1731,7 @@ def page_logistics():
         fig_tp = go.Figure(go.Bar(x=tp.values, y=tp.index, orientation="h",
             marker=dict(color="#2ed8c3", line=dict(color="rgba(0,0,0,0)")),
             text=tp.values, textposition="outside", textfont=dict(color="#4a5e7a")))
-        fig_tp.update_layout(**CD(), height=300, xaxis=gX(), yaxis=dict(showgrid=False,color="#222222"))
+        fig_tp.update_layout(**CD(), height=300, xaxis=gX(), yaxis=dict(showgrid=False,color="#94A3B8"))
         st.plotly_chart(fig_tp, use_container_width=True, key="chart_23")
 
     with t5:
@@ -1688,7 +1762,7 @@ def page_logistics():
             fig_ret = go.Figure(go.Bar(x=rr.values, y=rr.index, orientation="h",
                 marker=dict(color=["#ff6b6b" if v>20 else "#f5a623" if v>12 else "#56e0a0" for v in rr.values], line=dict(color="rgba(0,0,0,0)")),
                 text=[f"{v:.1f}%" for v in rr.values], textposition="outside", textfont=dict(color="#4a5e7a")))
-            fig_ret.update_layout(**CD(), height=270, xaxis=gX(), yaxis=dict(showgrid=False,color="#222222"))
+            fig_ret.update_layout(**CD(), height=270, xaxis=gX(), yaxis=dict(showgrid=False,color="#94A3B8"))
             st.plotly_chart(fig_ret, use_container_width=True, key="chart_25")
 
         sec("Region Revenue Forecast")
