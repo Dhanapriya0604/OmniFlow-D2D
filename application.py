@@ -15,11 +15,11 @@ st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Outfit:wght@300;400;500;600;700;800;900&display=swap');
 :root{
-  --midnight:#F0F0F0;--deep:#E4E4E4;--surface:#DADADA;--panel:#CECECE;
+  --midnight:#E8E8E8;--deep:#DCDCDC;--surface:#D0D0D0;--panel:#C8C8C8;
   --border:rgba(0,0,0,0.08);--border2:rgba(0,0,0,0.14);
   --amber:#b86f08;--coral:#c94040;--teal:#167a6e;--sky:#1d5fa8;
   --lav:#5a44a8;--mint:#16804a;
-  --text1:#1c1c1c;--text2:#444444;--text3:#777777;
+  --text1:#000000;--text2:#111111;--text3:#333333;
   --shadow:0 4px 20px rgba(0,0,0,0.08),0 1px 0 rgba(255,255,255,0.8);
 }
 html,body,[class*="css"]{font-family:'Outfit',sans-serif!important;background:var(--midnight)!important;color:var(--text1)!important;}
@@ -52,17 +52,17 @@ section[data-testid="stSidebar"]::before{
 .metric-card.lav::before{background:linear-gradient(90deg,var(--lav),#7b6bbf);}
 .metric-card.mint::before{background:linear-gradient(90deg,var(--mint),#3ec47a);}
 .metric-card:hover{transform:translateY(-4px);box-shadow:0 20px 48px rgba(0,0,0,0.5);}
-.metric-label{font-size:0.65rem;text-transform:uppercase;color:var(--text3);
+.metric-label{font-size:0.65rem;text-transform:uppercase;color:#333333;
   letter-spacing:0.12em;font-weight:600;margin-bottom:8px;font-family:'DM Mono',monospace!important;}
 .metric-value{font-size:2rem;font-weight:800;line-height:1;letter-spacing:-0.03em;color:var(--text1);}
-.metric-sub{font-size:0.7rem;color:var(--text3);margin-top:5px;font-family:'DM Mono',monospace!important;}
+.metric-sub{font-size:0.7rem;color:#333333;margin-top:5px;font-family:'DM Mono',monospace!important;}
 .section-header{display:flex;align-items:center;gap:10px;margin:24px 0 14px;}
 .section-header-line{flex:1;height:1px;background:linear-gradient(90deg,var(--border2),transparent);}
 .section-title{font-weight:700;font-size:0.78rem;text-transform:uppercase;
-  letter-spacing:0.1em;color:var(--text2);font-family:'DM Mono',monospace!important;}
+  letter-spacing:0.1em;color:#000000;font-family:'DM Mono',monospace!important;}
 .page-title{font-family:'Outfit',sans-serif!important;font-size:2.4rem;font-weight:900;
   letter-spacing:-0.04em;line-height:1.1;margin-bottom:6px;padding:20px 0 6px;}
-.page-subtitle{color:var(--text3);font-size:0.82rem;font-family:'DM Mono',monospace!important;margin-bottom:16px;}
+.page-subtitle{color:#333333;font-size:0.82rem;font-family:'DM Mono',monospace!important;margin-bottom:16px;}
 .badge{display:inline-flex;align-items:center;gap:5px;padding:4px 11px;border-radius:999px;
   font-size:0.68rem;font-weight:600;letter-spacing:0.05em;border:1px solid;
   font-family:'DM Mono',monospace!important;margin:3px;}
@@ -124,7 +124,7 @@ section[data-testid="stSidebar"]::before{
   padding:5px 7px!important;gap:5px!important;border:1px solid var(--border)!important;
 }
 .stTabs [data-baseweb="tab"]{
-  background:transparent!important;border-radius:10px!important;color:var(--text2)!important;
+  background:transparent!important;border-radius:10px!important;color:#111111!important;
   font-family:'DM Mono',monospace!important;font-size:0.74rem!important;font-weight:600!important;
   padding:9px 18px!important;transition:all 0.2s!important;
 }
@@ -168,13 +168,13 @@ COLORS_S = ["#e8963f","#4ecf94","#e85c5c","#4d90d4","#cc68c4","#28c4b0"]
 def CD():
     return dict(
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(color="#555555", family="DM Mono, monospace", size=11),
+        font=dict(color="#111111", family="DM Mono, monospace", size=11),
         margin=dict(l=8,r=8,t=34,b=14)
     )
 
-def gY(): return dict(showgrid=True, gridcolor="rgba(0,0,0,0.06)", zeroline=False, tickcolor="#777777")
-def gX(): return dict(showgrid=False, zeroline=False, tickcolor="#777777")
-def leg(): return dict(bgcolor="rgba(255,255,255,0.75)", bordercolor="rgba(0,0,0,0.08)", borderwidth=1, font=dict(color="#444444",size=10))
+def gY(): return dict(showgrid=True, gridcolor="rgba(0,0,0,0.06)", zeroline=False, tickcolor="#333333")
+def gX(): return dict(showgrid=False, zeroline=False, tickcolor="#333333")
+def leg(): return dict(bgcolor="rgba(255,255,255,0.75)", bordercolor="rgba(0,0,0,0.08)", borderwidth=1, font=dict(color="#111111",size=10))
 
 def kpi(col, label, value, cls="amber", sub=""):
     col.markdown(f"""<div class='metric-card {cls}'>
@@ -891,7 +891,7 @@ def page_overview():
         fig3 = go.Figure(go.Bar(x=ch.values, y=ch.index, orientation="h",
             marker=dict(color=COLORS[:len(ch)], line=dict(color="rgba(0,0,0,0)")),
             text=ch.values, textposition="outside", textfont=dict(color="#4a5e7a",size=10)))
-        fig3.update_layout(**CD(), height=240, xaxis=gX(), yaxis=dict(showgrid=False,color="#8a9dc0"))
+        fig3.update_layout(**CD(), height=240, xaxis=gX(), yaxis=dict(showgrid=False,color="#222222"))
         st.plotly_chart(fig3, use_container_width=True, key="chart_3")
 
     with c3b:
@@ -1570,7 +1570,7 @@ def page_logistics():
             fig_r = go.Figure(go.Bar(x=rd_s["Rate"], y=rd_s["Region"], orientation="h",
                 marker=dict(color=[f"rgba(255,107,107,{min(v/60+0.25,0.9):.2f})" for v in rd_s["Rate"]], line=dict(color="rgba(0,0,0,0)")),
                 text=[f"{v}%" for v in rd_s["Rate"]], textposition="outside", textfont=dict(color="#4a5e7a")))
-            fig_r.update_layout(**CD(), height=300, xaxis={**gX(),"title":"Delay %"}, yaxis=dict(showgrid=False,color="#8a9dc0"))
+            fig_r.update_layout(**CD(), height=300, xaxis={**gX(),"title":"Delay %"}, yaxis=dict(showgrid=False,color="#222222"))
             st.plotly_chart(fig_r, use_container_width=True, key="chart_18")
         with cr3:
             sec("Delay Rate by Carrier")
@@ -1589,8 +1589,8 @@ def page_logistics():
             text=np.round(pv.values,1), texttemplate="%{text}%", textfont=dict(size=10),
             colorbar=dict(tickfont=dict(color="#8a9dc0",size=10))))
         fig_h.update_layout(**CD(), height=260,
-            xaxis=dict(showgrid=False,tickangle=-25,color="#8a9dc0"),
-            yaxis=dict(showgrid=False,color="#8a9dc0"))
+            xaxis=dict(showgrid=False,tickangle=-25,color="#222222"),
+            yaxis=dict(showgrid=False,color="#222222"))
         st.plotly_chart(fig_h, use_container_width=True, key="chart_20")
 
         sec("Avg Delivery Days Forecast")
@@ -1650,7 +1650,7 @@ def page_logistics():
         fig_tp = go.Figure(go.Bar(x=tp.values, y=tp.index, orientation="h",
             marker=dict(color="#2ed8c3", line=dict(color="rgba(0,0,0,0)")),
             text=tp.values, textposition="outside", textfont=dict(color="#4a5e7a")))
-        fig_tp.update_layout(**CD(), height=300, xaxis=gX(), yaxis=dict(showgrid=False,color="#8a9dc0"))
+        fig_tp.update_layout(**CD(), height=300, xaxis=gX(), yaxis=dict(showgrid=False,color="#222222"))
         st.plotly_chart(fig_tp, use_container_width=True, key="chart_23")
 
     with t5:
@@ -1681,7 +1681,7 @@ def page_logistics():
             fig_ret = go.Figure(go.Bar(x=rr.values, y=rr.index, orientation="h",
                 marker=dict(color=["#ff6b6b" if v>20 else "#f5a623" if v>12 else "#56e0a0" for v in rr.values], line=dict(color="rgba(0,0,0,0)")),
                 text=[f"{v:.1f}%" for v in rr.values], textposition="outside", textfont=dict(color="#4a5e7a")))
-            fig_ret.update_layout(**CD(), height=270, xaxis=gX(), yaxis=dict(showgrid=False,color="#8a9dc0"))
+            fig_ret.update_layout(**CD(), height=270, xaxis=gX(), yaxis=dict(showgrid=False,color="#222222"))
             st.plotly_chart(fig_ret, use_container_width=True, key="chart_25")
 
         sec("Region Revenue Forecast")
