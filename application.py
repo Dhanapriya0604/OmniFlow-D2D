@@ -15,34 +15,39 @@ st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Outfit:wght@300;400;500;600;700;800;900&display=swap');
 :root{
-  --midnight:#FFFFFF;--deep:#F5F5F5;--surface:#EEEEEE;--panel:#E8E8E8;
-  --border:rgba(0,0,0,0.08);--border2:rgba(0,0,0,0.14);
-  --amber:#b86f08;--coral:#c94040;--teal:#167a6e;--sky:#1d5fa8;
-  --lav:#5a44a8;--mint:#16804a;
-  --text1:#000000;--text2:#000000;--text3:#1a1a1a;
-  --shadow:0 4px 20px rgba(0,0,0,0.08),0 1px 0 rgba(255,255,255,0.8);
+  --midnight:#0b0f19;--deep:#121826;--surface:#1a2236;--panel:#151c2e;
+  --border:rgba(255,255,255,0.06);--border2:rgba(255,255,255,0.12);
+  --amber:#f5a623;--coral:#ff6b6b;--teal:#2ed8c3;
+  --sky:#5ba4e5;--lav:#9b87d4;--mint:#56e0a0;
+  --text1:#f0f4ff;--text2:#c8d4e8;--text3:#8a9dc0;
+  --shadow:0 10px 30px rgba(0,0,0,0.6);
 }
 html,body,[class*="css"]{font-family:'Outfit',sans-serif!important;background:var(--midnight)!important;color:var(--text1)!important;}
 .stApp{
   background:
-    radial-gradient(ellipse 80% 50% at 20% -10%,rgba(29,95,168,0.04) 0%,transparent 60%),
-    radial-gradient(ellipse 60% 40% at 80% 100%,rgba(22,122,110,0.03) 0%,transparent 60%),
+    radial-gradient(circle at 20% 20%, rgba(91,164,229,0.12), transparent 40%),
+    radial-gradient(circle at 80% 80%, rgba(46,216,195,0.10), transparent 40%),
     var(--midnight)!important;
 }
 section[data-testid="stSidebar"]{
-  background:linear-gradient(180deg,var(--deep) 0%,var(--midnight) 100%)!important;
+  background:linear-gradient(180deg,#0f1424,#0b0f19)!important;
   border-right:1px solid var(--border2)!important;
-  box-shadow:4px 0 12px rgba(0,0,0,0.04)!important;
 }
 section[data-testid="stSidebar"]::before{
   content:"";position:absolute;top:0;left:0;right:0;height:2px;
   background:linear-gradient(90deg,var(--amber),var(--coral),var(--teal));
 }
 .metric-card{
-  background:#ffffff;
-  border:1px solid var(--border);border-radius:16px;padding:20px 22px;
-  box-shadow:var(--shadow);position:relative;overflow:hidden;
-  transition:transform 0.3s ease,box-shadow 0.3s ease;cursor:default;
+  background:linear-gradient(145deg, #151c2e, #101726);
+  border:1px solid var(--border);
+  border-radius:18px;
+  padding:20px;
+  box-shadow:var(--shadow);
+  transition:all 0.3s ease;
+}
+.metric-card:hover{
+  transform:translateY(-6px) scale(1.01);
+  box-shadow:0 20px 50px rgba(0,0,0,0.8);
 }
 .metric-card::before{content:"";position:absolute;top:0;left:0;right:0;height:2px;}
 .metric-card.amber::before{background:linear-gradient(90deg,var(--amber),#ff8c42);}
@@ -120,8 +125,9 @@ section[data-testid="stSidebar"]::before{
   border:1px solid var(--border2);border-radius:14px 14px 14px 4px;
   padding:13px 17px;font-size:0.87rem;color:var(--text2);line-height:1.7;margin-right:8%;}
 .stTabs [data-baseweb="tab-list"]{
-  background:#f0f0f0!important;border-radius:14px!important;
-  padding:5px 7px!important;gap:5px!important;border:1px solid var(--border)!important;
+  background:#121826!important;
+  border-radius:14px!important;
+  border:1px solid var(--border)!important;
 }
 .stTabs [data-baseweb="tab"]{
   background:transparent!important;border-radius:10px!important;color:#111111!important;
@@ -167,8 +173,9 @@ COLORS_S = ["#e8963f","#4ecf94","#e85c5c","#4d90d4","#cc68c4","#28c4b0"]
 
 def CD():
     return dict(
-        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(color="#111111", family="DM Mono, monospace", size=11),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(color="#f0f4ff", family="DM Mono, monospace", size=11),
         margin=dict(l=8,r=8,t=34,b=14)
     )
 
