@@ -96,7 +96,7 @@ section[data-testid="stSidebar"]::before{
   font-size:1.9rem;font-weight:800;
   letter-spacing:-0.025em;line-height:1.2;
   margin-bottom:4px;padding:14px 0 4px;
-  color:var(--text1);
+  color:#000000;
 }
 .page-subtitle{
   color:var(--text3);font-size:0.73rem;
