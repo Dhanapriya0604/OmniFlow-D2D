@@ -388,19 +388,19 @@ def render_model_quality(res):
         <div>
           <div style='font-size:0.65rem;text-transform:uppercase;letter-spacing:0.12em;
                color:#4a5e7a;margin-bottom:3px'>Model Quality Grade</div>
-          <div style='font-size:1.4rem;font-weight:900;letter-spacing:-0.02em;color:#f0f4ff'>
-            {grade} &nbsp;<span style='font-size:0.9rem;font-weight:600;color:#8a9dc0'>{label}</span>
+          <div style='font-size:1.4rem;font-weight:900;letter-spacing:-0.02em;color:#000000'>
+            {grade} &nbsp;<span style='font-size:0.9rem;font-weight:600;color:#444444'>{label}</span>
           </div>
         </div>
         <div style='margin-left:auto;text-align:right'>
-          <div style='font-size:0.6rem;text-transform:uppercase;letter-spacing:0.1em;color:#4a5e7a'>Forecast Accuracy</div>
-          <div style='font-size:2rem;font-weight:900;color:#f0f4ff'>{accuracy_pct:.1f}%</div>
+          <div style='font-size:0.6rem;text-transform:uppercase;letter-spacing:0.1em;color:#333333'>Forecast Accuracy</div>
+          <div style='font-size:2rem;font-weight:900;color:#000000'>{accuracy_pct:.1f}%</div>
         </div>
       </div>
       <div style='font-size:0.8rem;color:#8a9dc0;line-height:1.6;border-top:1px solid rgba(255,255,255,0.05);padding-top:9px'>
         📋 <b style='color:#000000'>Interpretation:</b> {explanation}
       </div>
-      <div style='margin-top:10px;display:flex;gap:18px;font-size:0.7rem;color:#4a5e7a'>
+      <div style='margin-top:10px;display:flex;gap:18px;font-size:0.7rem;color:#333333'>
         <span>NRMSE &lt;10% → Excellent &nbsp;|&nbsp; &lt;20% → Good &nbsp;|&nbsp; &lt;25% → Acceptable &nbsp;|&nbsp; ≥25% → Weak</span>
       </div>
     </div>
@@ -917,7 +917,7 @@ def page_chatbot():
                 🔴 Critical SKUs — Reorder NOW</div>""", unsafe_allow_html=True)
             inv = compute_inventory()
             for _, r in inv[inv["Status"]=="🔴 Critical"][["Product_Name","Category","Current_Stock","ROP"]].head(5).iterrows():
-                st.markdown(f"<div class='alert-item alert-critical'><b style='color:#000000'>{r['Product_Name']}</b> <span style='color:#4a5e7a'>[{r['Category']}]</span><br><span style='color:#4a5e7a;font-size:0.71rem'>Stock: {r['Current_Stock']} · ROP: {r['ROP']}</span></div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='alert-item alert-critical'><b style='color:#000000'>{r['Product_Name']}</b> <span style='color:#333333'>[{r['Category']}]</span><br><span style='color:#4a5e7a;font-size:0.71rem'>Stock: {r['Current_Stock']} · ROP: {r['ROP']}</span></div>", unsafe_allow_html=True)
         with al2:
             st.markdown("""<div style='font-size:0.74rem;font-weight:700;color:#f5a623;
                 letter-spacing:0.06em;text-transform:uppercase;font-family:DM Mono,monospace;margin-bottom:10px'>
@@ -1002,12 +1002,12 @@ def page_overview():
                 name="90% CI", showlegend=True))
             fig.add_trace(go.Scatter(x=r_ov["hist_ds"], y=r_ov["hist_y"], name="Actual",
                 fill="tozeroy", fillcolor="rgba(245,166,35,0.04)",
-                line=dict(color="#f5a623", width=2.5),
+                line=dict(color="#F59E0B", width=2.5),
                 hovertemplate="<b>%{x|%b %Y}</b><br>₹%{y:,.0f}<extra></extra>"))
             fig.add_trace(go.Scatter(x=r_ov["fut_ds"], y=r_ov["forecast"], name="Forecast",
                 mode="lines+markers",
-                line=dict(color="#f5a623", width=2.5, dash="dot"),
-                marker=dict(size=7, color="#f5a623", line=dict(color="#FFFFFF", width=2)),
+                line=dict(color="#F59E0B", width=2.5, dash="dot"),
+                marker=dict(size=7, color="#F59E0B", line=dict(color="#FFFFFF", width=2)),
                 hovertemplate="<b>%{x|%b %Y}</b><br>₹%{y:,.0f}<extra></extra>"))
         fig.update_layout(**CD(), height=260, xaxis=gX(),
             yaxis={**gY(), "tickformat":",.0f"}, legend=leg())
@@ -1018,7 +1018,7 @@ def page_overview():
         cat = ops.groupby("Category")["Net_Revenue"].sum().sort_values(ascending=False)
         fig2 = go.Figure(go.Pie(labels=cat.index, values=cat.values, hole=.58,
             marker=dict(colors=COLORS, line=dict(color="#FFFFFF",width=3)),
-            textinfo="label+percent", textfont=dict(size=10,color="#f0f4ff")))
+            textinfo="label+percent", textfont=dict(size=10,color="#333333")))
         fig2.update_layout(**CD(), height=260, showlegend=False,
             annotations=[dict(text="Net Rev",x=.5,y=.5,showarrow=False,font=dict(size=10,color="#4a5e7a",family="DM Mono"))])
         st.plotly_chart(fig2, use_container_width=True, key="chart_2")
@@ -1030,7 +1030,7 @@ def page_overview():
         ch = ops["Sales_Channel"].value_counts()
         fig3 = go.Figure(go.Bar(x=ch.values, y=ch.index, orientation="h",
             marker=dict(color=COLORS[:len(ch)], line=dict(color="rgba(0,0,0,0)")),
-            text=ch.values, textposition="outside", textfont=dict(color="#4a5e7a",size=10)))
+            text=ch.values, textposition="outside", textfont=dict(color="#333333",size=10)))
         fig3.update_layout(**CD(), height=240, xaxis=gX(), yaxis=dict(showgrid=False,color="#64748B"))
         st.plotly_chart(fig3, use_container_width=True, key="chart_3")
 
@@ -1046,7 +1046,7 @@ def page_overview():
         sec("Order Status Split")
         sc2 = df["Order_Status"].value_counts()
         fig5 = go.Figure(go.Bar(x=sc2.index, y=sc2.values,
-            marker=dict(color=["#56e0a0","#5ba4e5","#ff6b6b","#f5a623"][:len(sc2)], line=dict(color="rgba(0,0,0,0)"))))
+            marker=dict(color=["#22C55E","#3B82F6","#EF4444","#F59E0B"][:len(sc2)], line=dict(color="rgba(0,0,0,0)"))))
         fig5.update_layout(**CD(), height=240, xaxis=gX(), yaxis=gY())
         st.plotly_chart(fig5, use_container_width=True, key="chart_5")
 
@@ -1120,7 +1120,7 @@ def page_demand():
         return sub.groupby("YM")[col].sum().rename("v")
 
     # draw() — NO per-chart metrics; those live only in the overall panel above
-    def draw(series, color="#f5a623", title="", chart_key="demand_main"):
+    def draw(series, color="#F59E0B", title="", chart_key="demand_main"):
         res = ml_forecast(series.values.astype(float), series.index, n_future=horizon)
         if res is None:
             st.info("Insufficient data."); return None
@@ -1140,7 +1140,7 @@ def page_demand():
             marker=dict(size=7,color=color,line=dict(color="#FFFFFF",width=2)),
             hovertemplate="<b>%{x|%b %Y}</b><br>%{y:,.0f}<extra></extra>"))
         fig.add_trace(go.Scatter(x=res["eval_ds"], y=res["eval_pred"], name="Eval Pred",
-            mode="markers", marker=dict(size=10,color="#ff6b6b",symbol="x",line=dict(color="#FFFFFF",width=2))))
+            mode="markers", marker=dict(size=10,color="#EF4444",symbol="x",line=dict(color="#FFFFFF",width=2))))
         fig.update_layout(**CD(), height=320, xaxis=gX(), yaxis=gY(), legend=leg(),
             title=dict(text=title, font=dict(color="#4a5e7a",size=11)))
         st.plotly_chart(fig, use_container_width=True, key=chart_key)
@@ -1248,11 +1248,11 @@ def page_inventory():
     cl, cr = st.columns([1,2], gap="large")
     with cl:
         sec("Stock Status Distribution")
-        sc_colors = {"🔴 Critical":"#ff6b6b","🟡 Low":"#f5a623","🟢 Adequate":"#56e0a0"}
+        sc_colors = {"🔴 Critical":"#EF4444","🟡 Low":"#F59E0B","🟢 Adequate":"#22C55E"}
         sc = inv["Status"].value_counts()
         fig = go.Figure(go.Pie(labels=sc.index, values=sc.values, hole=.6,
             marker=dict(colors=[sc_colors.get(s,"#4a5e7a") for s in sc.index], line=dict(color="#FFFFFF",width=3)),
-            textinfo="label+value", textfont=dict(size=10,color="#f0f4ff")))
+            textinfo="label+value", textfont=dict(size=10,color="#333333")))
         fig.update_layout(**CD(), height=270, showlegend=False,
             annotations=[dict(text="SKUs",x=.5,y=.5,showarrow=False,font=dict(size=10,color="#4a5e7a",family="DM Mono"))])
         st.plotly_chart(fig, use_container_width=True, key="chart_7")
@@ -1263,7 +1263,7 @@ def page_inventory():
         fig2 = go.Figure()
         for i,(m2,lbl) in enumerate([("EOQ","EOQ"),("SS","Safety Stock"),("ROP","Reorder Point")]):
             fig2.add_trace(go.Bar(name=lbl, x=ci2["Category"], y=ci2[m2].round(1),
-                marker=dict(color=["#f5a623","#2ed8c3","#9b87d4"][i], line=dict(color="rgba(0,0,0,0)"))))
+                marker=dict(color=["#F59E0B","#06B6D4","#8B5CF6"][i], line=dict(color="rgba(0,0,0,0)"))))
         fig2.update_layout(**CD(), height=270, barmode="group",
             xaxis={**gX(),"tickangle":-10}, yaxis=gY(), legend=leg())
         st.plotly_chart(fig2, use_container_width=True, key="chart_8")
@@ -1372,10 +1372,10 @@ def page_inventory():
                 x=months_labels, y=stock_levels,
                 name="Projected Stock",
                 mode="lines+markers",
-                line=dict(color="#2ed8c3", width=3),
+                line=dict(color="#06B6D4", width=3),
                 marker=dict(
                     size=10, color=stock_levels,
-                    colorscale=[[0,"#ff6b6b"],[0.4,"#f5a623"],[1,"#56e0a0"]],
+                    colorscale=[[0,"#EF4444"],[0.4,"#F59E0B"],[1,"#22C55E"]],
                     cmin=avg_ss, cmax=max(stock_levels) if stock_levels else 1,
                     line=dict(color="#FFFFFF", width=2),
                     showscale=False
@@ -1385,17 +1385,17 @@ def page_inventory():
 
             # ROP threshold line
             fig.add_hline(
-                y=avg_rop, line_dash="dash", line_color="#f5a623", line_width=2,
+                y=avg_rop, line_dash="dash", line_color="#F59E0B", line_width=2,
                 annotation_text=f"  ROP: {avg_rop} units",
-                annotation_font=dict(color="#f5a623", size=11, family="DM Mono"),
+                annotation_font=dict(color="#F59E0B", size=11, family="DM Mono"),
                 annotation_position="top left"
             )
 
             # Safety Stock threshold line
             fig.add_hline(
-                y=avg_ss, line_dash="dot", line_color="#ff6b6b", line_width=2,
+                y=avg_ss, line_dash="dot", line_color="#EF4444", line_width=2,
                 annotation_text=f"  Safety Stock: {avg_ss} units",
-                annotation_font=dict(color="#ff6b6b", size=11, family="DM Mono"),
+                annotation_font=dict(color="#EF4444", size=11, family="DM Mono"),
                 annotation_position="bottom left"
             )
 
@@ -1410,7 +1410,7 @@ def page_inventory():
                     y=max(stock_levels) * 1.08 if stock_levels else avg_rop * 2,
                     text=f"📦 +{rqty}u",
                     showarrow=False,
-                    font=dict(color="#9b87d4", size=10, family="DM Mono"),
+                    font=dict(color="#8B5CF6", size=10, family="DM Mono"),
                     bgcolor="rgba(22,34,54,0.8)",
                     bordercolor="rgba(155,135,212,0.3)",
                     borderwidth=1,
@@ -1523,12 +1523,12 @@ def page_production():
         hovertemplate="<b>%{x|%b %Y}</b><br>%{y:,.0f} units<extra></extra>"))
     # Future production bars
     fig.add_trace(go.Bar(x=agg["Month_dt"], y=agg["Production"], name="Production Target",
-        marker=dict(color="#9b87d4", line=dict(color="rgba(0,0,0,0)"))))
+        marker=dict(color="#8B5CF6", line=dict(color="rgba(0,0,0,0)"))))
     fig.add_trace(go.Bar(x=agg["Month_dt"], y=agg["Crit_Boost"]+agg["Low_Boost"],
         name="Inv. Replenishment", marker=dict(color="rgba(255,107,107,0.7)", line=dict(color="rgba(0,0,0,0)"))))
     fig.add_trace(go.Scatter(x=agg["Month_dt"], y=agg["Demand_Forecast"], name="Demand Forecast",
-        mode="lines+markers", line=dict(color="#f5a623",width=2.5),
-        marker=dict(size=8,color="#f5a623",line=dict(color="#FFFFFF",width=2))))
+        mode="lines+markers", line=dict(color="#F59E0B",width=2.5),
+        marker=dict(size=8,color="#F59E0B",line=dict(color="#FFFFFF",width=2))))
     fig.update_layout(**CD(), height=320, barmode="stack", xaxis=gX(), yaxis=gY(), legend=leg())
     st.plotly_chart(fig, use_container_width=True, key="chart_11")
 
@@ -1558,8 +1558,8 @@ def page_production():
         sec("Production – Demand Gap")
         agg["Gap"] = agg["Production"] - agg["Demand_Forecast"]
         fig3 = go.Figure(go.Bar(x=agg["Month_dt"], y=agg["Gap"],
-            marker=dict(color=["#56e0a0" if g>=0 else "#ff6b6b" for g in agg["Gap"]], line=dict(color="rgba(0,0,0,0)")),
-            text=[f"{g:+.0f}" for g in agg["Gap"]], textposition="outside", textfont=dict(color="#4a5e7a")))
+            marker=dict(color=["#22C55E" if g>=0 else "#EF4444" for g in agg["Gap"]], line=dict(color="rgba(0,0,0,0)")),
+            text=[f"{g:+.0f}" for g in agg["Gap"]], textposition="outside", textfont=dict(color="#333333")))
         fig3.add_hline(y=0, line_dash="dash", line_color="rgba(255,255,255,0.1)")
         fig3.update_layout(**CD(), height=280, xaxis=gX(), yaxis={**gY(),"title":"Units Surplus / Deficit"})
         st.plotly_chart(fig3, use_container_width=True, key="chart_13")
@@ -1673,16 +1673,16 @@ def page_logistics():
 
         sec("Region-Level Cost Comparison")
         fig_cost = go.Figure()
-        fig_cost.add_trace(go.Bar(name="Current Avg ₹", x=opt["Region"], y=opt["Current_Avg_Cost"], marker=dict(color="#ff6b6b", line=dict(color="rgba(0,0,0,0)"))))
-        fig_cost.add_trace(go.Bar(name="Optimal Avg ₹", x=opt["Region"], y=opt["Min_Avg_Cost"],     marker=dict(color="#56e0a0", line=dict(color="rgba(0,0,0,0)"))))
+        fig_cost.add_trace(go.Bar(name="Current Avg ₹", x=opt["Region"], y=opt["Current_Avg_Cost"], marker=dict(color="#EF4444", line=dict(color="rgba(0,0,0,0)"))))
+        fig_cost.add_trace(go.Bar(name="Optimal Avg ₹", x=opt["Region"], y=opt["Min_Avg_Cost"],     marker=dict(color="#22C55E", line=dict(color="rgba(0,0,0,0)"))))
         fig_cost.update_layout(**CD(), height=280, barmode="group", xaxis={**gX(),"tickangle":-25}, yaxis=gY(), legend=leg())
         st.plotly_chart(fig_cost, use_container_width=True, key="chart_16")
 
         sec("Saving by Region")
         s_sorted = opt.sort_values("Potential_Saving", ascending=False)
         fig_sav = go.Figure(go.Bar(x=s_sorted["Region"], y=s_sorted["Potential_Saving"],
-            marker=dict(color="#f5a623", line=dict(color="rgba(0,0,0,0)")),
-            text=[f"₹{v:,.0f}" for v in s_sorted["Potential_Saving"]], textposition="outside", textfont=dict(color="#4a5e7a")))
+            marker=dict(color="#F59E0B", line=dict(color="rgba(0,0,0,0)")),
+            text=[f"₹{v:,.0f}" for v in s_sorted["Potential_Saving"]], textposition="outside", textfont=dict(color="#333333")))
         fig_sav.update_layout(**CD(), height=250, xaxis={**gX(),"tickangle":-25}, yaxis=gY())
         st.plotly_chart(fig_sav, use_container_width=True, key="chart_17")
 
@@ -1709,7 +1709,7 @@ def page_logistics():
             rd_s = rd.sort_values("Region")
             fig_r = go.Figure(go.Bar(x=rd_s["Rate"], y=rd_s["Region"], orientation="h",
                 marker=dict(color=[f"rgba(255,107,107,{min(v/60+0.25,0.9):.2f})" for v in rd_s["Rate"]], line=dict(color="rgba(0,0,0,0)")),
-                text=[f"{v}%" for v in rd_s["Rate"]], textposition="outside", textfont=dict(color="#4a5e7a")))
+                text=[f"{v}%" for v in rd_s["Rate"]], textposition="outside", textfont=dict(color="#333333")))
             fig_r.update_layout(**CD(), height=300, xaxis={**gX(),"title":"Delay %"}, yaxis=dict(showgrid=False,color="#64748B"))
             st.plotly_chart(fig_r, use_container_width=True, key="chart_18")
         with cr3:
@@ -1717,15 +1717,15 @@ def page_logistics():
             cd = del_df2.groupby("Courier_Partner").agg(T=("Order_ID","count"), D=("Delayed","sum")).reset_index()
             cd["Rate"] = (cd["D"]/cd["T"]*100).round(1)
             fig_c = go.Figure(go.Bar(x=cd["Courier_Partner"], y=cd["Rate"],
-                marker=dict(color=["#ff6b6b" if v>35 else "#f5a623" if v>20 else "#56e0a0" for v in cd["Rate"]], line=dict(color="rgba(0,0,0,0)")),
-                text=[f"{v}%" for v in cd["Rate"]], textposition="outside", textfont=dict(color="#4a5e7a")))
+                marker=dict(color=["#EF4444" if v>35 else "#F59E0B" if v>20 else "#22C55E" for v in cd["Rate"]], line=dict(color="rgba(0,0,0,0)")),
+                text=[f"{v}%" for v in cd["Rate"]], textposition="outside", textfont=dict(color="#333333")))
             fig_c.update_layout(**CD(), height=300, xaxis=gX(), yaxis={**gY(),"title":"Delay %"})
             st.plotly_chart(fig_c, use_container_width=True, key="chart_19")
 
         sec("Carrier × Region Delay Heatmap")
         pv = del_df2.groupby(["Courier_Partner","Region"])["Delayed"].mean().unstack(fill_value=0)*100
         fig_h = go.Figure(go.Heatmap(z=pv.values, x=list(pv.columns), y=list(pv.index),
-            colorscale=[[0,"#0d1829"],[0.4,"#7c4fd0"],[0.7,"#e87adb"],[1,"#ff6b6b"]],
+            colorscale=[[0,"#0d1829"],[0.4,"#7c4fd0"],[0.7,"#e87adb"],[1,"#EF4444"]],
             text=np.round(pv.values,1), texttemplate="%{text}%", textfont=dict(size=10),
             colorbar=dict(tickfont=dict(color="#8a9dc0",size=10))))
         fig_h.update_layout(**CD(), height=260,
@@ -1743,8 +1743,8 @@ def page_logistics():
             fig_d.add_trace(go.Scatter(x=x_ci,y=y_ci,fill="toself",fillcolor="rgba(255,107,107,0.07)",line=dict(color="rgba(0,0,0,0)"),showlegend=False))
             fig_d.add_trace(go.Scatter(x=r_del["hist_ds"],y=r_del["hist_y"],name="Historical",line=dict(color="#4a5e7a",width=2)))
             fig_d.add_trace(go.Scatter(x=r_del["fut_ds"],y=r_del["forecast"],name="Forecast",
-                line=dict(color="#ff6b6b",width=2.5,dash="dot"),mode="lines+markers",
-                marker=dict(size=8,color="#ff6b6b",line=dict(color="#FFFFFF",width=2))))
+                line=dict(color="#EF4444",width=2.5,dash="dot"),mode="lines+markers",
+                marker=dict(size=8,color="#EF4444",line=dict(color="#FFFFFF",width=2))))
             fig_d.update_layout(**CD(), height=250, xaxis=gX(), yaxis={**gY(),"title":"Avg Delivery Days"}, legend=leg())
             st.plotly_chart(fig_d, use_container_width=True, key="chart_21")
 
@@ -1788,8 +1788,8 @@ def page_logistics():
         wsel = st.selectbox("Warehouse", sorted(del_df["Warehouse"].unique()))
         tp = del_df[del_df["Warehouse"]==wsel].groupby("Product_Name")["Quantity"].sum().sort_values(ascending=False).head(10)
         fig_tp = go.Figure(go.Bar(x=tp.values, y=tp.index, orientation="h",
-            marker=dict(color="#2ed8c3", line=dict(color="rgba(0,0,0,0)")),
-            text=tp.values, textposition="outside", textfont=dict(color="#4a5e7a")))
+            marker=dict(color="#06B6D4", line=dict(color="rgba(0,0,0,0)")),
+            text=tp.values, textposition="outside", textfont=dict(color="#333333")))
         fig_tp.update_layout(**CD(), height=300, xaxis=gX(), yaxis=dict(showgrid=False,color="#64748B"))
         st.plotly_chart(fig_tp, use_container_width=True, key="chart_23")
 
@@ -1819,8 +1819,8 @@ def page_logistics():
             sec("Region Return Rate Ranking")
             rr = del_df.groupby("Region")["Return_Flag"].mean().sort_values(ascending=False)*100
             fig_ret = go.Figure(go.Bar(x=rr.values, y=rr.index, orientation="h",
-                marker=dict(color=["#ff6b6b" if v>20 else "#f5a623" if v>12 else "#56e0a0" for v in rr.values], line=dict(color="rgba(0,0,0,0)")),
-                text=[f"{v:.1f}%" for v in rr.values], textposition="outside", textfont=dict(color="#4a5e7a")))
+                marker=dict(color=["#EF4444" if v>20 else "#F59E0B" if v>12 else "#22C55E" for v in rr.values], line=dict(color="rgba(0,0,0,0)")),
+                text=[f"{v:.1f}%" for v in rr.values], textposition="outside", textfont=dict(color="#333333")))
             fig_ret.update_layout(**CD(), height=270, xaxis=gX(), yaxis=dict(showgrid=False,color="#64748B"))
             st.plotly_chart(fig_ret, use_container_width=True, key="chart_25")
 
@@ -1863,12 +1863,12 @@ sel = st.sidebar.radio("Navigate", list(PAGES.keys()), label_visibility="collaps
 
 st.sidebar.markdown("""<div style='border-top:1px solid rgba(255,255,255,0.06);padding-top:18px;margin-top:8px'>
   <div style='font-family:DM Mono,monospace;font-size:0.62rem;color:#4a5e7a;line-height:2.1;letter-spacing:0.04em'>
-    <span style='color:#8a9dc0'>DATA RANGE</span><br>Jan 2024 – Dec 2025<br>
-    <span style='color:#8a9dc0'>DATASET</span><br>5,200 orders · 50 SKUs · 🇮🇳 India D2D<br>
-    <span style='color:#8a9dc0'>MODEL</span><br>Ridge + Structural Break<br>
-    <span style='color:#8a9dc0'>CHATBOT</span><br>Groq LLaMA-3.3-70B<br>
+    <span style='color:#444444'>DATA RANGE</span><br>Jan 2024 – Dec 2025<br>
+    <span style='color:#444444'>DATASET</span><br>5,200 orders · 50 SKUs · 🇮🇳 India D2D<br>
+    <span style='color:#444444'>MODEL</span><br>Ridge + Structural Break<br>
+    <span style='color:#444444'>CHATBOT</span><br>Groq LLaMA-3.3-70B<br>
   </div>
-  <div style='margin-top:14px;font-family:DM Mono,monospace;font-size:0.6rem;color:#4a5e7a'>
+  <div style='margin-top:14px;font-family:DM Mono,monospace;font-size:0.6rem;color:#333333'>
     <span style='color:#000000'>PIPELINE</span><br>
     Demand → Inventory → Production → Logistics → Chatbot
   </div>
