@@ -13,196 +13,232 @@ st.set_page_config(
 
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=DM+Mono:wght@400;500&display=swap');
-
-/* 🎨 COLOR SYSTEM */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 :root{
-  --bg:#f4f7fb;
-  --bg-soft:#eef3f9;
-  --card:#ffffff;
-
-  --border:rgba(0,0,0,0.08);
-  --border-strong:rgba(0,0,0,0.12);
-
-  --primary:#2563eb;
-  --accent:#0ea5a4;
-  --warn:#f59e0b;
-  --danger:#ef4444;
-  --purple:#7c3aed;
-  --success:#059669;
-
-  --text-main:#0f172a;
-  --text-secondary:#334155;
-  --text-muted:#64748b;
-
-  --shadow-soft:0 6px 20px rgba(0,0,0,0.05);
-  --shadow-mid:0 12px 30px rgba(0,0,0,0.08);
+  --bg:#FFFFFF;--bg2:#FAFAFA;--surface:#F1F3F5;--card:#FFFFFF;--panel:#F8F9FA;
+  --border:#E2E8F0;--border2:#CBD5E1;
+  --blue:#1D4ED8;--blue-l:#3B82F6;--green:#15803D;--amber:#B45309;
+  --red:#B91C1C;--purple:#6D28D9;--cyan:#0E7490;--orange:#C2410C;
+  --text1:#000000;--text2:#111111;--text3:#333333;--text4:#555555;
+  --accent:#1D4ED8;
+  --shadow:0 1px 3px rgba(0,0,0,0.08),0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md:0 4px 12px rgba(0,0,0,0.08),0 2px 4px rgba(0,0,0,0.04);
+  --radius:14px;
 }
-
-/* 🌍 BASE */
-html, body, [class*="css"]{
+html,body,[class*="css"]{
   font-family:'Inter',sans-serif!important;
   background:var(--bg)!important;
-  color:var(--text-main)!important;
+  color:var(--text1)!important;
 }
+.stApp{background:var(--bg)!important;}
 
-/* 🌤 BACKGROUND */
-.stApp{
-  background:linear-gradient(180deg,#f4f7fb 0%, #eef3f9 100%);
-}
-
-/* 📌 SIDEBAR */
 section[data-testid="stSidebar"]{
-  background:#ffffff!important;
-  border-right:1px solid var(--border-strong)!important;
+  background:var(--bg2)!important;
+  border-right:1px solid var(--border)!important;
+  box-shadow:var(--shadow)!important;
+}
+section[data-testid="stSidebar"]::before{
+  content:"";position:absolute;top:0;left:0;right:0;height:3px;
+  background:linear-gradient(90deg,var(--blue),var(--blue-l));
 }
 
-/* 🧱 KPI CARDS */
+/* ── Metric Cards ── */
 .metric-card{
   background:var(--card);
   border:1px solid var(--border);
-  border-radius:16px;
-  padding:18px;
-  box-shadow:var(--shadow-soft);
-  transition:all 0.25s ease;
+  border-radius:var(--radius);
+  padding:18px 20px;
+  box-shadow:var(--shadow);
+  position:relative;overflow:hidden;
+  transition:box-shadow 0.2s ease,border-color 0.2s ease;
+  cursor:default;
 }
-
+.metric-card::after{
+  content:"";position:absolute;top:0;left:0;right:0;height:3px;
+  border-radius:var(--radius) var(--radius) 0 0;
+}
+.metric-card.amber::after{background:var(--amber);}
+.metric-card.teal::after{background:var(--cyan);}
+.metric-card.coral::after{background:var(--red);}
+.metric-card.sky::after{background:var(--blue);}
+.metric-card.lav::after{background:var(--purple);}
+.metric-card.mint::after{background:var(--green);}
 .metric-card:hover{
-  transform:translateY(-4px);
-  box-shadow:var(--shadow-mid);
+  box-shadow:var(--shadow-md);
+  border-color:var(--border2);
 }
-
-/* 🧠 KPI TEXT */
 .metric-label{
-  font-size:0.65rem;
-  text-transform:uppercase;
-  letter-spacing:0.12em;
-  color:var(--text-muted);
-  font-weight:600;
-  margin-bottom:8px;
-  font-family:'DM Mono',monospace!important;
+  font-size:0.68rem;text-transform:uppercase;color:var(--text3);
+  letter-spacing:0.1em;font-weight:600;margin-bottom:8px;
+  font-family:'JetBrains Mono',monospace!important;
 }
-
 .metric-value{
-  font-size:2rem;
-  font-weight:800;
-  color:var(--text-main);
+  font-size:1.9rem;font-weight:800;line-height:1.1;
+  letter-spacing:-0.02em;color:var(--text1);
 }
-
 .metric-sub{
-  font-size:0.7rem;
-  color:var(--text-muted);
-  margin-top:5px;
-  font-family:'DM Mono',monospace!important;
+  font-size:0.68rem;color:#444444;margin-top:5px;
+  font-family:'JetBrains Mono',monospace!important;
 }
 
-/* 🧾 TITLES */
-.page-title{
-  font-size:2.5rem;
-  font-weight:900;
-  letter-spacing:-0.03em;
-  margin-bottom:4px;
-}
-
-.page-subtitle{
-  font-size:0.85rem;
-  color:var(--text-muted);
-  font-family:'DM Mono',monospace!important;
-}
-
-/* 📊 SECTION HEADERS */
+/* ── Section Headers ── */
+.section-header{display:flex;align-items:center;gap:10px;margin:24px 0 14px;}
+.section-header-line{flex:1;height:1px;background:var(--border);}
 .section-title{
-  font-size:0.8rem;
-  text-transform:uppercase;
-  letter-spacing:0.1em;
-  color:var(--text-secondary);
-  font-weight:700;
-  font-family:'DM Mono',monospace!important;
+  font-weight:700;font-size:0.72rem;text-transform:uppercase;
+  letter-spacing:0.12em;color:#333333;
+  font-family:'JetBrains Mono',monospace!important;
 }
 
-.section-header{
-  margin-top:10px;
-  padding:10px 0;
+/* ── Page Titles ── */
+.page-title{
+  font-family:'Inter',sans-serif!important;
+  font-size:1.9rem;font-weight:800;
+  letter-spacing:-0.025em;line-height:1.2;
+  margin-bottom:4px;padding:14px 0 4px;
+  color:#000000;
+}
+.page-subtitle{
+  color:#333333;font-size:0.73rem;
+  font-family:'JetBrains Mono',monospace!important;
+  margin-bottom:14px;letter-spacing:0.02em;
 }
 
-.section-header-line{
-  height:1px;
-  background:linear-gradient(to right, rgba(0,0,0,0.1), transparent);
-  margin-top:6px;
+/* ── Badges ── */
+.badge{
+  display:inline-flex;align-items:center;gap:4px;
+  padding:2px 9px;border-radius:4px;
+  font-size:0.64rem;font-weight:600;letter-spacing:0.05em;
+  border:1px solid;font-family:'JetBrains Mono',monospace!important;margin:2px;
 }
+.badge-amber{background:#FEF3C7;color:#92400E;border-color:#FCD34D;}
+.badge-teal{background:#CFFAFE;color:#155E75;border-color:#67E8F9;}
+.badge-coral{background:#FEE2E2;color:#991B1B;border-color:#FCA5A5;}
+.badge-sky{background:#DBEAFE;color:#1E40AF;border-color:#93C5FD;}
+.badge-lav{background:#EDE9FE;color:#5B21B6;border-color:#C4B5FD;}
+.badge-mint{background:#DCFCE7;color:#166534;border-color:#86EFAC;}
 
-/* 🧊 CARDS */
+/* ── Info Banners ── */
+.info-banner{
+  border-radius:var(--radius);padding:10px 14px;margin:8px 0 14px;
+  font-size:0.79rem;border:1px solid;position:relative;overflow:hidden;
+}
+.info-banner::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;}
+.banner-teal{background:#F0FDFA;border-color:#99F6E4;color:var(--text2);}
+.banner-teal::before{background:var(--cyan);}
+.banner-amber{background:#FFFBEB;border-color:#FDE68A;color:var(--text2);}
+.banner-amber::before{background:var(--amber);}
+.banner-coral{background:#FFF1F2;border-color:#FECDD3;color:var(--text2);}
+.banner-coral::before{background:var(--red);}
+.banner-mint{background:#F0FDF4;border-color:#BBF7D0;color:var(--text2);}
+.banner-mint::before{background:var(--green);}
+
+/* ── About Card ── */
 .about-card{
   background:var(--card);
+  border:1px solid var(--border);border-radius:var(--radius);
+  padding:22px 26px;margin-bottom:20px;position:relative;overflow:hidden;
+  box-shadow:var(--shadow);
+}
+.about-card::before{display:none;}
+
+/* ── Model Quality Cards ── */
+.model-quality-card{
+  border-radius:var(--radius);padding:14px 18px;margin:10px 0 8px;
+  border:1px solid;position:relative;overflow:hidden;
+  font-family:'JetBrains Mono',monospace;
+  background:var(--card);
+  color:#000000;
+}
+.model-quality-card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;}
+.mqc-excellent{border-color:#BBF7D0;color:#000000;}
+.mqc-excellent::before{background:var(--green);}
+.mqc-good{border-color:#BFDBFE;color:#000000;}
+.mqc-good::before{background:var(--blue);}
+.mqc-acceptable{border-color:#FDE68A;color:#000000;}
+.mqc-acceptable::before{background:var(--amber);}
+.mqc-poor{border-color:#FECACA;color:#000000;}
+.mqc-poor::before{background:var(--red);}
+
+/* ── Alert Items ── */
+.alert-item{
+  border-radius:var(--radius);padding:8px 12px;margin:4px 0;
+  font-size:0.75rem;border-left:3px solid;
+  background:var(--surface);
+  font-family:'JetBrains Mono',monospace!important;
+  transition:background 0.15s ease;
+}
+.alert-item:hover{background:var(--bg2);}
+.alert-critical{border-color:var(--red);}
+.alert-warn{border-color:var(--amber);}
+.alert-ok{border-color:var(--green);}
+
+/* ── Chat Bubbles ── */
+.chat-user-bubble{
+  background:#EFF6FF;
+  border:1px solid #BFDBFE;
+  border-radius:8px 8px 2px 8px;
+  padding:10px 14px;font-size:0.85rem;margin-left:20%;
+  color:var(--text1);
+}
+.chat-ai-bubble{
+  background:var(--card);
   border:1px solid var(--border);
-  border-radius:18px;
-  padding:26px;
-  box-shadow:var(--shadow-soft);
+  border-radius:8px 8px 8px 2px;
+  padding:12px 16px;font-size:0.85rem;
+  color:var(--text2);line-height:1.7;margin-right:10%;
+  box-shadow:var(--shadow);
 }
 
-/* 🏷 BADGES */
-.badge{
-  display:inline-flex;
-  padding:4px 12px;
-  border-radius:999px;
-  font-size:0.68rem;
-  font-weight:600;
-  border:1px solid;
-  font-family:'DM Mono',monospace!important;
-  margin:3px;
-}
-
-.badge-amber{background:rgba(245,158,11,0.12);color:#b45309;border-color:rgba(245,158,11,0.3);}
-.badge-teal{background:rgba(20,184,166,0.12);color:#0f766e;border-color:rgba(20,184,166,0.3);}
-.badge-coral{background:rgba(239,68,68,0.12);color:#b91c1c;border-color:rgba(239,68,68,0.3);}
-.badge-sky{background:rgba(37,99,235,0.12);color:#1d4ed8;border-color:rgba(37,99,235,0.3);}
-.badge-lav{background:rgba(124,58,237,0.12);color:#6d28d9;border-color:rgba(124,58,237,0.3);}
-.badge-mint{background:rgba(5,150,105,0.12);color:#047857;border-color:rgba(5,150,105,0.3);}
-
-/* 📌 TABS */
+/* ── Tabs ── */
 .stTabs [data-baseweb="tab-list"]{
-  background:var(--bg-soft)!important;
-  border-radius:12px!important;
-  padding:4px!important;
+  background:var(--surface)!important;border-radius:var(--radius)!important;
+  padding:4px!important;gap:2px!important;
+  border:1px solid var(--border)!important;
 }
-
+.stTabs [data-baseweb="tab"]{
+  background:transparent!important;border-radius:4px!important;
+  color:var(--text3)!important;
+  font-family:'JetBrains Mono',monospace!important;
+  font-size:0.72rem!important;font-weight:500!important;
+  padding:7px 14px!important;transition:all 0.15s!important;
+}
 .stTabs [aria-selected="true"]{
-  background:#ffffff!important;
-  color:var(--primary)!important;
-  box-shadow:0 2px 8px rgba(0,0,0,0.08)!important;
+  background:var(--card)!important;
+  color:var(--blue)!important;
+  box-shadow:var(--shadow)!important;
+  font-weight:600!important;
 }
 
-/* 🔘 BUTTONS */
+/* ── Buttons ── */
 .stButton>button{
-  background:rgba(37,99,235,0.08)!important;
-  color:var(--primary)!important;
-  border:1px solid rgba(37,99,235,0.25)!important;
-  border-radius:10px!important;
-  font-size:0.78rem!important;
-  font-family:'DM Mono',monospace!important;
+  background:var(--card)!important;
+  color:var(--text2)!important;
+  border:1px solid var(--border2)!important;
+  border-radius:var(--radius)!important;
+  font-weight:500!important;font-size:0.76rem!important;
+  font-family:'JetBrains Mono',monospace!important;
+  transition:all 0.15s!important;box-shadow:var(--shadow)!important;
 }
-
 .stButton>button:hover{
-  background:rgba(37,99,235,0.15)!important;
-  transform:translateY(-2px)!important;
+  background:var(--surface)!important;
+  color:var(--text1)!important;
+  border-color:var(--blue)!important;
+  box-shadow:var(--shadow-md)!important;
 }
 
-/* 📊 TABLE */
-[data-testid="stDataFrame"]{
-  border:1px solid var(--border);
-  border-radius:12px;
-}
+/* ── Streamlit overrides ── */
+.stDataFrame{border:1px solid var(--border)!important;border-radius:var(--radius)!important;}
+.stSelectbox>div>div{background:var(--card)!important;border-color:var(--border2)!important;}
+.stSlider .stSlider>div{color:var(--text1)!important;}
 
-/* 📜 SCROLLBAR */
-::-webkit-scrollbar{width:6px;}
-::-webkit-scrollbar-thumb{
-  background:#cbd5e1;
-  border-radius:10px;
-}
+/* ── Scrollbar ── */
+::-webkit-scrollbar{width:5px;height:5px;}
+::-webkit-scrollbar-track{background:var(--bg);}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:99px;}
+::-webkit-scrollbar-thumb:hover{background:var(--text4);}
 
-/* 🚫 REMOVE STREAMLIT BRANDING */
-footer{visibility:hidden;}
-#MainMenu{visibility:hidden;}
+footer{visibility:hidden;}#MainMenu{visibility:hidden;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -785,7 +821,7 @@ def page_chatbot():
         else:
             safe = content.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;")
             safe = _re.sub(r'\*\*(.+?)\*\*', r'<span style="color:#f0f4ff;font-weight:700">\1</span>', safe)
-            safe = _re.sub(r'\*(.+?)\*',     r'<span style="color:#8a9dc0;font-style:italic">\1</span>', safe)
+            safe = _re.sub(r'\*(.+?)\*',     r'<span style="color:#000000;font-style:italic">\1</span>', safe)
             html_parts = []
             for line in safe.split("\n"):
                 line = line.strip()
@@ -797,7 +833,7 @@ def page_chatbot():
                 elif line.startswith("**") and line.endswith("**"):
                     html_parts.append(f"<div style='color:#f0f4ff;font-weight:700;margin:8px 0 3px'>{line[2:-2]}</div>")
                 else:
-                    html_parts.append(f"<div style='color:#8a9dc0;line-height:1.65;margin:3px 0'>{line}</div>")
+                    html_parts.append(f"<div style='color:#000000;line-height:1.65;margin:3px 0'>{line}</div>")
             st.markdown(f"<div style='margin:10px 0'><div class='chat-ai-bubble'>{chr(10).join(html_parts)}</div></div>", unsafe_allow_html=True)
 
     sp()
@@ -832,7 +868,7 @@ def page_chatbot():
                 🔴 Critical SKUs — Reorder NOW</div>""", unsafe_allow_html=True)
             inv = compute_inventory()
             for _, r in inv[inv["Status"]=="🔴 Critical"][["Product_Name","Category","Current_Stock","ROP"]].head(5).iterrows():
-                st.markdown(f"<div class='alert-item alert-critical'><b style='color:#f0f4ff'>{r['Product_Name']}</b> <span style='color:#4a5e7a'>[{r['Category']}]</span><br><span style='color:#4a5e7a;font-size:0.71rem'>Stock: {r['Current_Stock']} · ROP: {r['ROP']}</span></div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='alert-item alert-critical'><b style='color:#f0f4ff'>{r['Product_Name']}</b> <span style='color:#333333'>[{r['Category']}]</span><br><span style='color:#333333;font-size:0.71rem'>Stock: {r['Current_Stock']} · ROP: {r['ROP']}</span></div>", unsafe_allow_html=True)
         with al2:
             st.markdown("""<div style='font-size:0.74rem;font-weight:700;color:#f5a623;
                 letter-spacing:0.06em;text-transform:uppercase;font-family:DM Mono,monospace;margin-bottom:10px'>
@@ -840,7 +876,7 @@ def page_chatbot():
             _, _, opt, _ = compute_logistics()
             for _, r in opt.sort_values("Potential_Saving", ascending=False).head(5).iterrows():
                 if r["Potential_Saving"] > 0:
-                    st.markdown(f"<div class='alert-item alert-warn'><b style='color:#f0f4ff'>{r['Region']}</b> → <b style='color:#56e0a0'>{r['Optimal_Carrier']}</b><br><span style='color:#4a5e7a;font-size:0.71rem'>Save ₹{r['Potential_Saving']:,.0f} ({r['Saving_Pct']:.1f}%)</span></div>", unsafe_allow_html=True)
+                    st.markdown(f"<div class='alert-item alert-warn'><b style='color:#f0f4ff'>{r['Region']}</b> → <b style='color:#56e0a0'>{r['Optimal_Carrier']}</b><br><span style='color:#333333;font-size:0.71rem'>Save ₹{r['Potential_Saving']:,.0f} ({r['Saving_Pct']:.1f}%)</span></div>", unsafe_allow_html=True)
 
         sp()
         sec("Revenue Forecast — Next 3 Months", "📈")
@@ -972,19 +1008,19 @@ def page_overview():
       <div style='background:var(--deep);border-radius:12px;padding:11px 17px;font-weight:700;font-size:0.78rem;
            text-align:center;min-width:95px;border:1px solid rgba(245,166,35,0.4);color:#f5a623;font-family:DM Mono,monospace'>
            Demand<span style='display:block;font-size:0.58rem;font-weight:400;color:#4a5e7a;margin-top:3px'>Forecast</span></div>
-      <div style='color:#4a5e7a;font-size:1.2rem;padding:0 8px;opacity:0.5'>→</div>
+      <div style='color:#333333;font-size:1.2rem;padding:0 8px;opacity:0.5'>→</div>
       <div style='background:var(--deep);border-radius:12px;padding:11px 17px;font-weight:700;font-size:0.78rem;
            text-align:center;min-width:95px;border:1px solid rgba(86,224,160,0.4);color:#56e0a0;font-family:DM Mono,monospace'>
            Inventory<span style='display:block;font-size:0.58rem;font-weight:400;color:#4a5e7a;margin-top:3px'>EOQ + ROP</span></div>
-      <div style='color:#4a5e7a;font-size:1.2rem;padding:0 8px;opacity:0.5'>→</div>
+      <div style='color:#333333;font-size:1.2rem;padding:0 8px;opacity:0.5'>→</div>
       <div style='background:var(--deep);border-radius:12px;padding:11px 17px;font-weight:700;font-size:0.78rem;
            text-align:center;min-width:95px;border:1px solid rgba(155,135,212,0.4);color:#9b87d4;font-family:DM Mono,monospace'>
            Production<span style='display:block;font-size:0.58rem;font-weight:400;color:#4a5e7a;margin-top:3px'>6-Month Plan</span></div>
-      <div style='color:#4a5e7a;font-size:1.2rem;padding:0 8px;opacity:0.5'>→</div>
+      <div style='color:#333333;font-size:1.2rem;padding:0 8px;opacity:0.5'>→</div>
       <div style='background:var(--deep);border-radius:12px;padding:11px 17px;font-weight:700;font-size:0.78rem;
            text-align:center;min-width:95px;border:1px solid rgba(255,107,107,0.4);color:#ff6b6b;font-family:DM Mono,monospace'>
            Logistics<span style='display:block;font-size:0.58rem;font-weight:400;color:#4a5e7a;margin-top:3px'>+ Cost Opt</span></div>
-      <div style='color:#4a5e7a;font-size:1.2rem;padding:0 8px;opacity:0.5'>→</div>
+      <div style='color:#333333;font-size:1.2rem;padding:0 8px;opacity:0.5'>→</div>
       <div style='background:var(--deep);border-radius:12px;padding:11px 17px;font-weight:700;font-size:0.78rem;
            text-align:center;min-width:95px;border:1px solid rgba(91,164,229,0.4);color:#5ba4e5;font-family:DM Mono,monospace'>
            AI Chatbot<span style='display:block;font-size:0.58rem;font-weight:400;color:#4a5e7a;margin-top:3px'>Groq LLaMA</span></div>
@@ -1777,10 +1813,10 @@ sel = st.sidebar.radio("Navigate", list(PAGES.keys()), label_visibility="collaps
 
 st.sidebar.markdown("""<div style='border-top:1px solid rgba(255,255,255,0.06);padding-top:18px;margin-top:8px'>
   <div style='font-family:DM Mono,monospace;font-size:0.62rem;color:#4a5e7a;line-height:2.1;letter-spacing:0.04em'>
-    <span style='color:#8a9dc0'>DATA RANGE</span><br>Jan 2024 – Dec 2025<br>
-    <span style='color:#8a9dc0'>DATASET</span><br>5,200 orders · 50 SKUs · 🇮🇳 India D2D<br>
-    <span style='color:#8a9dc0'>MODEL</span><br>Ridge + Structural Break<br>
-    <span style='color:#8a9dc0'>CHATBOT</span><br>Groq LLaMA-3.3-70B<br>
+    <span style='color:#000000'>DATA RANGE</span><br>Jan 2024 – Dec 2025<br>
+    <span style='color:#000000'>DATASET</span><br>5,200 orders · 50 SKUs · 🇮🇳 India D2D<br>
+    <span style='color:#000000'>MODEL</span><br>Ridge + Structural Break<br>
+    <span style='color:#000000'>CHATBOT</span><br>Groq LLaMA-3.3-70B<br>
   </div>
   <div style='margin-top:14px;font-family:DM Mono,monospace;font-size:0.6rem;color:#4a5e7a'>
     <span style='color:#f5a623'>PIPELINE</span><br>
