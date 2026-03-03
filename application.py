@@ -17,10 +17,9 @@ st.markdown("""
 
 /* ================= THEME ================= */
 :root{
-  --bg:#f6f8fc;
+  --bg:#f5f7fb;
   --sidebar:#ffffff;
   --card:#ffffff;
-
   --border:#e5e7eb;
 
   --blue:#2563eb;
@@ -34,13 +33,12 @@ st.markdown("""
   --text-secondary:#334155;
   --text-muted:#64748b;
 
-  --shadow-soft:0 4px 12px rgba(0,0,0,0.05);
-  --shadow-hover:0 12px 28px rgba(0,0,0,0.10);
-
-  --radius:14px;
+  --shadow-soft:0 6px 16px rgba(0,0,0,0.05);
+  --shadow-hover:0 16px 40px rgba(0,0,0,0.12);
+  --radius:16px;
 }
 
-/* ================= BASE ================= */
+/* BASE */
 html,body,[class*="css"]{
   font-family:'Inter',sans-serif!important;
   background:var(--bg)!important;
@@ -48,56 +46,54 @@ html,body,[class*="css"]{
 }
 .stApp{background:var(--bg)!important;}
 
-/* ================= SIDEBAR ================= */
+/* SIDEBAR */
 section[data-testid="stSidebar"]{
-  background:var(--sidebar)!important;
+  background:linear-gradient(180deg,#ffffff,#f1f5f9)!important;
   border-right:1px solid var(--border)!important;
 }
-
-/* Sidebar items */
 section[data-testid="stSidebar"] *{
   font-size:0.85rem!important;
 }
 
-/* ================= PAGE TITLE ================= */
+/* TITLES */
 .page-title{
   font-size:2.3rem;
   font-weight:900;
-  color:var(--text-main);
+  background:linear-gradient(90deg,#2563eb,#0ea5a4);
+  -webkit-background-clip:text;
+  -webkit-text-fill-color:transparent;
 }
-
 .page-subtitle{
-  font-size:0.78rem;
+  font-size:0.8rem;
   color:var(--text-muted);
   font-family:'JetBrains Mono',monospace!important;
 }
 
-/* ================= KPI CARDS ================= */
+/* KPI CARDS */
 .metric-card{
+  position:relative;
   border-radius:var(--radius);
   padding:18px;
   border:1px solid var(--border);
+  background:#ffffff;
   box-shadow:var(--shadow-soft);
   transition:all 0.25s ease;
-  position:relative;
   overflow:hidden;
 }
-
-/* Hover animation */
+.metric-card::before{
+  content:"";
+  position:absolute;
+  top:0;
+  left:0;
+  width:100%;
+  height:4px;
+  background:linear-gradient(90deg,#2563eb,#0ea5a4);
+}
 .metric-card:hover{
-  transform:translateY(-4px);
+  transform:translateY(-5px) scale(1.01);
   box-shadow:var(--shadow-hover);
 }
 
-/* Color variants */
-.metric-card.sky{background:#eff6ff;}
-.metric-card.mint{background:#ecfdf5;}
-.metric-card.amber{background:#fff7ed;}
-.metric-card.coral{background:#fef2f2;}
-.metric-card.lav{background:#f5f3ff;}
-.metric-card.teal{background:#f0fdfa;}
-
-/* Label */
 .metric-label{
   font-size:0.68rem;
   text-transform:uppercase;
@@ -105,20 +101,16 @@ section[data-testid="stSidebar"] *{
   letter-spacing:0.08em;
   margin-bottom:6px;
 }
-
-/* Value */
 .metric-value{
   font-size:2rem;
   font-weight:900;
 }
-
-/* Sub */
 .metric-sub{
   font-size:0.7rem;
   color:var(--text-muted);
 }
 
-/* Value colors */
+/* COLOR VARIANTS */
 .metric-card.sky .metric-value{color:var(--blue);}
 .metric-card.mint .metric-value{color:var(--green);}
 .metric-card.amber .metric-value{color:var(--amber);}
@@ -126,30 +118,19 @@ section[data-testid="stSidebar"] *{
 .metric-card.lav .metric-value{color:var(--purple);}
 .metric-card.teal .metric-value{color:var(--teal);}
 
-/* ================= SECTION ================= */
-.section-title{
-  font-size:0.75rem;
-  text-transform:uppercase;
-  font-weight:700;
-  letter-spacing:0.1em;
-  color:var(--text-secondary);
-  font-family:'JetBrains Mono',monospace!important;
-}
-
-/* ================= MODEL CARD ================= */
+/* MODEL QUALITY CARD */
 .model-quality-card{
   background:#ffffff;
   border:1px solid var(--border);
-  border-radius:14px;
-  padding:18px;
+  border-radius:16px;
+  padding:20px;
   box-shadow:var(--shadow-soft);
 }
-
 .model-quality-card *{
   color:var(--text-main)!important;
 }
 
-/* ================= BADGES ================= */
+/* BADGES */
 .badge{
   padding:4px 10px;
   border-radius:8px;
@@ -157,7 +138,6 @@ section[data-testid="stSidebar"] *{
   font-weight:600;
   border:1px solid;
 }
-
 .badge-amber{background:#fff7ed;color:#c2410c;border-color:#fdba74;}
 .badge-teal{background:#f0fdfa;color:#0f766e;border-color:#99f6e4;}
 .badge-coral{background:#fef2f2;color:#b91c1c;border-color:#fca5a5;}
@@ -165,51 +145,40 @@ section[data-testid="stSidebar"] *{
 .badge-lav{background:#f5f3ff;color:#6d28d9;border-color:#c4b5fd;}
 .badge-mint{background:#ecfdf5;color:#047857;border-color:#a7f3d0;}
 
-/* ================= TABS ================= */
+/* TABS */
 .stTabs [data-baseweb="tab-list"]{
   background:#eef2f7!important;
   border-radius:10px!important;
 }
-
 .stTabs [aria-selected="true"]{
   background:#ffffff!important;
   font-weight:700!important;
   box-shadow:0 2px 6px rgba(0,0,0,0.08)!important;
 }
 
-/* ================= BUTTON ================= */
+/* BUTTON */
 .stButton>button{
   background:#ffffff!important;
   border:1px solid #d1d5db!important;
   border-radius:8px!important;
   font-weight:600!important;
 }
-
 .stButton>button:hover{
   border-color:var(--blue)!important;
   color:var(--blue)!important;
   transform:translateY(-2px);
 }
 
-/* ================= TABLE ================= */
+/* TABLE */
 [data-testid="stDataFrame"]{
   border:1px solid var(--border);
   border-radius:10px;
 }
 
-/* ================= SCROLL ================= */
-::-webkit-scrollbar{width:6px;}
-::-webkit-scrollbar-thumb{
-  background:#cbd5f5;
-  border-radius:10px;
-}
-
-/* ================= REMOVE STREAMLIT ================= */
 footer{visibility:hidden;}
 #MainMenu{visibility:hidden;}
 </style>
 """, unsafe_allow_html=True)
-
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
@@ -301,26 +270,29 @@ def render_model_quality(res):
 
     # Verdict card
     st.markdown(f"""
-    <div class='model-quality-card {css}'>
-      <div style='display:flex;align-items:center;gap:12px;margin-bottom:8px'>
+    <div class='model-quality-card'>
+      <div style='display:flex;align-items:center;gap:14px;margin-bottom:12px'>
         <div style='font-size:1.6rem'>{icon}</div>
         <div>
-          <div style='font-size:0.65rem;text-transform:uppercase;letter-spacing:0.12em;
-               color:#4a5e7a;margin-bottom:3px'>Model Quality Grade</div>
-          <div style='font-size:1.4rem;font-weight:900;letter-spacing:-0.02em;color:#000000'>
-            {grade} &nbsp;<span style='font-size:0.9rem;font-weight:600;color:#444444'>{label}</span>
+          <div style='font-size:0.7rem;text-transform:uppercase;
+               letter-spacing:0.12em;color:#64748b;margin-bottom:4px'>
+               Model Quality Grade
+          </div>
+          <div style='font-size:1.5rem;font-weight:900'>
+            {grade} <span style='font-size:0.9rem;font-weight:600;color:#334155'>
+            {label}</span>
           </div>
         </div>
         <div style='margin-left:auto;text-align:right'>
-          <div style='font-size:0.6rem;text-transform:uppercase;letter-spacing:0.1em;color:#333333'>Forecast Accuracy</div>
-          <div style='font-size:2rem;font-weight:900;color:#000000'>{accuracy_pct:.1f}%</div>
+          <div style='font-size:0.7rem;color:#64748b'>Forecast Accuracy</div>
+          <div style='font-size:2rem;font-weight:900'>{accuracy_pct:.1f}%</div>
         </div>
       </div>
-      <div style='font-size:0.8rem;color:#64748b;line-height:1.6;border-top:1px solid rgba(0,0,0,0.06);padding-top:9px'>
-        📋 <b style='color:#000000'>Interpretation:</b> {explanation}
-      </div>
-      <div style='margin-top:10px;display:flex;gap:18px;font-size:0.7rem;color:#333333'>
-        <span>NRMSE &lt;10% → Excellent &nbsp;|&nbsp; &lt;20% → Good &nbsp;|&nbsp; &lt;25% → Acceptable &nbsp;|&nbsp; ≥25% → Weak</span>
+    
+      <div style='font-size:0.85rem;color:#334155;
+           border-top:1px solid rgba(0,0,0,0.06);
+           padding-top:10px;line-height:1.6'>
+        📋 <b>Interpretation:</b> {explanation}
       </div>
     </div>
     """, unsafe_allow_html=True)
