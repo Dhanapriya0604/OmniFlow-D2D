@@ -871,7 +871,7 @@ def page_overview():
                 hovertemplate="<b>%{x|%b %Y}</b><br>₹%{y:,.0f}<extra></extra>"))
         fig.update_layout(**CD(), height=260, xaxis=gX(),
             yaxis={**gY(), "tickformat":",.0f"}, legend=leg())
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True, key="chart_1")
 
     with c_r:
         sec("Net Revenue by Category")
@@ -881,7 +881,7 @@ def page_overview():
             textinfo="label+percent", textfont=dict(size=10,color="#f0f4ff")))
         fig2.update_layout(**CD(), height=260, showlegend=False,
             annotations=[dict(text="Net Rev",x=.5,y=.5,showarrow=False,font=dict(size=10,color="#4a5e7a",family="DM Mono"))])
-        st.plotly_chart(fig2, use_container_width=True)
+        st.plotly_chart(fig2, use_container_width=True, key="chart_2")
 
     sp(0.5)
     c3a, c3b, c3c = st.columns(3, gap="large")
@@ -892,7 +892,7 @@ def page_overview():
             marker=dict(color=COLORS[:len(ch)], line=dict(color="rgba(0,0,0,0)")),
             text=ch.values, textposition="outside", textfont=dict(color="#4a5e7a",size=10)))
         fig3.update_layout(**CD(), height=240, xaxis=gX(), yaxis=dict(showgrid=False,color="#8a9dc0"))
-        st.plotly_chart(fig3, use_container_width=True)
+        st.plotly_chart(fig3, use_container_width=True, key="chart_3")
 
     with c3b:
         sec("Top Regions by Net Revenue")
@@ -900,7 +900,7 @@ def page_overview():
         fig4 = go.Figure(go.Bar(x=reg.index, y=reg.values,
             marker=dict(color=COLORS_S*2, line=dict(color="rgba(0,0,0,0)"))))
         fig4.update_layout(**CD(), height=240, xaxis={**gX(),"tickangle":-30}, yaxis=gY())
-        st.plotly_chart(fig4, use_container_width=True)
+        st.plotly_chart(fig4, use_container_width=True, key="chart_4")
 
     with c3c:
         sec("Order Status Split")
@@ -908,7 +908,7 @@ def page_overview():
         fig5 = go.Figure(go.Bar(x=sc2.index, y=sc2.values,
             marker=dict(color=["#56e0a0","#5ba4e5","#ff6b6b","#f5a623"][:len(sc2)], line=dict(color="rgba(0,0,0,0)"))))
         fig5.update_layout(**CD(), height=240, xaxis=gX(), yaxis=gY())
-        st.plotly_chart(fig5, use_container_width=True)
+        st.plotly_chart(fig5, use_container_width=True, key="chart_5")
 
     sp(0.5)
     sec("Module Dependency Pipeline")
@@ -1003,7 +1003,7 @@ def page_demand():
             mode="markers", marker=dict(size=10,color="#ff6b6b",symbol="x",line=dict(color="#080e1a",width=2))))
         fig.update_layout(**CD(), height=320, xaxis=gX(), yaxis=gY(), legend=leg(),
             title=dict(text=title, font=dict(color="#4a5e7a",size=11)))
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True, key="chart_6")
         return res
 
     if level_opt == "Overall":
@@ -1115,7 +1115,7 @@ def page_inventory():
             textinfo="label+value", textfont=dict(size=10,color="#f0f4ff")))
         fig.update_layout(**CD(), height=270, showlegend=False,
             annotations=[dict(text="SKUs",x=.5,y=.5,showarrow=False,font=dict(size=10,color="#4a5e7a",family="DM Mono"))])
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True, key="chart_7")
 
     with cr:
         sec("EOQ / Safety Stock / ROP by Category")
@@ -1126,7 +1126,7 @@ def page_inventory():
                 marker=dict(color=["#f5a623","#2ed8c3","#9b87d4"][i], line=dict(color="rgba(0,0,0,0)"))))
         fig2.update_layout(**CD(), height=270, barmode="group",
             xaxis={**gX(),"tickangle":-10}, yaxis=gY(), legend=leg())
-        st.plotly_chart(fig2, use_container_width=True)
+        st.plotly_chart(fig2, use_container_width=True, key="chart_8")
 
     sec("Critical SKU Alerts — Reorder Immediately")
     crit_df = inv[inv["Status"]=="🔴 Critical"][["SKU_ID","Product_Name","Category","Current_Stock","SS","ROP","EOQ","Monthly_Avg","Unit_Price"]].copy()
@@ -1287,7 +1287,7 @@ def page_inventory():
                     font=dict(color="#4a5e7a", size=11)
                 )
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, use_container_width=True, key="chart_9")
 
             # KPI row below chart
             ka, kb, kc, kd, ke = st.columns(5)
@@ -1327,7 +1327,7 @@ def page_inventory():
         fig3.add_trace(go.Scatter(x=r["fut_ds"], y=r["forecast"], name=cat,
             mode="lines+markers", line=dict(color=clr,width=2.5), marker=dict(size=7,color=clr,line=dict(color="#080e1a",width=2))))
     fig3.update_layout(**CD(), height=280, xaxis=gX(), yaxis={**gY(),"title":"Forecast Units"}, legend=leg())
-    st.plotly_chart(fig3, use_container_width=True)
+    st.plotly_chart(fig3, use_container_width=True, key="chart_10")
 
 # ═══════════════════════════════════════════════════════════
 # PAGE — PRODUCTION
@@ -1390,7 +1390,7 @@ def page_production():
         mode="lines+markers", line=dict(color="#f5a623",width=2.5),
         marker=dict(size=8,color="#f5a623",line=dict(color="#080e1a",width=2))))
     fig.update_layout(**CD(), height=320, barmode="stack", xaxis=gX(), yaxis=gY(), legend=leg())
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True, key="chart_11")
 
     cl, cr = st.columns(2, gap="large")
     with cl:
@@ -1412,7 +1412,7 @@ def page_production():
                 marker=dict(color=clr, line=dict(color="rgba(0,0,0,0)"))))
         fig2.update_layout(**CD(), height=280, barmode="stack",
             xaxis=gX(), yaxis=gY(), legend={**leg(),"orientation":"h","y":-0.3})
-        st.plotly_chart(fig2, use_container_width=True)
+        st.plotly_chart(fig2, use_container_width=True, key="chart_12")
 
     with cr:
         sec("Production – Demand Gap")
@@ -1422,7 +1422,7 @@ def page_production():
             text=[f"{g:+.0f}" for g in agg["Gap"]], textposition="outside", textfont=dict(color="#4a5e7a")))
         fig3.add_hline(y=0, line_dash="dash", line_color="rgba(255,255,255,0.1)")
         fig3.update_layout(**CD(), height=280, xaxis=gX(), yaxis={**gY(),"title":"Units Surplus / Deficit"})
-        st.plotly_chart(fig3, use_container_width=True)
+        st.plotly_chart(fig3, use_container_width=True, key="chart_13")
 
     sec("Detailed Production Schedule")
     cat_f = st.selectbox("Filter Category", ["All"] + list(plan["Category"].unique()))
@@ -1463,7 +1463,7 @@ def page_logistics():
                 hovertemplate=f"<b>{r['Courier_Partner']}</b><br>Orders:{r['Orders']}<br>Avg Del:{r['Avg_Days']:.1f}d<br>Avg Cost:₹{r['Avg_Cost']:.0f}<br>Score:{r['Perf_Score']:.3f}<extra></extra>"))
         fig.update_layout(**CD(), height=320, showlegend=False,
             xaxis={**gY(),"title":"Avg Delivery Days"}, yaxis={**gY(),"title":"Avg Shipping Cost ₹"})
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True, key="chart_14")
 
         d2 = carr.copy()
         d2["Avg_Days"]    = d2["Avg_Days"].round(1)
@@ -1502,7 +1502,7 @@ def page_logistics():
                 hovertemplate=f"<b>{c} Forecast</b><br>%{{x|%b %Y}}<br>%{{y:,.0f}} orders<extra></extra>"))
         fig_carr_combo.update_layout(**CD(), height=300, xaxis=gX(),
             yaxis={**gY(),"title":"Orders"}, legend=leg())
-        st.plotly_chart(fig_carr_combo, use_container_width=True)
+        st.plotly_chart(fig_carr_combo, use_container_width=True, key="chart_15")
 
         sec("Recommended Carrier per Category")
         plan = compute_production()
@@ -1536,7 +1536,7 @@ def page_logistics():
         fig_cost.add_trace(go.Bar(name="Current Avg ₹", x=opt["Region"], y=opt["Current_Avg_Cost"], marker=dict(color="#ff6b6b", line=dict(color="rgba(0,0,0,0)"))))
         fig_cost.add_trace(go.Bar(name="Optimal Avg ₹", x=opt["Region"], y=opt["Min_Avg_Cost"],     marker=dict(color="#56e0a0", line=dict(color="rgba(0,0,0,0)"))))
         fig_cost.update_layout(**CD(), height=280, barmode="group", xaxis={**gX(),"tickangle":-25}, yaxis=gY(), legend=leg())
-        st.plotly_chart(fig_cost, use_container_width=True)
+        st.plotly_chart(fig_cost, use_container_width=True, key="chart_16")
 
         sec("Saving by Region")
         s_sorted = opt.sort_values("Potential_Saving", ascending=False)
@@ -1544,7 +1544,7 @@ def page_logistics():
             marker=dict(color="#f5a623", line=dict(color="rgba(0,0,0,0)")),
             text=[f"₹{v:,.0f}" for v in s_sorted["Potential_Saving"]], textposition="outside", textfont=dict(color="#4a5e7a")))
         fig_sav.update_layout(**CD(), height=250, xaxis={**gX(),"tickangle":-25}, yaxis=gY())
-        st.plotly_chart(fig_sav, use_container_width=True)
+        st.plotly_chart(fig_sav, use_container_width=True, key="chart_17")
 
         sec("Optimisation Recommendation Table")
         opt_disp = opt.copy()
@@ -1571,7 +1571,7 @@ def page_logistics():
                 marker=dict(color=[f"rgba(255,107,107,{min(v/60+0.25,0.9):.2f})" for v in rd_s["Rate"]], line=dict(color="rgba(0,0,0,0)")),
                 text=[f"{v}%" for v in rd_s["Rate"]], textposition="outside", textfont=dict(color="#4a5e7a")))
             fig_r.update_layout(**CD(), height=300, xaxis={**gX(),"title":"Delay %"}, yaxis=dict(showgrid=False,color="#8a9dc0"))
-            st.plotly_chart(fig_r, use_container_width=True)
+            st.plotly_chart(fig_r, use_container_width=True, key="chart_18")
         with cr3:
             sec("Delay Rate by Carrier")
             cd = del_df2.groupby("Courier_Partner").agg(T=("Order_ID","count"), D=("Delayed","sum")).reset_index()
@@ -1580,7 +1580,7 @@ def page_logistics():
                 marker=dict(color=["#ff6b6b" if v>35 else "#f5a623" if v>20 else "#56e0a0" for v in cd["Rate"]], line=dict(color="rgba(0,0,0,0)")),
                 text=[f"{v}%" for v in cd["Rate"]], textposition="outside", textfont=dict(color="#4a5e7a")))
             fig_c.update_layout(**CD(), height=300, xaxis=gX(), yaxis={**gY(),"title":"Delay %"})
-            st.plotly_chart(fig_c, use_container_width=True)
+            st.plotly_chart(fig_c, use_container_width=True, key="chart_19")
 
         sec("Carrier × Region Delay Heatmap")
         pv = del_df2.groupby(["Courier_Partner","Region"])["Delayed"].mean().unstack(fill_value=0)*100
@@ -1591,7 +1591,7 @@ def page_logistics():
         fig_h.update_layout(**CD(), height=260,
             xaxis=dict(showgrid=False,tickangle=-25,color="#8a9dc0"),
             yaxis=dict(showgrid=False,color="#8a9dc0"))
-        st.plotly_chart(fig_h, use_container_width=True)
+        st.plotly_chart(fig_h, use_container_width=True, key="chart_20")
 
         sec("Avg Delivery Days Forecast")
         delay_m = del_df.groupby(del_df["Order_Date"].dt.to_period("M"))["Delivery_Days"].mean().rename("v")
@@ -1606,7 +1606,7 @@ def page_logistics():
                 line=dict(color="#ff6b6b",width=2.5,dash="dot"),mode="lines+markers",
                 marker=dict(size=8,color="#ff6b6b",line=dict(color="#080e1a",width=2))))
             fig_d.update_layout(**CD(), height=250, xaxis=gX(), yaxis={**gY(),"title":"Avg Delivery Days"}, legend=leg())
-            st.plotly_chart(fig_d, use_container_width=True)
+            st.plotly_chart(fig_d, use_container_width=True, key="chart_21")
 
     with t4:
         sec("Warehouse Shipment Volume — Historical + 6-Month Forecast")
@@ -1635,7 +1635,7 @@ def page_logistics():
             for dt, fc, hi in zip(r["fut_ds"], r["forecast"], r["ci_hi"]):
                 wf_rows.append({"Month":dt,"Warehouse":wh,"Forecast":fc,"Upper":hi})
         fig_wh.update_layout(**CD(), height=310, barmode="stack", xaxis=gX(), yaxis=gY(), legend=leg())
-        st.plotly_chart(fig_wh, use_container_width=True)
+        st.plotly_chart(fig_wh, use_container_width=True, key="chart_22")
         if wf_rows:
             tbl_wf = pd.DataFrame(wf_rows)
             tbl_wf["Month"]    = tbl_wf["Month"].dt.strftime("%b %Y")
@@ -1651,7 +1651,7 @@ def page_logistics():
             marker=dict(color="#2ed8c3", line=dict(color="rgba(0,0,0,0)")),
             text=tp.values, textposition="outside", textfont=dict(color="#4a5e7a")))
         fig_tp.update_layout(**CD(), height=300, xaxis=gX(), yaxis=dict(showgrid=False,color="#8a9dc0"))
-        st.plotly_chart(fig_tp, use_container_width=True)
+        st.plotly_chart(fig_tp, use_container_width=True, key="chart_23")
 
     with t5:
         sec("Region Performance Overview")
@@ -1665,7 +1665,7 @@ def page_logistics():
             marker=dict(color=[COLORS[i%len(COLORS)] for i in range(len(rs))], line=dict(color="rgba(0,0,0,0)")),
             hovertemplate="<b>%{x}</b><br>%{y:,.2f}<extra></extra>"))
         fig_r.update_layout(**CD(), height=290, xaxis={**gX(),"tickangle":-25}, yaxis=gY())
-        st.plotly_chart(fig_r, use_container_width=True)
+        st.plotly_chart(fig_r, use_container_width=True, key="chart_24")
 
         cl5, cr5 = st.columns(2, gap="large")
         with cl5:
@@ -1682,7 +1682,7 @@ def page_logistics():
                 marker=dict(color=["#ff6b6b" if v>20 else "#f5a623" if v>12 else "#56e0a0" for v in rr.values], line=dict(color="rgba(0,0,0,0)")),
                 text=[f"{v:.1f}%" for v in rr.values], textposition="outside", textfont=dict(color="#4a5e7a")))
             fig_ret.update_layout(**CD(), height=270, xaxis=gX(), yaxis=dict(showgrid=False,color="#8a9dc0"))
-            st.plotly_chart(fig_ret, use_container_width=True)
+            st.plotly_chart(fig_ret, use_container_width=True, key="chart_25")
 
         sec("Region Revenue Forecast")
         top_reg = del_df["Region"].value_counts().head(5).index.tolist()
@@ -1697,7 +1697,7 @@ def page_logistics():
                 mode="lines+markers", line=dict(color=COLORS[i],width=2.5,dash="dot"),
                 marker=dict(size=8,line=dict(color="#080e1a",width=2))))
         fig_rf.update_layout(**CD(), height=270, xaxis=gX(), yaxis=gY(), legend=leg())
-        st.plotly_chart(fig_rf, use_container_width=True)
+        st.plotly_chart(fig_rf, use_container_width=True, key="chart_26")
 
 # ─── SIDEBAR ────────────────────────────────────────────────
 st.sidebar.markdown("""<div style='padding:18px 0 26px'>
