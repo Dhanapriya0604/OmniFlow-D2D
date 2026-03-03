@@ -1,1876 +1,1754 @@
-import streamlit as st
-st.set_page_config(page_title="OmniFlow D2D Intelligence",page_icon="⬡",layout="wide",initial_sidebar_state="expanded")
+# ============================================================
+# OmniFlow D2D Intelligence Platform  |  Final-Year Project
+# Supply-chain-accurate · ML forecasting · API-powered chatbot
+# ============================================================
 
+import streamlit as st
+st.set_page_config(
+    page_title="OmniFlow D2D Intelligence",
+    page_icon="⬡",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# ─── CSS ────────────────────────────────────────────────────
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Outfit:wght@300;400;500;600;700;800;900&family=Playfair+Display:wght@700;800&display=swap');
-
-:root {
-    --midnight: #080e1a;
-    --deep:     #0d1829;
-    --surface:  #111e30;
-    --panel:    #162236;
-    --border:   rgba(255,255,255,0.07);
-    --border2:  rgba(255,255,255,0.12);
-    --amber:    #f5a623;
-    --coral:    #ff6b6b;
-    --teal:     #2ed8c3;
-    --sky:      #5ba4e5;
-    --lavender: #9b87d4;
-    --mint:     #56e0a0;
-    --text-1:   #f0f4ff;
-    --text-2:   #8a9dc0;
-    --text-3:   #4a5e7a;
-    --glow-amber: 0 0 40px rgba(245,166,35,0.15);
-    --glow-teal:  0 0 40px rgba(46,216,195,0.12);
-    --card-shadow: 0 8px 32px rgba(0,0,0,0.4), 0 1px 0 rgba(255,255,255,0.05);
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Outfit:wght@300;400;500;600;700;800;900&display=swap');
+:root{
+  --midnight:#080e1a;--deep:#0d1829;--surface:#111e30;--panel:#162236;
+  --border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.12);
+  --amber:#f5a623;--coral:#ff6b6b;--teal:#2ed8c3;--sky:#5ba4e5;
+  --lav:#9b87d4;--mint:#56e0a0;
+  --text1:#f0f4ff;--text2:#8a9dc0;--text3:#4a5e7a;
+  --shadow:0 8px 32px rgba(0,0,0,0.4),0 1px 0 rgba(255,255,255,0.05);
 }
-html, body, [class*="css"] {
-    font-family: 'Outfit', sans-serif !important;
-    background: var(--midnight) !important;
-    color: var(--text-1) !important;
+html,body,[class*="css"]{font-family:'Outfit',sans-serif!important;background:var(--midnight)!important;color:var(--text1)!important;}
+.stApp{
+  background:
+    radial-gradient(ellipse 80% 50% at 20% -10%,rgba(91,164,229,0.08) 0%,transparent 60%),
+    radial-gradient(ellipse 60% 40% at 80% 100%,rgba(46,216,195,0.06) 0%,transparent 60%),
+    var(--midnight)!important;
 }
-.stApp {
-    background:
-        radial-gradient(ellipse 80% 50% at 20% -10%, rgba(91,164,229,0.08) 0%, transparent 60%),
-        radial-gradient(ellipse 60% 40% at 80% 100%, rgba(46,216,195,0.06) 0%, transparent 60%),
-        radial-gradient(ellipse 50% 60% at 50% 50%, rgba(245,166,35,0.03) 0%, transparent 70%),
-        var(--midnight) !important;
-    min-height: 100vh;
+section[data-testid="stSidebar"]{
+  background:linear-gradient(180deg,var(--deep) 0%,var(--midnight) 100%)!important;
+  border-right:1px solid var(--border2)!important;
+  box-shadow:4px 0 24px rgba(0,0,0,0.5)!important;
 }
-section[data-testid="stSidebar"] {
-    background: linear-gradient(180deg, var(--deep) 0%, var(--midnight) 100%) !important;
-    border-right: 1px solid var(--border2) !important;
-    box-shadow: 4px 0 24px rgba(0,0,0,0.5) !important;
+section[data-testid="stSidebar"]::before{
+  content:"";position:absolute;top:0;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,var(--amber),var(--coral),var(--teal));
 }
-section[data-testid="stSidebar"]::before {
-    content: "";
-    position: absolute;
-    top: 0; left: 0; right: 0;
-    height: 2px;
-    background: linear-gradient(90deg, var(--amber), var(--coral), var(--teal));
+.metric-card{
+  background:linear-gradient(135deg,var(--panel) 0%,var(--surface) 100%);
+  border:1px solid var(--border);border-radius:16px;padding:20px 22px;
+  box-shadow:var(--shadow);position:relative;overflow:hidden;
+  transition:transform 0.3s ease,box-shadow 0.3s ease;cursor:default;
 }
-h1, h2, h3, h4 {
-    font-family: 'Outfit', sans-serif !important;
-    letter-spacing: -0.03em;
+.metric-card::before{content:"";position:absolute;top:0;left:0;right:0;height:2px;}
+.metric-card.amber::before{background:linear-gradient(90deg,var(--amber),#ff8c42);}
+.metric-card.teal::before{background:linear-gradient(90deg,var(--teal),#22b8a5);}
+.metric-card.coral::before{background:linear-gradient(90deg,var(--coral),#ff4f4f);}
+.metric-card.sky::before{background:linear-gradient(90deg,var(--sky),#3d87d4);}
+.metric-card.lav::before{background:linear-gradient(90deg,var(--lav),#7b6bbf);}
+.metric-card.mint::before{background:linear-gradient(90deg,var(--mint),#3ec47a);}
+.metric-card:hover{transform:translateY(-4px);box-shadow:0 20px 48px rgba(0,0,0,0.5);}
+.metric-label{font-size:0.65rem;text-transform:uppercase;color:var(--text3);
+  letter-spacing:0.12em;font-weight:600;margin-bottom:8px;font-family:'DM Mono',monospace!important;}
+.metric-value{font-size:2rem;font-weight:800;line-height:1;letter-spacing:-0.03em;}
+.metric-sub{font-size:0.7rem;color:var(--text3);margin-top:5px;font-family:'DM Mono',monospace!important;}
+.section-header{display:flex;align-items:center;gap:10px;margin:24px 0 14px;}
+.section-header-line{flex:1;height:1px;background:linear-gradient(90deg,var(--border2),transparent);}
+.section-title{font-weight:700;font-size:0.78rem;text-transform:uppercase;
+  letter-spacing:0.1em;color:var(--text2);font-family:'DM Mono',monospace!important;}
+.page-title{font-family:'Outfit',sans-serif!important;font-size:2.4rem;font-weight:900;
+  letter-spacing:-0.04em;line-height:1.1;margin-bottom:6px;padding:20px 0 6px;}
+.page-subtitle{color:var(--text3);font-size:0.82rem;font-family:'DM Mono',monospace!important;margin-bottom:16px;}
+.badge{display:inline-flex;align-items:center;gap:5px;padding:4px 11px;border-radius:999px;
+  font-size:0.68rem;font-weight:600;letter-spacing:0.05em;border:1px solid;
+  font-family:'DM Mono',monospace!important;margin:3px;}
+.badge-amber{background:rgba(245,166,35,0.1);color:var(--amber);border-color:rgba(245,166,35,0.3);}
+.badge-teal{background:rgba(46,216,195,0.1);color:var(--teal);border-color:rgba(46,216,195,0.3);}
+.badge-coral{background:rgba(255,107,107,0.1);color:var(--coral);border-color:rgba(255,107,107,0.3);}
+.badge-sky{background:rgba(91,164,229,0.1);color:var(--sky);border-color:rgba(91,164,229,0.3);}
+.badge-lav{background:rgba(155,135,212,0.1);color:var(--lav);border-color:rgba(155,135,212,0.3);}
+.badge-mint{background:rgba(86,224,160,0.1);color:var(--mint);border-color:rgba(86,224,160,0.3);}
+.info-banner{border-radius:12px;padding:13px 17px;margin:10px 0 18px;
+  font-size:0.82rem;border:1px solid;position:relative;overflow:hidden;}
+.info-banner::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;}
+.banner-teal{background:rgba(46,216,195,0.06);border-color:rgba(46,216,195,0.2);color:var(--text2);}
+.banner-teal::before{background:var(--teal);}
+.banner-amber{background:rgba(245,166,35,0.06);border-color:rgba(245,166,35,0.2);color:var(--text2);}
+.banner-amber::before{background:var(--amber);}
+.banner-coral{background:rgba(255,107,107,0.06);border-color:rgba(255,107,107,0.2);color:var(--text2);}
+.banner-coral::before{background:var(--coral);}
+.about-card{
+  background:linear-gradient(135deg,rgba(22,34,54,0.9),rgba(17,30,48,0.9));
+  border:1px solid var(--border2);border-radius:20px;padding:26px 30px;
+  margin-bottom:24px;position:relative;overflow:hidden;
 }
-.metric-card {
-    background: linear-gradient(135deg, var(--panel) 0%, var(--surface) 100%);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 22px 24px;
-    box-shadow: var(--card-shadow);
-    position: relative;
-    overflow: hidden;
-    transition: transform 0.4s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.4s ease;
-    cursor: default;
+.about-card::before{content:"";position:absolute;top:0;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,var(--amber),var(--coral),var(--teal),var(--sky));}
+.chart-panel{
+  background:linear-gradient(135deg,var(--panel),var(--surface));
+  border:1px solid var(--border);border-radius:16px;padding:18px 18px 10px;
+  box-shadow:var(--shadow);margin-bottom:18px;
 }
-.metric-card::before {
-    content: "";
-    position: absolute;
-    top: 0; left: 0; right: 0;
-    height: 2px;
+.chart-panel:hover{border-color:var(--border2);}
+.alert-item{border-radius:10px;padding:9px 13px;margin:5px 0;font-size:0.78rem;
+  border-left:3px solid;background:var(--panel);font-family:'DM Mono',monospace!important;
+  transition:transform 0.2s ease;}
+.alert-item:hover{transform:translateX(3px);background:var(--surface);}
+.alert-critical{border-color:var(--coral);}
+.alert-warn{border-color:var(--amber);}
+.alert-ok{border-color:var(--mint);}
+.chat-user-bubble{
+  background:linear-gradient(135deg,rgba(245,166,35,0.12),rgba(255,107,107,0.08));
+  border:1px solid rgba(245,166,35,0.2);border-radius:14px 14px 4px 14px;
+  padding:11px 15px;font-size:0.87rem;margin-left:18%;}
+.chat-ai-bubble{
+  background:linear-gradient(135deg,var(--panel),var(--surface));
+  border:1px solid var(--border2);border-radius:14px 14px 14px 4px;
+  padding:13px 17px;font-size:0.87rem;color:var(--text2);line-height:1.7;margin-right:8%;}
+.stTabs [data-baseweb="tab-list"]{
+  background:var(--panel)!important;border-radius:14px!important;
+  padding:5px 7px!important;gap:5px!important;border:1px solid var(--border)!important;
 }
-.metric-card.amber::before { background: linear-gradient(90deg, var(--amber), #ff8c42); box-shadow: 0 0 20px rgba(245,166,35,0.5); }
-.metric-card.teal::before  { background: linear-gradient(90deg, var(--teal), #22b8a5); box-shadow: 0 0 20px rgba(46,216,195,0.5); }
-.metric-card.coral::before { background: linear-gradient(90deg, var(--coral), #ff4f4f); box-shadow: 0 0 20px rgba(255,107,107,0.5); }
-.metric-card.sky::before   { background: linear-gradient(90deg, var(--sky), #3d87d4); box-shadow: 0 0 20px rgba(91,164,229,0.5); }
-.metric-card.lav::before   { background: linear-gradient(90deg, var(--lavender), #7b6bbf); box-shadow: 0 0 20px rgba(155,135,212,0.5); }
-.metric-card.mint::before  { background: linear-gradient(90deg, var(--mint), #3ec47a); box-shadow: 0 0 20px rgba(86,224,160,0.5); }
-.metric-card::after {
-    content: "";
-    position: absolute;
-    bottom: -30px; right: -30px;
-    width: 100px; height: 100px;
-    border-radius: 50%;
-    background: rgba(255,255,255,0.02);
-    transition: all 0.4s ease;
+.stTabs [data-baseweb="tab"]{
+  background:transparent!important;border-radius:10px!important;color:var(--text3)!important;
+  font-family:'DM Mono',monospace!important;font-size:0.74rem!important;font-weight:600!important;
+  padding:9px 18px!important;transition:all 0.2s!important;
 }
-.metric-card:hover {
-    transform: translateY(-6px) scale(1.02);
-    box-shadow: 0 20px 48px rgba(0,0,0,0.5), 0 1px 0 rgba(255,255,255,0.08);
-    border-color: var(--border2);
+.stTabs [aria-selected="true"]{
+  background:linear-gradient(135deg,rgba(245,166,35,0.2),rgba(255,107,107,0.1))!important;
+  color:var(--amber)!important;box-shadow:0 2px 12px rgba(245,166,35,0.12)!important;
 }
-.metric-card:hover::after {
-    bottom: -10px; right: -10px;
-    width: 130px; height: 130px;
+.stButton>button{
+  background:linear-gradient(135deg,rgba(245,166,35,0.15),rgba(255,107,107,0.1))!important;
+  color:var(--amber)!important;border:1px solid rgba(245,166,35,0.3)!important;
+  border-radius:10px!important;font-weight:600!important;font-size:0.78rem!important;
+  font-family:'DM Mono',monospace!important;transition:all 0.25s!important;
 }
-.metric-label {
-    font-size: 0.68rem;
-    text-transform: uppercase;
-    color: var(--text-3);
-    letter-spacing: 0.12em;
-    font-weight: 600;
-    margin-bottom: 8px;
-    font-family: 'DM Mono', monospace !important;
+.stButton>button:hover{
+  background:linear-gradient(135deg,rgba(245,166,35,0.28),rgba(255,107,107,0.18))!important;
+  transform:translateY(-2px)!important;box-shadow:0 6px 18px rgba(245,166,35,0.2)!important;
 }
-.metric-value {
-    font-size: 2.1rem;
-    font-weight: 800;
-    line-height: 1;
-    letter-spacing: -0.03em;
-}
-.metric-sub {
-    font-size: 0.72rem;
-    color: var(--text-3);
-    margin-top: 6px;
-    font-family: 'DM Mono', monospace !important;
-}
-.section-header {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin: 28px 0 16px;
-}
-.section-header-line {
-    flex: 1;
-    height: 1px;
-    background: linear-gradient(90deg, var(--border2), transparent);
-}
-.section-title {
-    font-weight: 700;
-    font-size: 0.82rem;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    color: var(--text-2);
-    font-family: 'DM Mono', monospace !important;
-}
-.page-title-block {
-    padding: 28px 0 20px;
-    position: relative;
-}
-.page-title {
-    font-family: 'Outfit', sans-serif !important;
-    font-size: 2.2rem;
-    font-weight: 900;
-    letter-spacing: -0.04em;
-    line-height: 1.1;
-    margin-bottom: 6px;
-}
-.page-subtitle {
-    color: var(--text-3);
-    font-size: 0.85rem;
-    font-family: 'DM Mono', monospace !important;
-}
-.badge-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
-.badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 5px 12px;
-    border-radius: 999px;
-    font-size: 0.7rem;
-    font-weight: 600;
-    letter-spacing: 0.05em;
-    border: 1px solid;
-    font-family: 'DM Mono', monospace !important;
-    transition: all 0.2s ease;
-}
-.badge:hover { transform: scale(1.05); }
-.badge-amber { background: rgba(245,166,35,0.1); color: var(--amber); border-color: rgba(245,166,35,0.3); }
-.badge-teal  { background: rgba(46,216,195,0.1); color: var(--teal); border-color: rgba(46,216,195,0.3); }
-.badge-coral { background: rgba(255,107,107,0.1); color: var(--coral); border-color: rgba(255,107,107,0.3); }
-.badge-sky   { background: rgba(91,164,229,0.1); color: var(--sky); border-color: rgba(91,164,229,0.3); }
-.badge-lav   { background: rgba(155,135,212,0.1); color: var(--lavender); border-color: rgba(155,135,212,0.3); }
-.info-banner {
-    border-radius: 12px;
-    padding: 14px 18px;
-    margin: 12px 0 20px;
-    font-size: 0.83rem;
-    border: 1px solid;
-    position: relative;
-    overflow: hidden;
-}
-.info-banner::before {
-    content: "";
-    position: absolute;
-    left: 0; top: 0; bottom: 0;
-    width: 3px;
-}
-.banner-teal   { background: rgba(46,216,195,0.06); border-color: rgba(46,216,195,0.2); color: var(--text-2); }
-.banner-teal::before { background: var(--teal); }
-.banner-coral  { background: rgba(255,107,107,0.06); border-color: rgba(255,107,107,0.2); color: var(--text-2); }
-.banner-coral::before { background: var(--coral); }
-.banner-amber  { background: rgba(245,166,35,0.06); border-color: rgba(245,166,35,0.2); color: var(--text-2); }
-.banner-amber::before { background: var(--amber); }
-.about-card {
-    background: linear-gradient(135deg, rgba(22,34,54,0.9) 0%, rgba(17,30,48,0.9) 100%);
-    border: 1px solid var(--border2);
-    border-radius: 20px;
-    padding: 28px 32px;
-    margin-bottom: 28px;
-    position: relative;
-    overflow: hidden;
-    backdrop-filter: blur(20px);
-}
-.about-card::before {
-    content: "";
-    position: absolute;
-    top: 0; left: 0; right: 0;
-    height: 2px;
-    background: linear-gradient(90deg, var(--amber), var(--coral), var(--teal), var(--sky));
-}
-.about-card::after {
-    content: "⬡";
-    position: absolute;
-    right: 28px; top: 50%;
-    transform: translateY(-50%);
-    font-size: 5rem;
-    opacity: 0.04;
-    color: white;
-    pointer-events: none;
-}
-.flow-wrap {
-    background: linear-gradient(135deg, var(--panel), var(--surface));
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 24px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-wrap: wrap;
-    gap: 0;
-    margin-top: 8px;
-}
-.flow-node {
-    background: var(--deep);
-    border-radius: 12px;
-    padding: 12px 18px;
-    font-weight: 700;
-    font-size: 0.8rem;
-    text-align: center;
-    min-width: 100px;
-    position: relative;
-    border: 1px solid var(--border2);
-    transition: all 0.3s ease;
-    font-family: 'DM Mono', monospace !important;
-}
-.flow-node:hover {
-    transform: scale(1.06);
-    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
-}
-.flow-node span {
-    display: block;
-    font-size: 0.6rem;
-    font-weight: 400;
-    color: var(--text-3);
-    margin-top: 3px;
-    letter-spacing: 0.05em;
-}
-.flow-arrow {
-    color: var(--text-3);
-    font-size: 1.4rem;
-    padding: 0 8px;
-    font-weight: 300;
-    opacity: 0.4;
-}
-.chart-panel {
-    background: linear-gradient(135deg, var(--panel) 0%, var(--surface) 100%);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 20px 20px 12px;
-    box-shadow: var(--card-shadow);
-    margin-bottom: 20px;
-    transition: border-color 0.3s ease;
-}
-.chart-panel:hover {
-    border-color: var(--border2);
-}
-.stButton > button {
-    background: linear-gradient(135deg, rgba(245,166,35,0.15), rgba(255,107,107,0.1)) !important;
-    color: var(--amber) !important;
-    border: 1px solid rgba(245,166,35,0.3) !important;
-    border-radius: 10px !important;
-    font-weight: 600 !important;
-    font-size: 0.8rem !important;
-    letter-spacing: 0.02em !important;
-    transition: all 0.3s cubic-bezier(0.34,1.56,0.64,1) !important;
-    font-family: 'DM Mono', monospace !important;
-    padding: 8px 16px !important;
-}
-.stButton > button:hover {
-    background: linear-gradient(135deg, rgba(245,166,35,0.25), rgba(255,107,107,0.15)) !important;
-    border-color: rgba(245,166,35,0.6) !important;
-    transform: translateY(-2px) scale(1.03) !important;
-    box-shadow: 0 8px 20px rgba(245,166,35,0.2) !important;
-    color: #ffe066 !important;
-}
-.stTextInput input, .stSelectbox select {
-    background: var(--panel) !important;
-    border: 1px solid var(--border2) !important;
-    border-radius: 10px !important;
-    color: var(--text-1) !important;
-    font-family: 'DM Mono', monospace !important;
-}
-.stTextInput input:focus {
-    border-color: rgba(245,166,35,0.5) !important;
-    box-shadow: 0 0 0 3px rgba(245,166,35,0.1) !important;
-}
-.stDataFrame {
-    border-radius: 12px !important;
-    overflow: hidden !important;
-    border: 1px solid var(--border) !important;
-}
-.chat-user-bubble {
-    background: linear-gradient(135deg, rgba(245,166,35,0.12), rgba(255,107,107,0.08));
-    border: 1px solid rgba(245,166,35,0.2);
-    border-radius: 14px 14px 4px 14px;
-    padding: 12px 16px;
-    font-size: 0.88rem;
-    color: var(--text-1);
-    margin-left: 20%;
-}
-.chat-ai-bubble {
-    background: linear-gradient(135deg, var(--panel), var(--surface));
-    border: 1px solid var(--border2);
-    border-radius: 14px 14px 14px 4px;
-    padding: 14px 18px;
-    font-size: 0.88rem;
-    color: var(--text-2);
-    line-height: 1.7;
-    margin-right: 10%;
-}
-.chat-spacing { margin: 10px 0; }
-.alert-item {
-    border-radius: 10px;
-    padding: 10px 14px;
-    margin: 6px 0;
-    font-size: 0.8rem;
-    border-left: 3px solid;
-    background: var(--panel);
-    transition: all 0.25s ease;
-    font-family: 'DM Mono', monospace !important;
-}
-.alert-item:hover {
-    transform: translateX(4px);
-    background: var(--surface);
-}
-.alert-critical { border-color: var(--coral); }
-.alert-warn     { border-color: var(--amber); }
-.alert-ok       { border-color: var(--mint); }
-@keyframes fadeUp {
-    from { opacity: 0; transform: translateY(24px); }
-    to   { opacity: 1; transform: translateY(0); }
-}
-@keyframes fadeIn {
-    from { opacity: 0; }
-    to   { opacity: 1; }
-}
-@keyframes shimmer {
-    0%   { background-position: -200% center; }
-    100% { background-position: 200% center; }
-}
-@keyframes pulse-border {
-    0%, 100% { border-color: rgba(245,166,35,0.2); }
-    50%       { border-color: rgba(245,166,35,0.5); }
-}
-.metric-card     { animation: fadeUp 0.5s ease both; }
-.chart-panel     { animation: fadeUp 0.6s ease both; }
-.about-card      { animation: fadeIn 0.7s ease both; }
-.badge           { animation: fadeIn 0.4s ease both; }
-.flow-wrap       { animation: fadeUp 0.8s ease both; }
-.metric-card:nth-child(1) { animation-delay: 0.05s; }
-.metric-card:nth-child(2) { animation-delay: 0.10s; }
-.metric-card:nth-child(3) { animation-delay: 0.15s; }
-.metric-card:nth-child(4) { animation-delay: 0.20s; }
-.metric-card:nth-child(5) { animation-delay: 0.25s; }
-.metric-card:nth-child(6) { animation-delay: 0.30s; }
-.stRadio label {
-    font-family: 'DM Mono', monospace !important;
-    font-size: 0.78rem !important;
-    color: var(--text-2) !important;
-    letter-spacing: 0.04em !important;
-    padding: 8px 4px !important;
-    transition: color 0.2s ease !important;
-}
-.stRadio label:hover { color: var(--amber) !important; }
-.streamlit-expanderHeader {
-    background: var(--panel) !important;
-    border: 1px solid var(--border) !important;
-    border-radius: 10px !important;
-    font-family: 'DM Mono', monospace !important;
-    font-size: 0.78rem !important;
-}
-[data-testid="column"] > div { padding: 0 8px; }
-.stTabs [data-baseweb="tab-list"] {
-    background: var(--panel) !important;
-    border-radius: 14px !important;
-    padding: 6px 8px !important;
-    gap: 6px !important;
-    border: 1px solid var(--border) !important;
-    flex-wrap: wrap !important;
-}
-.stTabs [data-baseweb="tab"] {
-    background: transparent !important;
-    border-radius: 10px !important;
-    color: var(--text-3) !important;
-    font-family: 'DM Mono', monospace !important;
-    font-size: 0.76rem !important;
-    font-weight: 600 !important;
-    padding: 10px 20px !important;
-    min-width: 120px !important;
-    text-align: center !important;
-    white-space: nowrap !important;
-    letter-spacing: 0.03em !important;
-    transition: color 0.2s ease, background 0.2s ease !important;
-}
-.stTabs [data-baseweb="tab"]:hover {
-    background: rgba(255,255,255,0.04) !important;
-    color: var(--text-2) !important;
-}
-.stTabs [aria-selected="true"] {
-    background: linear-gradient(135deg, rgba(245,166,35,0.2), rgba(255,107,107,0.1)) !important;
-    color: var(--amber) !important;
-    box-shadow: 0 2px 12px rgba(245,166,35,0.12) !important;
-}
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: var(--midnight); }
-::-webkit-scrollbar-thumb { background: var(--panel); border-radius: 99px; }
-::-webkit-scrollbar-thumb:hover { background: var(--border2); }
-.js-plotly-plot, .plot-container { background: transparent !important; }
-footer { visibility: hidden; }
-#MainMenu { visibility: hidden; }
+::-webkit-scrollbar{width:5px;height:5px;}
+::-webkit-scrollbar-track{background:var(--midnight);}
+::-webkit-scrollbar-thumb{background:var(--panel);border-radius:99px;}
+footer{visibility:hidden;}#MainMenu{visibility:hidden;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(20px);}to{opacity:1;transform:translateY(0);}}
+.metric-card{animation:fadeUp 0.45s ease both;}
 </style>
 """, unsafe_allow_html=True)
 
+# ─── IMPORTS ────────────────────────────────────────────────
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
-import requests, os
+import plotly.express as px
+from sklearn.linear_model import Ridge
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import mean_squared_error, mean_absolute_error
+from scipy import stats
+import os, re
 
-DATA_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),"OmniFlow_D2D_India_Unified_5200.csv")
+# ─── CONSTANTS ──────────────────────────────────────────────
+DATA_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "india_ecommerce_orders.csv")
 
-# Refined plotly color palette — warm, earthy, harmonious
-COLORS = ["#f5a623", "#56e0a0", "#ff6b6b", "#5ba4e5", "#e87adb", "#2ed8c3"]
-COLORS_SOFT = ["#e8963f", "#4ecf94", "#e85c5c", "#4d90d4", "#cc68c4", "#28c4b0"]
+COLORS   = ["#f5a623","#56e0a0","#ff6b6b","#5ba4e5","#e87adb","#2ed8c3"]
+COLORS_S = ["#e8963f","#4ecf94","#e85c5c","#4d90d4","#cc68c4","#28c4b0"]
 
-@st.cache_data(show_spinner="Loading supply chain data…")
-def load_data():
-    df = pd.read_csv(DATA_FILE, parse_dates=["Order_Date"])
-    df = df[df["Order_Status"] != "Cancelled"].copy()
-    df["YearMonth"] = df["Order_Date"].dt.to_period("M")
-    return df
+# Realistic warehouse-to-region proximity mapping (geographic logic)
+WH_REGION_MAP = {
+    "Delhi WH":      ["Delhi","Uttar Pradesh","Rajasthan"],
+    "Mumbai WH":     ["Maharashtra","Gujarat"],
+    "Bengaluru WH":  ["Karnataka","Tamil Nadu","Telangana"],
+    "Hyderabad WH":  ["Telangana","Andhra Pradesh","Karnataka"],
+}
 
-@st.cache_data(show_spinner=False)
-def load_all_statuses():
-    return pd.read_csv(DATA_FILE, parse_dates=["Order_Date"])
-
-def forecast_series(series: pd.Series, periods: int = 6) -> pd.DataFrame:
-    s = series.dropna()
-    if len(s) < 3:
-        return pd.DataFrame()
-    n = len(s)
-    x = np.arange(n)
-    slope, intercept = np.polyfit(x, s.values, 1)
-    fitted = slope * x + intercept
-    resid  = s.values - fitted
-    seas = np.zeros(12); cnt = np.zeros(12)
-    idx_months = s.index.month if hasattr(s.index, "month") else (np.arange(n) % 12 + 1)
-    for i, mo in enumerate(idx_months):
-        seas[mo-1] += resid[i]; cnt[mo-1] += 1
-    seas /= np.where(cnt > 0, cnt, 1)
-    fut_x      = np.arange(n, n + periods)
-    fut_months = [(s.index[-1].month + i - 1) % 12 + 1 for i in range(1, periods + 1)]
-    fut_vals   = np.maximum(slope * fut_x + intercept + np.array([seas[m-1] for m in fut_months]), 0)
-    std        = resid.std()
-    hist_df = pd.DataFrame({
-        "ds": s.index.to_timestamp(), "y": s.values,
-        "type": "historical", "yhat_lower": np.nan, "yhat_upper": np.nan
-    })
-    fut_dates = pd.date_range(s.index[-1].to_timestamp(), periods=periods + 1, freq="MS")[1:]
-    fore_df = pd.DataFrame({
-        "ds": fut_dates, "y": fut_vals, "type": "forecast",
-        "yhat_lower": np.maximum(fut_vals - 1.65 * std, 0),
-        "yhat_upper": fut_vals + 1.65 * std
-    })
-    return pd.concat([hist_df, fore_df], ignore_index=True)
-
-@st.cache_data(show_spinner=False)
-def compute_demand_forecast():
-    df = load_data()
-    m  = df.groupby("YearMonth")["Quantity"].sum().rename("value")
-    return forecast_series(m, 6)
-
-@st.cache_data(show_spinner=False)
-def compute_inventory_table(order_cost=500, hold_pct=0.20, lead_time=7, z=1.65):
-    df = load_data()
-    sku_agg = df.groupby(["SKU_ID", "Product_Name", "Category"]).agg(
-        total_qty  = ("Quantity", "sum"),
-        num_months = ("YearMonth", lambda x: x.nunique()),
-        avg_price  = ("Sell_Price", "mean")
-    ).reset_index()
-    sku_agg["monthly_avg"] = sku_agg["total_qty"] / sku_agg["num_months"]
-    sku_monthly = (df.groupby(["SKU_ID", "YearMonth"])["Quantity"].sum().unstack(fill_value=0))
-    sku_std = sku_monthly.std(axis=1).rename("monthly_std").reset_index()
-    sku_agg = sku_agg.merge(sku_std, on="SKU_ID", how="left")
-    sku_agg["monthly_std"] = sku_agg["monthly_std"].fillna(0)
-    def eoq(d, oc, h, uc):
-        return int(np.sqrt(2 * d * oc / (uc * h))) if d > 0 and uc * h > 0 else 0
-    sku_agg["annual_demand"] = sku_agg["monthly_avg"] * 12
-    sku_agg["EOQ"] = sku_agg.apply(lambda r: eoq(r["annual_demand"], order_cost, hold_pct, r["avg_price"]), axis=1)
-    sku_agg["SS"]  = (z * sku_agg["monthly_std"] * np.sqrt(lead_time / 30)).astype(int)
-    sku_agg["ROP"] = (sku_agg["monthly_avg"] / 30 * lead_time + sku_agg["SS"]).astype(int)
-    demand_fore = compute_demand_forecast()
-    fut_demand  = demand_fore[demand_fore["type"] == "forecast"]
-    m_qty       = df.groupby("YearMonth")["Quantity"].sum()
-    recent_avg  = m_qty.iloc[-3:].mean()
-    growth      = (fut_demand["y"].mean() / recent_avg - 1) if recent_avg > 0 else 0
-    sku_agg["forecast_annual"] = (sku_agg["annual_demand"] * (1 + growth)).astype(int)
-    sku_agg["demand_growth_pct"] = round(growth * 100, 1)
-    np.random.seed(42)
-    stock_factor = np.random.uniform(0.3, 2.8, len(sku_agg))
-    sku_agg["current_stock"] = (sku_agg["monthly_avg"] * stock_factor).astype(int)
-    def classify(row):
-        if row["current_stock"] < row["SS"]:
-            return "🔴 Critical"
-        elif row["current_stock"] < row["ROP"]:
-            return "🟡 Low"
-        return "🟢 Adequate"
-    sku_agg["Status"] = sku_agg.apply(classify, axis=1)
-    return sku_agg
-
-@st.cache_data(show_spinner=False)
-def compute_production_plan(cap=1.0, buf=0.15):
-    df = load_data()
-    inv = compute_inventory_table()
-    cat_critical = (
-        inv[inv["Status"] == "🔴 Critical"]
-        .groupby("Category")["monthly_avg"].sum().rename("critical_monthly")
-    )
-    cat_monthly = df.groupby(["YearMonth", "Category"])["Quantity"].sum().unstack(fill_value=0)
-    plans = []
-    for cat in cat_monthly.columns:
-        series = cat_monthly[cat].rename("value")
-        fore   = forecast_series(series, 6)
-        if fore.empty: continue
-        fut = fore[fore["type"] == "forecast"]
-        crit_extra = float(cat_critical.get(cat, 0)) * 0.5
-        cur_stock  = float(series.iloc[-3:].mean() * 1.5)
-        for _, row in fut.iterrows():
-            net  = max(row["y"] - cur_stock / 6 + crit_extra, 0)
-            prod = net * (1 + buf) * cap
-            plans.append({
-                "Month":      row["ds"].strftime("%b %Y"),
-                "Month_dt":   row["ds"],
-                "Category":   cat,
-                "Demand":     round(row["y"], 0),
-                "Inv_Boost":  round(crit_extra, 0),
-                "Production": round(prod, 0),
-                "Buffer":     round(prod - net * cap, 0),
-                "CI_Lo":      round(row["yhat_lower"], 0),
-                "CI_Hi":      round(row["yhat_upper"], 0),
-            })
-    return pd.DataFrame(plans)
-
+# ─── HELPERS ────────────────────────────────────────────────
 def CD():
     return dict(
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
         font=dict(color="#8a9dc0", family="DM Mono, monospace", size=11),
-        margin=dict(l=10, r=10, t=36, b=16)
+        margin=dict(l=8,r=8,t=34,b=14)
     )
 
-def grid_y():
-    return dict(showgrid=True, gridcolor="rgba(255,255,255,0.04)", gridwidth=1,
-                zeroline=False, tickcolor="#4a5e7a")
+def gY(): return dict(showgrid=True, gridcolor="rgba(255,255,255,0.04)", zeroline=False, tickcolor="#4a5e7a")
+def gX(): return dict(showgrid=False, zeroline=False, tickcolor="#4a5e7a")
+def leg(): return dict(bgcolor="rgba(0,0,0,0)", bordercolor="rgba(255,255,255,0.06)", borderwidth=1, font=dict(color="#8a9dc0",size=10))
 
-def grid_x():
-    return dict(showgrid=False, zeroline=False, tickcolor="#4a5e7a")
-
-def kpi(col, label, value, accent_class="amber", sub=""):
-    col.markdown(f"""
-    <div class='metric-card {accent_class}'>
+def kpi(col, label, value, cls="amber", sub=""):
+    col.markdown(f"""<div class='metric-card {cls}'>
       <div class='metric-label'>{label}</div>
       <div class='metric-value'>{value}</div>
       <div class='metric-sub'>{sub}</div>
     </div>""", unsafe_allow_html=True)
 
-def section_title(label, emoji=""):
-    st.markdown(f"""
-    <div class='section-header'>
+def sec(label, emoji=""):
+    st.markdown(f"""<div class='section-header'>
       <div class='section-title'>{emoji} {label}</div>
       <div class='section-header-line'></div>
     </div>""", unsafe_allow_html=True)
 
-def ci_band(fig, fore, color="rgba(245,166,35,0.08)"):
-    ds_fwd  = list(fore["ds"]) + list(fore["ds"])[::-1]
-    y_band  = list(fore["yhat_upper"]) + list(fore["yhat_lower"])[::-1]
-    fig.add_trace(go.Scatter(
-        x=ds_fwd, y=y_band,
-        fill="toself", fillcolor=color,
-        line=dict(color="rgba(0,0,0,0)"),
-        name="95% CI", showlegend=False
-    ))
+def banner(html, cls="teal"):
+    st.markdown(f"<div class='info-banner banner-{cls}'>{html}</div>", unsafe_allow_html=True)
 
-def legend_style():
-    return dict(bgcolor="rgba(0,0,0,0)", bordercolor="rgba(255,255,255,0.06)",
-                borderwidth=1, font=dict(color="#8a9dc0", size=10))
+def sp(n=1):
+    st.markdown(f"<div style='height:{n*14}px'></div>", unsafe_allow_html=True)
+
+# ─── DATA LOADING & CLEANING ────────────────────────────────
+@st.cache_data(show_spinner="Loading & cleaning data…")
+def load_data():
+    df = pd.read_csv(DATA_FILE, parse_dates=["Order_Date"])
+
+    # ── FIX 1: Geographic classification — Pune is a city in Maharashtra
+    df["Region"] = df["Region"].replace("Pune", "Maharashtra")
+
+    # ── FIX 2: Separate raw df (for status split) vs operational df
+    df["YearMonth"] = df["Order_Date"].dt.to_period("M")
+    df["Year"]      = df["Order_Date"].dt.year
+    df["Month_Num"] = df["Order_Date"].dt.month
+
+    # ── FIX 3: Net Revenue — returned orders contribute ₹0
+    df["Net_Revenue"] = np.where(df["Return_Flag"] == 1, 0.0, df["Revenue_INR"])
+
+    # ── FIX 4: Delivery_Days = NaN for Cancelled (never delivered)
+    df.loc[df["Order_Status"] == "Cancelled", "Delivery_Days"] = np.nan
+
+    # ── FIX 5: Operational subset — exclude Cancelled for all KPIs
+    # (Returned rows stay but with Net_Revenue = 0; Shipped treated as pending)
+    return df
+
+@st.cache_data(show_spinner=False)
+def get_ops(df):
+    """Operational orders: Delivered + Shipped (active pipeline)."""
+    return df[df["Order_Status"].isin(["Delivered", "Shipped"])].copy()
+
+@st.cache_data(show_spinner=False)
+def get_delivered(df):
+    """Only fully delivered — for delivery KPIs."""
+    return df[df["Order_Status"] == "Delivered"].copy()
+
+# ─── ML FORECASTING ENGINE ──────────────────────────────────
+def build_features(n_hist, n_future, ds_hist, regime_start_idx):
+    """
+    Feature matrix for Ridge regression:
+    trend (t), t², Fourier seasonal (sin/cos × 2 harmonics),
+    regime dummy (post business-scale-up), trend×regime interaction.
+    """
+    all_t = np.arange(n_hist + n_future)
+    mn    = np.concatenate([ds_hist.month.values,
+                            [(ds_hist.iloc[-1].month + i - 1) % 12 + 1
+                             for i in range(1, n_future + 1)]])
+    regime = (all_t >= regime_start_idx).astype(float)
+    X = np.column_stack([
+        all_t,
+        all_t ** 2,
+        np.sin(2 * np.pi * mn / 12),
+        np.cos(2 * np.pi * mn / 12),
+        np.sin(4 * np.pi * mn / 12),
+        np.cos(4 * np.pi * mn / 12),
+        regime,
+        all_t * regime,
+    ])
+    return X
+
+def ml_forecast(series_values, ds_index, n_future=6, alpha=0.5):
+    """
+    Ridge regression forecast with:
+    - Structural break (regime) detection at Apr-2025 scale-up
+    - 4-month hold-out evaluation → RMSE, NRMSE, MAE
+    - 90% CI from residual std
+    Returns dict with forecast arrays + metrics.
+    """
+    n = len(series_values)
+    if n < 6:
+        return None
+
+    # Regime starts at index 15 (Apr-2025) based on domain knowledge
+    regime_idx = 15
+
+    X_all = build_features(n, n_future, ds_index, regime_idx)
+    X_hist = X_all[:n]
+    X_fut  = X_all[n:]
+
+    # ── Hold-out evaluation (last 4 months) — RMSE / NRMSE / MAE
+    h = 4
+    Xtr, Xte = X_hist[:-h], X_hist[-h:]
+    ytr, yte = series_values[:-h], series_values[-h:]
+
+    sc = StandardScaler()
+    Xtr_s = sc.fit_transform(Xtr)
+    Xte_s = sc.transform(Xte)
+
+    mdl_eval = Ridge(alpha=alpha)
+    mdl_eval.fit(Xtr_s, ytr)
+    ypred_eval = np.maximum(mdl_eval.predict(Xte_s), 0)
+
+    rmse  = np.sqrt(mean_squared_error(yte, ypred_eval))
+    nrmse = rmse / np.mean(yte) if np.mean(yte) > 0 else 0
+    mae   = mean_absolute_error(yte, ypred_eval)
+
+    # ── Full fit on all data — R² reflects full model quality (structural-break model)
+    sc2 = StandardScaler()
+    X_hist_s = sc2.fit_transform(X_hist)
+    mdl_full = Ridge(alpha=alpha)
+    mdl_full.fit(X_hist_s, series_values)
+
+    fitted    = np.maximum(mdl_full.predict(X_hist_s), 0)
+    residuals = series_values - fitted
+    resid_std = residuals.std()
+    ss_res    = np.sum((series_values - fitted) ** 2)
+    ss_tot    = np.sum((series_values - np.mean(series_values)) ** 2)
+    r2        = 1 - ss_res / ss_tot if ss_tot > 0 else 0
+
+    # ── Forecast
+    X_fut_s = sc2.transform(X_fut)
+    forecast = np.maximum(mdl_full.predict(X_fut_s), 0)
+
+    # Future dates
+    last_dt    = ds_index.iloc[-1]
+    fut_dates  = pd.date_range(last_dt + pd.offsets.MonthBegin(1), periods=n_future, freq="MS")
+
+    return {
+        "hist_ds":   ds_index.to_timestamp(),
+        "hist_y":    series_values,
+        "fitted":    fitted,
+        "fut_ds":    fut_dates,
+        "forecast":  forecast,
+        "ci_lo":     np.maximum(forecast - 1.645 * resid_std, 0),
+        "ci_hi":     forecast + 1.645 * resid_std,
+        "rmse":      rmse,
+        "nrmse":     nrmse,
+        "mae":       mae,
+        "r2":        r2,
+        "resid_std": resid_std,
+        "eval_actual": yte,
+        "eval_pred":   ypred_eval,
+        "eval_ds":     ds_index.iloc[-h:].to_timestamp(),
+    }
+
+# ─── INVENTORY COMPUTATION ──────────────────────────────────
+@st.cache_data(show_spinner=False)
+def compute_inventory(order_cost=500, hold_pct=0.20, lead_time=7, z=1.65):
+    df  = load_data()
+    ops = get_ops(df)
+    ops["YM"] = ops["Order_Date"].dt.to_period("M")
+
+    sku_monthly = (ops.groupby(["SKU_ID", "YM"])["Quantity"]
+                   .sum().reset_index().sort_values(["SKU_ID","YM"]))
+    sku_stats = (ops.groupby(["SKU_ID","Product_Name","Category"])
+                 .agg(avg_price=("Sell_Price","mean"), total_qty=("Quantity","sum"))
+                 .reset_index())
+
+    rows = []
+    for _, sk in sku_stats.iterrows():
+        sku  = sk["SKU_ID"]
+        skd  = sku_monthly[sku_monthly["SKU_ID"] == sku].sort_values("YM")
+        demands = skd["Quantity"].values
+        if len(demands) < 2:
+            continue
+
+        avg_d   = demands.mean()
+        std_d   = demands.std() if len(demands) > 1 else avg_d * 0.2
+        daily_d = avg_d / 30.0
+        ann_d   = avg_d * 12
+        uc      = max(sk["avg_price"], 1.0)
+
+        # EOQ — Wilson formula
+        eoq = int(np.sqrt(2 * ann_d * order_cost / (uc * hold_pct))) if ann_d > 0 else 10
+        eoq = max(eoq, 1)
+
+        # Safety Stock — correct formula: z × σ_daily × √LT (convert monthly std → daily)
+        daily_std = std_d / np.sqrt(30)
+        ss  = int(z * daily_std * np.sqrt(lead_time))
+        ss  = max(ss, 0)
+
+        # ROP
+        rop = int(daily_d * lead_time + ss)
+        rop = max(rop, 1)
+
+        # ── REALISTIC stock simulation: (s,Q) inventory policy ──
+        # Opening stock = 2 × EOQ (typical starting inventory)
+        stock   = eoq * 2
+        pending = 0   # units on order
+        for demand in demands:
+            stock -= demand
+            stock  = max(stock + pending, 0)
+            pending = 0
+            if stock < rop:
+                # Place replenishment order
+                n_orders = max(1, int(np.ceil((rop - stock + ss) / eoq)))
+                pending  = n_orders * eoq
+
+        current_stock = max(stock, 0)
+
+        if current_stock < ss:
+            status = "🔴 Critical"
+        elif current_stock < rop:
+            status = "🟡 Low"
+        else:
+            status = "🟢 Adequate"
+
+        # Forecast demand (next 6 months) from ML model
+        ds_idx = pd.PeriodIndex(skd["YM"].values, freq="M")
+        ds_ts  = ds_idx.to_timestamp()
+        forecast_6m = int(avg_d * 6 * 1.05)  # 6-month demand estimate
+
+        rows.append({
+            "SKU_ID": sku, "Product_Name": sk["Product_Name"],
+            "Category": sk["Category"],
+            "Monthly_Avg": round(avg_d, 1), "Monthly_Std": round(std_d, 1),
+            "Daily_Std": round(daily_std, 2),
+            "EOQ": eoq, "SS": ss, "ROP": rop,
+            "Current_Stock": current_stock, "Status": status,
+            "Unit_Price": round(uc, 0), "Annual_Demand": round(ann_d, 0),
+            "Forecast_6M": forecast_6m,
+        })
+
+    return pd.DataFrame(rows)
+
+# ─── PRODUCTION PLANNING ────────────────────────────────────
+@st.cache_data(show_spinner=False)
+def compute_production(cap_mult=1.0, buffer_pct=0.15):
+    df   = load_data()
+    ops  = get_ops(df)
+    inv  = compute_inventory()
+    ops["YM"] = ops["Order_Date"].dt.to_period("M")
+
+    cat_monthly = (ops.groupby(["YM","Category"])["Quantity"]
+                   .sum().unstack(fill_value=0))
+    ds_index = cat_monthly.index
+
+    rows = []
+    for cat in cat_monthly.columns:
+        vals = cat_monthly[cat].values.astype(float)
+        res  = ml_forecast(vals, ds_index, n_future=6)
+        if res is None:
+            continue
+
+        crit_boost = float(
+            inv[(inv["Category"] == cat) & (inv["Status"] == "🔴 Critical")]
+            ["Monthly_Avg"].sum() * 0.5
+        )
+        low_boost = float(
+            inv[(inv["Category"] == cat) & (inv["Status"] == "🟡 Low")]
+            ["Monthly_Avg"].sum() * 0.25
+        )
+
+        for i, (dt, fc) in enumerate(zip(res["fut_ds"], res["forecast"])):
+            net_prod = max(fc + crit_boost + low_boost, 0) * cap_mult
+            prod     = net_prod * (1 + buffer_pct)
+            rows.append({
+                "Month_dt": dt, "Month": dt.strftime("%b %Y"),
+                "Category": cat,
+                "Demand_Forecast": round(fc, 0),
+                "Crit_Boost": round(crit_boost, 0),
+                "Low_Boost":  round(low_boost, 0),
+                "Buffer":     round(prod - net_prod, 0),
+                "Production": round(prod, 0),
+                "CI_Lo": round(res["ci_lo"][i], 0),
+                "CI_Hi": round(res["ci_hi"][i], 0),
+            })
+
+    return pd.DataFrame(rows)
+
+# ─── LOGISTICS COST OPTIMISER ───────────────────────────────
+@st.cache_data(show_spinner=False)
+def compute_logistics():
+    df  = load_data()
+    del_df = get_delivered(df)
+
+    # Carrier scorecard
+    carr = del_df.groupby("Courier_Partner").agg(
+        Orders      = ("Order_ID","count"),
+        Avg_Days    = ("Delivery_Days","mean"),
+        Avg_Cost    = ("Shipping_Cost_INR","mean"),
+        Total_Cost  = ("Shipping_Cost_INR","sum"),
+        Return_Rate = ("Return_Flag","mean"),
+    ).reset_index()
+    carr["Delay_Index"] = (carr["Avg_Days"] / carr["Avg_Days"].min()).round(2)
+    carr["Cost_Score"]  = (carr["Avg_Cost"] / carr["Avg_Cost"].min()).round(2)
+    carr["Perf_Score"]  = ((1 / carr["Delay_Index"]) * (1 - carr["Return_Rate"]) * (1 / carr["Cost_Score"])).round(3)
+
+    # Best carrier per region (lowest avg_days)
+    best = (del_df.groupby(["Region","Courier_Partner"])
+            .agg(Avg_Days=("Delivery_Days","mean"), Orders=("Order_ID","count"),
+                 Avg_Cost=("Shipping_Cost_INR","mean"))
+            .reset_index()
+            .sort_values("Avg_Days")
+            .groupby("Region").first().reset_index())
+
+    # Current carrier allocation per region
+    current = (del_df.groupby(["Region","Courier_Partner"])
+               .agg(Orders=("Order_ID","count"), Total_Cost=("Shipping_Cost_INR","sum"))
+               .reset_index())
+
+    # Cost optimisation: potential saving if each region uses cheapest carrier
+    cheapest = (del_df.groupby(["Region","Courier_Partner"])
+                .agg(avg_cost=("Shipping_Cost_INR","mean"), orders=("Order_ID","count"))
+                .reset_index()
+                .sort_values("avg_cost")
+                .groupby("Region").first().reset_index()
+                .rename(columns={"Courier_Partner":"Optimal_Carrier","avg_cost":"Min_Avg_Cost"}))
+
+    region_costs = (del_df.groupby("Region")
+                    .agg(Current_Avg_Cost=("Shipping_Cost_INR","mean"),
+                         Orders=("Order_ID","count"),
+                         Total_Spend=("Shipping_Cost_INR","sum"))
+                    .reset_index())
+
+    opt = region_costs.merge(cheapest[["Region","Optimal_Carrier","Min_Avg_Cost"]], on="Region")
+    opt["Potential_Saving"] = ((opt["Current_Avg_Cost"] - opt["Min_Avg_Cost"]) * opt["Orders"]).round(0)
+    opt["Saving_Pct"]       = ((opt["Current_Avg_Cost"] - opt["Min_Avg_Cost"]) / opt["Current_Avg_Cost"] * 100).round(1)
+
+    return carr, best, opt, current
+
+# ─── CHATBOT CONTEXT ────────────────────────────────────────
+def build_context():
+    df   = load_data()
+    ops  = get_ops(df)
+    ops["YM"] = ops["Order_Date"].dt.to_period("M")
+
+    # Demand forecast
+    m_orders = ops.groupby("YM")["Order_ID"].count().rename("v")
+    m_qty    = ops.groupby("YM")["Quantity"].sum().rename("v")
+    m_rev    = ops.groupby("YM")["Net_Revenue"].sum().rename("v")
+
+    r_ord = ml_forecast(m_orders.values.astype(float), m_orders.index, 6)
+    r_rev = ml_forecast(m_rev.values.astype(float),    m_rev.index,    6)
+    r_qty = ml_forecast(m_qty.values.astype(float),    m_qty.index,    6)
+
+    def fc_str(r, fmt):
+        if r is None: return "N/A"
+        return "; ".join([f"{d.strftime('%b%Y')}:{fmt(v)}" for d,v in zip(r["fut_ds"], r["forecast"])])
+
+    inv  = compute_inventory()
+    plan = compute_production()
+    carr, best_carr, opt, _ = compute_logistics()
+
+    n_crit = (inv["Status"]=="🔴 Critical").sum()
+    n_low  = (inv["Status"]=="🟡 Low").sum()
+    crit_prods = ", ".join(inv[inv["Status"]=="🔴 Critical"]["Product_Name"].head(5).tolist())
+
+    prod_sum = plan.groupby("Category")["Production"].sum().to_dict() if not plan.empty else {}
+    prod_str = ", ".join([f"{k}:{v:.0f}u" for k,v in prod_sum.items()])
+    peak_mo  = plan.groupby("Month_dt")["Production"].sum().idxmax().strftime("%b %Y") if not plan.empty else "N/A"
+
+    carr_str = "; ".join([f"{r['Courier_Partner']}: {r['Orders']}ord, {r['Avg_Days']:.1f}d, ₹{r['Avg_Cost']:.0f}/ship"
+                           for _, r in carr.iterrows()])
+    best_str = ", ".join([f"{r['Region']}→{r['Courier_Partner']}" for _, r in best_carr.iterrows()])
+    saving_total = opt["Potential_Saving"].sum()
+    saving_str   = "; ".join([f"{r['Region']}: save ₹{r['Potential_Saving']:,.0f} with {r['Optimal_Carrier']}"
+                               for _, r in opt.iterrows() if r['Potential_Saving'] > 0])
+
+    cat_rev  = ops.groupby("Category")["Net_Revenue"].sum().sort_values(ascending=False)
+    cat_str  = ", ".join([f"{k}:₹{v/1e6:.1f}M" for k,v in cat_rev.items()])
+    top_reg  = ops.groupby("Region")["Net_Revenue"].sum().sort_values(ascending=False).head(5)
+    reg_str  = ", ".join([f"{k}:₹{v/1e6:.1f}M" for k,v in top_reg.items()])
+    top_sku  = ops.groupby("Product_Name")["Net_Revenue"].sum().sort_values(ascending=False).head(8)
+    sku_str  = ", ".join(top_sku.index.tolist())
+
+    metric_str = ""
+    if r_ord:
+        metric_str = f"Orders RMSE:{r_ord['rmse']:.1f}, NRMSE:{r_ord['nrmse']*100:.1f}%, R²:{r_ord['r2']:.2f}"
+
+    return f"""=== OmniFlow D2D India — Live Supply Chain Intelligence ===
+DATASET: 5,200 orders | Jan 2024–Dec 2025 | India D2D (Amazon, Flipkart, B2B)
+DATA NOTES: Pune merged into Maharashtra. Net Revenue excludes returned orders.
+SUMMARY: Net Revenue ₹{ops['Net_Revenue'].sum()/1e7:.2f}Cr | Active Orders {len(ops):,} | 
+         Return Rate {df[df['Order_Status']=='Returned'].shape[0]/len(ops)*100:.1f}% | 
+         Avg Delivery {ops['Delivery_Days'].mean():.1f}d (Delivered only)
+
+[MODULE 1 — DEMAND FORECAST (ML Ridge Regression + Structural Break)]
+{metric_str}
+Order Forecast Jan–Jun 2026: {fc_str(r_ord, lambda v: f"{v:.0f}")}
+Qty Forecast:   {fc_str(r_qty, lambda v: f"{v:.0f}u")}
+Revenue Forecast: {fc_str(r_rev, lambda v: f"₹{v/1e6:.1f}M")}
+Business note: Major scale-up from Apr-2025 (B2B + Shiprocket channels added)
+
+[MODULE 2 — INVENTORY (Simulated (s,Q) Policy | Correct SS Formula)]
+Critical SKUs: {n_crit} | Low: {n_low} | Adequate: {inv['Status'].eq('🟢 Adequate').sum()}
+Reorder IMMEDIATELY: {crit_prods}
+EOQ uses Wilson formula; SS = z × σ_daily × √LT (95% service level)
+
+[MODULE 3 — PRODUCTION PLAN (Demand + Inventory-driven, 6-month)]
+By Category: {prod_str}
+Peak Month: {peak_mo}
+Buffer: 15% safety buffer built into all targets
+
+[MODULE 4 — LOGISTICS INTELLIGENCE]
+Carriers: {carr_str}
+Best Carrier by Region: {best_str}
+Cost Optimisation: ₹{saving_total:,.0f} total annual saving available
+Savings by Region: {saving_str}
+
+CATEGORIES: {cat_str}
+TOP REGIONS: {reg_str}
+TOP PRODUCTS: {sku_str}"""
+
+# ─── RULE-BASED CHATBOT (no API needed) ─────────────────────
+# ─── API-POWERED CHATBOT  ───────────────────────────────────────────────────
+# Provider:  Anthropic Claude Sonnet  (primary)
+#            Groq LLaMA-3.3-70B       (free-tier fallback)
+# Key entry: sidebar — never hardcoded
+
+import requests as _requests
+
+def call_llm(messages: list, system: str, api_key: str, provider: str) -> str:
+    """Unified caller for Anthropic or Groq."""
+
+    if provider == "anthropic":
+        hdrs = {
+            "x-api-key":         api_key,
+            "anthropic-version": "2023-06-01",
+            "Content-Type":      "application/json",
+        }
+        body = {
+            "model":      "claude-sonnet-4-20250514",
+            "max_tokens": 1800,
+            "system":     system,
+            "messages":   messages,
+        }
+        try:
+            r = _requests.post("https://api.anthropic.com/v1/messages",
+                               headers=hdrs, json=body, timeout=50)
+            if r.status_code == 401:
+                return "❌ Invalid Anthropic API key — check the key in the sidebar."
+            if r.status_code == 429:
+                return "⚠️ Rate-limit reached. Wait a few seconds and retry."
+            if r.status_code != 200:
+                return f"⚠️ Anthropic error ({r.status_code}): {r.text[:300]}"
+            data = r.json()
+            return " ".join(b["text"] for b in data.get("content", [])
+                            if b.get("type") == "text")
+        except _requests.exceptions.Timeout:
+            return "⚠️ Anthropic request timed out — please retry."
+        except Exception as exc:
+            return f"⚠️ Anthropic call failed: {exc}"
+
+    # ── Groq ──────────────────────────────────────────────────
+    hdrs = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type":  "application/json",
+    }
+    body = {
+        "model":       "llama-3.3-70b-versatile",
+        "max_tokens":  1800,
+        "temperature": 0.4,
+        "messages":    [{"role": "system", "content": system}] + messages,
+    }
+    try:
+        r = _requests.post("https://api.groq.com/openai/v1/chat/completions",
+                           headers=hdrs, json=body, timeout=50)
+        if r.status_code == 401:
+            return "❌ Invalid Groq API key — check the key in the sidebar."
+        if r.status_code == 429:
+            return "⚠️ Groq rate-limit. Wait a moment and retry."
+        if r.status_code != 200:
+            return f"⚠️ Groq error ({r.status_code}): {r.text[:300]}"
+        return r.json()["choices"][0]["message"]["content"]
+    except _requests.exceptions.Timeout:
+        return "⚠️ Groq request timed out — please retry."
+    except Exception as exc:
+        return f"⚠️ Groq call failed: {exc}"
+
+
+def build_system_prompt(ctx: str) -> str:
+    return f"""You are OmniFlow, an expert AI supply chain analyst embedded inside a
+Streamlit dashboard for an India D2D (Demand-to-Delivery) e-commerce business.
+
+=== YOUR EXPERTISE ===
+• Demand forecasting — Ridge Regression with structural break detection, Fourier seasonality
+• Inventory management — Wilson EOQ, Safety Stock (z·σ_daily·√LT), ROP, (s,Q) policy
+• Production planning — 6-month capacity scheduling, demand + inventory-driven targets
+• Logistics optimisation — carrier selection, cost reduction, delay analysis, warehouse planning
+• Indian e-commerce channels — Amazon.in, Shiprocket, INCREFF B2B
+• All figures are in Indian Rupees (₹) and refer to 50 SKUs across 4 categories
+
+=== RESPONSE RULES ===
+1. Lead with one precise, data-backed recommendation or insight sentence
+2. Use bullet points (▸) for lists — cite exact numbers (₹, %, units, days)
+3. When asked about a specific product / region / carrier, look it up in the CONTEXT below
+4. Connect modules where relevant: demand forecast → what EOQ/ROP implies → what production needs
+5. For forecasting questions, state the model name, RMSE and NRMSE
+6. Keep answers concise but complete — 4–8 bullets is the target length
+7. No generic closings like "Feel free to ask…" or padding sentences
+8. If information is not in the context, say so honestly — do not hallucinate numbers
+9. For multi-part questions, answer each part with a clear sub-heading (e.g., **Reorder Point:** )
+10. Propose actionable next steps where applicable
+
+=== LIVE SUPPLY CHAIN CONTEXT ===
+{ctx}"""
+
+
+# ── Page ───────────────────────────────────────────────────
+def page_chatbot():
+    df  = load_data()
+    ops = get_ops(df)
+    ops["YM"] = ops["Order_Date"].dt.to_period("M")
+
+    st.markdown("<div class='page-title' style='color:#5ba4e5'>Decision Intelligence Chatbot</div>",
+                unsafe_allow_html=True)
+    st.markdown(
+        "<div class='page-subtitle'>"
+        "Claude Sonnet · LLaMA-3.3-70B · Full supply chain context · "
+        "Multi-turn · Unlimited query types"
+        "</div>", unsafe_allow_html=True)
+    st.markdown("""<div style='margin-bottom:16px'>
+      <span class='badge badge-amber'>⬆ Demand</span>
+      <span class='badge badge-teal'>⬆ Inventory</span>
+      <span class='badge badge-lav'>⬆ Production</span>
+      <span class='badge badge-coral'>⬆ Logistics</span>
+      <span class='badge badge-sky'>API LLM</span>
+    </div>""", unsafe_allow_html=True)
+
+    # ── Sidebar — API key config ──────────────────────────────
+    with st.sidebar:
+        st.markdown("""<div style='margin-top:18px;border-top:1px solid rgba(255,255,255,0.06);
+            padding-top:16px;font-family:DM Mono,monospace;font-size:0.65rem;
+            color:#4a5e7a;letter-spacing:0.08em;text-transform:uppercase;
+            margin-bottom:8px'>🤖 AI Chatbot Config</div>""", unsafe_allow_html=True)
+
+        provider = st.selectbox(
+            "Provider",
+            ["Anthropic Claude Sonnet", "Groq LLaMA-3.3 (free)"],
+            key="llm_provider"
+        )
+        is_anthropic = provider.startswith("Anthropic")
+        provider_code = "anthropic" if is_anthropic else "groq"
+
+        api_key = st.text_input(
+            "Anthropic API Key" if is_anthropic else "Groq API Key",
+            type="password",
+            key="llm_api_key",
+            placeholder="sk-ant-..." if is_anthropic else "gsk_...",
+            help=("Get yours at console.anthropic.com"
+                  if is_anthropic else "Free tier at console.groq.com")
+        )
+        note = ("console.anthropic.com" if is_anthropic
+                else "console.groq.com — free tier available")
+        st.markdown(f"<div style='font-size:0.6rem;color:#4a5e7a;font-family:DM Mono,"
+                    f"monospace;margin-top:4px'>{note}</div>", unsafe_allow_html=True)
+
+    # ── Build context & system prompt ─────────────────────────
+    ctx    = build_context()
+    system = build_system_prompt(ctx)
+
+    with st.expander("📊 Live Module Context fed to AI", expanded=False):
+        st.code(ctx, language="text")
+
+    # ── Key status banner ─────────────────────────────────────
+    key_ok = bool(api_key and len(api_key.strip()) > 10)
+    if not key_ok:
+        st.markdown("""<div class='info-banner banner-amber'>
+          <b style='color:#f5a623'>⚠️ API Key Required:</b>
+          Enter your <b>Anthropic</b> (<code>sk-ant-...</code>) or
+          <b>Groq</b> (<code>gsk_...</code>) key in the sidebar to activate the chatbot.
+          Groq offers a <b style='color:#56e0a0'>free tier</b> — no credit card needed.
+        </div>""", unsafe_allow_html=True)
+
+    # ── Session state ─────────────────────────────────────────
+    if "chat_msgs" not in st.session_state:
+        st.session_state.chat_msgs = []
+
+    # ── Quick suggestion buttons ──────────────────────────────
+    SUGGESTIONS = [
+        "Which product will have the highest demand in March 2026?",
+        "What is the reorder point for Home & Kitchen SKUs?",
+        "Which region needs the most logistics support and why?",
+        "How should I adjust production targets for Q2 2026?",
+        "Which courier should I use for Maharashtra to minimise cost?",
+        "Explain the safety stock formula and values for Electronics",
+        "How can I reduce shipping costs across all regions?",
+        "Which SKUs are at critical inventory risk right now?",
+        "Compare all 5 carriers across speed, cost and returns",
+        "What caused the demand surge from April 2025?",
+        "Give me a complete 6-month production plan summary",
+        "What is the EOQ for Fashion & Apparel and why?",
+        "Which warehouse handles the most volume and is it optimal?",
+        "Calculate total logistics cost saving if I switch carriers",
+        "What is the NRMSE of the demand forecast and is it acceptable?",
+        "If I increase lead time to 14 days, how does ROP change?",
+    ]
+
+    if not st.session_state.chat_msgs:
+        sec("Quick Queries — click any to get started", "⚡")
+        cols = st.columns(4)
+        for i, s in enumerate(SUGGESTIONS):
+            with cols[i % 4]:
+                if st.button(s, key=f"sug_{i}", use_container_width=True):
+                    if not key_ok:
+                        st.warning("Enter your API key in the sidebar first.")
+                    else:
+                        st.session_state.chat_msgs.append(
+                            {"role": "user", "content": s})
+                        with st.spinner("OmniFlow analysing…"):
+                            reply = call_llm(
+                                [{"role": "user", "content": s}],
+                                system, api_key.strip(), provider_code)
+                        st.session_state.chat_msgs.append(
+                            {"role": "assistant", "content": reply})
+                        st.rerun()
+
+    # ── Conversation display ──────────────────────────────────
+    import re as _re
+    for msg in st.session_state.chat_msgs:
+        role    = msg["role"]
+        content = msg["content"]
+
+        if role == "user":
+            st.markdown(
+                f"<div style='margin:10px 0'>"
+                f"<div class='chat-user-bubble'>{content}</div></div>",
+                unsafe_allow_html=True)
+        else:
+            # Sanitise + render markdown-lite
+            safe = (content
+                    .replace("&", "&amp;")
+                    .replace("<", "&lt;")
+                    .replace(">", "&gt;"))
+            safe = _re.sub(r'\*\*(.+?)\*\*',
+                           r'<span style="color:#f0f4ff;font-weight:700">\1</span>',
+                           safe)
+            safe = _re.sub(r'\*(.+?)\*',
+                           r'<span style="color:#8a9dc0;font-style:italic">\1</span>',
+                           safe)
+            html_parts = []
+            for line in safe.split("\n"):
+                line = line.strip()
+                if not line:
+                    html_parts.append("<div style='height:5px'></div>")
+                elif _re.match(r"^[▸\-•] ", line):
+                    body = line[2:].strip()
+                    html_parts.append(
+                        f"<div style='display:flex;gap:8px;margin:5px 0'>"
+                        f"<span style='color:#f5a623;flex-shrink:0;margin-top:2px'>▸</span>"
+                        f"<span style='color:#c8d4e8;line-height:1.65'>{body}</span></div>")
+                elif line.startswith("**") and line.endswith("**"):
+                    html_parts.append(
+                        f"<div style='color:#f0f4ff;font-weight:700;margin:8px 0 3px'>{line[2:-2]}</div>")
+                else:
+                    html_parts.append(
+                        f"<div style='color:#8a9dc0;line-height:1.65;margin:3px 0'>{line}</div>")
+
+            st.markdown(
+                f"<div style='margin:10px 0'>"
+                f"<div class='chat-ai-bubble'>{chr(10).join(html_parts)}</div></div>",
+                unsafe_allow_html=True)
+
+    sp()
+
+    # ── Input bar ─────────────────────────────────────────────
+    ci, cb, cc = st.columns([5, 1, 1])
+    with ci:
+        user_in = st.text_input(
+            "Ask anything about the supply chain…",
+            key="user_input",
+            placeholder=(
+                "e.g. Which SKU should I reorder first given the Q2 2026 demand forecast "
+                "and what quantity should I order?"),
+            label_visibility="collapsed")
+    with cb:
+        if st.button("Send ↗", use_container_width=True):
+            if not key_ok:
+                st.warning("Enter your API key in the sidebar first.")
+            elif user_in.strip():
+                st.session_state.chat_msgs.append(
+                    {"role": "user", "content": user_in.strip()})
+                history = st.session_state.chat_msgs[-20:]  # keep last 20 turns
+                with st.spinner("OmniFlow thinking…"):
+                    reply = call_llm(history, system, api_key.strip(), provider_code)
+                st.session_state.chat_msgs.append(
+                    {"role": "assistant", "content": reply})
+                st.rerun()
+    with cc:
+        if st.button("Clear", use_container_width=True):
+            st.session_state.chat_msgs = []
+            st.rerun()
+
+    # ── Live alerts panel (only when chat is empty) ───────────
+    if not st.session_state.chat_msgs:
+        sp()
+        sec("Live Decision Alerts", "⚡")
+        al1, al2 = st.columns(2, gap="large")
+
+        with al1:
+            st.markdown("""<div style='font-size:0.74rem;font-weight:700;color:#ff6b6b;
+                letter-spacing:0.06em;text-transform:uppercase;
+                font-family:DM Mono,monospace;margin-bottom:10px'>
+                🔴 Critical SKUs — Reorder NOW</div>""", unsafe_allow_html=True)
+            inv = compute_inventory()
+            crit = (inv[inv["Status"] == "🔴 Critical"]
+                    [["Product_Name", "Category", "Current_Stock", "ROP"]]
+                    .head(5))
+            for _, r in crit.iterrows():
+                st.markdown(
+                    f"<div class='alert-item alert-critical'>"
+                    f"<b style='color:#f0f4ff'>{r['Product_Name']}</b> "
+                    f"<span style='color:#4a5e7a'>[{r['Category']}]</span><br>"
+                    f"<span style='color:#4a5e7a;font-size:0.71rem'>"
+                    f"Stock: {r['Current_Stock']} · ROP: {r['ROP']}"
+                    f"</span></div>", unsafe_allow_html=True)
+
+        with al2:
+            st.markdown("""<div style='font-size:0.74rem;font-weight:700;color:#f5a623;
+                letter-spacing:0.06em;text-transform:uppercase;
+                font-family:DM Mono,monospace;margin-bottom:10px'>
+                💰 Cost Saving Opportunities</div>""", unsafe_allow_html=True)
+            _, _, opt, _ = compute_logistics()
+            for _, r in (opt.sort_values("Potential_Saving", ascending=False)
+                         .head(5).iterrows()):
+                if r["Potential_Saving"] > 0:
+                    st.markdown(
+                        f"<div class='alert-item alert-warn'>"
+                        f"<b style='color:#f0f4ff'>{r['Region']}</b> "
+                        f"→ <b style='color:#56e0a0'>{r['Optimal_Carrier']}</b><br>"
+                        f"<span style='color:#4a5e7a;font-size:0.71rem'>"
+                        f"Save ₹{r['Potential_Saving']:,.0f} ({r['Saving_Pct']:.1f}%)"
+                        f"</span></div>", unsafe_allow_html=True)
+
+        sp()
+        sec("Revenue Forecast — Next 3 Months", "📈")
+        m_rev = ops.groupby("YM")["Net_Revenue"].sum().rename("v")
+        r_rev = ml_forecast(m_rev.values.astype(float), m_rev.index, 3)
+        if r_rev is not None:
+            last = float(m_rev.iloc[-1])
+            rc   = st.columns(3)
+            for i, (dt, fc, lo, hi) in enumerate(zip(
+                    r_rev["fut_ds"], r_rev["forecast"],
+                    r_rev["ci_lo"],  r_rev["ci_hi"])):
+                chg = (fc - last) / last * 100 if last > 0 else 0
+                kpi(rc[i],
+                    f"{'📈' if chg>=0 else '📉'} {dt.strftime('%b %Y')}",
+                    f"₹{fc/1e6:.1f}M",
+                    "mint" if chg >= 0 else "coral",
+                    f"{chg:+.1f}% | CI ₹{lo/1e6:.1f}M–₹{hi/1e6:.1f}M")
+                last = fc
+
 
 def page_overview():
     df  = load_data()
-    raw = load_all_statuses()
+    ops = get_ops(df)
+    ops["YM"] = ops["Order_Date"].dt.to_period("M")
 
-    st.markdown("""
-    <div class='page-title-block'>
-      <div class='page-title' style='background:linear-gradient(135deg,#f5a623,#ff6b6b,#2ed8c3);
-           -webkit-background-clip:text;-webkit-text-fill-color:transparent;font-size:3rem'>
-        OmniFlow D2D</div>
-      <div class='page-subtitle'>Predictive Logistics & AI-Powered Demand-to-Delivery Optimization</div>
-    </div>""", unsafe_allow_html=True)
+    st.markdown("""<div class='page-title' style='background:linear-gradient(135deg,#f5a623,#ff6b6b,#2ed8c3);
+         -webkit-background-clip:text;-webkit-text-fill-color:transparent'>OmniFlow D2D</div>
+    <div class='page-subtitle'>Predictive Logistics & AI-Powered Demand-to-Delivery Intelligence · India</div>
+    """, unsafe_allow_html=True)
 
-    st.markdown("""
-    <div class='about-card'>
-      <div style='font-family:Outfit,sans-serif;font-size:1.05rem;font-weight:700;
-           color:#f0f4ff;margin-bottom:10px'>About This Platform</div>
-      <p style='color:#8a9dc0;line-height:1.85;margin:0;font-size:0.88rem'>
-        <b style='color:#f5a623'>OmniFlow</b> is an AI-driven supply chain intelligence platform
-        built on <b style='color:#f0f4ff'>5,200 D2D orders</b> across India (Jan 2024–Dec 2025).
-        Six interconnected modules feed each other in sequence — demand signals drive inventory,
-        which drives production, which informs logistics. The AI chatbot synthesises all module outputs.
+    st.markdown("""<div class='about-card'>
+      <div style='font-size:1.0rem;font-weight:700;color:#f0f4ff;margin-bottom:10px'>About This Platform</div>
+      <p style='color:#8a9dc0;line-height:1.85;margin:0;font-size:0.86rem'>
+        <b style='color:#f5a623'>OmniFlow</b> is a full-stack supply-chain intelligence platform built on
+        <b style='color:#f0f4ff'>5,200 D2D orders</b> across India (Jan 2024–Dec 2025).
+        Modules are causally connected: Demand signals drive Inventory EOQ/SS,
+        which drives Production targets, which informs Logistics optimisation.
+        All forecasting uses <b style='color:#2ed8c3'>Ridge Regression with structural-break detection</b>
+        (accounting for the Apr-2025 business scale-up). Revenue KPIs are net of returns.
+        Geographic data is corrected (Pune → Maharashtra).
       </p>
-      <div style='display:flex;flex-wrap:wrap;gap:8px;margin-top:16px'>
+      <div style='margin-top:14px'>
         <span class='badge badge-amber'>Demand → Jun 2026</span>
         <span class='badge badge-teal'>Inventory EOQ/ROP</span>
         <span class='badge badge-lav'>Production Plan</span>
-        <span class='badge badge-coral'>Logistics Intel</span>
+        <span class='badge badge-coral'>Logistics + Cost Opt</span>
         <span class='badge badge-sky'>AI Chatbot</span>
+        <span class='badge badge-mint'>RMSE · NRMSE · R²</span>
       </div>
     </div>""", unsafe_allow_html=True)
 
-    c1,c2,c3,c4,c5,c6 = st.columns(6)
-    kpi(c1, "Total Revenue",  f"₹{df['Revenue_INR'].sum()/1e7:.1f}Cr", "amber",  "all time")
-    kpi(c2, "Orders",         f"{len(df):,}",                           "teal",   "non-cancelled")
-    kpi(c3, "Units Sold",     f"{df['Quantity'].sum():,}",              "sky",    "quantities")
-    kpi(c4, "Return Rate",    f"{df['Return_Flag'].mean()*100:.1f}%",   "coral",  "of delivered")
-    kpi(c5, "Avg Delivery",   f"{df['Delivery_Days'].mean():.1f}d",     "lav",    "avg days")
-    kpi(c6, "SKU Categories", f"{df['Category'].nunique()}",            "mint",   "product types")
-    st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
+    # KPIs
+    delivered  = df[df["Order_Status"] == "Delivered"]
+    net_rev    = ops["Net_Revenue"].sum()
+    ret_rate   = df[df["Order_Status"] == "Returned"].shape[0] / len(ops) * 100
+    avg_del    = delivered["Delivery_Days"].mean()
 
-    c_l, c_r = st.columns([3, 2], gap="large")
+    c1,c2,c3,c4,c5,c6 = st.columns(6)
+    kpi(c1, "Net Revenue",     f"₹{net_rev/1e7:.1f}Cr",          "amber", "excl. returns")
+    kpi(c2, "Active Orders",   f"{len(ops):,}",                   "teal",  "Del+Shipped")
+    kpi(c3, "Units Sold",      f"{ops['Quantity'].sum():,}",       "sky",   "all products")
+    kpi(c4, "Return Rate",     f"{ret_rate:.1f}%",                "coral", "of active orders")
+    kpi(c5, "Avg Delivery",    f"{avg_del:.1f}d",                 "lav",   "delivered only")
+    kpi(c6, "SKU Categories",  f"{df['Category'].nunique()}",     "mint",  "product types")
+    sp()
+
+    # Charts row 1
+    c_l, c_r = st.columns([3,2], gap="large")
     with c_l:
-        section_title("Monthly Revenue Trend")
-        m = df.groupby(df["Order_Date"].dt.to_period("M"))["Revenue_INR"].sum().reset_index()
-        m["Order_Date"] = m["Order_Date"].dt.to_timestamp()
+        sec("Monthly Net Revenue Trend")
+        m = ops.groupby(ops["Order_Date"].dt.to_period("M"))["Net_Revenue"].sum().reset_index()
+        m["ds"] = m["Order_Date"].dt.to_timestamp()
         fig = go.Figure()
-        fig.add_trace(go.Scatter(
-            x=m["Order_Date"], y=m["Revenue_INR"],
-            fill="tozeroy",
-            line=dict(color="#f5a623", width=2.5),
-            fillcolor="rgba(245,166,35,0.06)",
-            name="Revenue",
-            hovertemplate="<b>%{x|%b %Y}</b><br>₹%{y:,.0f}<extra></extra>"
-        ))
-        fig.update_layout(**CD(), height=260,
-            xaxis=dict(**grid_x()),
-            yaxis=dict(**grid_y(), tickformat=",.0f"),
-            showlegend=False)
+        fig.add_trace(go.Scatter(x=m["ds"], y=m["Net_Revenue"], fill="tozeroy",
+            line=dict(color="#f5a623",width=2.5), fillcolor="rgba(245,166,35,0.06)",
+            hovertemplate="<b>%{x|%b %Y}</b><br>₹%{y:,.0f}<extra></extra>"))
+        fig.update_layout(**CD(), height=260, xaxis=gX(), yaxis={**gY(),"tickformat":",.0f"}, showlegend=False)
         st.plotly_chart(fig, use_container_width=True)
 
     with c_r:
-        section_title("Revenue by Category")
-        cat = df.groupby("Category")["Revenue_INR"].sum().sort_values(ascending=False)
-        fig2 = go.Figure(go.Pie(
-            labels=cat.index, values=cat.values, hole=.6,
-            marker=dict(colors=COLORS, line=dict(color="#080e1a", width=3)),
-            textinfo="label+percent",
-            textfont=dict(size=10, color="#f0f4ff"),
-            hovertemplate="<b>%{label}</b><br>₹%{value:,.0f}<br>%{percent}<extra></extra>"
-        ))
-        fig2.update_layout(**CD(), height=260,
-            showlegend=False,
-            annotations=[dict(text="Revenue", x=0.5, y=0.5, showarrow=False,
-                             font=dict(size=11, color="#4a5e7a", family="DM Mono"))])
+        sec("Net Revenue by Category")
+        cat = ops.groupby("Category")["Net_Revenue"].sum().sort_values(ascending=False)
+        fig2 = go.Figure(go.Pie(labels=cat.index, values=cat.values, hole=.58,
+            marker=dict(colors=COLORS, line=dict(color="#080e1a",width=3)),
+            textinfo="label+percent", textfont=dict(size=10,color="#f0f4ff"),
+            hovertemplate="<b>%{label}</b><br>₹%{value:,.0f}<br>%{percent}<extra></extra>"))
+        fig2.update_layout(**CD(), height=260, showlegend=False,
+            annotations=[dict(text="Net Rev",x=.5,y=.5,showarrow=False,
+                font=dict(size=10,color="#4a5e7a",family="DM Mono"))])
         st.plotly_chart(fig2, use_container_width=True)
 
-    st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
+    sp(0.5)
     c3a, c3b, c3c = st.columns(3, gap="large")
 
     with c3a:
-        section_title("Orders by Channel")
-        ch = df["Sales_Channel"].value_counts().head(6)
-        fig3 = go.Figure(go.Bar(
-            x=ch.values, y=ch.index, orientation="h",
-            marker=dict(
-                color=COLORS[:len(ch)],
-                line=dict(color="rgba(0,0,0,0)")
-            ),
-            text=ch.values, textposition="outside",
-            textfont=dict(color="#4a5e7a", size=10),
-            hovertemplate="<b>%{y}</b><br>%{x:,} orders<extra></extra>"
-        ))
-        fig3.update_layout(**CD(), height=250,
-            xaxis=dict(**grid_x()), yaxis=dict(showgrid=False, color="#8a9dc0"))
+        sec("Orders by Channel")
+        ch = ops["Sales_Channel"].value_counts()
+        fig3 = go.Figure(go.Bar(x=ch.values, y=ch.index, orientation="h",
+            marker=dict(color=COLORS[:len(ch)], line=dict(color="rgba(0,0,0,0)")),
+            text=ch.values, textposition="outside", textfont=dict(color="#4a5e7a",size=10),
+            hovertemplate="<b>%{y}</b><br>%{x:,} orders<extra></extra>"))
+        fig3.update_layout(**CD(), height=240, xaxis=gX(), yaxis=dict(showgrid=False,color="#8a9dc0"))
         st.plotly_chart(fig3, use_container_width=True)
 
     with c3b:
-        section_title("Top Regions Revenue")
-        reg = df.groupby("Region")["Revenue_INR"].sum().sort_values(ascending=False).head(8)
-        fig4 = go.Figure(go.Bar(
-            x=reg.index, y=reg.values,
-            marker=dict(
-                color=COLORS_SOFT * 2,
-                line=dict(color="rgba(0,0,0,0)")
-            ),
-            hovertemplate="<b>%{x}</b><br>₹%{y:,.0f}<extra></extra>"
-        ))
-        fig4.update_layout(**CD(), height=250,
-            xaxis=dict(**grid_x(), tickangle=-30),
-            yaxis=dict(**grid_y()))
+        sec("Top Regions by Net Revenue")
+        reg = ops.groupby("Region")["Net_Revenue"].sum().sort_values(ascending=False)
+        fig4 = go.Figure(go.Bar(x=reg.index, y=reg.values,
+            marker=dict(color=COLORS_S*2, line=dict(color="rgba(0,0,0,0)")),
+            hovertemplate="<b>%{x}</b><br>₹%{y:,.0f}<extra></extra>"))
+        fig4.update_layout(**CD(), height=240, xaxis={**gX(),"tickangle":-30}, yaxis=gY())
         st.plotly_chart(fig4, use_container_width=True)
 
     with c3c:
-        section_title("Order Status Split")
-        sc = raw["Order_Status"].value_counts()
-        colors_sc = ["#56e0a0", "#ff6b6b", "#f5a623", "#5ba4e5", "#2ed8c3"]
-        fig5 = go.Figure(go.Bar(
-            x=sc.index, y=sc.values,
-            marker=dict(color=colors_sc[:len(sc)], line=dict(color="rgba(0,0,0,0)")),
-            hovertemplate="<b>%{x}</b><br>%{y:,}<extra></extra>"
-        ))
-        fig5.update_layout(**CD(), height=250,
-            xaxis=dict(**grid_x()),
-            yaxis=dict(**grid_y()))
+        sec("Order Status Split (All 5,200)")
+        sc2 = df["Order_Status"].value_counts()
+        status_colors = ["#56e0a0","#5ba4e5","#ff6b6b","#f5a623"]
+        fig5 = go.Figure(go.Bar(x=sc2.index, y=sc2.values,
+            marker=dict(color=status_colors[:len(sc2)], line=dict(color="rgba(0,0,0,0)")),
+            hovertemplate="<b>%{x}</b><br>%{y:,}<extra></extra>"))
+        fig5.update_layout(**CD(), height=240, xaxis=gX(), yaxis=gY())
         st.plotly_chart(fig5, use_container_width=True)
 
-    st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
-    section_title("Module Dependency Flow")
-    st.markdown("""
-    <div class='flow-wrap'>
-      <div class='flow-node' style='border-color:rgba(245,166,35,0.4);color:#f5a623'>
-        Demand<span>→ Jun 2026</span></div>
-      <div class='flow-arrow'>→</div>
-      <div class='flow-node' style='border-color:rgba(86,224,160,0.4);color:#56e0a0'>
-        Inventory<span>EOQ + ROP</span></div>
-      <div class='flow-arrow'>→</div>
-      <div class='flow-node' style='border-color:rgba(155,135,212,0.4);color:#9b87d4'>
-        Production<span>D + Inv driven</span></div>
-      <div class='flow-arrow'>→</div>
-      <div class='flow-node' style='border-color:rgba(255,107,107,0.4);color:#ff6b6b'>
-        Logistics<span>Prod + carrier</span></div>
-      <div class='flow-arrow'>→</div>
-      <div class='flow-node' style='border-color:rgba(91,164,229,0.4);color:#5ba4e5'>
-        Chatbot<span>All outputs</span></div>
+    sp(0.5)
+    sec("Module Dependency Pipeline")
+    st.markdown("""<div style='background:linear-gradient(135deg,var(--panel),var(--surface));
+        border:1px solid var(--border);border-radius:16px;padding:22px;
+        display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:0'>
+      <div style='background:var(--deep);border-radius:12px;padding:11px 17px;font-weight:700;
+           font-size:0.78rem;text-align:center;min-width:95px;border:1px solid rgba(245,166,35,0.4);
+           color:#f5a623;font-family:DM Mono,monospace'>Demand<span style='display:block;
+           font-size:0.58rem;font-weight:400;color:#4a5e7a;margin-top:3px'>→ Jun 2026</span></div>
+      <div style='color:#4a5e7a;font-size:1.2rem;padding:0 8px;opacity:0.5'>→</div>
+      <div style='background:var(--deep);border-radius:12px;padding:11px 17px;font-weight:700;
+           font-size:0.78rem;text-align:center;min-width:95px;border:1px solid rgba(86,224,160,0.4);
+           color:#56e0a0;font-family:DM Mono,monospace'>Inventory<span style='display:block;
+           font-size:0.58rem;font-weight:400;color:#4a5e7a;margin-top:3px'>EOQ + ROP</span></div>
+      <div style='color:#4a5e7a;font-size:1.2rem;padding:0 8px;opacity:0.5'>→</div>
+      <div style='background:var(--deep);border-radius:12px;padding:11px 17px;font-weight:700;
+           font-size:0.78rem;text-align:center;min-width:95px;border:1px solid rgba(155,135,212,0.4);
+           color:#9b87d4;font-family:DM Mono,monospace'>Production<span style='display:block;
+           font-size:0.58rem;font-weight:400;color:#4a5e7a;margin-top:3px'>Demand-driven</span></div>
+      <div style='color:#4a5e7a;font-size:1.2rem;padding:0 8px;opacity:0.5'>→</div>
+      <div style='background:var(--deep);border-radius:12px;padding:11px 17px;font-weight:700;
+           font-size:0.78rem;text-align:center;min-width:95px;border:1px solid rgba(255,107,107,0.4);
+           color:#ff6b6b;font-family:DM Mono,monospace'>Logistics<span style='display:block;
+           font-size:0.58rem;font-weight:400;color:#4a5e7a;margin-top:3px'>+ Cost Opt</span></div>
+      <div style='color:#4a5e7a;font-size:1.2rem;padding:0 8px;opacity:0.5'>→</div>
+      <div style='background:var(--deep);border-radius:12px;padding:11px 17px;font-weight:700;
+           font-size:0.78rem;text-align:center;min-width:95px;border:1px solid rgba(91,164,229,0.4);
+           color:#5ba4e5;font-family:DM Mono,monospace'>AI Chatbot<span style='display:block;
+           font-size:0.58rem;font-weight:400;color:#4a5e7a;margin-top:3px'>All outputs</span></div>
     </div>""", unsafe_allow_html=True)
 
+# ═══════════════════════════════════════════════════════════
+# PAGE 2 — DEMAND FORECASTING
+# ═══════════════════════════════════════════════════════════
 def page_demand():
-    df = load_data()
+    df  = load_data()
+    ops = get_ops(df)
+    ops["YM"] = ops["Order_Date"].dt.to_period("M")
 
-    st.markdown("""
-    <div class='page-title-block'>
-      <div class='page-title' style='color:#f5a623'>Demand Forecasting</div>
-      <div class='page-subtitle'>Linear trend + seasonal decomposition · Historic Jan 2024–Dec 2025 · Forecast to Jun 2026</div>
-    </div>""", unsafe_allow_html=True)
-
-    st.markdown("""<div class='badge-row'>
-      <span class='badge badge-amber'>OUTPUT feeds → Inventory</span>
+    st.markdown("<div class='page-title' style='color:#f5a623'>Demand Forecasting</div>", unsafe_allow_html=True)
+    st.markdown("<div class='page-subtitle'>Ridge Regression · Structural Break · Fourier Seasonality · RMSE / NRMSE / R² Evaluation</div>", unsafe_allow_html=True)
+    st.markdown("""<div style='margin-bottom:16px'>
+      <span class='badge badge-amber'>OUTPUT → Inventory</span>
       <span class='badge badge-teal'>→ Production</span>
       <span class='badge badge-coral'>→ Logistics</span>
       <span class='badge badge-sky'>→ Chatbot</span>
     </div>""", unsafe_allow_html=True)
 
-    c1, c2, c3 = st.columns([2, 2, 1])
-    metric_opt = c1.selectbox("Metric", ["Revenue (₹)", "Quantity (Units)", "Orders (#)"])
-    level_opt  = c2.selectbox("Breakdown", ["Overall", "Category", "Region", "Sales Channel"])
-    horizon    = c3.slider("Months ahead", 3, 18, 6)
-    col_map = {"Revenue (₹)": "Revenue_INR", "Quantity (Units)": "Quantity", "Orders (#)": "Order_ID"}
-    col     = col_map[metric_opt]
-    agg_fn  = "count" if col == "Order_ID" else "sum"
+    banner("""<b style='color:#f5a623'>Model:</b> Ridge Regression with trend (t, t²),
+    Fourier seasonal terms (2 harmonics), a structural-break dummy for the Apr-2025
+    business scale-up (Shiprocket + B2B channels added), and a trend×regime interaction.
+    Evaluation uses a 4-month hold-out split. Confidence intervals are ±1.645σ residual (90% CI).""", "amber")
 
-    def get_monthly(sub):
-        if agg_fn == "count":
-            return sub.groupby("YearMonth")["Order_ID"].count().rename("value")
-        return sub.groupby("YearMonth")[col].sum().rename("value")
+    c1, c2, c3 = st.columns([2,2,1])
+    metric_opt  = c1.selectbox("Metric",    ["Orders (#)","Quantity (Units)","Net Revenue (₹)"])
+    level_opt   = c2.selectbox("Breakdown", ["Overall","Category","Region","Sales Channel"])
+    horizon     = c3.slider("Months ahead", 3, 12, 6)
 
-    def draw_forecast(series, color="#f5a623", title=""):
-        res  = forecast_series(series, periods=horizon)
-        if res.empty:
-            st.info("Not enough data.")
-            return res
-        hist = res[res["type"] == "historical"]
-        fore = res[res["type"] == "forecast"]
-        fig  = go.Figure()
-        ci_band(fig, fore, "rgba(245,166,35,0.06)")
-        fig.add_trace(go.Scatter(
-            x=hist["ds"], y=hist["y"], name="Historical",
-            line=dict(color="#4a5e7a", width=2),
-            hovertemplate="<b>%{x|%b %Y}</b><br>%{y:,.0f}<extra></extra>"
-        ))
-        fig.add_trace(go.Scatter(
-            x=fore["ds"], y=fore["y"], name="Forecast",
-            line=dict(color="#f5a623", width=2.5, dash="dot"),
-            mode="lines+markers",
-            marker=dict(size=7, color="#f5a623", line=dict(color="#080e1a", width=2)),
-            hovertemplate="<b>%{x|%b %Y}</b><br>%{y:,.0f}<extra></extra>"
-        ))
-        fig.update_layout(**CD(), height=300,
-            xaxis=dict(**grid_x()),
-            yaxis=dict(**grid_y()),
-            legend=dict(**legend_style()),
-            title=dict(text=title, font=dict(color="#4a5e7a", size=11)))
+    col_map = {"Orders (#)":"Order_ID","Quantity (Units)":"Quantity","Net Revenue (₹)":"Net_Revenue"}
+    col = col_map[metric_opt]
+
+    def get_series(sub):
+        if col == "Order_ID":
+            return sub.groupby("YM")["Order_ID"].count().rename("v")
+        return sub.groupby("YM")[col].sum().rename("v")
+
+    def draw(series, color="#f5a623", title=""):
+        res = ml_forecast(series.values.astype(float), series.index, n_future=horizon)
+        if res is None:
+            st.info("Insufficient data."); return None
+
+        fig = go.Figure()
+        # CI band
+        x_ci = list(res["fut_ds"]) + list(res["fut_ds"])[::-1]
+        y_ci = list(res["ci_hi"])  + list(res["ci_lo"])[::-1]
+        fig.add_trace(go.Scatter(x=x_ci, y=y_ci, fill="toself",
+            fillcolor="rgba(245,166,35,0.07)", line=dict(color="rgba(0,0,0,0)"),
+            name="90% CI", showlegend=False))
+        # Fitted historical
+        fig.add_trace(go.Scatter(x=res["hist_ds"], y=res["fitted"], name="Model Fit",
+            line=dict(color=color,width=1.5,dash="dot"), opacity=0.5))
+        # Actual historical
+        fig.add_trace(go.Scatter(x=res["hist_ds"], y=res["hist_y"], name="Actual",
+            line=dict(color="#4a5e7a",width=2),
+            hovertemplate="<b>%{x|%b %Y}</b><br>%{y:,.0f}<extra></extra>"))
+        # Forecast
+        fig.add_trace(go.Scatter(x=res["fut_ds"], y=res["forecast"], name="Forecast",
+            line=dict(color=color,width=2.5,dash="dot"), mode="lines+markers",
+            marker=dict(size=7,color=color,line=dict(color="#080e1a",width=2)),
+            hovertemplate="<b>%{x|%b %Y}</b><br>%{y:,.0f}<extra></extra>"))
+        # Evaluation overlay
+        fig.add_trace(go.Scatter(x=res["eval_ds"], y=res["eval_pred"], name="Eval Pred",
+            mode="markers", marker=dict(size=10,color="#ff6b6b",symbol="x",
+                line=dict(color="#080e1a",width=2)),
+            hovertemplate="Hold-out pred: %{y:,.0f}<extra></extra>"))
+
+        fig.update_layout(**CD(), height=320,
+            xaxis=gX(), yaxis=gY(), legend=leg(),
+            title=dict(text=title, font=dict(color="#4a5e7a",size=11)))
         st.plotly_chart(fig, use_container_width=True)
+
+        # Metrics row
+        m1,m2,m3,m4 = st.columns(4)
+        kpi(m1,"RMSE",      f"{res['rmse']:.1f}",    "coral",  "hold-out 4 mo")
+        kpi(m2,"NRMSE",     f"{res['nrmse']*100:.1f}%","amber", "normalised RMSE")
+        kpi(m3,"MAE",       f"{res['mae']:.1f}",     "sky",    "mean abs error")
+        kpi(m4,"R² Score",  f"{res['r2']:.3f}",      "mint",   "model fit")
+        sp(0.5)
         return res
 
     if level_opt == "Overall":
-        res = draw_forecast(get_monthly(df))
-        if not res.empty:
-            fore = res[res["type"] == "forecast"][["ds","y","yhat_lower","yhat_upper"]].copy()
-            fore.columns = ["Month", "Forecast", "Lower (95%)", "Upper (95%)"]
-            fore["Month"] = fore["Month"].dt.strftime("%b %Y")
-            for c2 in ["Forecast","Lower (95%)","Upper (95%)"]:
-                fore[c2] = fore[c2].round(0).astype(int)
-            section_title("Forecast Table")
-            st.dataframe(fore, use_container_width=True, hide_index=True)
+        series = get_series(ops)
+        res = draw(series)
+        if res is not None:
+            sec("Forecast Table")
+            tbl = pd.DataFrame({
+                "Month":      [d.strftime("%b %Y") for d in res["fut_ds"]],
+                "Forecast":   res["forecast"].round(0).astype(int),
+                "Lower 90%":  res["ci_lo"].round(0).astype(int),
+                "Upper 90%":  res["ci_hi"].round(0).astype(int),
+            })
+            st.dataframe(tbl, use_container_width=True, hide_index=True)
     else:
         grp_map = {"Category":"Category","Region":"Region","Sales Channel":"Sales_Channel"}
         grp = grp_map[level_opt]
-        top = df[grp].value_counts().head(5).index.tolist()
+        top = ops[grp].value_counts().head(5).index.tolist()
         tabs = st.tabs(top)
-        for i, (tab, val) in enumerate(zip(tabs, top)):
+        for tab, val, color in zip(tabs, top, COLORS):
             with tab:
-                res = draw_forecast(get_monthly(df[df[grp] == val]), color=COLORS[i], title=val)
-                if not res.empty:
-                    fore = res[res["type"]=="forecast"][["ds","y"]].copy()
-                    fore.columns = ["Month","Forecast"]
-                    fore["Month"] = fore["Month"].dt.strftime("%b %Y")
-                    fore["Forecast"] = fore["Forecast"].round(0).astype(int)
-                    st.dataframe(fore, use_container_width=True, hide_index=True)
+                sub = ops[ops[grp] == val]
+                series = get_series(sub)
+                draw(series, color=color, title=val)
 
-    st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
-    section_title("YoY Category Growth — Actual + Forecast")
+    sp()
+    sec("YoY Revenue Growth — Actual + Projected")
+    yr_rev = ops.groupby(["Year","Category"])["Net_Revenue"].sum().unstack(fill_value=0)
+    cat_monthly = ops.groupby(["YM","Category"])["Net_Revenue"].sum().unstack(fill_value=0)
 
-    yr = df.groupby([df["Order_Date"].dt.year, "Category"])["Revenue_INR"].sum().unstack(fill_value=0)
-
-    cat_monthly_fc = df.groupby(["YearMonth", "Category"])["Revenue_INR"].sum().unstack(fill_value=0)
     proj_2026 = {}
-    for cat in cat_monthly_fc.columns:
-        s = cat_monthly_fc[cat].rename("value")
-        f = forecast_series(s, 12)   # forecast 12 months → covers calendar year 2026
-        if f.empty:
-            continue
-        fut = f[f["type"] == "forecast"]
-        # Sum months that fall in 2026
-        y2026 = fut[fut["ds"].dt.year == 2026]["y"].sum()
-        proj_2026[cat] = y2026
-    proj_2026_s = pd.Series(proj_2026)
-
-    if 2024 in yr.index and 2025 in yr.index:
-        g_actual = (
-            (yr.loc[2025] - yr.loc[2024]) / yr.loc[2024].replace(0, np.nan) * 100
-        ).fillna(0).sort_values(ascending=False)
-
-        g_forecast_vals = {}
-        for cat in g_actual.index:
-            rev25 = yr.loc[2025, cat]
-            rev26 = proj_2026_s.get(cat, 0)
-            g_forecast_vals[cat] = ((rev26 - rev25) / rev25 * 100) if rev25 > 0 else 0
-        g_forecast_s = pd.Series(g_forecast_vals).reindex(g_actual.index).fillna(0)
-
-        cat_palette = ["#f5a623", "#2ed8c3", "#9b87d4", "#5ba4e5", "#e87adb", "#56e0a0"]
-
-        fig_g = go.Figure()
-
-        bar_cols_act = [
-            cat_palette[i % len(cat_palette)] if v >= 0 else "#ff6b6b"
-            for i, v in enumerate(g_actual.values)
-        ]
-        fig_g.add_trace(go.Bar(
-            name="2024 → 2025  (Actual)",
-            x=g_actual.index,
-            y=g_actual.values,
-            marker=dict(
-                color=bar_cols_act,
-                opacity=0.92,
-                line=dict(color="rgba(0,0,0,0)")
-            ),
-            text=[f"{v:.1f}%" for v in g_actual.values],
-            textposition="outside",
-            textfont=dict(color="#8a9dc0", size=10),
-            hovertemplate="<b>%{x}</b><br>2024 → 2025 Actual: %{y:.1f}%<extra></extra>"
-        ))
-
-        bar_cols_fore = [
-            "rgba(245,166,35,0.42)" if v >= 0 else "rgba(255,107,107,0.42)"
-            for v in g_forecast_s.values
-        ]
-        fig_g.add_trace(go.Bar(
-            name="2025 → 2026  (Forecast ⟵ proj)",
-            x=g_forecast_s.index,
-            y=g_forecast_s.values,
-            marker=dict(
-                color=bar_cols_fore,
-                line=dict(color="#f5a623", width=1.4),
-                pattern=dict(shape="/", fgcolor="rgba(245,166,35,0.22)", size=6)
-            ),
-            text=[f"{v:.1f}%" for v in g_forecast_s.values],
-            textposition="outside",
-            textfont=dict(color="#f5a623", size=10),
-            hovertemplate="<b>%{x}</b><br>2025 → 2026 Forecast: %{y:.1f}%<extra></extra>"
-        ))
-
-        fig_g.add_hline(y=0, line_dash="dash", line_color="rgba(255,255,255,0.08)")
-
-        fig_g.update_layout(
-            **CD(), height=310,
-            barmode="group",
-            xaxis=dict(**grid_x()),
-            yaxis=dict(**grid_y(), title="YoY Revenue Growth %"),
-            legend=dict(
-                **legend_style(),
-                orientation="h",
-                x=0.0, y=1.14,
-                xanchor="left"
-            )
-        )
-        st.plotly_chart(fig_g, use_container_width=True)
-
-    st.markdown("""
-    <div class='info-banner banner-amber'>
-      <b style='color:#f5a623'>How 2026 is projected:</b>
-      Each category's monthly revenue is forecast 12 months ahead using the same
-      linear-trend + seasonal decomposition model. Calendar-year 2026 months are
-      summed to produce the projected annual revenue, then compared to 2025 actuals
-      for the YoY% shown above (hatched bars = projected).
-    </div>""", unsafe_allow_html=True)
-
-    section_title("Revenue by Category")
-    rows = []
-    if 2024 in yr.index and 2025 in yr.index:
-        for cat in yr.columns:
-            r24  = yr.loc[2024, cat] if 2024 in yr.index else 0
-            r25  = yr.loc[2025, cat] if 2025 in yr.index else 0
-            r26  = proj_2026_s.get(cat, 0)
-            g_25 = round((r25 - r24) / r24 * 100, 1) if r24 > 0 else 0
-            g_26 = round((r26 - r25) / r25 * 100, 1) if r25 > 0 else 0
-            rows.append({
-                "Category":             cat,
-                "2024 Revenue (₹M)":    round(r24 / 1e6, 1),
-                "2025 Revenue (₹M)":    round(r25 / 1e6, 1),
-                "YoY 24→25":            f"{g_25:+.1f}%",
-                "2026 Projected (₹M)":  round(r26 / 1e6, 1),
-                "YoY 25→26 (Forecast)": f"{g_26:+.1f}% ⟵ proj",
-            })
-    if rows:
-        tbl = pd.DataFrame(rows).sort_values("2026 Projected (₹M)", ascending=False)
-        st.dataframe(tbl, use_container_width=True, hide_index=True)
-
-    section_title("Category Demand Forecast")
-    cat_monthly = df.groupby(["YearMonth","Category"])["Quantity"].sum().unstack(fill_value=0)
-    cat_fore_rows = []
     for cat in cat_monthly.columns:
-        s = cat_monthly[cat].rename("value")
-        f = forecast_series(s, 6)
-        if f.empty: continue
-        for _, row in f[f["type"]=="forecast"].iterrows():
-            cat_fore_rows.append({
-                "Month": row["ds"].strftime("%b %Y"),
-                "Category": cat,
-                "Forecast Units": int(round(row["y"], 0)),
-                "Lower": int(round(row["yhat_lower"], 0)),
-                "Upper": int(round(row["yhat_upper"], 0)),
-            })
-    cat_fore_df = pd.DataFrame(cat_fore_rows)
-    st.dataframe(cat_fore_df, use_container_width=True, hide_index=True)
+        vals = cat_monthly[cat].values.astype(float)
+        r    = ml_forecast(vals, cat_monthly.index, n_future=12)
+        if r is None: continue
+        future_months = r["fut_ds"]
+        y2026 = sum(v for d,v in zip(future_months, r["forecast"]) if d.year == 2026)
+        proj_2026[cat] = y2026
 
+    if 2024 in yr_rev.index and 2025 in yr_rev.index:
+        rows_yoy = []
+        for cat in yr_rev.columns:
+            r24 = yr_rev.loc[2024, cat]; r25 = yr_rev.loc[2025, cat]
+            r26 = proj_2026.get(cat, 0)
+            g25 = (r25-r24)/r24*100 if r24>0 else 0
+            g26 = (r26-r25)/r25*100 if r25>0 else 0
+            rows_yoy.append({"Category":cat,
+                "2024 (₹M)":round(r24/1e6,1),"2025 (₹M)":round(r25/1e6,1),
+                "YoY 24→25":f"{g25:+.1f}%",
+                "2026 Proj (₹M)":round(r26/1e6,1),"YoY 25→26 Proj":f"{g26:+.1f}% ⟵"})
+        tbl2 = pd.DataFrame(rows_yoy).sort_values("2026 Proj (₹M)", ascending=False)
+        st.dataframe(tbl2, use_container_width=True, hide_index=True)
+
+    sp()
+    sec("Category-Level Demand Forecast (Quantity)")
+    tabs2 = st.tabs(list(cat_monthly.columns))
+    for tab, cat, col in zip(tabs2, cat_monthly.columns, COLORS):
+        with tab:
+            vals = ops[ops["Category"]==cat].groupby("YM")["Quantity"].sum().rename("v")
+            draw(vals, color=col, title=cat)
+
+# ═══════════════════════════════════════════════════════════
+# PAGE 3 — INVENTORY OPTIMISATION
+# ═══════════════════════════════════════════════════════════
 def page_inventory():
-    df = load_data()
+    df  = load_data()
+    ops = get_ops(df)
+    ops["YM"] = ops["Order_Date"].dt.to_period("M")
 
-    st.markdown("""
-    <div class='page-title-block'>
-      <div class='page-title' style='color:#56e0a0'>Inventory Optimization</div>
-      <div class='page-subtitle'>EOQ · Safety Stock · Reorder Point · Stock status per SKU</div>
-    </div>""", unsafe_allow_html=True)
-
-    st.markdown("""<div class='badge-row'>
-      <span class='badge badge-amber'>⬆ from: Demand Forecast (growth rate)</span>
-      <span class='badge badge-teal'>feeds → Production Planning</span>
+    st.markdown("<div class='page-title' style='color:#56e0a0'>Inventory Optimisation</div>", unsafe_allow_html=True)
+    st.markdown("<div class='page-subtitle'>Wilson EOQ · Correct Safety Stock Formula · Simulated (s,Q) Policy · Data-Driven Stock Status</div>", unsafe_allow_html=True)
+    st.markdown("""<div style='margin-bottom:16px'>
+      <span class='badge badge-amber'>⬆ from Demand Forecast</span>
+      <span class='badge badge-teal'>feeds → Production</span>
       <span class='badge badge-sky'>→ Chatbot</span>
     </div>""", unsafe_allow_html=True)
 
-    with st.expander("Inventory Parameters", expanded=False):
-        p1, p2, p3 = st.columns(3)
+    banner("""<b style='color:#2ed8c3'>Methodology:</b>
+    EOQ = √(2DS / hC) (Wilson formula).
+    Safety Stock = z × σ_daily × √LT where σ_daily = monthly_std / √30.
+    Stock levels are <b>simulated</b> using a (s,Q) inventory policy over 24 months of actual demand,
+    starting from 2×EOQ opening stock and replenishing when stock falls below ROP.""", "teal")
+
+    with st.expander("⚙ Inventory Parameters", expanded=False):
+        p1,p2,p3,p4 = st.columns(4)
         order_cost = p1.number_input("Order Cost ₹", 100, 5000, 500, 50)
         hold_pct   = p2.slider("Holding Cost %", 5, 40, 20) / 100
         lead_time  = p3.slider("Lead Time (days)", 1, 30, 7)
-        svc        = st.selectbox("Service Level",
-                                  ["90% (z=1.28)", "95% (z=1.65)", "99% (z=2.33)"])
-        z = {"90% (z=1.28)": 1.28, "95% (z=1.65)": 1.65, "99% (z=2.33)": 2.33}[svc]
+        svc = p4.selectbox("Service Level", ["90% (z=1.28)","95% (z=1.65)","99% (z=2.33)"])
+        z_map = {"90% (z=1.28)":1.28,"95% (z=1.65)":1.65,"99% (z=2.33)":2.33}
+        z = z_map[svc]
 
-    inv = compute_inventory_table(order_cost, hold_pct, lead_time, z)
-    n_crit = (inv["Status"] == "🔴 Critical").sum()
-    n_low  = (inv["Status"] == "🟡 Low").sum()
-    n_ok   = (inv["Status"] == "🟢 Adequate").sum()
+    inv = compute_inventory(order_cost, hold_pct, lead_time, z)
+    n_crit = (inv["Status"]=="🔴 Critical").sum()
+    n_low  = (inv["Status"]=="🟡 Low").sum()
+    n_ok   = (inv["Status"]=="🟢 Adequate").sum()
 
-    c1, c2, c3, c4 = st.columns(4)
-    kpi(c1, "Total SKUs",    len(inv),   "sky")
-    kpi(c2, "🔴 Critical",   n_crit,     "coral", "reorder NOW")
-    kpi(c3, "🟡 Low Stock",  n_low,      "amber", "approaching ROP")
-    kpi(c4, "🟢 Adequate",   n_ok,       "mint",  "well-stocked")
-    st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
+    c1,c2,c3,c4 = st.columns(4)
+    kpi(c1,"Total SKUs",  len(inv),  "sky")
+    kpi(c2,"🔴 Critical", n_crit,    "coral","immediate reorder")
+    kpi(c3,"🟡 Low",      n_low,     "amber","approaching ROP")
+    kpi(c4,"🟢 Adequate", n_ok,      "mint", "well-stocked")
+    sp()
 
-    growth_pct = inv["demand_growth_pct"].iloc[0]
-    st.markdown(f"""
-    <div class='info-banner banner-teal'>
-      <b style='color:#2ed8c3'>Demand Forecast Impact:</b>
-      Future demand is projected to grow <b style='color:#56e0a0'>{growth_pct:+.1f}%</b>
-      over the next 6 months (from Demand module). Annual demand forecasts adjusted accordingly.
-    </div>""", unsafe_allow_html=True)
-
-    cl, cr = st.columns([1, 2], gap="large")
+    cl, cr = st.columns([1,2], gap="large")
     with cl:
-        section_title("Stock Status Distribution")
-        color_map = {"🔴 Critical": "#ff6b6b", "🟡 Low": "#f5a623", "🟢 Adequate": "#56e0a0"}
+        sec("Stock Status Distribution")
+        sc_colors = {"🔴 Critical":"#ff6b6b","🟡 Low":"#f5a623","🟢 Adequate":"#56e0a0"}
         sc = inv["Status"].value_counts()
-        pie_colors = [color_map.get(s, "#4a5e7a") for s in sc.index]
-        fig = go.Figure(go.Pie(
-            labels=sc.index, values=sc.values, hole=.62,
-            marker=dict(colors=pie_colors, line=dict(color="#080e1a", width=3)),
-            textinfo="label+value",
-            textfont=dict(size=10, color="#f0f4ff"),
-            hovertemplate="<b>%{label}</b><br>%{value} SKUs (%{percent})<extra></extra>"
-        ))
+        fig = go.Figure(go.Pie(labels=sc.index, values=sc.values, hole=.6,
+            marker=dict(colors=[sc_colors.get(s,"#4a5e7a") for s in sc.index],
+                        line=dict(color="#080e1a",width=3)),
+            textinfo="label+value", textfont=dict(size=10,color="#f0f4ff")))
         fig.update_layout(**CD(), height=270, showlegend=False,
-            annotations=[dict(text="SKUs", x=0.5, y=0.5, showarrow=False,
-                             font=dict(size=11, color="#4a5e7a", family="DM Mono"))])
+            annotations=[dict(text="SKUs",x=.5,y=.5,showarrow=False,
+                font=dict(size=10,color="#4a5e7a",family="DM Mono"))])
         st.plotly_chart(fig, use_container_width=True)
 
     with cr:
-        section_title("EOQ / Safety Stock / ROP by Category")
+        sec("EOQ / Safety Stock / ROP by Category")
         ci2 = inv.groupby("Category")[["EOQ","SS","ROP"]].mean().reset_index()
         fig2 = go.Figure()
-        bar_colors = ["#f5a623", "#2ed8c3", "#9b87d4"]
-        for i, (m2, lbl) in enumerate([("EOQ","EOQ"),("SS","Safety Stock"),("ROP","Reorder Point")]):
-            fig2.add_trace(go.Bar(
-                name=lbl, x=ci2["Category"], y=ci2[m2].round(1),
-                marker=dict(color=bar_colors[i], line=dict(color="rgba(0,0,0,0)")),
-                hovertemplate=f"<b>%{{x}}</b><br>{lbl}: %{{y:,.1f}}<extra></extra>"
-            ))
+        for i,(m2,lbl) in enumerate([("EOQ","EOQ"),("SS","Safety Stock"),("ROP","Reorder Point")]):
+            fig2.add_trace(go.Bar(name=lbl, x=ci2["Category"], y=ci2[m2].round(1),
+                marker=dict(color=["#f5a623","#2ed8c3","#9b87d4"][i], line=dict(color="rgba(0,0,0,0)")),
+                hovertemplate=f"<b>%{{x}}</b><br>{lbl}: %{{y:,.1f}}<extra></extra>"))
         fig2.update_layout(**CD(), height=270, barmode="group",
-            xaxis=dict(**grid_x(), tickangle=-15),
-            yaxis=dict(**grid_y()),
-            legend=dict(**legend_style()))
+            xaxis={**gX(),"tickangle":-10}, yaxis=gY(), legend=leg())
         st.plotly_chart(fig2, use_container_width=True)
 
-    section_title("Future Inventory Need by Category — from Demand Forecast")
-    df_inv = load_data()
-    cat_monthly_inv = df_inv.groupby(["YearMonth","Category"])["Quantity"].sum().unstack(fill_value=0)
-    fig3 = go.Figure()
-    cat_palette_inv = ["#f5a623", "#2ed8c3", "#9b87d4", "#5ba4e5", "#e87adb", "#56e0a0"]
-    for i, cat in enumerate(cat_monthly_inv.columns):
-        s = cat_monthly_inv[cat].rename("value")
-        f_cat = forecast_series(s, 6)
-        if f_cat.empty: continue
-        fut_cat = f_cat[f_cat["type"] == "forecast"]
-        hist_cat = f_cat[f_cat["type"] == "historical"]
-        clr = cat_palette_inv[i % len(cat_palette_inv)]
-        fig3.add_trace(go.Scatter(
-            x=hist_cat["ds"], y=hist_cat["y"], name=f"{cat} (hist)",
-            line=dict(color=clr, width=1, dash="dot"),
-            opacity=0.25, showlegend=False
-        ))
-        fig3.add_trace(go.Scatter(
-            x=fut_cat["ds"], y=fut_cat["y"], name=cat, mode="lines+markers",
-            line=dict(color=clr, width=2.5),
-            marker=dict(size=7, color=clr, line=dict(color="#080e1a", width=2)),
-            hovertemplate=f"<b>{cat}</b><br>%{{x|%b %Y}}<br>%{{y:,.0f}} units<extra></extra>"
-        ))
-    fig3.update_layout(**CD(), height=280,
-        xaxis=dict(**grid_x()),
-        yaxis=dict(**grid_y(), title="Forecast Units"),
-        legend=dict(**legend_style()))
-    st.plotly_chart(fig3, use_container_width=True)
-
-    section_title("SKU-Level Inventory Recommendations")
-    cats = st.multiselect("Filter Category", sorted(df["Category"].unique().tolist()),
-                          default=sorted(df["Category"].unique().tolist()))
-    status_filter = st.multiselect("Filter Status",
-                                   ["🔴 Critical", "🟡 Low", "🟢 Adequate"],
-                                   default=["🔴 Critical", "🟡 Low", "🟢 Adequate"])
-    disp = inv[(inv["Category"].isin(cats)) & (inv["Status"].isin(status_filter))][
-        ["SKU_ID","Product_Name","Category","monthly_avg","current_stock",
-         "EOQ","SS","ROP","forecast_annual","Status"]
+    sec("Critical SKU Alerts — Reorder Immediately")
+    crit_df = inv[inv["Status"]=="🔴 Critical"][
+        ["SKU_ID","Product_Name","Category","Current_Stock","SS","ROP","EOQ","Monthly_Avg","Unit_Price"]
     ].copy()
-    disp.columns = ["SKU","Product","Category","Avg/Month","Current Stock",
-                    "EOQ","Safety Stock","Reorder Point","Forecast Annual","Status"]
-    for c2 in ["Avg/Month","Current Stock","EOQ","Safety Stock","Reorder Point","Forecast Annual"]:
-        disp[c2] = disp[c2].round(0).astype(int)
+    crit_df.columns = ["SKU","Product","Category","Current Stock","Safety Stock","ROP","Order Qty (EOQ)","Avg/Month","Unit Price ₹"]
+    for c in ["Current Stock","Safety Stock","ROP","Order Qty (EOQ)"]:
+        crit_df[c] = crit_df[c].astype(int)
+    st.dataframe(crit_df.sort_values("Current Stock"), use_container_width=True, hide_index=True)
+
+    sp()
+    sec("Full SKU-Level Inventory Table")
+    cat_f    = st.multiselect("Filter Category", sorted(df["Category"].unique()), default=sorted(df["Category"].unique()))
+    stat_f   = st.multiselect("Filter Status", ["🔴 Critical","🟡 Low","🟢 Adequate"],
+                               default=["🔴 Critical","🟡 Low","🟢 Adequate"])
+    disp = inv[(inv["Category"].isin(cat_f)) & (inv["Status"].isin(stat_f))][
+        ["SKU_ID","Product_Name","Category","Monthly_Avg","Current_Stock","EOQ","SS","ROP","Unit_Price","Status"]
+    ].copy()
+    disp.columns = ["SKU","Product","Category","Avg/Month","Current Stock","EOQ","Safety Stock","ROP","Price ₹","Status"]
+    for c in ["Avg/Month","Current Stock","EOQ","Safety Stock","ROP"]:
+        disp[c] = disp[c].astype(int)
     st.dataframe(disp.sort_values("Status"), use_container_width=True, hide_index=True)
 
-    st.session_state["inventory_summary"] = {
-        "critical": int(n_crit), "low": int(n_low), "adequate": int(n_ok),
-        "growth_pct": float(growth_pct)
-    }
+    sp()
+    sec("Category Demand Forecast → Inventory Needs")
+    cat_monthly = ops.groupby(["YM","Category"])["Quantity"].sum().unstack(fill_value=0)
+    fig3 = go.Figure()
+    for i, cat in enumerate(cat_monthly.columns):
+        vals = cat_monthly[cat].values.astype(float)
+        r = ml_forecast(vals, cat_monthly.index, 6)
+        if r is None: continue
+        clr = COLORS[i % len(COLORS)]
+        fig3.add_trace(go.Scatter(x=r["hist_ds"], y=r["hist_y"],
+            line=dict(color=clr,width=1,dash="dot"), opacity=0.2, showlegend=False))
+        fig3.add_trace(go.Scatter(x=r["fut_ds"], y=r["forecast"], name=cat,
+            mode="lines+markers", line=dict(color=clr,width=2.5),
+            marker=dict(size=7,color=clr,line=dict(color="#080e1a",width=2))))
+    fig3.update_layout(**CD(), height=280, xaxis=gX(), yaxis={**gY(),"title":"Forecast Units"}, legend=leg())
+    st.plotly_chart(fig3, use_container_width=True)
 
+# ═══════════════════════════════════════════════════════════
+# PAGE 4 — PRODUCTION PLANNING
+# ═══════════════════════════════════════════════════════════
 def page_production():
-    df = load_data()
+    df   = load_data()
+    ops  = get_ops(df)
 
-    st.markdown("""
-    <div class='page-title-block'>
-      <div class='page-title' style='color:#9b87d4'>Production Planning</div>
-      <div class='page-subtitle'>Monthly production targets · Driven by demand forecast + inventory critical stock</div>
-    </div>""", unsafe_allow_html=True)
-
-    st.markdown("""<div class='badge-row'>
-      <span class='badge badge-amber'>⬆ from: Demand Forecast</span>
-      <span class='badge badge-coral'>⬆ from: Inventory (critical boost)</span>
+    st.markdown("<div class='page-title' style='color:#9b87d4'>Production Planning</div>", unsafe_allow_html=True)
+    st.markdown("<div class='page-subtitle'>6-Month Targets · Demand + Inventory Signal-Driven · Capacity Simulation</div>", unsafe_allow_html=True)
+    st.markdown("""<div style='margin-bottom:16px'>
+      <span class='badge badge-amber'>⬆ from Demand Forecast</span>
+      <span class='badge badge-coral'>⬆ from Inventory Status</span>
       <span class='badge badge-lav'>feeds → Logistics</span>
       <span class='badge badge-sky'>→ Chatbot</span>
     </div>""", unsafe_allow_html=True)
 
-    p1, p2 = st.columns(2)
+    p1,p2 = st.columns(2)
     cap = p1.slider("Capacity Multiplier", 0.5, 2.0, 1.0, 0.1)
     buf = p2.slider("Safety Buffer %", 5, 40, 15) / 100
 
-    plan = compute_production_plan(cap, buf)
+    plan = compute_production(cap, buf)
+    inv  = compute_inventory()
+    n_crit = (inv["Status"]=="🔴 Critical").sum()
+
     if plan.empty:
-        st.warning("Not enough data to build production plan.")
-        return
+        st.warning("Insufficient data for production plan."); return
 
-    agg = plan.groupby("Month_dt")[["Production","Demand","Inv_Boost"]].sum().reset_index()
-    c1, c2, c3, c4 = st.columns(4)
-    kpi(c1, "Total Production",   f"{plan['Production'].sum():,.0f}", "lav",   "units · 6 mo")
-    kpi(c2, "Total Demand",       f"{plan['Demand'].sum():,.0f}",     "sky",   "forecast units")
-    kpi(c3, "Avg Monthly Target", f"{agg['Production'].mean():,.0f}", "mint",  "units/month")
-    peak = agg.loc[agg["Production"].idxmax(), "Month_dt"]
-    kpi(c4, "Peak Month",         peak.strftime("%b %Y"),             "amber")
-    st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
+    agg = plan.groupby("Month_dt")[["Production","Demand_Forecast","Crit_Boost","Low_Boost"]].sum().reset_index()
 
-    inv = compute_inventory_table()
-    n_crit = (inv["Status"] == "🔴 Critical").sum()
-    total_boost = agg["Inv_Boost"].sum()
-    st.markdown(f"""
-    <div class='info-banner banner-coral'>
-      <b style='color:#ff6b6b'>Inventory Signal:</b>
-      {n_crit} SKUs are <b>Critical</b> (from Inventory module).
-      Production plan boosted by <b style='color:#f5a623'>+{total_boost:,.0f} units</b>
-      across 6 months to replenish critical stock.
-    </div>""", unsafe_allow_html=True)
+    c1,c2,c3,c4 = st.columns(4)
+    kpi(c1,"Total Production", f"{plan['Production'].sum():,.0f}","lav","units · 6 months")
+    kpi(c2,"Total Demand",     f"{plan['Demand_Forecast'].sum():,.0f}","sky","forecast units")
+    kpi(c3,"Avg / Month",      f"{agg['Production'].mean():,.0f}","mint","units/month")
+    peak = agg.loc[agg["Production"].idxmax(),"Month_dt"]
+    kpi(c4,"Peak Month",       peak.strftime("%b %Y"),"amber","highest demand")
+    sp()
 
-    section_title("Production Plan vs Demand Forecast")
+    banner(f"""<b style='color:#ff6b6b'>Inventory Signal Active:</b>
+    {n_crit} Critical SKUs detected from Inventory module.
+    Production targets include replenishment boost of
+    <b style='color:#f5a623'>+{agg['Crit_Boost'].sum():,.0f} units</b> (critical) and
+    +{agg['Low_Boost'].sum():,.0f} units (low stock) over 6 months.""", "coral")
+
+    sec("Production Target vs Demand Forecast")
     fig = go.Figure()
-    fig.add_trace(go.Bar(
-        x=agg["Month_dt"], y=agg["Production"],
-        name="Production Target",
-        marker=dict(color="#9b87d4", line=dict(color="rgba(0,0,0,0)"))
-    ))
-    fig.add_trace(go.Bar(
-        x=agg["Month_dt"], y=agg["Inv_Boost"],
-        name="Inv. Replenishment Boost",
-        marker=dict(color="rgba(255,107,107,0.7)", line=dict(color="rgba(0,0,0,0)"))
-    ))
-    fig.add_trace(go.Scatter(
-        x=agg["Month_dt"], y=agg["Demand"], name="Demand Forecast",
-        mode="lines+markers",
-        line=dict(color="#f5a623", width=2.5),
-        marker=dict(size=8, color="#f5a623", line=dict(color="#080e1a", width=2))
-    ))
-    fig.update_layout(**CD(), height=300, barmode="stack",
-        xaxis=dict(**grid_x()),
-        yaxis=dict(**grid_y()),
-        legend=dict(**legend_style()))
+    fig.add_trace(go.Bar(x=agg["Month_dt"], y=agg["Production"], name="Production Target",
+        marker=dict(color="#9b87d4", line=dict(color="rgba(0,0,0,0)"))))
+    fig.add_trace(go.Bar(x=agg["Month_dt"], y=agg["Crit_Boost"]+agg["Low_Boost"],
+        name="Inv. Replenishment", marker=dict(color="rgba(255,107,107,0.7)", line=dict(color="rgba(0,0,0,0)"))))
+    fig.add_trace(go.Scatter(x=agg["Month_dt"], y=agg["Demand_Forecast"], name="Demand Forecast",
+        mode="lines+markers", line=dict(color="#f5a623",width=2.5),
+        marker=dict(size=8,color="#f5a623",line=dict(color="#080e1a",width=2))))
+    fig.update_layout(**CD(), height=300, barmode="stack", xaxis=gX(), yaxis=gY(), legend=leg())
     st.plotly_chart(fig, use_container_width=True)
 
     cl, cr = st.columns(2, gap="large")
     with cl:
-        section_title("Production by Category (Stacked)")
+        sec("Production by Category (Stacked)")
         fig2 = go.Figure()
         for i, cat in enumerate(plan["Category"].unique()):
-            s = plan[plan["Category"] == cat].sort_values("Month_dt")
-            fig2.add_trace(go.Bar(
-                x=s["Month_dt"], y=s["Production"],
-                name=cat,
-                marker=dict(color=COLORS[i % len(COLORS)], line=dict(color="rgba(0,0,0,0)"))
-            ))
+            s = plan[plan["Category"]==cat].sort_values("Month_dt")
+            fig2.add_trace(go.Bar(x=s["Month_dt"], y=s["Production"], name=cat,
+                marker=dict(color=COLORS[i%len(COLORS)], line=dict(color="rgba(0,0,0,0)"))))
         fig2.update_layout(**CD(), height=280, barmode="stack",
-            xaxis=dict(**grid_x()),
-            yaxis=dict(**grid_y()),
-            legend=dict(**legend_style(), orientation="h", y=-0.3))
+            xaxis=gX(), yaxis=gY(), legend={**leg(),"orientation":"h","y":-0.3})
         st.plotly_chart(fig2, use_container_width=True)
 
     with cr:
-        section_title("Production – Demand Gap")
-        agg["Gap"] = agg["Production"] - agg["Demand"]
-        fig3 = go.Figure(go.Bar(
-            x=agg["Month_dt"], y=agg["Gap"],
-            marker=dict(
-                color=["#56e0a0" if g >= 0 else "#ff6b6b" for g in agg["Gap"]],
-                line=dict(color="rgba(0,0,0,0)")
-            ),
+        sec("Production – Demand Gap (Surplus / Deficit)")
+        agg["Gap"] = agg["Production"] - agg["Demand_Forecast"]
+        fig3 = go.Figure(go.Bar(x=agg["Month_dt"], y=agg["Gap"],
+            marker=dict(color=["#56e0a0" if g>=0 else "#ff6b6b" for g in agg["Gap"]],
+                        line=dict(color="rgba(0,0,0,0)")),
             text=[f"{g:+.0f}" for g in agg["Gap"]], textposition="outside",
-            textfont=dict(color="#4a5e7a")
-        ))
+            textfont=dict(color="#4a5e7a")))
         fig3.add_hline(y=0, line_dash="dash", line_color="rgba(255,255,255,0.1)")
-        fig3.update_layout(**CD(), height=280,
-            xaxis=dict(**grid_x()),
-            yaxis=dict(**grid_y(), title="Units Surplus / Deficit"))
+        fig3.update_layout(**CD(), height=280, xaxis=gX(),
+            yaxis={**gY(),"title":"Units Surplus / Deficit"})
         st.plotly_chart(fig3, use_container_width=True)
 
-    section_title("Detailed Production Schedule")
-    filt = st.selectbox("Category filter", ["All"] + list(plan["Category"].unique()))
-    d = plan if filt == "All" else plan[plan["Category"] == filt]
-    d2 = d[["Month","Category","Demand","Inv_Boost","Buffer","Production","CI_Lo","CI_Hi"]].copy()
-    d2.columns = ["Month","Category","Demand Forecast","Inv Boost","Safety Buffer",
-                  "Production Target","Demand Low","Demand High"]
-    st.dataframe(d2.sort_values("Month"), use_container_width=True, hide_index=True)
-    st.session_state["production_plan"] = plan
+    sec("Detailed Production Schedule")
+    cat_f = st.selectbox("Filter Category", ["All"] + list(plan["Category"].unique()))
+    d2 = plan if cat_f=="All" else plan[plan["Category"]==cat_f]
+    d3 = d2[["Month","Category","Demand_Forecast","Crit_Boost","Low_Boost","Buffer","Production","CI_Lo","CI_Hi"]].copy()
+    d3.columns = ["Month","Category","Demand Fc","Crit Boost","Low Boost","Buffer","Production","Demand Lo","Demand Hi"]
+    st.dataframe(d3.sort_values("Month"), use_container_width=True, hide_index=True)
 
+# ═══════════════════════════════════════════════════════════
+# PAGE 5 — LOGISTICS OPTIMISATION
+# ═══════════════════════════════════════════════════════════
 def page_logistics():
-    df = load_data()
+    df  = load_data()
+    ops = get_ops(df)
+    ops["YM"] = ops["Order_Date"].dt.to_period("M")
+    del_df = get_delivered(df)
 
-    st.markdown("""
-    <div class='page-title-block'>
-      <div class='page-title' style='color:#ff6b6b'>Logistics Intelligence</div>
-      <div class='page-subtitle'>Carrier performance · Delay hotspots · Warehouse demand forecast · Region analysis</div>
-    </div>""", unsafe_allow_html=True)
-
-    st.markdown("""<div class='badge-row'>
-      <span class='badge badge-amber'>⬆ from: Demand Forecast</span>
-      <span class='badge badge-lav'>⬆ from: Production Plan volumes</span>
+    st.markdown("<div class='page-title' style='color:#ff6b6b'>Logistics Optimisation</div>", unsafe_allow_html=True)
+    st.markdown("<div class='page-subtitle'>Carrier Scorecard · Delay Intel · Cost Optimisation · Warehouse Forecast · Region Analysis</div>", unsafe_allow_html=True)
+    st.markdown("""<div style='margin-bottom:16px'>
+      <span class='badge badge-amber'>⬆ Demand Forecast</span>
+      <span class='badge badge-lav'>⬆ Production Volumes</span>
       <span class='badge badge-sky'>feeds → Chatbot</span>
     </div>""", unsafe_allow_html=True)
 
-    plan = compute_production_plan()
-    prod_by_cat = plan.groupby("Category")["Production"].sum() if not plan.empty else pd.Series()
+    carr, best_carr, opt, curr_alloc = compute_logistics()
 
-    t1, t2, t3, t4 = st.tabs(["Carrier", "⚠ Delay Intel", "Warehouse Forecast", "🗺 Regions"])
+    t1,t2,t3,t4,t5 = st.tabs(["Carrier Scorecard","Cost Optimisation","⚠ Delay Intel","Warehouse Forecast","🗺 Regions"])
 
+    # ── TAB 1: Carrier Scorecard ──
     with t1:
-        section_title("Carrier Performance Scorecard")
-        cs = df.groupby("Courier_Partner").agg(
-            Orders   = ("Order_ID", "count"),
-            Avg_Del  = ("Delivery_Days", "mean"),
-            Avg_Cost = ("Shipping_Cost_INR", "mean"),
-            Returns  = ("Return_Flag", "mean"),
-            Revenue  = ("Revenue_INR", "sum")
-        ).reset_index()
-        cs["Delay_Idx"] = (cs["Avg_Del"] / cs["Avg_Del"].min() * (1 + cs["Returns"])).round(2)
+        sec("Carrier Performance Scorecard")
+        banner("""<b style='color:#5ba4e5'>Performance Score</b> = (1/Delay_Index) × (1 − Return_Rate) × (1/Cost_Score).
+        Higher is better. Bubble size = order volume.""", "teal")
 
         fig = go.Figure()
-        for i, row in cs.iterrows():
+        for i, (_, r) in enumerate(carr.iterrows()):
             fig.add_trace(go.Scatter(
-                x=[row["Avg_Del"]], y=[row["Avg_Cost"]],
+                x=[r["Avg_Days"]], y=[r["Avg_Cost"]],
                 mode="markers+text",
-                marker=dict(
-                    size=max(row["Orders"]/40, 14),
-                    color=COLORS[i % len(COLORS)],
-                    opacity=0.9,
-                    line=dict(color="#080e1a", width=2)
-                ),
-                text=[row["Courier_Partner"]], textposition="top center",
-                name=row["Courier_Partner"],
-                hovertemplate=(
-                    f"<b>{row['Courier_Partner']}</b><br>"
-                    f"Orders: {row['Orders']}<br>"
-                    f"Avg Delivery: {row['Avg_Del']:.1f}d<br>"
-                    f"Avg Cost: ₹{row['Avg_Cost']:.0f}<br>"
-                    f"Returns: {row['Returns']*100:.1f}%<extra></extra>"
-                )
+                marker=dict(size=max(r["Orders"]/35,16), color=COLORS[i], opacity=0.9,
+                            line=dict(color="#080e1a",width=2)),
+                text=[r["Courier_Partner"]], textposition="top center",
+                name=r["Courier_Partner"],
+                hovertemplate=f"<b>{r['Courier_Partner']}</b><br>Orders:{r['Orders']}<br>Avg Del:{r['Avg_Days']:.1f}d<br>Avg Cost:₹{r['Avg_Cost']:.0f}<br>Perf Score:{r['Perf_Score']:.3f}<extra></extra>"
             ))
         fig.update_layout(**CD(), height=320, showlegend=False,
-            xaxis=dict(**grid_y(), title="Avg Delivery Days"),
-            yaxis=dict(**grid_y(), title="Avg Shipping Cost ₹"))
+            xaxis={**gY(),"title":"Avg Delivery Days"},
+            yaxis={**gY(),"title":"Avg Shipping Cost ₹"})
         st.plotly_chart(fig, use_container_width=True)
 
-        d2 = cs.copy()
-        d2["Avg_Del"]  = d2["Avg_Del"].round(1)
-        d2["Avg_Cost"] = d2["Avg_Cost"].round(1)
-        d2["Returns"]  = (d2["Returns"] * 100).round(1).astype(str) + "%"
-        d2.columns = ["Carrier","Orders","Avg Days","Avg Cost ₹","Return Rate","Revenue","Delay Index"]
-        st.dataframe(d2, use_container_width=True, hide_index=True)
+        d2 = carr.copy()
+        d2["Avg_Days"]    = d2["Avg_Days"].round(1)
+        d2["Avg_Cost"]    = d2["Avg_Cost"].round(1)
+        d2["Return_Rate"] = (d2["Return_Rate"]*100).round(1).astype(str)+"%"
+        d2["Perf_Score"]  = d2["Perf_Score"].round(3)
+        d2.columns = ["Carrier","Orders","Avg Days","Avg Cost ₹","Return Rate","Total Cost ₹","Delay Index","Cost Score","Perf Score"]
+        st.dataframe(d2[["Carrier","Orders","Avg Days","Avg Cost ₹","Return Rate","Delay Index","Perf Score"]],
+                     use_container_width=True, hide_index=True)
 
-        st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
-        cl, cr = st.columns(2, gap="large")
-        with cl:
-            section_title("Historical Carrier Orders Trend")
-            cm = df.groupby([df["Order_Date"].dt.to_period("M"), "Courier_Partner"])["Order_ID"].count().unstack(fill_value=0)
+        sp()
+        sec("Carrier Order Trend + Forecast")
+        cm = del_df.groupby([del_df["Order_Date"].dt.to_period("M"),"Courier_Partner"])["Order_ID"].count().unstack(fill_value=0)
+        cl2, cr2 = st.columns(2, gap="large")
+        with cl2:
+            sec("Historical Trend")
             fig2 = go.Figure()
             for i, c in enumerate(cm.columns):
-                fig2.add_trace(go.Scatter(
-                    x=cm.index.to_timestamp(), y=cm[c], name=c,
-                    line=dict(color=COLORS[i % len(COLORS)], width=2),
-                    hovertemplate=f"<b>{c}</b><br>%{{x|%b %Y}}<br>%{{y:,}} orders<extra></extra>"
-                ))
-            fig2.update_layout(**CD(), height=250,
-                xaxis=dict(**grid_x()), yaxis=dict(**grid_y()),
-                legend=dict(**legend_style()))
+                fig2.add_trace(go.Scatter(x=cm.index.to_timestamp(), y=cm[c], name=c,
+                    line=dict(color=COLORS[i%len(COLORS)],width=2)))
+            fig2.update_layout(**CD(), height=250, xaxis=gX(), yaxis=gY(), legend=leg())
             st.plotly_chart(fig2, use_container_width=True)
-
-        with cr:
-            section_title("Carrier Order Forecast → Jun 2026")
-            fig_fc = go.Figure()
+        with cr2:
+            sec("Forecast → Jun 2026")
+            fig3 = go.Figure()
             for i, c in enumerate(cm.columns):
-                s = cm[c].rename("value")
-                f = forecast_series(s, 6)
-                if f.empty: continue
-                fut = f[f["type"] == "forecast"]
-                fig_fc.add_trace(go.Scatter(
-                    x=fut["ds"], y=fut["y"], name=c, mode="lines+markers",
-                    line=dict(color=COLORS[i % len(COLORS)], width=2, dash="dot"),
-                    marker=dict(size=7, line=dict(color="#080e1a", width=1.5))
-                ))
-            fig_fc.update_layout(**CD(), height=250,
-                xaxis=dict(**grid_x()),
-                yaxis=dict(**grid_y(), title="Orders"),
-                legend=dict(**legend_style()))
-            st.plotly_chart(fig_fc, use_container_width=True)
+                r = ml_forecast(cm[c].values.astype(float), cm.index, 6)
+                if r is None: continue
+                fig3.add_trace(go.Scatter(x=r["fut_ds"], y=r["forecast"], name=c,
+                    mode="lines+markers", line=dict(color=COLORS[i%len(COLORS)],width=2,dash="dot"),
+                    marker=dict(size=7,line=dict(color="#080e1a",width=1.5))))
+            fig3.update_layout(**CD(), height=250, xaxis=gX(),
+                yaxis={**gY(),"title":"Orders"}, legend=leg())
+            st.plotly_chart(fig3, use_container_width=True)
 
-        if not prod_by_cat.empty:
-            section_title("Carrier Recommendation (based on Production Plan)")
-            best_carrier = (
-                df.groupby(["Category", "Courier_Partner"])["Delivery_Days"]
-                .mean().reset_index()
-                .sort_values("Delivery_Days")
-                .groupby("Category").first()
-                .reset_index()
-            )
-            best_carrier = best_carrier.merge(
-                prod_by_cat.rename("Planned Units").reset_index(), on="Category", how="left")
-            best_carrier["Avg Delivery Days"] = best_carrier["Delivery_Days"].round(1)
-            best_carrier = best_carrier[["Category","Courier_Partner","Avg Delivery Days","Planned Units"]]
-            best_carrier.columns = ["Category","Recommended Carrier","Avg Days","Planned Units (6mo)"]
-            best_carrier["Planned Units (6mo)"] = best_carrier["Planned Units (6mo)"].fillna(0).astype(int)
-            st.dataframe(best_carrier, use_container_width=True, hide_index=True)
+        sec("Recommended Carrier per Category (from Production Plan)")
+        plan = compute_production()
+        if not plan.empty:
+            prod_by_cat = plan.groupby("Category")["Production"].sum().reset_index()
+            best_cat = (del_df.groupby(["Category","Courier_Partner"])["Delivery_Days"]
+                .mean().reset_index().sort_values("Delivery_Days").groupby("Category").first().reset_index())
+            best_cat = best_cat.merge(prod_by_cat.rename(columns={"Production":"Planned Units 6M"}), on="Category", how="left")
+            best_cat["Delivery_Days"] = best_cat["Delivery_Days"].round(1)
+            best_cat["Planned Units 6M"] = best_cat["Planned Units 6M"].fillna(0).astype(int)
+            best_cat.columns = ["Category","Recommended Carrier","Avg Days","Planned Units (6mo)"]
+            st.dataframe(best_cat, use_container_width=True, hide_index=True)
 
+    # ── TAB 2: COST OPTIMISATION (NEW) ──
     with t2:
-        section_title("Delay Hotspot Analysis", "⚠️")
-        thr = st.slider("Delay Threshold (days)", 3, 15, 7)
-        df2 = df.copy()
-        df2["Delayed"] = df2["Delivery_Days"] > thr
-        rd = df2.groupby("Region").agg(T=("Order_ID","count"), D=("Delayed","sum")).reset_index()
-        rd["Rate"] = (rd["D"] / rd["T"] * 100).round(1)
-        rd = rd.sort_values("Rate", ascending=False)
+        sec("Logistics Cost Optimisation Analysis", "💰")
+        total_current = (del_df["Shipping_Cost_INR"].sum())
+        total_saving  = opt["Potential_Saving"].sum()
 
-        cl, cr = st.columns(2, gap="large")
-        with cl:
-            section_title("Delay Rate by Region")
-            fig_r = go.Figure(go.Bar(
-                x=rd["Rate"], y=rd["Region"], orientation="h",
-                marker=dict(
-                    color=[f"rgba(255,107,107,{min(v/80+0.2,0.9):.2f})" for v in rd["Rate"]],
-                    line=dict(color="rgba(0,0,0,0)")
-                ),
-                text=[f"{v}%" for v in rd["Rate"]], textposition="outside",
-                textfont=dict(color="#4a5e7a")
-            ))
-            fig_r.update_layout(**CD(), height=320,
-                xaxis=dict(**grid_x(), title="Delay %"),
+        c1,c2,c3,c4 = st.columns(4)
+        kpi(c1,"Current Annual Spend",  f"₹{total_current:,.0f}","coral","all deliveries")
+        kpi(c2,"Optimised Spend",       f"₹{total_current-total_saving:,.0f}","mint","with best carriers")
+        kpi(c3,"Total Saving Potential",f"₹{total_saving:,.0f}","amber","by region switch")
+        kpi(c4,"Saving %",              f"{total_saving/total_current*100:.1f}%","sky","of total spend")
+        sp()
+
+        banner(f"""<b style='color:#f5a623'>Optimisation Logic:</b>
+        For each region, identify the carrier with lowest avg shipping cost.
+        Potential saving = (Current Avg Cost − Min Avg Cost) × Orders in that region.
+        Total annual saving potential: <b style='color:#56e0a0'>₹{total_saving:,.0f}</b>""", "amber")
+
+        sec("Region-Level Cost Optimisation")
+        fig_cost = go.Figure()
+        fig_cost.add_trace(go.Bar(name="Current Avg Cost ₹",
+            x=opt["Region"], y=opt["Current_Avg_Cost"],
+            marker=dict(color="#ff6b6b", line=dict(color="rgba(0,0,0,0)"))))
+        fig_cost.add_trace(go.Bar(name="Optimal Avg Cost ₹",
+            x=opt["Region"], y=opt["Min_Avg_Cost"],
+            marker=dict(color="#56e0a0", line=dict(color="rgba(0,0,0,0)"))))
+        fig_cost.update_layout(**CD(), height=280, barmode="group",
+            xaxis={**gX(),"tickangle":-25}, yaxis=gY(), legend=leg())
+        st.plotly_chart(fig_cost, use_container_width=True)
+
+        sec("Saving by Region")
+        fig_sav = go.Figure(go.Bar(
+            x=opt.sort_values("Potential_Saving", ascending=False)["Region"],
+            y=opt.sort_values("Potential_Saving", ascending=False)["Potential_Saving"],
+            marker=dict(color="#f5a623", line=dict(color="rgba(0,0,0,0)")),
+            text=[f"₹{v:,.0f}" for v in opt.sort_values("Potential_Saving", ascending=False)["Potential_Saving"]],
+            textposition="outside", textfont=dict(color="#4a5e7a")))
+        fig_sav.update_layout(**CD(), height=250, xaxis={**gX(),"tickangle":-25}, yaxis=gY())
+        st.plotly_chart(fig_sav, use_container_width=True)
+
+        sec("Optimisation Recommendation Table")
+        opt_disp = opt.copy()
+        opt_disp["Current_Avg_Cost"] = opt_disp["Current_Avg_Cost"].round(1)
+        opt_disp["Min_Avg_Cost"]     = opt_disp["Min_Avg_Cost"].round(1)
+        opt_disp["Potential_Saving"] = opt_disp["Potential_Saving"].astype(int)
+        opt_disp = opt_disp[["Region","Optimal_Carrier","Current_Avg_Cost","Min_Avg_Cost","Potential_Saving","Saving_Pct","Orders"]]
+        opt_disp.columns = ["Region","Switch To","Current Avg ₹","Optimal Avg ₹","Saving ₹","Saving %","Orders"]
+        st.dataframe(opt_disp.sort_values("Saving ₹", ascending=False),
+                     use_container_width=True, hide_index=True)
+
+    # ── TAB 3: Delay Intel ──
+    with t3:
+        sec("Delay Hotspot Analysis", "⚠️")
+        thr = st.slider("Delay Threshold (days)", 3, 10, 7)
+        del_df2 = del_df.copy()
+        del_df2["Delayed"] = del_df2["Delivery_Days"] > thr
+
+        cl3, cr3 = st.columns(2, gap="large")
+        with cl3:
+            sec("Delay Rate by Region")
+            rd = del_df2.groupby("Region").agg(T=("Order_ID","count"), D=("Delayed","sum")).reset_index()
+            rd["Rate"] = (rd["D"]/rd["T"]*100).round(1)
+            fig_r = go.Figure(go.Bar(x=rd["Rate"], y=rd["Region"].sort_values(), orientation="h",
+                marker=dict(color=[f"rgba(255,107,107,{min(v/60+0.25,0.9):.2f})" for v in rd.sort_values("Region")["Rate"]],
+                            line=dict(color="rgba(0,0,0,0)")),
+                text=[f"{v}%" for v in rd.sort_values("Region")["Rate"]], textposition="outside",
+                textfont=dict(color="#4a5e7a")))
+            fig_r.update_layout(**CD(), height=300, xaxis={**gX(),"title":"Delay %"},
                 yaxis=dict(showgrid=False, color="#8a9dc0"))
             st.plotly_chart(fig_r, use_container_width=True)
-
-        with cr:
-            section_title("Delay Rate by Carrier")
-            cd = df2.groupby("Courier_Partner").agg(T=("Order_ID","count"), D=("Delayed","sum")).reset_index()
-            cd["Rate"] = (cd["D"] / cd["T"] * 100).round(1)
-            fig_c = go.Figure(go.Bar(
-                x=cd["Courier_Partner"], y=cd["Rate"],
-                marker=dict(
-                    color=["#ff6b6b" if v > 30 else "#f5a623" if v > 15 else "#56e0a0" for v in cd["Rate"]],
-                    line=dict(color="rgba(0,0,0,0)")
-                ),
+        with cr3:
+            sec("Delay Rate by Carrier")
+            cd = del_df2.groupby("Courier_Partner").agg(T=("Order_ID","count"), D=("Delayed","sum")).reset_index()
+            cd["Rate"] = (cd["D"]/cd["T"]*100).round(1)
+            fig_c = go.Figure(go.Bar(x=cd["Courier_Partner"], y=cd["Rate"],
+                marker=dict(color=["#ff6b6b" if v>35 else "#f5a623" if v>20 else "#56e0a0" for v in cd["Rate"]],
+                            line=dict(color="rgba(0,0,0,0)")),
                 text=[f"{v}%" for v in cd["Rate"]], textposition="outside",
-                textfont=dict(color="#4a5e7a")
-            ))
-            fig_c.update_layout(**CD(), height=320,
-                xaxis=dict(**grid_x()),
-                yaxis=dict(**grid_y(), title="Delay %"))
+                textfont=dict(color="#4a5e7a")))
+            fig_c.update_layout(**CD(), height=300, xaxis=gX(), yaxis={**gY(),"title":"Delay %"})
             st.plotly_chart(fig_c, use_container_width=True)
 
-        section_title("Carrier × Region Delay Heatmap")
-        pv = df2.groupby(["Courier_Partner","Region"])["Delayed"].mean().unstack(fill_value=0) * 100
-        fig_h = go.Figure(go.Heatmap(
-            z=pv.values, x=list(pv.columns), y=list(pv.index),
+        sec("Carrier × Region Delay Heatmap")
+        pv = del_df2.groupby(["Courier_Partner","Region"])["Delayed"].mean().unstack(fill_value=0)*100
+        
+        fig_h = go.Figure(go.Heatmap(z=pv.values, x=list(pv.columns), y=list(pv.index),
             colorscale=[[0,"#0d1829"],[0.4,"#7c4fd0"],[0.7,"#e87adb"],[1,"#ff6b6b"]],
-            text=np.round(pv.values, 1), texttemplate="%{text}%",
-            textfont=dict(size=10),
-            colorbar=dict(tickfont=dict(color="#8a9dc0", size=10))
-        ))
+            text=np.round(pv.values,1), texttemplate="%{text}%", textfont=dict(size=10),
+            colorbar=dict(tickfont=dict(color="#8a9dc0",size=10))))
         fig_h.update_layout(**CD(), height=260,
-            xaxis=dict(showgrid=False, tickangle=-30, color="#8a9dc0"),
-            yaxis=dict(showgrid=False, color="#8a9dc0"))
+            xaxis=dict(showgrid=False,tickangle=-25,color="#8a9dc0"),
+            yaxis=dict(showgrid=False,color="#8a9dc0"))
         st.plotly_chart(fig_h, use_container_width=True)
 
-        section_title("Delivery Delay Trend Forecast → Jun 2026")
-        delay_monthly = df.groupby("YearMonth")["Delivery_Days"].mean().rename("value")
-        f_delay = forecast_series(delay_monthly, 6)
-        if not f_delay.empty:
-            hist_d = f_delay[f_delay["type"]=="historical"]
-            fut_d  = f_delay[f_delay["type"]=="forecast"]
-            fig_delay = go.Figure()
-            ci_band(fig_delay, fut_d, "rgba(255,107,107,0.06)")
-            fig_delay.add_trace(go.Scatter(
-                x=hist_d["ds"], y=hist_d["y"], name="Historical Avg Delay",
-                line=dict(color="#4a5e7a", width=2)
-            ))
-            fig_delay.add_trace(go.Scatter(
-                x=fut_d["ds"], y=fut_d["y"], name="Forecast",
-                line=dict(color="#ff6b6b", width=2.5, dash="dot"),
-                mode="lines+markers",
-                marker=dict(size=8, color="#ff6b6b", line=dict(color="#080e1a", width=2))
-            ))
-            fig_delay.update_layout(**CD(), height=250,
-                xaxis=dict(**grid_x()),
-                yaxis=dict(**grid_y(), title="Avg Delivery Days"),
-                legend=dict(**legend_style()))
-            st.plotly_chart(fig_delay, use_container_width=True)
+        sec("Avg Delivery Days Forecast → Jun 2026")
+        delay_m = del_df.groupby(del_df["Order_Date"].dt.to_period("M"))["Delivery_Days"].mean().rename("v")
+        r_del = ml_forecast(delay_m.values.astype(float), delay_m.index, 6)
+        if r_del:
+            fig_d = go.Figure()
+            x_ci = list(r_del["fut_ds"])+list(r_del["fut_ds"])[::-1]
+            y_ci = list(r_del["ci_hi"])+list(r_del["ci_lo"])[::-1]
+            fig_d.add_trace(go.Scatter(x=x_ci,y=y_ci,fill="toself",
+                fillcolor="rgba(255,107,107,0.07)",line=dict(color="rgba(0,0,0,0)"),showlegend=False))
+            fig_d.add_trace(go.Scatter(x=r_del["hist_ds"],y=r_del["hist_y"],name="Historical",
+                line=dict(color="#4a5e7a",width=2)))
+            fig_d.add_trace(go.Scatter(x=r_del["fut_ds"],y=r_del["forecast"],name="Forecast",
+                line=dict(color="#ff6b6b",width=2.5,dash="dot"), mode="lines+markers",
+                marker=dict(size=8,color="#ff6b6b",line=dict(color="#080e1a",width=2))))
+            fig_d.update_layout(**CD(), height=250, xaxis=gX(),
+                yaxis={**gY(),"title":"Avg Delivery Days"}, legend=leg())
+            st.plotly_chart(fig_d, use_container_width=True)
 
-    with t3:
-        section_title("Warehouse Shipment Trend")
-        wm = df.groupby([df["Order_Date"].dt.to_period("M"), "Warehouse"])["Quantity"].sum().unstack(fill_value=0)
+    # ── TAB 4: Warehouse ──
+    with t4:
+        sec("Warehouse Shipment Volume Trend")
+        wm = del_df.groupby([del_df["Order_Date"].dt.to_period("M"),"Warehouse"])["Quantity"].sum().unstack(fill_value=0)
         fig_wh = go.Figure()
         for i, wh in enumerate(wm.columns):
-            fig_wh.add_trace(go.Bar(
-                x=wm.index.to_timestamp(), y=wm[wh], name=wh,
-                marker=dict(color=COLORS[i % len(COLORS)], line=dict(color="rgba(0,0,0,0)"))
-            ))
-        fig_wh.update_layout(**CD(), height=280, barmode="stack",
-            xaxis=dict(**grid_x()),
-            yaxis=dict(**grid_y()),
-            legend=dict(**legend_style()))
+            fig_wh.add_trace(go.Bar(x=wm.index.to_timestamp(), y=wm[wh], name=wh,
+                marker=dict(color=COLORS[i%len(COLORS)], line=dict(color="rgba(0,0,0,0)"))))
+        fig_wh.update_layout(**CD(), height=270, barmode="stack",
+            xaxis=gX(), yaxis=gY(), legend=leg())
         st.plotly_chart(fig_wh, use_container_width=True)
 
-        section_title("Warehouse Demand Forecast → Jun 2026")
+        sec("Warehouse Demand Forecast → Jun 2026")
         wf_rows = []
         for wh in wm.columns:
-            s = wm[wh].rename("value")
-            if len(s.dropna()) < 4: continue
-            f = forecast_series(s, 6)
-            fut = f[f["type"] == "forecast"]
-            for _, r in fut.iterrows():
-                wf_rows.append({"Month": r["ds"], "Warehouse": wh,
-                                 "Forecast": r["y"], "CI_Hi": r["yhat_upper"]})
+            vals = wm[wh].values.astype(float)
+            r    = ml_forecast(vals, wm.index, 6)
+            if r is None: continue
+            for dt, fc, hi in zip(r["fut_ds"], r["forecast"], r["ci_hi"]):
+                wf_rows.append({"Month":dt,"Warehouse":wh,"Forecast":fc,"Upper":hi})
         if wf_rows:
             wfd = pd.DataFrame(wf_rows)
             fig_wf = go.Figure()
             for i, wh in enumerate(wfd["Warehouse"].unique()):
-                s = wfd[wfd["Warehouse"] == wh]
-                fig_wf.add_trace(go.Scatter(
-                    x=s["Month"], y=s["Forecast"], name=wh, mode="lines+markers",
-                    line=dict(color=COLORS[i % len(COLORS)], width=2.5, dash="dot"),
-                    marker=dict(size=8, line=dict(color="#080e1a", width=2))
-                ))
-            fig_wf.update_layout(**CD(), height=260,
-                xaxis=dict(**grid_x()),
-                yaxis=dict(**grid_y()),
-                legend=dict(**legend_style()))
+                s = wfd[wfd["Warehouse"]==wh]
+                fig_wf.add_trace(go.Scatter(x=s["Month"], y=s["Forecast"], name=wh,
+                    mode="lines+markers", line=dict(color=COLORS[i%len(COLORS)],width=2.5,dash="dot"),
+                    marker=dict(size=8,line=dict(color="#080e1a",width=2))))
+            fig_wf.update_layout(**CD(), height=250, xaxis=gX(), yaxis=gY(), legend=leg())
             st.plotly_chart(fig_wf, use_container_width=True)
-            wfd_tbl = wfd.copy()
-            wfd_tbl["Month"]    = wfd_tbl["Month"].dt.strftime("%b %Y")
-            wfd_tbl["Forecast"] = wfd_tbl["Forecast"].round(0).astype(int)
-            wfd_tbl["CI_Hi"]    = wfd_tbl["CI_Hi"].round(0).astype(int)
-            wfd_tbl.columns     = ["Month","Warehouse","Forecast Units","Upper Bound"]
-            st.dataframe(wfd_tbl.sort_values(["Month","Warehouse"]),
-                         use_container_width=True, hide_index=True)
+            tbl_wf = wfd.copy()
+            tbl_wf["Month"]    = tbl_wf["Month"].dt.strftime("%b %Y")
+            tbl_wf["Forecast"] = tbl_wf["Forecast"].round(0).astype(int)
+            tbl_wf["Upper"]    = tbl_wf["Upper"].round(0).astype(int)
+            tbl_wf.columns     = ["Month","Warehouse","Forecast Units","Upper Bound"]
+            st.dataframe(tbl_wf.sort_values(["Month","Warehouse"]), use_container_width=True, hide_index=True)
 
-        section_title("Top Products per Warehouse")
-        wsel = st.selectbox("Warehouse", sorted(df["Warehouse"].unique()))
-        tp = (df[df["Warehouse"] == wsel]
-              .groupby("Product_Name")["Quantity"].sum()
-              .sort_values(ascending=False).head(10))
-        fig_tp = go.Figure(go.Bar(
-            x=tp.values, y=tp.index, orientation="h",
-            marker=dict(
-                color="#2ed8c3",
-                line=dict(color="rgba(0,0,0,0)")
-            ),
-            text=tp.values, textposition="outside",
-            textfont=dict(color="#4a5e7a")
-        ))
-        fig_tp.update_layout(**CD(), height=310,
-            xaxis=dict(**grid_x()), yaxis=dict(showgrid=False, color="#8a9dc0"))
+        sec("Top Products per Warehouse")
+        wsel = st.selectbox("Warehouse", sorted(del_df["Warehouse"].unique()))
+        tp = (del_df[del_df["Warehouse"]==wsel].groupby("Product_Name")["Quantity"]
+              .sum().sort_values(ascending=False).head(10))
+        fig_tp = go.Figure(go.Bar(x=tp.values, y=tp.index, orientation="h",
+            marker=dict(color="#2ed8c3", line=dict(color="rgba(0,0,0,0)")),
+            text=tp.values, textposition="outside", textfont=dict(color="#4a5e7a")))
+        fig_tp.update_layout(**CD(), height=300, xaxis=gX(),
+            yaxis=dict(showgrid=False,color="#8a9dc0"))
         st.plotly_chart(fig_tp, use_container_width=True)
 
-    with t4:
-        section_title("Region Performance Overview")
-        rs = df.groupby("Region").agg(
-            Orders  = ("Order_ID", "count"),
-            Revenue = ("Revenue_INR", "sum"),
-            Qty     = ("Quantity", "sum"),
-            Avg_Del = ("Delivery_Days", "mean"),
-            Returns = ("Return_Flag", "mean")
-        ).reset_index().sort_values("Revenue", ascending=False)
+    # ── TAB 5: Regions ──
+    with t5:
+        sec("Region Performance Overview")
+        rs = del_df.groupby("Region").agg(
+            Orders=("Order_ID","count"), Revenue=("Net_Revenue","sum"),
+            Qty=("Quantity","sum"), Avg_Del=("Delivery_Days","mean"),
+            Returns=("Return_Flag","mean")).reset_index().sort_values("Revenue",ascending=False)
 
         met = st.selectbox("Metric", ["Revenue","Orders","Qty","Avg_Del","Returns"])
-        n = len(rs)
-        bar_colors = [COLORS[i % len(COLORS)] for i in range(n)]
-        fig_r = go.Figure(go.Bar(
-            x=rs["Region"], y=rs[met],
-            marker=dict(color=bar_colors, line=dict(color="rgba(0,0,0,0)")),
-            hovertemplate="<b>%{x}</b><br>%{y:,.2f}<extra></extra>"
-        ))
-        fig_r.update_layout(**CD(), height=300,
-            xaxis=dict(**grid_x(), tickangle=-30),
-            yaxis=dict(**grid_y()))
+        fig_r = go.Figure(go.Bar(x=rs["Region"], y=rs[met],
+            marker=dict(color=[COLORS[i%len(COLORS)] for i in range(len(rs))],
+                        line=dict(color="rgba(0,0,0,0)")),
+            hovertemplate="<b>%{x}</b><br>%{y:,.2f}<extra></extra>"))
+        fig_r.update_layout(**CD(), height=290,
+            xaxis={**gX(),"tickangle":-25}, yaxis=gY())
         st.plotly_chart(fig_r, use_container_width=True)
 
-        c_l, c_r = st.columns(2, gap="large")
-        with c_l:
-            section_title("Best Carrier per Region")
-            bc = (df.groupby(["Region","Courier_Partner"])["Delivery_Days"]
+        cl5, cr5 = st.columns(2, gap="large")
+        with cl5:
+            sec("Best Carrier per Region (fastest avg)")
+            bc = (del_df.groupby(["Region","Courier_Partner"])["Delivery_Days"]
                   .mean().reset_index().sort_values("Delivery_Days")
                   .groupby("Region").first().reset_index())
             bc.columns = ["Region","Best Carrier","Avg Days"]
             bc["Avg Days"] = bc["Avg Days"].round(1)
             st.dataframe(bc, use_container_width=True, hide_index=True)
 
-        with c_r:
-            section_title("Region Return Rate Ranking")
-            rr = df.groupby("Region")["Return_Flag"].mean().sort_values(ascending=False) * 100
-            fig_ret = go.Figure(go.Bar(
-                x=rr.values, y=rr.index, orientation="h",
-                marker=dict(
-                    color=["#ff6b6b" if v > 20 else "#f5a623" if v > 12 else "#56e0a0" for v in rr.values],
-                    line=dict(color="rgba(0,0,0,0)")
-                ),
+        with cr5:
+            sec("Region Return Rate Ranking")
+            rr = del_df.groupby("Region")["Return_Flag"].mean().sort_values(ascending=False)*100
+            fig_ret = go.Figure(go.Bar(x=rr.values, y=rr.index, orientation="h",
+                marker=dict(color=["#ff6b6b" if v>20 else "#f5a623" if v>12 else "#56e0a0" for v in rr.values],
+                            line=dict(color="rgba(0,0,0,0)")),
                 text=[f"{v:.1f}%" for v in rr.values], textposition="outside",
-                textfont=dict(color="#4a5e7a")
-            ))
-            fig_ret.update_layout(**CD(), height=280,
-                xaxis=dict(**grid_x()), yaxis=dict(showgrid=False, color="#8a9dc0"))
+                textfont=dict(color="#4a5e7a")))
+            fig_ret.update_layout(**CD(), height=270, xaxis=gX(),
+                yaxis=dict(showgrid=False,color="#8a9dc0"))
             st.plotly_chart(fig_ret, use_container_width=True)
 
-        section_title("Region Revenue Forecast → Jun 2026")
-        top_reg = df["Region"].value_counts().head(5).index.tolist()
+        sec("Region Revenue Forecast → Jun 2026")
+        top_reg = del_df["Region"].value_counts().head(5).index.tolist()
         fig_rf = go.Figure()
         for i, reg in enumerate(top_reg):
-            s = df[df["Region"]==reg].groupby("YearMonth")["Revenue_INR"].sum().rename("value")
-            f = forecast_series(s, 6)
-            if f.empty: continue
-            hist_r = f[f["type"]=="historical"]
-            fut_r  = f[f["type"]=="forecast"]
-            fig_rf.add_trace(go.Scatter(
-                x=hist_r["ds"], y=hist_r["y"], name=f"{reg}",
-                line=dict(color=COLORS[i], width=1.5, dash="solid"),
-                opacity=0.3, showlegend=False
-            ))
-            fig_rf.add_trace(go.Scatter(
-                x=fut_r["ds"], y=fut_r["y"], name=reg, mode="lines+markers",
-                line=dict(color=COLORS[i], width=2.5, dash="dot"),
-                marker=dict(size=8, line=dict(color="#080e1a", width=2))
-            ))
-        fig_rf.update_layout(**CD(), height=280,
-            xaxis=dict(**grid_x()),
-            yaxis=dict(**grid_y()),
-            legend=dict(**legend_style()))
+            s = del_df[del_df["Region"]==reg].groupby(del_df["Order_Date"].dt.to_period("M"))["Net_Revenue"].sum().rename("v")
+            r = ml_forecast(s.values.astype(float), s.index, 6)
+            if r is None: continue
+            fig_rf.add_trace(go.Scatter(x=r["hist_ds"], y=r["hist_y"], name=reg,
+                line=dict(color=COLORS[i],width=1.5,dash="solid"), opacity=0.25, showlegend=False))
+            fig_rf.add_trace(go.Scatter(x=r["fut_ds"], y=r["forecast"], name=reg,
+                mode="lines+markers", line=dict(color=COLORS[i],width=2.5,dash="dot"),
+                marker=dict(size=8,line=dict(color="#080e1a",width=2))))
+        fig_rf.update_layout(**CD(), height=270, xaxis=gX(), yaxis=gY(), legend=leg())
         st.plotly_chart(fig_rf, use_container_width=True)
 
-def build_context(df: pd.DataFrame) -> str:
-    m_qty   = df.groupby("YearMonth")["Quantity"].sum().rename("value")
-    d_fore  = forecast_series(m_qty, 6)
-    fut_d   = d_fore[d_fore["type"]=="forecast"]
-    demand_str = "; ".join([f"{r['ds'].strftime('%b%Y')}:{r['y']:.0f}u" for _, r in fut_d.iterrows()])
-    m_rev  = df.groupby("YearMonth")["Revenue_INR"].sum().rename("value")
-    r_fore = forecast_series(m_rev, 6)
-    fut_r  = r_fore[r_fore["type"]=="forecast"]
-    rev_str = "; ".join([f"{r['ds'].strftime('%b%Y')}:₹{r['y']/1e6:.1f}M" for _, r in fut_r.iterrows()])
-    inv = compute_inventory_table()
-    n_crit = (inv["Status"]=="🔴 Critical").sum()
-    n_low  = (inv["Status"]=="🟡 Low").sum()
-    growth = inv["demand_growth_pct"].iloc[0]
-    crit_skus = ", ".join(inv[inv["Status"]=="🔴 Critical"]["Product_Name"].head(5).tolist())
-    plan = compute_production_plan()
-    if not plan.empty:
-        prod_sum = plan.groupby("Category")["Production"].sum()
-        prod_str = ", ".join([f"{k}:{v:.0f}" for k,v in prod_sum.items()])
-        peak_mo  = plan.groupby("Month_dt")["Production"].sum().idxmax().strftime("%b %Y")
-    else:
-        prod_str = "N/A"; peak_mo = "N/A"
-    cs = df.groupby("Courier_Partner").agg(
-        n=("Order_ID","count"), d=("Delivery_Days","mean"), r=("Return_Flag","mean"))
-    carr_str = "; ".join([f"{r}:{d['n']}ord,{d['d']:.1f}d,{d['r']*100:.1f}%ret" for r, d in cs.iterrows()])
-    bc = (df.groupby(["Region","Courier_Partner"])["Delivery_Days"]
-          .mean().reset_index().sort_values("Delivery_Days")
-          .groupby("Region").first().reset_index())
-    bc_str = ", ".join([f"{row['Region']}→{row['Courier_Partner']}" for _, row in bc.iterrows()])
-    top_reg = df.groupby("Region")["Revenue_INR"].sum().sort_values(ascending=False).head(5)
-    reg_str = ", ".join([f"{k}:₹{v/1e6:.1f}M" for k,v in top_reg.items()])
-    cat_rev = df.groupby("Category")["Revenue_INR"].sum().sort_values(ascending=False)
-    cat_str = ", ".join([f"{k}:₹{v/1e6:.1f}M" for k,v in cat_rev.items()])
-    wh_rev  = df.groupby("Warehouse")["Revenue_INR"].sum().sort_values(ascending=False)
-    wh_str  = ", ".join([f"{k}:₹{v/1e6:.1f}M" for k,v in wh_rev.items()])
-    ret_hot = df.groupby("Region")["Return_Flag"].mean().sort_values(ascending=False).head(4)
-    ret_str = ", ".join([f"{k}:{v*100:.1f}%" for k,v in ret_hot.items()])
-    top_sku = df.groupby("Product_Name")["Revenue_INR"].sum().sort_values(ascending=False).head(5)
-    sku_str = ", ".join(top_sku.index.tolist())
-    return f"""=== OmniFlow D2D India — Live Supply Chain Intelligence Context ===
-DATASET: 5,200 orders | Jan 2024–Dec 2025 | India D2D (Amazon, Flipkart, Meesho, B2B)
-SUMMARY: Revenue ₹{df['Revenue_INR'].sum()/1e7:.2f}Cr | Orders {len(df):,} | Return {df['Return_Flag'].mean()*100:.1f}% | Avg Del {df['Delivery_Days'].mean():.1f}d
-
-[MODULE 1 — DEMAND FORECAST → Jun 2026]
-Qty Forecast: {demand_str}
-Rev Forecast: {rev_str}
-Demand Growth (6mo avg vs recent): +{growth:.1f}%
-
-[MODULE 2 — INVENTORY STATUS]
-Critical SKUs: {n_crit} | Low: {n_low} | Adequate: {inv['Status'].eq('🟢 Adequate').sum()}
-Critical Products (reorder NOW): {crit_skus}
-EOQ/SS/ROP computed per SKU using demand growth adjustment
-
-[MODULE 3 — PRODUCTION PLAN (6-month targets by category)]
-{prod_str}
-Peak Production Month: {peak_mo}
-
-[MODULE 4 — LOGISTICS]
-Carriers: {carr_str}
-Best Carrier per Region: {bc_str}
-Warehouses by Revenue: {wh_str}
-High Return Regions: {ret_str}
-
-CATEGORIES: {cat_str}
-TOP REGIONS: {reg_str}
-TOP PRODUCTS: {sku_str}"""
-
+# ═══════════════════════════════════════════════════════════
+# PAGE 6 — AI DECISION CHATBOT
+# ═══════════════════════════════════════════════════════════
 SUGGESTIONS = [
-    "Which carrier for Maharashtra orders?",
-    "Peak products in April 2026?",
-    "Regions with critical stock risk?",
-    "Production adjustments for Jun 2026?",
-    "Best warehouse for Electronics?",
-    "Fastest growing category?",
-    "How to reduce return rate?",
-    "Optimal reorder for Home & Kitchen?",
+    "Demand forecast Jan–Jun 2026",
+    "Top 5 products by units sold",
+    "Which SKUs need immediate reorder?",
+    "Best carrier per region",
+    "Logistics cost saving opportunities",
+    "Production plan next 6 months",
+    "Regions with highest delay rates",
+    "Return rate by region",
 ]
 
-def call_claude(messages, system):
-    api_key = os.getenv("GROQ_API_KEY")
-    if not api_key:
-        return "❌ GROQ_API_KEY not found. Add it in Streamlit secrets."
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json"
-    }
-    payload = {
-        "model": "llama-3.3-70b-versatile",
-        "messages": [{"role": "system", "content": system}] + messages,
-        "max_tokens": 1000,
-        "temperature": 0.7
-    }
-    try:
-        response = requests.post(
-            "https://api.groq.com/openai/v1/chat/completions",
-            headers=headers, json=payload, timeout=30
-        )
-        if response.status_code == 429:
-            return "⚠️ Rate limit hit. Please wait a few seconds and try again."
-        if response.status_code != 200:
-            return f"⚠️ Groq API Error ({response.status_code}): {response.text}"
-        data = response.json()
-        return data["choices"][0]["message"]["content"]
-    except requests.exceptions.Timeout:
-        return "⚠️ Request timed out. Please try again."
-    except Exception as e:
-        return f"⚠️ Error: {str(e)}"
-
-def page_chatbot():
-    df = load_data()
-
-    st.markdown("""
-    <div class='page-title-block'>
-      <div class='page-title' style='color:#5ba4e5'>Decision Intelligence Chatbot</div>
-      <div class='page-subtitle'>Ask anything · AI powered · Live context from all 4 upstream modules</div>
-    </div>""", unsafe_allow_html=True)
-
-    st.markdown("""<div class='badge-row'>
-      <span class='badge badge-amber'>⬆ Demand context</span>
-      <span class='badge badge-teal'>⬆ Inventory context</span>
-      <span class='badge badge-lav'>⬆ Production context</span>
-      <span class='badge badge-coral'>⬆ Logistics context</span>
-    </div>""", unsafe_allow_html=True)
-
-    ctx = build_context(df)
-    with st.expander("Live Module Context (fed to AI)", expanded=False):
-        st.code(ctx, language="text")
-
-    system_prompt = f"""You are OmniFlow, an expert AI supply chain decision assistant for an India D2D e-commerce operation.
-Your expertise spans demand forecasting, inventory management (EOQ, safety stock, reorder points),
-production planning, and logistics optimization across Indian regions and courier partners.
-
-Rules:
-- Keep responses SHORT: max 5-6 bullet points, no long paragraphs
-- Lead with a 1-sentence key recommendation, then bullets
-- Always use ₹ for Indian Rupees
-- Use plain bullet points with "-" prefix, NO markdown bold (**text**), no asterisk formatting
-- Reference exact numbers from the context
-- Consider module interdependencies: Demand → Inventory → Production → Logistics
-- Flag risks proactively but stay concise — never repeat the same point twice
-- Do NOT write "By implementing these strategies..." or summary paragraphs at the end
-
-LIVE SUPPLY CHAIN CONTEXT (all 4 modules):
-{ctx}"""
-
-    if "chat_msgs" not in st.session_state:
-        st.session_state.chat_msgs = []
-
-    if not st.session_state.chat_msgs:
-        section_title("Quick Questions", "⚡")
-        cols = st.columns(4)
-        for i, s in enumerate(SUGGESTIONS):
-            with cols[i % 4]:
-                if st.button(s, key=f"q{i}", use_container_width=True):
-                    st.session_state.chat_msgs.append({"role": "user", "content": s})
-                    with st.spinner("OmniFlow thinking…"):
-                        rep = call_claude([{"role":"user","content":s}], system_prompt)
-                    st.session_state.chat_msgs.append({"role":"assistant","content":rep})
-                    st.rerun()
-
-    chat_container = st.container()
-    with chat_container:
-        for msg in st.session_state.chat_msgs:
-            if msg["role"] == "user":
-                st.markdown(f"""
-                <div class='chat-spacing'>
-                  <div class='chat-user-bubble'>{msg['content']}</div>
-                </div>""", unsafe_allow_html=True)
-            else:
-                import re as _re
-                raw = msg["content"]
-                raw = raw.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;")
-                raw = _re.sub(r'\*\*(.+?)\*\*', r'<span style="color:#f0f4ff;font-weight:700">\1</span>', raw)
-                lines = raw.split("\n")
-                rendered = []
-                for line in lines:
-                    line = line.strip()
-                    if not line:
-                        rendered.append("<div style=\'height:6px\'></div>")
-                    elif _re.match(r"^[\*\-•] ", line):
-                        item = line[2:].strip()
-                        rendered.append(
-                            f"<div style=\'display:flex;gap:8px;margin:5px 0;\'>"
-                            f"<span style=\'color:#f5a623;margin-top:2px;flex-shrink:0\'>▸</span>"
-                            f"<span style=\'color:#c8d4e8;line-height:1.6\'>{item}</span></div>"
-                        )
-                    else:
-                        rendered.append(f"<div style=\'margin:4px 0;color:#8a9dc0;line-height:1.65\'>{line}</div>")
-                content = "".join(rendered)
-                st.markdown(f"""
-                <div class='chat-spacing'>
-                  <div class='chat-ai-bubble'>{content}</div>
-                </div>""", unsafe_allow_html=True)
-
-    st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
-    c_inp, c_btn, c_clr = st.columns([5, 1, 1])
-    with c_inp:
-        user_in = st.text_input(
-            "Ask a supply chain question…", key="user_input",
-            placeholder="e.g. What production adjustments are needed for Q2 2026?",
-            label_visibility="collapsed")
-    with c_btn:
-        send = st.button("Send", use_container_width=True)
-    with c_clr:
-        if st.button("Clear", use_container_width=True):
-            st.session_state.chat_msgs = []
-            st.rerun()
-
-    if send and user_in.strip():
-        st.session_state.chat_msgs.append({"role":"user","content":user_in.strip()})
-        api_msgs = st.session_state.chat_msgs[-14:]
-        with st.spinner("OmniFlow thinking…"):
-            rep = call_claude(api_msgs, system_prompt)
-        st.session_state.chat_msgs.append({"role":"assistant","content":rep})
-        st.rerun()
-
-    if not st.session_state.chat_msgs:
-        st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
-        section_title("Live Decision Alerts", "⚡")
-        c1, c2 = st.columns(2, gap="large")
-
-        with c1:
-            st.markdown("""<div style='font-size:0.78rem;font-weight:700;
-                color:#ff6b6b;letter-spacing:0.06em;text-transform:uppercase;
-                font-family:DM Mono,monospace;margin-bottom:10px'>
-                🔴 Critical SKUs — Reorder Immediately</div>""", unsafe_allow_html=True)
-            inv = compute_inventory_table()
-            crit = inv[inv["Status"] == "🔴 Critical"][["Product_Name","Category","current_stock","ROP"]].head(5)
-            for _, row in crit.iterrows():
-                st.markdown(f"""
-                <div class='alert-item alert-critical'>
-                  <b style='color:#f0f4ff'>{row['Product_Name']}</b>
-                  <span style='color:#4a5e7a'> [{row['Category']}]</span><br>
-                  <span style='color:#4a5e7a;font-size:0.75rem'>
-                    Stock: {row['current_stock']} · ROP: {row['ROP']}</span>
-                </div>""", unsafe_allow_html=True)
-
-        with c2:
-            st.markdown("""<div style='font-size:0.78rem;font-weight:700;
-                color:#f5a623;letter-spacing:0.06em;text-transform:uppercase;
-                font-family:DM Mono,monospace;margin-bottom:10px'>
-                📈 Revenue Forecast Alerts (next 3 months)</div>""", unsafe_allow_html=True)
-            m = df.groupby("YearMonth")["Revenue_INR"].sum().rename("value")
-            f = forecast_series(m, 3)
-            fut = f[f["type"] == "forecast"]
-            last = float(m.iloc[-1])
-            for _, row in fut.iterrows():
-                chg  = (row["y"] - last) / last * 100
-                clr  = "#56e0a0" if chg >= 0 else "#ff6b6b"
-                icon = "📈" if chg >= 0 else "📉"
-                status_cls = "alert-ok" if chg >= 0 else "alert-critical"
-                st.markdown(f"""
-                <div class='alert-item {status_cls}'>
-                  {icon} <b style='color:#f0f4ff'>{row['ds'].strftime("%b %Y")}</b>
-                  — <span style='color:{clr}'>₹{row['y']/1e6:.1f}M ({chg:+.1f}%)</span>
-                </div>""", unsafe_allow_html=True)
-                last = row["y"]
-
-        st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
-        st.markdown("""<div style='font-size:0.78rem;font-weight:700;
-            color:#ff6b6b;letter-spacing:0.06em;text-transform:uppercase;
-            font-family:DM Mono,monospace;margin-bottom:10px'>
-            ⚠️ High Delay + Return Regions</div>""", unsafe_allow_html=True)
-        df["Delayed"] = df["Delivery_Days"] > 7
-        risk = df.groupby("Region").agg(
-            Delay_Rate=("Delayed","mean"), Return_Rate=("Return_Flag","mean")).reset_index()
-        risk["Risk_Score"] = risk["Delay_Rate"] * 0.5 + risk["Return_Rate"] * 0.5
-        risk = risk.sort_values("Risk_Score", ascending=False).head(4)
-        cc = st.columns(4)
-        for i, (_, row) in enumerate(risk.iterrows()):
-            with cc[i]:
-                clr = "#ff6b6b" if row["Risk_Score"] > 0.2 else "#f5a623"
-                accent = "coral" if row["Risk_Score"] > 0.2 else "amber"
-                kpi(cc[i], row["Region"],
-                    f"{row['Risk_Score']*100:.1f}%",
-                    accent,
-                    f"Del: {row['Delay_Rate']*100:.1f}% · Ret: {row['Return_Rate']*100:.1f}%")
-
-st.sidebar.markdown("""
-<div style='padding:20px 0 28px'>
-  <div style='font-family:DM Mono,monospace;font-size:0.62rem;letter-spacing:0.16em;
-       text-transform:uppercase;color:#4a5e7a;margin-bottom:6px'>Supply Chain Platform</div>
-  <div style='font-family:Outfit,sans-serif;font-size:1.8rem;font-weight:900;
-       letter-spacing:-0.04em;
-       background:linear-gradient(135deg,#f5a623,#ff6b6b,#2ed8c3);
-       -webkit-background-clip:text;-webkit-text-fill-color:transparent'>
-    OmniFlow</div>
-  <div style='font-family:DM Mono,monospace;font-size:0.65rem;color:#4a5e7a;
+# ─── SIDEBAR ─────────────────────────────────────────────
+st.sidebar.markdown("""<div style='padding:18px 0 26px'>
+  <div style='font-family:DM Mono,monospace;font-size:0.58rem;letter-spacing:0.16em;
+       text-transform:uppercase;color:#4a5e7a;margin-bottom:5px'>Supply Chain Platform</div>
+  <div style='font-family:Outfit,sans-serif;font-size:1.75rem;font-weight:900;
+       letter-spacing:-0.04em;background:linear-gradient(135deg,#f5a623,#ff6b6b,#2ed8c3);
+       -webkit-background-clip:text;-webkit-text-fill-color:transparent'>OmniFlow</div>
+  <div style='font-family:DM Mono,monospace;font-size:0.62rem;color:#4a5e7a;
        margin-top:2px;letter-spacing:0.05em'>D2D INTELLIGENCE</div>
 </div>""", unsafe_allow_html=True)
 
 PAGES = {
     "Overview":               page_overview,
     "Demand Forecasting":     page_demand,
-    "Inventory Optimization": page_inventory,
+    "Inventory Optimisation": page_inventory,
     "Production Planning":    page_production,
-    "Logistics Intelligence": page_logistics,
+    "Logistics Optimisation": page_logistics,
     "Decision Chatbot":       page_chatbot,
 }
 
 sel = st.sidebar.radio("Navigate", list(PAGES.keys()), label_visibility="collapsed")
 
-st.sidebar.markdown("<div style='height:20px'></div>", unsafe_allow_html=True)
-st.sidebar.markdown("""
-<div style='border-top:1px solid rgba(255,255,255,0.06);padding-top:20px'>
-  <div style='font-family:DM Mono,monospace;font-size:0.65rem;
-       color:#4a5e7a;line-height:2.2;letter-spacing:0.04em'>
-    <span style='color:#8a9dc0'>DATA RANGE</span><br>
-    Jan 2024 – Dec 2025<br>
-    <span style='color:#8a9dc0'>FORECAST HORIZON</span><br>
-    → Jun 2026<br>
-    <span style='color:#8a9dc0'>DATASET</span><br>
-    5,200 orders · 50 SKUs<br>
-    🇮🇳 India D2D<br>
+st.sidebar.markdown("""<div style='border-top:1px solid rgba(255,255,255,0.06);padding-top:18px;margin-top:8px'>
+  <div style='font-family:DM Mono,monospace;font-size:0.62rem;color:#4a5e7a;line-height:2.1;letter-spacing:0.04em'>
+    <span style='color:#8a9dc0'>DATA RANGE</span><br>Jan 2024 – Dec 2025<br>
+    <span style='color:#8a9dc0'>FORECAST</span><br>→ Jun 2026<br>
+    <span style='color:#8a9dc0'>DATASET</span><br>5,200 orders · 50 SKUs<br>🇮🇳 India D2D<br>
+    <span style='color:#8a9dc0'>MODEL</span><br>Ridge + Structural Break<br>
+    <span style='color:#8a9dc0'>FIXES APPLIED</span><br>
+    ✓ Pune→Maharashtra<br>✓ Net Revenue (no returns)<br>
+    ✓ Correct SS formula<br>✓ (s,Q) stock simulation<br>
+    ✓ RMSE/NRMSE/R² metrics<br>✓ Cost optimisation<br>✓ Rule-based chatbot<br>
   </div>
-  <div style='margin-top:16px;font-family:DM Mono,monospace;font-size:0.63rem;color:#4a5e7a'>
-    <span style='color:#f5a623'>FLOW</span><br>
-    Demand → Inventory<br>
-    → Production → Logistics<br>
-    → Chatbot
+  <div style='margin-top:14px;font-family:DM Mono,monospace;font-size:0.6rem;color:#4a5e7a'>
+    <span style='color:#f5a623'>PIPELINE</span><br>
+    Demand → Inventory<br>→ Production → Logistics<br>→ Chatbot
   </div>
 </div>""", unsafe_allow_html=True)
 
