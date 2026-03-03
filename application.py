@@ -373,11 +373,11 @@ def render_model_quality(res):
 
     # 5-metric KPI row
     m1, m2, m3, m4, m5 = st.columns(5)
-    kpi(m1, "RMSE",          f"{res['rmse']:.1f}",         "coral", "hold-out 4 mo")
-    kpi(m2, "NRMSE",         f"{res['nrmse']*100:.1f}%",   "amber", "normalised RMSE")
-    kpi(m3, "MAE",           f"{res['mae']:.1f}",          "sky",   "mean abs error")
-    kpi(m4, "R² Score",      f"{res['r2']:.3f}",           "mint",  "model fit (1=perfect)")
-    kpi(m5, "Accuracy",      f"{accuracy_pct:.1f}%",       "lav",   "1 − NRMSE")
+    kpi(m1, "RMSE",          f"{res['rmse']:.1f}",         "sky", "hold-out 4 mo")
+    kpi(m2, "NRMSE",         f"{res['nrmse']*100:.1f}%",   "sky", "normalised RMSE")
+    kpi(m3, "MAE",           f"{res['mae']:.1f}",          "sky", "mean abs error")
+    kpi(m4, "R² Score",      f"{res['r2']:.3f}",           "sky", "model fit (1=perfect)")
+    kpi(m5, "Accuracy",      f"{accuracy_pct:.1f}%",       "sky", "1 − NRMSE")
     sp(0.5)
 
     # Verdict card
@@ -1239,9 +1239,9 @@ def page_inventory():
     n_ok   = (inv["Status"]=="🟢 Adequate").sum()
 
     c1,c2,c3,c4 = st.columns(4)
-    kpi(c1,"Total SKUs",  len(inv), "sky")
-    kpi(c2,"🔴 Critical", n_crit,   "coral","immediate reorder")
-    kpi(c3,"🟡 Low",      n_low,    "amber","approaching ROP")
+    kpi(c1,"Total SKUs",  len(inv), "mint")
+    kpi(c2,"🔴 Critical", n_crit,   "mint","immediate reorder")
+    kpi(c3,"🟡 Low",      n_low,    "mint","approaching ROP")
     kpi(c4,"🟢 Adequate", n_ok,     "mint", "well-stocked")
     sp()
 
@@ -1431,11 +1431,11 @@ def page_inventory():
 
             # KPI row below chart
             ka, kb, kc, kd, ke = st.columns(5)
-            kpi(ka, "Starting Stock",  avg_stock,  "teal",  "current avg")
-            kpi(kb, "ROP (avg)",       avg_rop,    "amber", "trigger level")
-            kpi(kc, "Safety Stock",    avg_ss,     "coral", "min buffer")
-            kpi(kd, "EOQ (avg)",       avg_eoq,    "lav",   "order batch size")
-            kpi(ke, "Reorders Needed", len(reorder_months), "mint" if len(reorder_months) == 0 else "amber",
+            kpi(ka, "Starting Stock",  avg_stock,  "mint", "current avg")
+            kpi(kb, "ROP (avg)",       avg_rop,    "mint", "trigger level")
+            kpi(kc, "Safety Stock",    avg_ss,     "mint", "min buffer")
+            kpi(kd, "EOQ (avg)",       avg_eoq,    "mint", "order batch size")
+            kpi(ke, "Reorders Needed", len(reorder_months), "mint",
                 "over 6 months" if len(reorder_months) == 0 else f"across {len(reorder_months)} month(s)")
             sp(0.5)
 
@@ -1496,9 +1496,9 @@ def page_production():
     agg = plan.groupby("Month_dt")[["Production","Demand_Forecast","Crit_Boost","Low_Boost"]].sum().reset_index()
 
     c1,c2,c3,c4 = st.columns(4)
-    kpi(c1,"Total Production", f"{plan['Production'].sum():,.0f}","lav","units · 6 months")
-    kpi(c2,"Total Demand",     f"{plan['Demand_Forecast'].sum():,.0f}","sky","forecast units")
-    kpi(c3,"Avg / Month",      f"{agg['Production'].mean():,.0f}","mint","units/month")
+    kpi(c1,"Total Production", f"{plan['Production'].sum():,.0f}","amber","units · 6 months")
+    kpi(c2,"Total Demand",     f"{plan['Demand_Forecast'].sum():,.0f}","amber","forecast units")
+    kpi(c3,"Avg / Month",      f"{agg['Production'].mean():,.0f}","amber","units/month")
     peak = agg.loc[agg["Production"].idxmax(),"Month_dt"]
     kpi(c4,"Peak Month",       peak.strftime("%b %Y"),"amber","highest demand")
     sp()
@@ -1661,9 +1661,9 @@ def page_logistics():
         total_current = del_df["Shipping_Cost_INR"].sum()
         total_saving  = opt["Potential_Saving"].sum()
         c1,c2,c3,c4 = st.columns(4)
-        kpi(c1,"Current Spend",         f"₹{total_current:,.0f}","coral","all deliveries")
-        kpi(c2,"Optimised Spend",       f"₹{total_current-total_saving:,.0f}","mint","with best carriers")
-        kpi(c3,"Total Saving Potential",f"₹{total_saving:,.0f}","amber","by region switch")
+        kpi(c1,"Current Spend",         f"₹{total_current:,.0f}","sky","all deliveries")
+        kpi(c2,"Optimised Spend",       f"₹{total_current-total_saving:,.0f}","sky","with best carriers")
+        kpi(c3,"Total Saving Potential",f"₹{total_saving:,.0f}","sky","by region switch")
         kpi(c4,"Saving %",              f"{total_saving/total_current*100:.1f}%","sky","of total spend")
         sp()
         banner(f"""<b style='color:#000000'>Optimisation Logic:</b>
