@@ -152,8 +152,10 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_squared_error, mean_absolute_error
 from scipy import stats
 import os, re
+import requests as _requests
 
 # ─── CONSTANTS ──────────────────────────────────────────────
+# FIX: Use flexible path — works whether run from same dir or anywhere
 DATA_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "india_ecommerce_orders.csv")
 
 COLORS   = ["#f5a623","#56e0a0","#ff6b6b","#5ba4e5","#e87adb","#2ed8c3"]
@@ -203,22 +205,19 @@ def sp(n=1):
 def load_data():
     df = pd.read_csv(DATA_FILE, parse_dates=["Order_Date"])
 
-    # ── FIX 1: Geographic classification — Pune is a city in Maharashtra
+    # FIX 1: Geographic classification — Pune is a city in Maharashtra
     df["Region"] = df["Region"].replace("Pune", "Maharashtra")
 
-    # ── FIX 2: Separate raw df (for status split) vs operational df
     df["YearMonth"] = df["Order_Date"].dt.to_period("M")
     df["Year"]      = df["Order_Date"].dt.year
     df["Month_Num"] = df["Order_Date"].dt.month
 
-    # ── FIX 3: Net Revenue — returned orders contribute ₹0
+    # FIX 2: Net Revenue — returned orders contribute ₹0
     df["Net_Revenue"] = np.where(df["Return_Flag"] == 1, 0.0, df["Revenue_INR"])
 
-    # ── FIX 4: Delivery_Days = NaN for Cancelled (never delivered)
+    # FIX 3: Delivery_Days = NaN for Cancelled (never delivered)
     df.loc[df["Order_Status"] == "Cancelled", "Delivery_Days"] = np.nan
 
-    # ── FIX 5: Operational subset — exclude Cancelled for all KPIs
-    # (Returned rows stay but with Net_Revenue = 0; Shipped treated as pending)
     return df
 
 @st.cache_data(show_spinner=False)
@@ -274,7 +273,7 @@ def ml_forecast(series_values, ds_index, n_future=6, alpha=0.5):
     X_hist = X_all[:n]
     X_fut  = X_all[n:]
 
-    # ── Hold-out evaluation (last 4 months) — RMSE / NRMSE / MAE
+    # Hold-out evaluation (last 4 months) — RMSE / NRMSE / MAE
     h = 4
     Xtr, Xte = X_hist[:-h], X_hist[-h:]
     ytr, yte = series_values[:-h], series_values[-h:]
@@ -291,7 +290,7 @@ def ml_forecast(series_values, ds_index, n_future=6, alpha=0.5):
     nrmse = rmse / np.mean(yte) if np.mean(yte) > 0 else 0
     mae   = mean_absolute_error(yte, ypred_eval)
 
-    # ── Full fit on all data — R² reflects full model quality (structural-break model)
+    # Full fit on all data
     sc2 = StandardScaler()
     X_hist_s = sc2.fit_transform(X_hist)
     mdl_full = Ridge(alpha=alpha)
@@ -304,13 +303,12 @@ def ml_forecast(series_values, ds_index, n_future=6, alpha=0.5):
     ss_tot    = np.sum((series_values - np.mean(series_values)) ** 2)
     r2        = 1 - ss_res / ss_tot if ss_tot > 0 else 0
 
-    # ── Forecast
+    # Forecast
     X_fut_s = sc2.transform(X_fut)
     forecast = np.maximum(mdl_full.predict(X_fut_s), 0)
 
-    # Future dates
-    last_dt    = ds_index.iloc[-1]
-    fut_dates  = pd.date_range(last_dt + pd.offsets.MonthBegin(1), periods=n_future, freq="MS")
+    last_dt   = ds_index.iloc[-1]
+    fut_dates = pd.date_range(last_dt + pd.offsets.MonthBegin(1), periods=n_future, freq="MS")
 
     return {
         "hist_ds":   ds_index.to_timestamp(),
@@ -361,7 +359,7 @@ def compute_inventory(order_cost=500, hold_pct=0.20, lead_time=7, z=1.65):
         eoq = int(np.sqrt(2 * ann_d * order_cost / (uc * hold_pct))) if ann_d > 0 else 10
         eoq = max(eoq, 1)
 
-        # Safety Stock — correct formula: z × σ_daily × √LT (convert monthly std → daily)
+        # Safety Stock — correct formula: z × σ_daily × √LT
         daily_std = std_d / np.sqrt(30)
         ss  = int(z * daily_std * np.sqrt(lead_time))
         ss  = max(ss, 0)
@@ -370,16 +368,14 @@ def compute_inventory(order_cost=500, hold_pct=0.20, lead_time=7, z=1.65):
         rop = int(daily_d * lead_time + ss)
         rop = max(rop, 1)
 
-        # ── REALISTIC stock simulation: (s,Q) inventory policy ──
-        # Opening stock = 2 × EOQ (typical starting inventory)
+        # Realistic stock simulation: (s,Q) inventory policy
         stock   = eoq * 2
-        pending = 0   # units on order
+        pending = 0
         for demand in demands:
             stock -= demand
             stock  = max(stock + pending, 0)
             pending = 0
             if stock < rop:
-                # Place replenishment order
                 n_orders = max(1, int(np.ceil((rop - stock + ss) / eoq)))
                 pending  = n_orders * eoq
 
@@ -392,10 +388,7 @@ def compute_inventory(order_cost=500, hold_pct=0.20, lead_time=7, z=1.65):
         else:
             status = "🟢 Adequate"
 
-        # Forecast demand (next 6 months) from ML model
-        ds_idx = pd.PeriodIndex(skd["YM"].values, freq="M")
-        ds_ts  = ds_idx.to_timestamp()
-        forecast_6m = int(avg_d * 6 * 1.05)  # 6-month demand estimate
+        forecast_6m = int(avg_d * 6 * 1.05)
 
         rows.append({
             "SKU_ID": sku, "Product_Name": sk["Product_Name"],
@@ -512,7 +505,6 @@ def build_context():
     ops  = get_ops(df)
     ops["YM"] = ops["Order_Date"].dt.to_period("M")
 
-    # Demand forecast
     m_orders = ops.groupby("YM")["Order_ID"].count().rename("v")
     m_qty    = ops.groupby("YM")["Quantity"].sum().rename("v")
     m_rev    = ops.groupby("YM")["Net_Revenue"].sum().rename("v")
@@ -589,15 +581,10 @@ CATEGORIES: {cat_str}
 TOP REGIONS: {reg_str}
 TOP PRODUCTS: {sku_str}"""
 
-# ─── RULE-BASED CHATBOT (no API needed) ─────────────────────
-# ─── API-POWERED CHATBOT  ───────────────────────────────────────────────────
-# Provider:  Anthropic Claude Sonnet  (primary)
-#            Groq LLaMA-3.3-70B       (free-tier fallback)
-# Key entry: sidebar — never hardcoded
+# ─── GROQ API CHATBOT ───────────────────────────────────────
+# FIX: Removed unused `provider` parameter confusion — Groq only, clearly labelled
 
-import requests as _requests
-
-def call_llm(messages: list, system: str, api_key: str, provider: str = "groq") -> str:
+def call_llm(messages: list, system: str, api_key: str) -> str:
     """Calls Groq API (LLaMA-3.3-70B) for AI chatbot responses."""
     hdrs = {
         "Authorization": f"Bearer {api_key}",
@@ -615,7 +602,7 @@ def call_llm(messages: list, system: str, api_key: str, provider: str = "groq") 
             headers=hdrs, json=body, timeout=50
         )
         if r.status_code == 401:
-            return "❌ Invalid Groq API key. Get a free key at console.groq.com"
+            return "❌ Invalid Groq API key. Please check the key you entered in the sidebar. Get a free key at console.groq.com"
         if r.status_code == 429:
             return "⚠️ Groq rate-limit reached. Wait a few seconds and retry."
         if r.status_code != 200:
@@ -655,7 +642,7 @@ Streamlit dashboard for an India D2D (Demand-to-Delivery) e-commerce business.
 {ctx}"""
 
 
-# ── Page ───────────────────────────────────────────────────
+# ── Chatbot Page ────────────────────────────────────────────
 def page_chatbot():
     df  = load_data()
     ops = get_ops(df)
@@ -663,9 +650,10 @@ def page_chatbot():
 
     st.markdown("<div class='page-title' style='color:#5ba4e5'>Decision Intelligence Chatbot</div>",
                 unsafe_allow_html=True)
+    # FIX: Corrected subtitle — only Groq/LLaMA is used, not Claude Sonnet
     st.markdown(
         "<div class='page-subtitle'>"
-        "Claude Sonnet · LLaMA-3.3-70B · Full supply chain context · "
+        "LLaMA-3.3-70B via Groq · Full supply chain context · "
         "Multi-turn · Unlimited query types"
         "</div>", unsafe_allow_html=True)
     st.markdown("""<div style='margin-bottom:16px'>
@@ -673,30 +661,45 @@ def page_chatbot():
       <span class='badge badge-teal'>⬆ Inventory</span>
       <span class='badge badge-lav'>⬆ Production</span>
       <span class='badge badge-coral'>⬆ Logistics</span>
-      <span class='badge badge-sky'>API LLM</span>
+      <span class='badge badge-sky'>Groq API</span>
     </div>""", unsafe_allow_html=True)
 
-    # ── Sidebar — API key config ──────────────────────────────
+    # ── Sidebar — Groq API key entry ──────────────────────────
+    # FIX: Clear instructions for exactly where and how to enter the key
     with st.sidebar:
-        st.markdown("""<div style=\'margin-top:18px;border-top:1px solid rgba(255,255,255,0.06);
+        st.markdown("""<div style='margin-top:18px;border-top:1px solid rgba(255,255,255,0.06);
             padding-top:16px;font-family:DM Mono,monospace;font-size:0.65rem;
             color:#4a5e7a;letter-spacing:0.08em;text-transform:uppercase;
-            margin-bottom:8px\'>🤖 Groq AI Config</div>""", unsafe_allow_html=True)
-
-        provider_code = "groq"
+            margin-bottom:8px'>🤖 Groq AI Config</div>""", unsafe_allow_html=True)
 
         api_key = st.text_input(
             "Groq API Key",
             type="password",
             key="llm_api_key",
-            placeholder="gsk_...",
-            help="Free API key at console.groq.com — no credit card needed"
+            placeholder="gsk_xxxxxxxxxxxxxxxxxxxx",
+            help="Paste your Groq key here (starts with gsk_). Get it free at console.groq.com — no credit card needed."
         )
-        st.markdown(
-            "<div style=\'font-size:0.6rem;color:#4a5e7a;font-family:DM Mono,"
-            "monospace;margin-top:4px\'>console.groq.com — free tier</div>",
-            unsafe_allow_html=True
-        )
+        # FIX: Added clear visual status indicator for key validity
+        if api_key and len(api_key.strip()) > 10:
+            if api_key.strip().startswith("gsk_"):
+                st.markdown(
+                    "<div style='font-size:0.62rem;color:#56e0a0;font-family:DM Mono,monospace;margin-top:4px'>"
+                    "✅ Key looks valid — ready to chat</div>",
+                    unsafe_allow_html=True
+                )
+            else:
+                st.markdown(
+                    "<div style='font-size:0.62rem;color:#ff6b6b;font-family:DM Mono,monospace;margin-top:4px'>"
+                    "⚠️ Key should start with gsk_</div>",
+                    unsafe_allow_html=True
+                )
+        else:
+            st.markdown(
+                "<div style='font-size:0.6rem;color:#4a5e7a;font-family:DM Mono,"
+                "monospace;margin-top:4px'>console.groq.com — free tier, no card needed</div>",
+                unsafe_allow_html=True
+            )
+
     # ── Build context & system prompt ─────────────────────────
     ctx    = build_context()
     system = build_system_prompt(ctx)
@@ -708,10 +711,11 @@ def page_chatbot():
     key_ok = bool(api_key and len(api_key.strip()) > 10)
     if not key_ok:
         st.markdown("""<div class='info-banner banner-amber'>
-          <b style='color:#f5a623'>⚠️ API Key Required:</b>
-          Enter your <b>Anthropic</b> (<code>sk-ant-...</code>) or
-          <b>Groq</b> (<code>gsk_...</code>) key in the sidebar to activate the chatbot.
-          Groq offers a <b style='color:#56e0a0'>free tier</b> — no credit card needed.
+          <b style='color:#f5a623'>⚠️ Groq API Key Required:</b>
+          Go to the <b>left sidebar → 🤖 Groq AI Config</b> section and paste your
+          <b>Groq key</b> (starts with <code>gsk_</code>).
+          Get one free at <b style='color:#56e0a0'>console.groq.com</b> — no credit card needed.
+          Then come back and click any question below or type your own.
         </div>""", unsafe_allow_html=True)
 
     # ── Session state ─────────────────────────────────────────
@@ -719,7 +723,8 @@ def page_chatbot():
         st.session_state.chat_msgs = []
 
     # ── Quick suggestion buttons ──────────────────────────────
-    SUGGESTIONS = [
+    # FIX: SUGGESTIONS defined only here (removed duplicate module-level definition)
+    CHAT_SUGGESTIONS = [
         "Which product will have the highest demand in March 2026?",
         "What is the reorder point for Home & Kitchen SKUs?",
         "Which region needs the most logistics support and why?",
@@ -741,18 +746,18 @@ def page_chatbot():
     if not st.session_state.chat_msgs:
         sec("Quick Queries — click any to get started", "⚡")
         cols = st.columns(4)
-        for i, s in enumerate(SUGGESTIONS):
+        for i, s in enumerate(CHAT_SUGGESTIONS):
             with cols[i % 4]:
                 if st.button(s, key=f"sug_{i}", use_container_width=True):
                     if not key_ok:
-                        st.warning("Enter your API key in the sidebar first.")
+                        st.warning("⚠️ Enter your Groq API key in the sidebar first (🤖 Groq AI Config section).")
                     else:
                         st.session_state.chat_msgs.append(
                             {"role": "user", "content": s})
                         with st.spinner("OmniFlow analysing…"):
                             reply = call_llm(
                                 [{"role": "user", "content": s}],
-                                system, api_key.strip(), provider_code)
+                                system, api_key.strip())
                         st.session_state.chat_msgs.append(
                             {"role": "assistant", "content": reply})
                         st.rerun()
@@ -769,7 +774,6 @@ def page_chatbot():
                 f"<div class='chat-user-bubble'>{content}</div></div>",
                 unsafe_allow_html=True)
         else:
-            # Sanitise + render markdown-lite
             safe = (content
                     .replace("&", "&amp;")
                     .replace("<", "&lt;")
@@ -818,13 +822,13 @@ def page_chatbot():
     with cb:
         if st.button("Send ↗", use_container_width=True):
             if not key_ok:
-                st.warning("Enter your API key in the sidebar first.")
+                st.warning("⚠️ Enter your Groq API key in the sidebar first (🤖 Groq AI Config section).")
             elif user_in.strip():
                 st.session_state.chat_msgs.append(
                     {"role": "user", "content": user_in.strip()})
-                history = st.session_state.chat_msgs[-20:]  # keep last 20 turns
+                history = st.session_state.chat_msgs[-20:]
                 with st.spinner("OmniFlow thinking…"):
-                    reply = call_llm(history, system, api_key.strip(), provider_code)
+                    reply = call_llm(history, system, api_key.strip())
                 st.session_state.chat_msgs.append(
                     {"role": "assistant", "content": reply})
                 st.rerun()
@@ -893,6 +897,9 @@ def page_chatbot():
                 last = fc
 
 
+# ═══════════════════════════════════════════════════════════
+# PAGE 1 — OVERVIEW
+# ═══════════════════════════════════════════════════════════
 def page_overview():
     df  = load_data()
     ops = get_ops(df)
@@ -919,12 +926,11 @@ def page_overview():
         <span class='badge badge-teal'>Inventory EOQ/ROP</span>
         <span class='badge badge-lav'>Production Plan</span>
         <span class='badge badge-coral'>Logistics + Cost Opt</span>
-        <span class='badge badge-sky'>AI Chatbot</span>
+        <span class='badge badge-sky'>AI Chatbot (Groq)</span>
         <span class='badge badge-mint'>RMSE · NRMSE · R²</span>
       </div>
     </div>""", unsafe_allow_html=True)
 
-    # KPIs
     delivered  = df[df["Order_Status"] == "Delivered"]
     net_rev    = ops["Net_Revenue"].sum()
     ret_rate   = df[df["Order_Status"] == "Returned"].shape[0] / len(ops) * 100
@@ -939,7 +945,6 @@ def page_overview():
     kpi(c6, "SKU Categories",  f"{df['Category'].nunique()}",     "mint",  "product types")
     sp()
 
-    # Charts row 1
     c_l, c_r = st.columns([3,2], gap="large")
     with c_l:
         sec("Monthly Net Revenue Trend")
@@ -1024,8 +1029,9 @@ def page_overview():
       <div style='background:var(--deep);border-radius:12px;padding:11px 17px;font-weight:700;
            font-size:0.78rem;text-align:center;min-width:95px;border:1px solid rgba(91,164,229,0.4);
            color:#5ba4e5;font-family:DM Mono,monospace'>AI Chatbot<span style='display:block;
-           font-size:0.58rem;font-weight:400;color:#4a5e7a;margin-top:3px'>All outputs</span></div>
+           font-size:0.58rem;font-weight:400;color:#4a5e7a;margin-top:3px'>Groq LLaMA</span></div>
     </div>""", unsafe_allow_html=True)
+
 
 # ═══════════════════════════════════════════════════════════
 # PAGE 2 — DEMAND FORECASTING
@@ -1068,25 +1074,20 @@ def page_demand():
             st.info("Insufficient data."); return None
 
         fig = go.Figure()
-        # CI band
         x_ci = list(res["fut_ds"]) + list(res["fut_ds"])[::-1]
         y_ci = list(res["ci_hi"])  + list(res["ci_lo"])[::-1]
         fig.add_trace(go.Scatter(x=x_ci, y=y_ci, fill="toself",
             fillcolor="rgba(245,166,35,0.07)", line=dict(color="rgba(0,0,0,0)"),
             name="90% CI", showlegend=False))
-        # Fitted historical
         fig.add_trace(go.Scatter(x=res["hist_ds"], y=res["fitted"], name="Model Fit",
             line=dict(color=color,width=1.5,dash="dot"), opacity=0.5))
-        # Actual historical
         fig.add_trace(go.Scatter(x=res["hist_ds"], y=res["hist_y"], name="Actual",
             line=dict(color="#4a5e7a",width=2),
             hovertemplate="<b>%{x|%b %Y}</b><br>%{y:,.0f}<extra></extra>"))
-        # Forecast
         fig.add_trace(go.Scatter(x=res["fut_ds"], y=res["forecast"], name="Forecast",
             line=dict(color=color,width=2.5,dash="dot"), mode="lines+markers",
             marker=dict(size=7,color=color,line=dict(color="#080e1a",width=2)),
             hovertemplate="<b>%{x|%b %Y}</b><br>%{y:,.0f}<extra></extra>"))
-        # Evaluation overlay
         fig.add_trace(go.Scatter(x=res["eval_ds"], y=res["eval_pred"], name="Eval Pred",
             mode="markers", marker=dict(size=10,color="#ff6b6b",symbol="x",
                 line=dict(color="#080e1a",width=2)),
@@ -1097,7 +1098,6 @@ def page_demand():
             title=dict(text=title, font=dict(color="#4a5e7a",size=11)))
         st.plotly_chart(fig, use_container_width=True)
 
-        # Metrics row
         m1,m2,m3,m4 = st.columns(4)
         kpi(m1,"RMSE",      f"{res['rmse']:.1f}",    "coral",  "hold-out 4 mo")
         kpi(m2,"NRMSE",     f"{res['nrmse']*100:.1f}%","amber", "normalised RMSE")
@@ -1160,10 +1160,11 @@ def page_demand():
     sp()
     sec("Category-Level Demand Forecast (Quantity)")
     tabs2 = st.tabs(list(cat_monthly.columns))
-    for tab, cat, col in zip(tabs2, cat_monthly.columns, COLORS):
+    for tab, cat, col2 in zip(tabs2, cat_monthly.columns, COLORS):
         with tab:
             vals = ops[ops["Category"]==cat].groupby("YM")["Quantity"].sum().rename("v")
-            draw(vals, color=col, title=cat)
+            draw(vals, color=col2, title=cat)
+
 
 # ═══════════════════════════════════════════════════════════
 # PAGE 3 — INVENTORY OPTIMISATION
@@ -1273,6 +1274,7 @@ def page_inventory():
     fig3.update_layout(**CD(), height=280, xaxis=gX(), yaxis={**gY(),"title":"Forecast Units"}, legend=leg())
     st.plotly_chart(fig3, use_container_width=True)
 
+
 # ═══════════════════════════════════════════════════════════
 # PAGE 4 — PRODUCTION PLANNING
 # ═══════════════════════════════════════════════════════════
@@ -1359,6 +1361,7 @@ def page_production():
     d3 = d2[["Month","Category","Demand_Forecast","Crit_Boost","Low_Boost","Buffer","Production","CI_Lo","CI_Hi"]].copy()
     d3.columns = ["Month","Category","Demand Fc","Crit Boost","Low Boost","Buffer","Production","Demand Lo","Demand Hi"]
     st.dataframe(d3.sort_values("Month"), use_container_width=True, hide_index=True)
+
 
 # ═══════════════════════════════════════════════════════════
 # PAGE 5 — LOGISTICS OPTIMISATION
@@ -1449,10 +1452,10 @@ def page_logistics():
             best_cat.columns = ["Category","Recommended Carrier","Avg Days","Planned Units (6mo)"]
             st.dataframe(best_cat, use_container_width=True, hide_index=True)
 
-    # ── TAB 2: COST OPTIMISATION (NEW) ──
+    # ── TAB 2: COST OPTIMISATION ──
     with t2:
         sec("Logistics Cost Optimisation Analysis", "💰")
-        total_current = (del_df["Shipping_Cost_INR"].sum())
+        total_current = del_df["Shipping_Cost_INR"].sum()
         total_saving  = opt["Potential_Saving"].sum()
 
         c1,c2,c3,c4 = st.columns(4)
@@ -1533,7 +1536,7 @@ def page_logistics():
 
         sec("Carrier × Region Delay Heatmap")
         pv = del_df2.groupby(["Courier_Partner","Region"])["Delayed"].mean().unstack(fill_value=0)*100
-        
+
         fig_h = go.Figure(go.Heatmap(z=pv.values, x=list(pv.columns), y=list(pv.index),
             colorscale=[[0,"#0d1829"],[0.4,"#7c4fd0"],[0.7,"#e87adb"],[1,"#ff6b6b"]],
             text=np.round(pv.values,1), texttemplate="%{text}%", textfont=dict(size=10),
@@ -1612,9 +1615,12 @@ def page_logistics():
     # ── TAB 5: Regions ──
     with t5:
         sec("Region Performance Overview")
+        # FIX: Use Net_Revenue from del_df (it's added in load_data so it exists on all subsets)
         rs = del_df.groupby("Region").agg(
-            Orders=("Order_ID","count"), Revenue=("Net_Revenue","sum"),
-            Qty=("Quantity","sum"), Avg_Del=("Delivery_Days","mean"),
+            Orders=("Order_ID","count"),
+            Revenue=("Net_Revenue","sum"),
+            Qty=("Quantity","sum"),
+            Avg_Del=("Delivery_Days","mean"),
             Returns=("Return_Flag","mean")).reset_index().sort_values("Revenue",ascending=False)
 
         met = st.selectbox("Metric", ["Revenue","Orders","Qty","Avg_Del","Returns"])
@@ -1663,19 +1669,6 @@ def page_logistics():
         fig_rf.update_layout(**CD(), height=270, xaxis=gX(), yaxis=gY(), legend=leg())
         st.plotly_chart(fig_rf, use_container_width=True)
 
-# ═══════════════════════════════════════════════════════════
-# PAGE 6 — AI DECISION CHATBOT
-# ═══════════════════════════════════════════════════════════
-SUGGESTIONS = [
-    "Demand forecast Jan–Jun 2026",
-    "Top 5 products by units sold",
-    "Which SKUs need immediate reorder?",
-    "Best carrier per region",
-    "Logistics cost saving opportunities",
-    "Production plan next 6 months",
-    "Regions with highest delay rates",
-    "Return rate by region",
-]
 
 # ─── SIDEBAR ─────────────────────────────────────────────
 st.sidebar.markdown("""<div style='padding:18px 0 26px'>
@@ -1705,10 +1698,12 @@ st.sidebar.markdown("""<div style='border-top:1px solid rgba(255,255,255,0.06);p
     <span style='color:#8a9dc0'>FORECAST</span><br>→ Jun 2026<br>
     <span style='color:#8a9dc0'>DATASET</span><br>5,200 orders · 50 SKUs<br>🇮🇳 India D2D<br>
     <span style='color:#8a9dc0'>MODEL</span><br>Ridge + Structural Break<br>
+    <span style='color:#8a9dc0'>CHATBOT</span><br>Groq LLaMA-3.3-70B<br>
     <span style='color:#8a9dc0'>FIXES APPLIED</span><br>
     ✓ Pune→Maharashtra<br>✓ Net Revenue (no returns)<br>
     ✓ Correct SS formula<br>✓ (s,Q) stock simulation<br>
-    ✓ RMSE/NRMSE/R² metrics<br>✓ Cost optimisation<br>✓ Rule-based chatbot<br>
+    ✓ RMSE/NRMSE/R² metrics<br>✓ Cost optimisation<br>
+    ✓ No duplicate SUGGESTIONS<br>✓ Groq key validator<br>
   </div>
   <div style='margin-top:14px;font-family:DM Mono,monospace;font-size:0.6rem;color:#4a5e7a'>
     <span style='color:#f5a623'>PIPELINE</span><br>
