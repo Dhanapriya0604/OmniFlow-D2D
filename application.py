@@ -13,103 +13,234 @@ st.set_page_config(
 
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Outfit:wght@300;400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 :root{
-  --midnight:#f7f9fc;--deep:#eef2f7;--surface:#ffffff;--panel:#f1f5f9;
-  --border:rgba(0,0,0,0.06);--border2:rgba(0,0,0,0.10);
-  --amber:#f59e0b;--coral:#ef4444;
-  --teal:#14b8a6;--sky:#3b82f6;--lav:#8b5cf6;--mint:#10b981;
-  --text1:#0f172a;--text2:#334155;--text3:#64748b;
-  --shadow:0 6px 20px rgba(0,0,0,0.06);
+  --bg:#F8F9FA;--bg2:#FFFFFF;--surface:#F1F3F5;--card:#FFFFFF;--panel:#F8F9FA;
+  --border:#E2E8F0;--border2:#CBD5E1;
+  --blue:#1D4ED8;--blue-l:#3B82F6;--green:#15803D;--amber:#B45309;
+  --red:#B91C1C;--purple:#6D28D9;--cyan:#0E7490;--orange:#C2410C;
+  --text1:#0F172A;--text2:#334155;--text3:#64748B;--text4:#94A3B8;
+  --accent:#1D4ED8;
+  --shadow:0 1px 3px rgba(0,0,0,0.08),0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md:0 4px 12px rgba(0,0,0,0.08),0 2px 4px rgba(0,0,0,0.04);
+  --radius:6px;
 }
 html,body,[class*="css"]{
-  font-family:'Outfit',sans-serif!important;
-  background:var(--midnight)!important;
+  font-family:'Inter',sans-serif!important;
+  background:var(--bg)!important;
   color:var(--text1)!important;
 }
-.stApp{
-  background:
-    radial-gradient(circle at 10% 10%, rgba(59,130,246,0.05), transparent 40%),
-    radial-gradient(circle at 90% 90%, rgba(16,185,129,0.04), transparent 40%),
-    var(--midnight)!important;
-}
+.stApp{background:var(--bg)!important;}
+
 section[data-testid="stSidebar"]{
-  background:#ffffff!important;
-  border-right:1px solid var(--border2)!important;
+  background:var(--bg2)!important;
+  border-right:1px solid var(--border)!important;
+  box-shadow:var(--shadow)!important;
 }
+section[data-testid="stSidebar"]::before{
+  content:"";position:absolute;top:0;left:0;right:0;height:3px;
+  background:linear-gradient(90deg,var(--blue),var(--blue-l));
+}
+
+/* ── Metric Cards ── */
 .metric-card{
-  position:relative;background:var(--surface);
-  border:1px solid var(--border);border-radius:14px;
-  padding:18px;box-shadow:var(--shadow);transition:all 0.25s ease;
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  padding:18px 20px;
+  box-shadow:var(--shadow);
+  position:relative;overflow:hidden;
+  transition:box-shadow 0.2s ease,border-color 0.2s ease;
+  cursor:default;
 }
+.metric-card::after{
+  content:"";position:absolute;top:0;left:0;right:0;height:3px;
+  border-radius:var(--radius) var(--radius) 0 0;
+}
+.metric-card.amber::after{background:var(--amber);}
+.metric-card.teal::after{background:var(--cyan);}
+.metric-card.coral::after{background:var(--red);}
+.metric-card.sky::after{background:var(--blue);}
+.metric-card.lav::after{background:var(--purple);}
+.metric-card.mint::after{background:var(--green);}
 .metric-card:hover{
-  transform:translateY(-3px);box-shadow:0 12px 30px rgba(0,0,0,0.10);
+  box-shadow:var(--shadow-md);
+  border-color:var(--border2);
 }
 .metric-label{
-  font-size:0.65rem;text-transform:uppercase;color:var(--text3);
-  letter-spacing:0.12em;font-weight:600;margin-bottom:8px;
-  font-family:'DM Mono',monospace!important;
+  font-size:0.68rem;text-transform:uppercase;color:var(--text3);
+  letter-spacing:0.1em;font-weight:600;margin-bottom:8px;
+  font-family:'JetBrains Mono',monospace!important;
 }
 .metric-value{
-  font-size:2rem;font-weight:800;color:var(--text1);
+  font-size:1.85rem;font-weight:700;line-height:1.1;
+  letter-spacing:-0.02em;color:var(--text1);
 }
 .metric-sub{
-  font-size:0.7rem;color:var(--text3);margin-top:5px;
-  font-family:'DM Mono',monospace!important;
+  font-size:0.68rem;color:var(--text4);margin-top:5px;
+  font-family:'JetBrains Mono',monospace!important;
 }
+
+/* ── Section Headers ── */
+.section-header{display:flex;align-items:center;gap:10px;margin:24px 0 14px;}
+.section-header-line{flex:1;height:1px;background:var(--border);}
 .section-title{
-  font-weight:700;font-size:0.78rem;text-transform:uppercase;
-  letter-spacing:0.1em;color:var(--text2);
-  font-family:'DM Mono',monospace!important;
+  font-weight:600;font-size:0.68rem;text-transform:uppercase;
+  letter-spacing:0.12em;color:var(--text3);
+  font-family:'JetBrains Mono',monospace!important;
 }
+
+/* ── Page Titles ── */
 .page-title{
-  font-size:2.4rem;font-weight:900;letter-spacing:-0.04em;
+  font-family:'Inter',sans-serif!important;
+  font-size:1.75rem;font-weight:700;
+  letter-spacing:-0.025em;line-height:1.2;
+  margin-bottom:4px;padding:14px 0 4px;
+  color:var(--text1);
 }
 .page-subtitle{
-  color:var(--text3);font-size:0.82rem;
-  font-family:'DM Mono',monospace!important;
+  color:var(--text3);font-size:0.73rem;
+  font-family:'JetBrains Mono',monospace!important;
+  margin-bottom:14px;letter-spacing:0.02em;
 }
-.about-card{
-  background:var(--surface);border:1px solid var(--border);
-  border-radius:20px;padding:26px 30px;
-}
+
+/* ── Badges ── */
 .badge{
-  display:inline-flex;padding:4px 11px;border-radius:999px;
-  font-size:0.68rem;font-weight:600;border:1px solid;
-  font-family:'DM Mono',monospace!important;margin:3px;
+  display:inline-flex;align-items:center;gap:4px;
+  padding:2px 9px;border-radius:4px;
+  font-size:0.64rem;font-weight:600;letter-spacing:0.05em;
+  border:1px solid;font-family:'JetBrains Mono',monospace!important;margin:2px;
 }
-.badge-amber{background:rgba(245,158,11,0.1);color:var(--amber);border-color:rgba(245,158,11,0.3);}
-.badge-teal{background:rgba(20,184,166,0.1);color:var(--teal);border-color:rgba(20,184,166,0.3);}
-.badge-coral{background:rgba(239,68,68,0.1);color:var(--coral);border-color:rgba(239,68,68,0.3);}
-.badge-sky{background:rgba(59,130,246,0.1);color:var(--sky);border-color:rgba(59,130,246,0.3);}
-.badge-lav{background:rgba(139,92,246,0.1);color:var(--lav);border-color:rgba(139,92,246,0.3);}
-.badge-mint{background:rgba(16,185,129,0.1);color:var(--mint);border-color:rgba(16,185,129,0.3);}
+.badge-amber{background:#FEF3C7;color:#92400E;border-color:#FCD34D;}
+.badge-teal{background:#CFFAFE;color:#155E75;border-color:#67E8F9;}
+.badge-coral{background:#FEE2E2;color:#991B1B;border-color:#FCA5A5;}
+.badge-sky{background:#DBEAFE;color:#1E40AF;border-color:#93C5FD;}
+.badge-lav{background:#EDE9FE;color:#5B21B6;border-color:#C4B5FD;}
+.badge-mint{background:#DCFCE7;color:#166534;border-color:#86EFAC;}
+
+/* ── Info Banners ── */
+.info-banner{
+  border-radius:var(--radius);padding:10px 14px;margin:8px 0 14px;
+  font-size:0.79rem;border:1px solid;position:relative;overflow:hidden;
+}
+.info-banner::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;}
+.banner-teal{background:#F0FDFA;border-color:#99F6E4;color:var(--text2);}
+.banner-teal::before{background:var(--cyan);}
+.banner-amber{background:#FFFBEB;border-color:#FDE68A;color:var(--text2);}
+.banner-amber::before{background:var(--amber);}
+.banner-coral{background:#FFF1F2;border-color:#FECDD3;color:var(--text2);}
+.banner-coral::before{background:var(--red);}
+.banner-mint{background:#F0FDF4;border-color:#BBF7D0;color:var(--text2);}
+.banner-mint::before{background:var(--green);}
+
+/* ── About Card ── */
+.about-card{
+  background:var(--card);
+  border:1px solid var(--border);border-radius:var(--radius);
+  padding:22px 26px;margin-bottom:20px;position:relative;overflow:hidden;
+  box-shadow:var(--shadow);
+}
+.about-card::before{
+  content:"";position:absolute;top:0;left:0;right:0;height:3px;
+  background:linear-gradient(90deg,var(--blue),var(--blue-l),var(--cyan));
+}
+
+/* ── Model Quality Cards ── */
+.model-quality-card{
+  border-radius:var(--radius);padding:14px 18px;margin:10px 0 8px;
+  border:1px solid;position:relative;overflow:hidden;
+  font-family:'JetBrains Mono',monospace;
+  background:var(--card);
+}
+.model-quality-card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;}
+.mqc-excellent{border-color:#BBF7D0;}
+.mqc-excellent::before{background:var(--green);}
+.mqc-good{border-color:#BFDBFE;}
+.mqc-good::before{background:var(--blue);}
+.mqc-acceptable{border-color:#FDE68A;}
+.mqc-acceptable::before{background:var(--amber);}
+.mqc-poor{border-color:#FECACA;}
+.mqc-poor::before{background:var(--red);}
+
+/* ── Alert Items ── */
+.alert-item{
+  border-radius:var(--radius);padding:8px 12px;margin:4px 0;
+  font-size:0.75rem;border-left:3px solid;
+  background:var(--surface);
+  font-family:'JetBrains Mono',monospace!important;
+  transition:background 0.15s ease;
+}
+.alert-item:hover{background:var(--bg2);}
+.alert-critical{border-color:var(--red);}
+.alert-warn{border-color:var(--amber);}
+.alert-ok{border-color:var(--green);}
+
+/* ── Chat Bubbles ── */
+.chat-user-bubble{
+  background:#EFF6FF;
+  border:1px solid #BFDBFE;
+  border-radius:8px 8px 2px 8px;
+  padding:10px 14px;font-size:0.85rem;margin-left:20%;
+  color:var(--text1);
+}
+.chat-ai-bubble{
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:8px 8px 8px 2px;
+  padding:12px 16px;font-size:0.85rem;
+  color:var(--text2);line-height:1.7;margin-right:10%;
+  box-shadow:var(--shadow);
+}
+
+/* ── Tabs ── */
 .stTabs [data-baseweb="tab-list"]{
-  background:#f1f5f9!important;
-  border-radius:12px!important;
-  padding:4px!important;
+  background:var(--surface)!important;border-radius:var(--radius)!important;
+  padding:4px!important;gap:2px!important;
+  border:1px solid var(--border)!important;
+}
+.stTabs [data-baseweb="tab"]{
+  background:transparent!important;border-radius:4px!important;
+  color:var(--text3)!important;
+  font-family:'JetBrains Mono',monospace!important;
+  font-size:0.72rem!important;font-weight:500!important;
+  padding:7px 14px!important;transition:all 0.15s!important;
 }
 .stTabs [aria-selected="true"]{
-  background:#ffffff!important;color:var(--sky)!important;
-  box-shadow:0 2px 6px rgba(0,0,0,0.08)!important;
+  background:var(--card)!important;
+  color:var(--blue)!important;
+  box-shadow:var(--shadow)!important;
+  font-weight:600!important;
 }
+
+/* ── Buttons ── */
 .stButton>button{
-  background:rgba(59,130,246,0.08)!important;color:var(--sky)!important;
-  border:1px solid rgba(59,130,246,0.25)!important;border-radius:10px!important;
-  font-size:0.78rem!important;font-family:'DM Mono',monospace!important;
+  background:var(--card)!important;
+  color:var(--text2)!important;
+  border:1px solid var(--border2)!important;
+  border-radius:var(--radius)!important;
+  font-weight:500!important;font-size:0.76rem!important;
+  font-family:'JetBrains Mono',monospace!important;
+  transition:all 0.15s!important;box-shadow:var(--shadow)!important;
 }
 .stButton>button:hover{
-  background:rgba(59,130,246,0.15)!important;
-  transform:translateY(-2px)!important;
+  background:var(--surface)!important;
+  color:var(--text1)!important;
+  border-color:var(--blue)!important;
+  box-shadow:var(--shadow-md)!important;
 }
-[data-testid="stDataFrame"]{
-  border:1px solid var(--border);
-  border-radius:12px;
-}
-::-webkit-scrollbar{width:5px;}
-::-webkit-scrollbar-thumb{background:#cccccc;border-radius:99px;}
-footer{visibility:hidden;}
-#MainMenu{visibility:hidden;}
+
+/* ── Streamlit overrides ── */
+.stDataFrame{border:1px solid var(--border)!important;border-radius:var(--radius)!important;}
+.stSelectbox>div>div{background:var(--card)!important;border-color:var(--border2)!important;}
+.stSlider .stSlider>div{color:var(--text1)!important;}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar{width:5px;height:5px;}
+::-webkit-scrollbar-track{background:var(--bg);}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:99px;}
+::-webkit-scrollbar-thumb:hover{background:var(--text4);}
+
+footer{visibility:hidden;}#MainMenu{visibility:hidden;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -124,19 +255,19 @@ import requests as _requests
 
 DATA_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "india_ecommerce_orders.csv")
 
-COLORS   = ["#4C8BF5","#22C55E","#F59E0B","#EF4444","#8B5CF6","#06B6D4"]
-COLORS_S = ["#2563EB","#16A34A","#D97706","#DC2626","#7C3AED","#0891B2"]
+COLORS   = ["#2563EB","#16A34A","#D97706","#DC2626","#7C3AED","#0E7490"]
+COLORS_S = ["#3B82F6","#22C55E","#F59E0B","#EF4444","#8B5CF6","#06B6D4"]
 
 def CD():
     return dict(
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(color="#94A3B8", family="IBM Plex Mono, monospace", size=11),
+        font=dict(color="#64748B", family="JetBrains Mono, monospace", size=11),
         margin=dict(l=8,r=8,t=34,b=14)
     )
 
-def gY(): return dict(showgrid=True, gridcolor="rgba(255,255,255,0.04)", zeroline=False, tickcolor="#475569")
-def gX(): return dict(showgrid=False, zeroline=False, tickcolor="#475569")
-def leg(): return dict(bgcolor="rgba(30,38,56,0.9)", bordercolor="rgba(255,255,255,0.08)", borderwidth=1, font=dict(color="#94A3B8",size=10))
+def gY(): return dict(showgrid=True, gridcolor="rgba(0,0,0,0.06)", zeroline=False, tickcolor="#64748B")
+def gX(): return dict(showgrid=False, zeroline=False, tickcolor="#64748B")
+def leg(): return dict(bgcolor="rgba(255,255,255,0.95)", bordercolor="rgba(0,0,0,0.08)", borderwidth=1, font=dict(color="#334155",size=10))
 
 def kpi(col, label, value, cls="amber", sub=""):
     col.markdown(f"""<div class='metric-card {cls}'>
@@ -829,7 +960,7 @@ def page_overview():
             fig.add_trace(go.Scatter(x=r_ov["fut_ds"], y=r_ov["forecast"], name="Forecast",
                 mode="lines+markers",
                 line=dict(color="#f5a623", width=2.5, dash="dot"),
-                marker=dict(size=7, color="#f5a623", line=dict(color="#080e1a", width=2)),
+                marker=dict(size=7, color="#f5a623", line=dict(color="#FFFFFF", width=2)),
                 hovertemplate="<b>%{x|%b %Y}</b><br>₹%{y:,.0f}<extra></extra>"))
         fig.update_layout(**CD(), height=260, xaxis=gX(),
             yaxis={**gY(), "tickformat":",.0f"}, legend=leg())
@@ -839,7 +970,7 @@ def page_overview():
         sec("Net Revenue by Category")
         cat = ops.groupby("Category")["Net_Revenue"].sum().sort_values(ascending=False)
         fig2 = go.Figure(go.Pie(labels=cat.index, values=cat.values, hole=.58,
-            marker=dict(colors=COLORS, line=dict(color="#080e1a",width=3)),
+            marker=dict(colors=COLORS, line=dict(color="#FFFFFF",width=3)),
             textinfo="label+percent", textfont=dict(size=10,color="#f0f4ff")))
         fig2.update_layout(**CD(), height=260, showlegend=False,
             annotations=[dict(text="Net Rev",x=.5,y=.5,showarrow=False,font=dict(size=10,color="#4a5e7a",family="DM Mono"))])
@@ -853,7 +984,7 @@ def page_overview():
         fig3 = go.Figure(go.Bar(x=ch.values, y=ch.index, orientation="h",
             marker=dict(color=COLORS[:len(ch)], line=dict(color="rgba(0,0,0,0)")),
             text=ch.values, textposition="outside", textfont=dict(color="#4a5e7a",size=10)))
-        fig3.update_layout(**CD(), height=240, xaxis=gX(), yaxis=dict(showgrid=False,color="#94A3B8"))
+        fig3.update_layout(**CD(), height=240, xaxis=gX(), yaxis=dict(showgrid=False,color="#64748B"))
         st.plotly_chart(fig3, use_container_width=True, key="chart_3")
 
     with c3b:
@@ -959,10 +1090,10 @@ def page_demand():
             hovertemplate="<b>%{x|%b %Y}</b><br>%{y:,.0f}<extra></extra>"))
         fig.add_trace(go.Scatter(x=res["fut_ds"], y=res["forecast"], name="Forecast",
             line=dict(color=color,width=2.5,dash="dot"), mode="lines+markers",
-            marker=dict(size=7,color=color,line=dict(color="#080e1a",width=2)),
+            marker=dict(size=7,color=color,line=dict(color="#FFFFFF",width=2)),
             hovertemplate="<b>%{x|%b %Y}</b><br>%{y:,.0f}<extra></extra>"))
         fig.add_trace(go.Scatter(x=res["eval_ds"], y=res["eval_pred"], name="Eval Pred",
-            mode="markers", marker=dict(size=10,color="#ff6b6b",symbol="x",line=dict(color="#080e1a",width=2))))
+            mode="markers", marker=dict(size=10,color="#ff6b6b",symbol="x",line=dict(color="#FFFFFF",width=2))))
         fig.update_layout(**CD(), height=320, xaxis=gX(), yaxis=gY(), legend=leg(),
             title=dict(text=title, font=dict(color="#4a5e7a",size=11)))
         st.plotly_chart(fig, use_container_width=True, key=chart_key)
@@ -1073,7 +1204,7 @@ def page_inventory():
         sc_colors = {"🔴 Critical":"#ff6b6b","🟡 Low":"#f5a623","🟢 Adequate":"#56e0a0"}
         sc = inv["Status"].value_counts()
         fig = go.Figure(go.Pie(labels=sc.index, values=sc.values, hole=.6,
-            marker=dict(colors=[sc_colors.get(s,"#4a5e7a") for s in sc.index], line=dict(color="#080e1a",width=3)),
+            marker=dict(colors=[sc_colors.get(s,"#4a5e7a") for s in sc.index], line=dict(color="#FFFFFF",width=3)),
             textinfo="label+value", textfont=dict(size=10,color="#f0f4ff")))
         fig.update_layout(**CD(), height=270, showlegend=False,
             annotations=[dict(text="SKUs",x=.5,y=.5,showarrow=False,font=dict(size=10,color="#4a5e7a",family="DM Mono"))])
@@ -1199,7 +1330,7 @@ def page_inventory():
                     size=10, color=stock_levels,
                     colorscale=[[0,"#ff6b6b"],[0.4,"#f5a623"],[1,"#56e0a0"]],
                     cmin=avg_ss, cmax=max(stock_levels) if stock_levels else 1,
-                    line=dict(color="#080e1a", width=2),
+                    line=dict(color="#FFFFFF", width=2),
                     showscale=False
                 ),
                 hovertemplate="<b>%{x}</b><br>Stock: %{y} units<extra></extra>"
@@ -1287,7 +1418,7 @@ def page_inventory():
         clr = COLORS[i % len(COLORS)]
         fig3.add_trace(go.Scatter(x=r["hist_ds"], y=r["hist_y"], line=dict(color=clr,width=1,dash="dot"), opacity=0.2, showlegend=False))
         fig3.add_trace(go.Scatter(x=r["fut_ds"], y=r["forecast"], name=cat,
-            mode="lines+markers", line=dict(color=clr,width=2.5), marker=dict(size=7,color=clr,line=dict(color="#080e1a",width=2))))
+            mode="lines+markers", line=dict(color=clr,width=2.5), marker=dict(size=7,color=clr,line=dict(color="#FFFFFF",width=2))))
     fig3.update_layout(**CD(), height=280, xaxis=gX(), yaxis={**gY(),"title":"Forecast Units"}, legend=leg())
     st.plotly_chart(fig3, use_container_width=True, key="inv_cat_demand")
 
@@ -1350,7 +1481,7 @@ def page_production():
         name="Inv. Replenishment", marker=dict(color="rgba(255,107,107,0.7)", line=dict(color="rgba(0,0,0,0)"))))
     fig.add_trace(go.Scatter(x=agg["Month_dt"], y=agg["Demand_Forecast"], name="Demand Forecast",
         mode="lines+markers", line=dict(color="#f5a623",width=2.5),
-        marker=dict(size=8,color="#f5a623",line=dict(color="#080e1a",width=2))))
+        marker=dict(size=8,color="#f5a623",line=dict(color="#FFFFFF",width=2))))
     fig.update_layout(**CD(), height=320, barmode="stack", xaxis=gX(), yaxis=gY(), legend=leg())
     st.plotly_chart(fig, use_container_width=True, key="chart_11")
 
@@ -1420,7 +1551,7 @@ def page_logistics():
         fig = go.Figure()
         for i, (_, r) in enumerate(carr.iterrows()):
             fig.add_trace(go.Scatter(x=[r["Avg_Days"]], y=[r["Avg_Cost"]], mode="markers+text",
-                marker=dict(size=max(r["Orders"]/35,16), color=COLORS[i], opacity=0.9, line=dict(color="#080e1a",width=2)),
+                marker=dict(size=max(r["Orders"]/35,16), color=COLORS[i], opacity=0.9, line=dict(color="#FFFFFF",width=2)),
                 text=[r["Courier_Partner"]], textposition="top center", name=r["Courier_Partner"],
                 hovertemplate=f"<b>{r['Courier_Partner']}</b><br>Orders:{r['Orders']}<br>Avg Del:{r['Avg_Days']:.1f}d<br>Avg Cost:₹{r['Avg_Cost']:.0f}<br>Score:{r['Perf_Score']:.3f}<extra></extra>"))
         fig.update_layout(**CD(), height=320, showlegend=False,
@@ -1459,7 +1590,7 @@ def page_logistics():
             # Forecast dashed continuation
             fig_carr_combo.add_trace(go.Scatter(x=r["fut_ds"], y=r["forecast"],
                 name=f"{c} (fcst)", line=dict(color=clr, width=2.5, dash="dot"),
-                mode="lines+markers", marker=dict(size=6, line=dict(color="#080e1a",width=1.5)),
+                mode="lines+markers", marker=dict(size=6, line=dict(color="#FFFFFF",width=1.5)),
                 showlegend=False,
                 hovertemplate=f"<b>{c} Forecast</b><br>%{{x|%b %Y}}<br>%{{y:,.0f}} orders<extra></extra>"))
         fig_carr_combo.update_layout(**CD(), height=300, xaxis=gX(),
@@ -1532,7 +1663,7 @@ def page_logistics():
             fig_r = go.Figure(go.Bar(x=rd_s["Rate"], y=rd_s["Region"], orientation="h",
                 marker=dict(color=[f"rgba(255,107,107,{min(v/60+0.25,0.9):.2f})" for v in rd_s["Rate"]], line=dict(color="rgba(0,0,0,0)")),
                 text=[f"{v}%" for v in rd_s["Rate"]], textposition="outside", textfont=dict(color="#4a5e7a")))
-            fig_r.update_layout(**CD(), height=300, xaxis={**gX(),"title":"Delay %"}, yaxis=dict(showgrid=False,color="#94A3B8"))
+            fig_r.update_layout(**CD(), height=300, xaxis={**gX(),"title":"Delay %"}, yaxis=dict(showgrid=False,color="#64748B"))
             st.plotly_chart(fig_r, use_container_width=True, key="chart_18")
         with cr3:
             sec("Delay Rate by Carrier")
@@ -1551,8 +1682,8 @@ def page_logistics():
             text=np.round(pv.values,1), texttemplate="%{text}%", textfont=dict(size=10),
             colorbar=dict(tickfont=dict(color="#8a9dc0",size=10))))
         fig_h.update_layout(**CD(), height=260,
-            xaxis=dict(showgrid=False,tickangle=-25,color="#94A3B8"),
-            yaxis=dict(showgrid=False,color="#94A3B8"))
+            xaxis=dict(showgrid=False,tickangle=-25,color="#64748B"),
+            yaxis=dict(showgrid=False,color="#64748B"))
         st.plotly_chart(fig_h, use_container_width=True, key="chart_20")
 
         sec("Avg Delivery Days Forecast")
@@ -1566,7 +1697,7 @@ def page_logistics():
             fig_d.add_trace(go.Scatter(x=r_del["hist_ds"],y=r_del["hist_y"],name="Historical",line=dict(color="#4a5e7a",width=2)))
             fig_d.add_trace(go.Scatter(x=r_del["fut_ds"],y=r_del["forecast"],name="Forecast",
                 line=dict(color="#ff6b6b",width=2.5,dash="dot"),mode="lines+markers",
-                marker=dict(size=8,color="#ff6b6b",line=dict(color="#080e1a",width=2))))
+                marker=dict(size=8,color="#ff6b6b",line=dict(color="#FFFFFF",width=2))))
             fig_d.update_layout(**CD(), height=250, xaxis=gX(), yaxis={**gY(),"title":"Avg Delivery Days"}, legend=leg())
             st.plotly_chart(fig_d, use_container_width=True, key="chart_21")
 
@@ -1591,7 +1722,7 @@ def page_logistics():
             fig_wh.add_trace(go.Scatter(x=r["fut_ds"], y=r["forecast"],
                 name=f"{wh} (fcst)", mode="lines+markers",
                 line=dict(color=clr, width=2.5, dash="dot"),
-                marker=dict(size=8, line=dict(color="#080e1a", width=2)),
+                marker=dict(size=8, line=dict(color="#FFFFFF", width=2)),
                 showlegend=False,
                 hovertemplate=f"<b>{wh} Forecast</b><br>%{{x|%b %Y}}<br>%{{y:,.0f}} units<extra></extra>"))
             for dt, fc, hi in zip(r["fut_ds"], r["forecast"], r["ci_hi"]):
@@ -1612,7 +1743,7 @@ def page_logistics():
         fig_tp = go.Figure(go.Bar(x=tp.values, y=tp.index, orientation="h",
             marker=dict(color="#2ed8c3", line=dict(color="rgba(0,0,0,0)")),
             text=tp.values, textposition="outside", textfont=dict(color="#4a5e7a")))
-        fig_tp.update_layout(**CD(), height=300, xaxis=gX(), yaxis=dict(showgrid=False,color="#94A3B8"))
+        fig_tp.update_layout(**CD(), height=300, xaxis=gX(), yaxis=dict(showgrid=False,color="#64748B"))
         st.plotly_chart(fig_tp, use_container_width=True, key="chart_23")
 
     with t5:
@@ -1643,7 +1774,7 @@ def page_logistics():
             fig_ret = go.Figure(go.Bar(x=rr.values, y=rr.index, orientation="h",
                 marker=dict(color=["#ff6b6b" if v>20 else "#f5a623" if v>12 else "#56e0a0" for v in rr.values], line=dict(color="rgba(0,0,0,0)")),
                 text=[f"{v:.1f}%" for v in rr.values], textposition="outside", textfont=dict(color="#4a5e7a")))
-            fig_ret.update_layout(**CD(), height=270, xaxis=gX(), yaxis=dict(showgrid=False,color="#94A3B8"))
+            fig_ret.update_layout(**CD(), height=270, xaxis=gX(), yaxis=dict(showgrid=False,color="#64748B"))
             st.plotly_chart(fig_ret, use_container_width=True, key="chart_25")
 
         sec("Region Revenue Forecast")
@@ -1657,7 +1788,7 @@ def page_logistics():
                 line=dict(color=COLORS[i],width=1.5,dash="solid"), opacity=0.25, showlegend=False))
             fig_rf.add_trace(go.Scatter(x=r["fut_ds"], y=r["forecast"], name=reg,
                 mode="lines+markers", line=dict(color=COLORS[i],width=2.5,dash="dot"),
-                marker=dict(size=8,line=dict(color="#080e1a",width=2))))
+                marker=dict(size=8,line=dict(color="#FFFFFF",width=2))))
         fig_rf.update_layout(**CD(), height=270, xaxis=gX(), yaxis=gY(), legend=leg())
         st.plotly_chart(fig_rf, use_container_width=True, key="chart_26")
 
