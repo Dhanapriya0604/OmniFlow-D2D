@@ -980,7 +980,7 @@ def page_demand():
         return sub.groupby("YM")[col].sum().rename("v")
 
     # draw() — NO per-chart metrics; those live only in the overall panel above
-    def draw(series, color="#f5a623", title=""):
+    def draw(series, color="#f5a623", title="", chart_key="demand_main"):
         res = ml_forecast(series.values.astype(float), series.index, n_future=horizon)
         if res is None:
             st.info("Insufficient data."); return None
@@ -1003,12 +1003,12 @@ def page_demand():
             mode="markers", marker=dict(size=10,color="#ff6b6b",symbol="x",line=dict(color="#080e1a",width=2))))
         fig.update_layout(**CD(), height=320, xaxis=gX(), yaxis=gY(), legend=leg(),
             title=dict(text=title, font=dict(color="#4a5e7a",size=11)))
-        st.plotly_chart(fig, use_container_width=True, key="chart_6")
+        st.plotly_chart(fig, use_container_width=True, key=chart_key)
         return res
 
     if level_opt == "Overall":
         series = get_series(ops)
-        res = draw(series)
+        res = draw(series, chart_key="demand_overall")
         if res is not None:
             sec("Forecast Table")
             tbl = pd.DataFrame({
@@ -1023,9 +1023,9 @@ def page_demand():
         grp  = grp_map[level_opt]
         top  = ops[grp].value_counts().head(5).index.tolist()
         tabs = st.tabs(top)
-        for tab, val, color in zip(tabs, top, COLORS):
+        for _ti, (tab, val, color) in enumerate(zip(tabs, top, COLORS)):
             with tab:
-                draw(get_series(ops[ops[grp]==val]), color=color, title=val)
+                draw(get_series(ops[ops[grp]==val]), color=color, title=val, chart_key=f"demand_bd_{_ti}")
 
     sp()
     sec("YoY Revenue Growth — Actual + Projected")
@@ -1057,10 +1057,10 @@ def page_demand():
     sp()
     sec("Category-Level Demand Forecast (Quantity)")
     tabs2 = st.tabs(list(cat_monthly.columns))
-    for tab, cat, col2 in zip(tabs2, cat_monthly.columns, COLORS):
+    for _ci, (tab, cat, col2) in enumerate(zip(tabs2, cat_monthly.columns, COLORS)):
         with tab:
             vals = ops[ops["Category"]==cat].groupby("YM")["Quantity"].sum().rename("v")
-            draw(vals, color=col2, title=cat)
+            draw(vals, color=col2, title=cat, chart_key=f"demand_cat_{_ci}")
 
 # ═══════════════════════════════════════════════════════════
 # PAGE — INVENTORY  (UPDATED)
@@ -1287,7 +1287,7 @@ def page_inventory():
                     font=dict(color="#4a5e7a", size=11)
                 )
             )
-            st.plotly_chart(fig, use_container_width=True, key="chart_9")
+            st.plotly_chart(fig, use_container_width=True, key=f"inv_stock_{cat}")
 
             # KPI row below chart
             ka, kb, kc, kd, ke = st.columns(5)
@@ -1327,7 +1327,7 @@ def page_inventory():
         fig3.add_trace(go.Scatter(x=r["fut_ds"], y=r["forecast"], name=cat,
             mode="lines+markers", line=dict(color=clr,width=2.5), marker=dict(size=7,color=clr,line=dict(color="#080e1a",width=2))))
     fig3.update_layout(**CD(), height=280, xaxis=gX(), yaxis={**gY(),"title":"Forecast Units"}, legend=leg())
-    st.plotly_chart(fig3, use_container_width=True, key="chart_10")
+    st.plotly_chart(fig3, use_container_width=True, key="inv_cat_demand")
 
 # ═══════════════════════════════════════════════════════════
 # PAGE — PRODUCTION
