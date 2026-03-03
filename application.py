@@ -15,11 +15,11 @@ st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Outfit:wght@300;400;500;600;700;800;900&display=swap');
 :root{
-  --midnight:#F7F7F7;--deep:#EFEFEF;--surface:#E8E8E8;--panel:#E0E0E0;
+  --midnight:#FFFFFF;--deep:#F5F5F5;--surface:#EEEEEE;--panel:#E8E8E8;
   --border:rgba(0,0,0,0.08);--border2:rgba(0,0,0,0.14);
   --amber:#b86f08;--coral:#c94040;--teal:#167a6e;--sky:#1d5fa8;
   --lav:#5a44a8;--mint:#16804a;
-  --text1:#000000;--text2:#111111;--text3:#333333;
+  --text1:#000000;--text2:#000000;--text3:#1a1a1a;
   --shadow:0 4px 20px rgba(0,0,0,0.08),0 1px 0 rgba(255,255,255,0.8);
 }
 html,body,[class*="css"]{font-family:'Outfit',sans-serif!important;background:var(--midnight)!important;color:var(--text1)!important;}
@@ -32,14 +32,14 @@ html,body,[class*="css"]{font-family:'Outfit',sans-serif!important;background:va
 section[data-testid="stSidebar"]{
   background:linear-gradient(180deg,var(--deep) 0%,var(--midnight) 100%)!important;
   border-right:1px solid var(--border2)!important;
-  box-shadow:4px 0 16px rgba(0,0,0,0.06)!important;
+  box-shadow:4px 0 12px rgba(0,0,0,0.04)!important;
 }
 section[data-testid="stSidebar"]::before{
   content:"";position:absolute;top:0;left:0;right:0;height:2px;
   background:linear-gradient(90deg,var(--amber),var(--coral),var(--teal));
 }
 .metric-card{
-  background:linear-gradient(135deg,#ffffff 0%,#f4f4f4 100%);
+  background:#ffffff;
   border:1px solid var(--border);border-radius:16px;padding:20px 22px;
   box-shadow:var(--shadow);position:relative;overflow:hidden;
   transition:transform 0.3s ease,box-shadow 0.3s ease;cursor:default;
@@ -116,11 +116,11 @@ section[data-testid="stSidebar"]::before{
   border:1px solid rgba(184,111,8,0.22);border-radius:14px 14px 4px 14px;
   padding:11px 15px;font-size:0.87rem;margin-left:18%;}
 .chat-ai-bubble{
-  background:linear-gradient(135deg,#ffffff,#f4f4f4);
+  background:#ffffff;
   border:1px solid var(--border2);border-radius:14px 14px 14px 4px;
   padding:13px 17px;font-size:0.87rem;color:var(--text2);line-height:1.7;margin-right:8%;}
 .stTabs [data-baseweb="tab-list"]{
-  background:#e8e8e8!important;border-radius:14px!important;
+  background:#f0f0f0!important;border-radius:14px!important;
   padding:5px 7px!important;gap:5px!important;border:1px solid var(--border)!important;
 }
 .stTabs [data-baseweb="tab"]{
@@ -143,7 +143,7 @@ section[data-testid="stSidebar"]::before{
   transform:translateY(-2px)!important;box-shadow:0 6px 16px rgba(184,111,8,0.16)!important;
 }
 ::-webkit-scrollbar{width:5px;height:5px;}
-::-webkit-scrollbar-track{background:#f0f0f0;}
+::-webkit-scrollbar-track{background:#f5f5f5;}
 ::-webkit-scrollbar-thumb{background:#cccccc;border-radius:99px;}
 footer{visibility:hidden;}#MainMenu{visibility:hidden;}
 @keyframes fadeUp{from{opacity:0;transform:translateY(20px);}to{opacity:1;transform:translateY(0);}}
