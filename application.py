@@ -13,7 +13,7 @@ st.set_page_config(
 
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 :root {
   --bg:       #FFFFFF;
@@ -45,7 +45,7 @@ st.markdown("""
   --text4: #555555;
 
   --shadow: 0 1px 4px rgba(0,0,0,0.08);
-  --radius: 12px;
+  --radius: 16px;
 }
 
 html, body, [class*="css"] {
@@ -89,18 +89,19 @@ section[data-testid="stSidebar"] {
 .metric-label {
   font-size: 0.72rem;
   text-transform: uppercase;
-  color: #555555;
-  letter-spacing: 0.08em;
-  font-weight: 600;
-  margin-bottom: 10px;
-  font-family: 'JetBrains Mono', monospace !important;
+  color: #777777;
+  letter-spacing: 0.06em;
+  font-weight: 500;
+  margin-bottom: 8px;
+  font-family: 'Inter', sans-serif !important;
 }
 .metric-value {
   font-size: 2.1rem;
-  font-weight: 800;
+  font-weight: 700;
   line-height: 1.1;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
   color: #000000;
+  font-family: 'Inter', sans-serif !important;
 }
 /* colored values per card type */
 .metric-card.sky    .metric-value { color: var(--blue); }
@@ -114,7 +115,7 @@ section[data-testid="stSidebar"] {
   font-size: 0.7rem;
   color: #555555;
   margin-top: 5px;
-  font-family: 'JetBrains Mono', monospace !important;
+  font-family: 'Inter', sans-serif !important;
 }
 
 /* ── Section Headers ── */
