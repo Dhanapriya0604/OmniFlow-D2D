@@ -65,7 +65,6 @@ def inject_css():
         height:2px;background:linear-gradient(90deg,#e5e7eb,transparent);
         margin-top:6px;
     }    
-    
     .metric-sub{
         font-size:11px;color:#64748b;margin-top:4px;
     }   
@@ -79,6 +78,7 @@ def inject_css():
     .badge-coral{background:#fff1f2;color:#e11d48}
     .badge-sky{background:#eff6ff;color:#2563eb}
     .badge-mint{background:#ecfdf5;color:#059669}
+    .badge-purple{background:#faf5ff;color:#7c3aed}
     .info-banner{
         border-radius:12px;padding:14px 16px;margin:10px 0;font-size:13px;
     }
@@ -93,7 +93,10 @@ def inject_css():
     }
     .banner-mint{
        background:#ecfdf5;border:1px solid #34d399;
-    }  
+    }
+    .banner-purple{
+       background:#faf5ff;border:1px solid #a78bfa;
+    }
     .chat-user-bubble{
         background:#1e3a8a;color:white;padding:10px 14px;
         border-radius:14px;max-width:70%;margin-left:auto;
@@ -115,6 +118,19 @@ def inject_css():
         background:white;border-radius:16px;padding:18px;
         border:1px solid #e5e7eb;box-shadow:0 6px 20px rgba(0,0,0,0.08);
     } 
+    .ensemble-card{
+        background:linear-gradient(135deg,#f8faff,#ffffff);border-radius:16px;padding:18px;
+        border:1px solid #c7d7fd;box-shadow:0 6px 20px rgba(30,58,138,0.10);
+        margin-bottom:14px;
+    }
+    .model-pill{
+        display:inline-block;padding:4px 10px;font-size:11px;font-weight:700;
+        border-radius:20px;margin-right:6px;margin-bottom:4px;
+    }
+    .pill-ridge{background:#eff6ff;color:#1d4ed8}
+    .pill-rf{background:#f0fdf4;color:#15803d}
+    .pill-gb{background:#fef9c3;color:#a16207}
+    .pill-ensemble{background:#fdf4ff;color:#7e22ce}
     .about-card{
         background:white;border:1px solid #e5e7eb;border-radius:16px;
         padding:18px;margin-bottom:20px;box-shadow:0 6px 20px rgba(0,0,0,0.08);
@@ -142,6 +158,7 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 from sklearn.linear_model import Ridge
+from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_squared_error, mean_absolute_error
 import os
@@ -151,6 +168,13 @@ DATA_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "india_ecom
 
 COLORS   = ["#1565C0","#2E7D32","#E65100","#C62828","#6A1B9A","#00695C"]
 COLORS_S = ["#1976D2","#388E3C","#F57C00","#D32F2F","#7B1FA2","#00796B"]
+
+MODEL_COLORS = {
+    "Ridge":    "#3B82F6",
+    "RandomForest": "#22C55E",
+    "GradBoost":    "#F59E0B",
+    "Ensemble": "#8B5CF6",
+}
 
 def CD():
     return dict(
@@ -184,42 +208,66 @@ def sp(n=1):
 
 def model_quality_verdict(nrmse, r2):
     accuracy_pct = max(0, round((1 - nrmse) * 100, 1))
-
     if nrmse < 0.10 and r2 >= 0.95:
-        grade, label, css = "A+", "Excellent", "mqc-excellent"
-        explanation = "Model captures demand patterns with very high precision. Safe to rely on forecasts for procurement and production decisions."
-        icon = "✅"
+        grade, label, explanation, icon = "A+", "Excellent", "Ensemble captures demand patterns with very high precision. Safe to rely on forecasts for procurement and production decisions.", "✅"
     elif nrmse < 0.15 and r2 >= 0.90:
-        grade, label, css = "A", "Very Good", "mqc-excellent"
-        explanation = "Strong fit with low error. Forecasts are reliable for 1–3 month planning horizons."
-        icon = "✅"
+        grade, label, explanation, icon = "A", "Very Good", "Strong fit with low error. Forecasts are reliable for 1–3 month planning horizons.", "✅"
     elif nrmse < 0.20 and r2 >= 0.85:
-        grade, label, css = "B+", "Good", "mqc-good"
-        explanation = "Model performs well. Minor variance in hold-out period — use confidence intervals for safety stock calculations."
-        icon = "🟦"
+        grade, label, explanation, icon = "B+", "Good", "Model performs well. Minor variance in hold-out period — use confidence intervals for safety stock calculations.", "🟦"
     elif nrmse < 0.25 and r2 >= 0.75:
-        grade, label, css = "B", "Acceptable", "mqc-acceptable"
-        explanation = "Moderate fit. Suitable for directional planning. Add extra safety buffer (10–15%) to production targets."
-        icon = "⚠️"
+        grade, label, explanation, icon = "B", "Acceptable", "Moderate fit. Suitable for directional planning. Add extra safety buffer (10–15%) to production targets.", "⚠️"
     elif nrmse < 0.35 and r2 >= 0.60:
-        grade, label, css = "C", "Weak", "mqc-acceptable"
-        explanation = "High variance in predictions. Treat forecasts as indicative only. Consider more data or feature engineering."
-        icon = "⚠️"
+        grade, label, explanation, icon = "C", "Weak", "High variance in predictions. Treat forecasts as indicative only. Consider more data or feature engineering.", "⚠️"
     else:
-        grade, label, css = "D", "Poor", "mqc-poor"
-        explanation = "Model struggles to capture the demand pattern. Do NOT use for procurement without manual override."
-        icon = "🔴"
-
-    return grade, label, css, explanation, accuracy_pct, icon
+        grade, label, explanation, icon = "D", "Poor", "Model struggles to capture the demand pattern. Do NOT use for procurement without manual override.", "🔴"
+    return grade, label, explanation, accuracy_pct, icon
 
 def render_model_quality(res):
-    grade, label, css, explanation, accuracy_pct, icon = model_quality_verdict(res["nrmse"], res["r2"])
+    grade, label, explanation, accuracy_pct, icon = model_quality_verdict(res["nrmse"], res["r2"])
+    
+    # Show individual model metrics
+    if "model_metrics" in res:
+        st.markdown("<div class='ensemble-card'>", unsafe_allow_html=True)
+        st.markdown("""<div style='font-size:0.75rem;font-weight:700;color:#4a5e7a;
+            letter-spacing:0.08em;text-transform:uppercase;margin-bottom:12px'>
+            🤖 Individual Model Performance (Hold-out Evaluation)</div>""", unsafe_allow_html=True)
+        mm = res["model_metrics"]
+        mc1, mc2, mc3, mc4 = st.columns(4)
+        for col, (mname, pill_cls, clr) in zip(
+            [mc1, mc2, mc3, mc4],
+            [("Ridge","pill-ridge","#3B82F6"),("RandomForest","pill-rf","#22C55E"),
+             ("GradBoost","pill-gb","#F59E0B"),("Ensemble","pill-ensemble","#8B5CF6")]
+        ):
+            if mname in mm:
+                m = mm[mname]
+                col.markdown(f"""<div style='text-align:center;padding:10px;border-radius:12px;
+                    border:1px solid #e5e7eb;background:white'>
+                    <div class='model-pill {pill_cls}'>{mname}</div>
+                    <div style='font-size:0.7rem;color:#64748b;margin-top:6px'>RMSE</div>
+                    <div style='font-size:1.1rem;font-weight:800;color:{clr}'>{m["rmse"]:.1f}</div>
+                    <div style='font-size:0.68rem;color:#94a3b8'>NRMSE {m["nrmse"]*100:.1f}% · R² {m["r2"]:.3f}</div>
+                </div>""", unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+
+        # Weights display
+        weights = res.get("weights", {})
+        if weights:
+            total = sum(weights.values())
+            st.markdown(f"""<div style='background:#f8faff;border:1px solid #c7d7fd;border-radius:10px;
+                padding:10px 14px;font-size:0.75rem;margin:8px 0'>
+                <b style='color:#1e3a8a'>Ensemble Weights (inverse-RMSE blending):</b>
+                <span class='model-pill pill-ridge'>Ridge {weights.get("Ridge",0)/total*100:.0f}%</span>
+                <span class='model-pill pill-rf'>RF {weights.get("RandomForest",0)/total*100:.0f}%</span>
+                <span class='model-pill pill-gb'>GB {weights.get("GradBoost",0)/total*100:.0f}%</span>
+            </div>""", unsafe_allow_html=True)
+        sp(0.5)
+
     m1, m2, m3, m4, m5 = st.columns(5)
-    kpi(m1, "RMSE",          f"{res['rmse']:.1f}",         "sky", "hold-out 4 mo")
-    kpi(m2, "NRMSE",         f"{res['nrmse']*100:.1f}%",   "sky", "normalised RMSE")
-    kpi(m3, "MAE",           f"{res['mae']:.1f}",          "sky", "mean abs error")
-    kpi(m4, "R² Score",      f"{res['r2']:.3f}",           "sky", "model fit (1=perfect)")
-    kpi(m5, "Accuracy",      f"{accuracy_pct:.1f}%",       "sky", "1 − NRMSE")
+    kpi(m1, "RMSE",      f"{res['rmse']:.1f}",        "sky", "ensemble hold-out")
+    kpi(m2, "NRMSE",     f"{res['nrmse']*100:.1f}%",  "sky", "normalised RMSE")
+    kpi(m3, "MAE",       f"{res['mae']:.1f}",         "sky", "mean abs error")
+    kpi(m4, "R² Score",  f"{res['r2']:.3f}",          "sky", "model fit (1=perfect)")
+    kpi(m5, "Accuracy",  f"{accuracy_pct:.1f}%",      "sky", "1 − NRMSE")
     sp(0.5)
 
     st.markdown(f"""
@@ -229,7 +277,7 @@ def render_model_quality(res):
         <div>
           <div style='font-size:0.7rem;text-transform:uppercase;
                letter-spacing:0.12em;color:#64748b;margin-bottom:4px'>
-               Model Quality Grade
+               Ensemble Quality Grade
           </div>
           <div style='font-size:1.5rem;font-weight:900'>
             {grade} <span style='font-size:0.9rem;font-weight:600;color:#334155'>
@@ -241,7 +289,6 @@ def render_model_quality(res):
           <div style='font-size:2rem;font-weight:900'>{accuracy_pct:.1f}%</div>
         </div>
       </div>
-    
       <div style='font-size:0.85rem;color:#334155;
            border-top:1px solid rgba(0,0,0,0.06);
            padding-top:10px;line-height:1.6'>
@@ -276,6 +323,7 @@ def _to_timestamp_index(idx):
     return pd.DatetimeIndex(idx)
 
 def build_features(n_hist, n_future, ds_hist, regime_start_idx):
+    """Build rich feature matrix for all models."""
     all_t       = np.arange(n_hist + n_future)
     ts          = _to_timestamp_index(ds_hist)
     hist_months = ts.month.values
@@ -283,15 +331,45 @@ def build_features(n_hist, n_future, ds_hist, regime_start_idx):
     fut_months  = np.array([(last_month + i - 1) % 12 + 1 for i in range(1, n_future + 1)])
     mn          = np.concatenate([hist_months, fut_months])
     regime      = (all_t >= regime_start_idx).astype(float)
+    # Enhanced feature set: trend, polynomial, Fourier (2 harmonics), regime interaction, quarter dummies
+    quarter = np.where(mn <= 3, 1, np.where(mn <= 6, 2, np.where(mn <= 9, 3, 4)))
+    q1 = (quarter == 1).astype(float)
+    q2 = (quarter == 2).astype(float)
+    q3 = (quarter == 3).astype(float)
     X = np.column_stack([
-        all_t, all_t ** 2,
-        np.sin(2 * np.pi * mn / 12), np.cos(2 * np.pi * mn / 12),
-        np.sin(4 * np.pi * mn / 12), np.cos(4 * np.pi * mn / 12),
-        regime, all_t * regime,
+        all_t,
+        all_t ** 2,
+        np.sin(2 * np.pi * mn / 12),
+        np.cos(2 * np.pi * mn / 12),
+        np.sin(4 * np.pi * mn / 12),
+        np.cos(4 * np.pi * mn / 12),
+        np.sin(6 * np.pi * mn / 12),   # 3rd harmonic
+        np.cos(6 * np.pi * mn / 12),
+        regime,
+        all_t * regime,
+        q1, q2, q3,                    # quarter indicators
+        np.log1p(all_t),               # log trend
     ])
     return X
 
-def ml_forecast(series_values, ds_index, n_future=6, alpha=0.5):
+def _fit_predict_model(model, Xtr, ytr, Xte, Xfull, X_fut, sc):
+    """Fit a single model, return eval_pred, fitted, forecast."""
+    Xtr_s  = sc.transform(Xtr)
+    Xte_s  = sc.transform(Xte)
+    Xall_s = sc.transform(Xfull)
+    Xfut_s = sc.transform(X_fut)
+    model.fit(Xtr_s, ytr)
+    eval_pred = np.maximum(model.predict(Xte_s), 0)
+    fitted    = np.maximum(model.predict(Xall_s), 0)
+    forecast  = np.maximum(model.predict(Xfut_s), 0)
+    return eval_pred, fitted, forecast
+
+def ml_forecast(series_values, ds_index, n_future=6):
+    """
+    3-Model Ensemble: Ridge Regression + Random Forest + Gradient Boosting.
+    Weights determined by inverse-RMSE on hold-out (last 4 months).
+    Returns blended forecast + per-model breakdown.
+    """
     n = len(series_values)
     if n < 6:
         return None
@@ -304,48 +382,97 @@ def ml_forecast(series_values, ds_index, n_future=6, alpha=0.5):
     Xtr, Xte = X_hist[:-h], X_hist[-h:]
     ytr, yte = series_values[:-h], series_values[-h:]
 
+    # Shared scaler (fit on train only)
     sc = StandardScaler()
-    Xtr_s = sc.fit_transform(Xtr)
-    Xte_s = sc.transform(Xte)
-    mdl_eval = Ridge(alpha=alpha)
-    mdl_eval.fit(Xtr_s, ytr)
-    ypred_eval = np.maximum(mdl_eval.predict(Xte_s), 0)
-    rmse  = np.sqrt(mean_squared_error(yte, ypred_eval))
-    nrmse = rmse / np.mean(yte) if np.mean(yte) > 0 else 0
-    mae   = mean_absolute_error(yte, ypred_eval)
+    sc.fit(Xtr)
 
+    # ── Three models ────────────────────────────────────────────
+    models = {
+        "Ridge":        Ridge(alpha=0.5),
+        "RandomForest": RandomForestRegressor(n_estimators=200, max_depth=6,
+                                              min_samples_leaf=2, random_state=42),
+        "GradBoost":    GradientBoostingRegressor(n_estimators=200, max_depth=4,
+                                                  learning_rate=0.05, subsample=0.8,
+                                                  random_state=42),
+    }
+
+    eval_preds  = {}
+    model_rmses = {}
+    model_metrics = {}
+
+    # Eval pass (train on Xtr, predict Xte)
+    for mname, mdl in models.items():
+        ep, _, _ = _fit_predict_model(mdl, Xtr, ytr, Xte, X_hist, X_fut, sc)
+        rmse  = np.sqrt(mean_squared_error(yte, ep))
+        nrmse = rmse / np.mean(yte) if np.mean(yte) > 0 else 0
+        mae   = mean_absolute_error(yte, ep)
+        ss_res = np.sum((yte - ep) ** 2)
+        ss_tot = np.sum((yte - np.mean(yte)) ** 2)
+        r2     = 1 - ss_res / ss_tot if ss_tot > 0 else 0
+        eval_preds[mname]  = ep
+        model_rmses[mname] = rmse
+        model_metrics[mname] = {"rmse": rmse, "nrmse": nrmse, "mae": mae, "r2": r2}
+
+    # Inverse-RMSE weights
+    inv_rmse = {m: 1.0 / (r + 1e-9) for m, r in model_rmses.items()}
+    total_inv = sum(inv_rmse.values())
+    weights   = {m: v / total_inv for m, v in inv_rmse.items()}
+
+    # Blended eval prediction
+    ypred_eval = sum(weights[m] * eval_preds[m] for m in models)
+
+    # Full-data retrain for final forecast
     sc2 = StandardScaler()
-    X_hist_s = sc2.fit_transform(X_hist)
-    mdl_full = Ridge(alpha=alpha)
-    mdl_full.fit(X_hist_s, series_values)
-    fitted    = np.maximum(mdl_full.predict(X_hist_s), 0)
-    residuals = series_values - fitted
+    sc2.fit(X_hist)
+    fitted_per_model   = {}
+    forecast_per_model = {}
+
+    for mname, mdl in models.items():
+        _, fitted, forecast = _fit_predict_model(mdl, X_hist, series_values, Xte, X_hist, X_fut, sc2)
+        fitted_per_model[mname]   = fitted
+        forecast_per_model[mname] = forecast
+
+    # Blended ensemble
+    ensemble_fitted   = sum(weights[m] * fitted_per_model[m]   for m in models)
+    ensemble_forecast = sum(weights[m] * forecast_per_model[m] for m in models)
+
+    # Metrics on ensemble
+    residuals = series_values - ensemble_fitted
     resid_std = residuals.std()
-    ss_res    = np.sum((series_values - fitted) ** 2)
-    ss_tot    = np.sum((series_values - np.mean(series_values)) ** 2)
-    r2        = 1 - ss_res / ss_tot if ss_tot > 0 else 0
-    X_fut_s  = sc2.transform(X_fut)
-    forecast = np.maximum(mdl_full.predict(X_fut_s), 0)
-    ts_index = _to_timestamp_index(ds_index)
-    last_dt  = ts_index[-1]
+    ss_res_e  = np.sum(residuals ** 2)
+    ss_tot_e  = np.sum((series_values - np.mean(series_values)) ** 2)
+    r2_e      = 1 - ss_res_e / ss_tot_e if ss_tot_e > 0 else 0
+    rmse_e    = np.sqrt(mean_squared_error(yte, ypred_eval))
+    nrmse_e   = rmse_e / np.mean(yte) if np.mean(yte) > 0 else 0
+    mae_e     = mean_absolute_error(yte, ypred_eval)
+
+    # Add ensemble to model_metrics
+    model_metrics["Ensemble"] = {"rmse": rmse_e, "nrmse": nrmse_e, "mae": mae_e, "r2": r2_e}
+
+    ts_index  = _to_timestamp_index(ds_index)
+    last_dt   = ts_index[-1]
     fut_dates = pd.date_range(last_dt + pd.offsets.MonthBegin(1), periods=n_future, freq="MS")
 
     return {
-        "hist_ds":     ts_index,
-        "hist_y":      series_values,
-        "fitted":      fitted,
-        "fut_ds":      fut_dates,
-        "forecast":    forecast,
-        "ci_lo":       np.maximum(forecast - 1.645 * resid_std, 0),
-        "ci_hi":       forecast + 1.645 * resid_std,
-        "rmse":        rmse,
-        "nrmse":       nrmse,
-        "mae":         mae,
-        "r2":          r2,
-        "resid_std":   resid_std,
-        "eval_actual": yte,
-        "eval_pred":   ypred_eval,
-        "eval_ds":     ts_index[-h:],
+        "hist_ds":             ts_index,
+        "hist_y":              series_values,
+        "fitted":              ensemble_fitted,
+        "fitted_per_model":    fitted_per_model,
+        "forecast_per_model":  forecast_per_model,
+        "fut_ds":              fut_dates,
+        "forecast":            ensemble_forecast,
+        "ci_lo":               np.maximum(ensemble_forecast - 1.645 * resid_std, 0),
+        "ci_hi":               ensemble_forecast + 1.645 * resid_std,
+        "rmse":                rmse_e,
+        "nrmse":               nrmse_e,
+        "mae":                 mae_e,
+        "r2":                  r2_e,
+        "resid_std":           resid_std,
+        "eval_actual":         yte,
+        "eval_pred":           ypred_eval,
+        "eval_ds":             ts_index[-h:],
+        "model_metrics":       model_metrics,
+        "weights":             {m: weights[m] for m in models},
     }
 
 # ─── INVENTORY ──────────────────────────────────────────────
@@ -431,7 +558,7 @@ def compute_production(cap_mult=1.0, buffer_pct=0.15):
     rows = []
     for cat in cat_monthly.columns:
         vals = cat_monthly[cat].values.astype(float)
-        res  = ml_forecast(vals, ds_index, n_future=6)
+        res  = ml_forecast(vals, ds_index)
         if res is None:
             continue
 
@@ -534,7 +661,17 @@ def build_context():
     reg_str  = ", ".join([f"{k}:₹{v/1e6:.1f}M" for k,v in top_reg.items()])
     top_sku  = ops.groupby("Product_Name")["Net_Revenue"].sum().sort_values(ascending=False).head(8)
     sku_str  = ", ".join(top_sku.index.tolist())
-    metric_str = f"Orders RMSE:{r_ord['rmse']:.1f}, NRMSE:{r_ord['nrmse']*100:.1f}%, R²:{r_ord['r2']:.2f}" if r_ord else ""
+
+    if r_ord:
+        mm = r_ord.get("model_metrics", {})
+        ens = mm.get("Ensemble", {})
+        ridge = mm.get("Ridge", {})
+        rf    = mm.get("RandomForest", {})
+        gb    = mm.get("GradBoost", {})
+        metric_str = (f"Ensemble RMSE:{ens.get('rmse',0):.1f}, NRMSE:{ens.get('nrmse',0)*100:.1f}%, R²:{ens.get('r2',0):.2f} | "
+                      f"Ridge R²:{ridge.get('r2',0):.2f} | RF R²:{rf.get('r2',0):.2f} | GB R²:{gb.get('r2',0):.2f}")
+    else:
+        metric_str = ""
 
     return f"""=== OmniFlow D2D Intelligence ===
 DATASET: 5,200 orders | Jan 2024–Dec 2025 | India D2D (Amazon, Flipkart, B2B)
@@ -542,7 +679,7 @@ SUMMARY: Net Revenue ₹{ops['Net_Revenue'].sum()/1e7:.2f}Cr | Active Orders {le
          Return Rate {df[df['Order_Status']=='Returned'].shape[0]/len(ops)*100:.1f}% |
          Avg Delivery {ops['Delivery_Days'].mean():.1f}d (Delivered only)
 
-[MODULE 1 — DEMAND FORECAST (Ridge Regression + Structural Break)]
+[MODULE 1 — DEMAND FORECAST (3-Model Ensemble: Ridge + RF + GradBoost)]
 {metric_str}
 Order Forecast: {fc_str(r_ord, lambda v: f"{v:.0f}")}
 Qty Forecast:   {fc_str(r_qty, lambda v: f"{v:.0f}u")}
@@ -594,7 +731,8 @@ def build_system_prompt(ctx):
 Streamlit dashboard for an India D2D e-commerce business.
 
 === YOUR EXPERTISE ===
-• Demand forecasting — Ridge Regression with structural break detection, Fourier seasonality
+• Demand forecasting — 3-Model Ensemble (Ridge Regression, Random Forest, Gradient Boosting)
+  with inverse-RMSE weighting, Fourier seasonality, structural break detection
 • Inventory management — Wilson EOQ, Safety Stock (z·σ_daily·√LT), ROP, (s,Q) policy
 • Production planning — 6-month capacity scheduling, demand + inventory-driven targets
 • Logistics optimisation — carrier selection, cost reduction, delay analysis
@@ -609,6 +747,76 @@ Streamlit dashboard for an India D2D e-commerce business.
 
 === LIVE SUPPLY CHAIN CONTEXT ===
 {ctx}"""
+
+# ═══════════════════════════════════════════════════════════
+# HELPER: Draw ensemble forecast chart with per-model lines
+# ═══════════════════════════════════════════════════════════
+def draw_ensemble_chart(res, chart_key, height=320, title="", show_models=True):
+    """Draw forecast chart with optional per-model visibility."""
+    fig = go.Figure()
+
+    # CI band
+    x_ci = list(res["fut_ds"]) + list(res["fut_ds"])[::-1]
+    y_ci = list(res["ci_hi"])  + list(res["ci_lo"])[::-1]
+    fig.add_trace(go.Scatter(x=x_ci, y=y_ci, fill="toself",
+        fillcolor="rgba(139,92,246,0.07)", line=dict(color="rgba(0,0,0,0)"),
+        name="90% CI", showlegend=True))
+
+    # Actual history
+    fig.add_trace(go.Scatter(x=res["hist_ds"], y=res["hist_y"], name="Actual",
+        line=dict(color="#4a5e7a", width=2),
+        hovertemplate="<b>%{x|%b %Y}</b><br>Actual: %{y:,.0f}<extra></extra>"))
+
+    # Per-model fitted lines (history only, dashed, subtle)
+    if show_models and "fitted_per_model" in res:
+        model_styles = [
+            ("Ridge",        MODEL_COLORS["Ridge"],       "dot"),
+            ("RandomForest", MODEL_COLORS["RandomForest"],"dashdot"),
+            ("GradBoost",    MODEL_COLORS["GradBoost"],   "longdash"),
+        ]
+        for mname, clr, dash in model_styles:
+            if mname in res["fitted_per_model"]:
+                fig.add_trace(go.Scatter(
+                    x=res["hist_ds"], y=res["fitted_per_model"][mname],
+                    name=f"{mname} fit", line=dict(color=clr, width=1.2, dash=dash),
+                    opacity=0.55, visible="legendonly",
+                    hovertemplate=f"<b>{mname}</b><br>%{{x|%b %Y}}<br>%{{y:,.0f}}<extra></extra>"))
+
+    # Ensemble fitted
+    fig.add_trace(go.Scatter(x=res["hist_ds"], y=res["fitted"], name="Ensemble fit",
+        line=dict(color=MODEL_COLORS["Ensemble"], width=1.5, dash="dot"), opacity=0.6))
+
+    # Per-model forecasts (future, visible by default)
+    if show_models and "forecast_per_model" in res:
+        model_styles = [
+            ("Ridge",        MODEL_COLORS["Ridge"],       "dot"),
+            ("RandomForest", MODEL_COLORS["RandomForest"],"dashdot"),
+            ("GradBoost",    MODEL_COLORS["GradBoost"],   "longdash"),
+        ]
+        for mname, clr, dash in model_styles:
+            if mname in res["forecast_per_model"]:
+                fig.add_trace(go.Scatter(
+                    x=res["fut_ds"], y=res["forecast_per_model"][mname],
+                    name=f"{mname} fc", line=dict(color=clr, width=1.8, dash=dash),
+                    mode="lines+markers", marker=dict(size=5, color=clr),
+                    visible="legendonly",
+                    hovertemplate=f"<b>{mname} Forecast</b><br>%{{x|%b %Y}}<br>%{{y:,.0f}}<extra></extra>"))
+
+    # Ensemble forecast (prominent)
+    fig.add_trace(go.Scatter(x=res["fut_ds"], y=res["forecast"], name="Ensemble Forecast",
+        line=dict(color=MODEL_COLORS["Ensemble"], width=2.8, dash="dot"),
+        mode="lines+markers",
+        marker=dict(size=8, color=MODEL_COLORS["Ensemble"], line=dict(color="#FFFFFF", width=2)),
+        hovertemplate="<b>Ensemble Forecast</b><br>%{x|%b %Y}<br>%{y:,.0f}<extra></extra>"))
+
+    # Eval markers
+    fig.add_trace(go.Scatter(x=res["eval_ds"], y=res["eval_pred"], name="Eval (ensemble)",
+        mode="markers",
+        marker=dict(size=10, color="#EF4444", symbol="x", line=dict(color="#FFFFFF", width=2))))
+
+    fig.update_layout(**CD(), height=height, xaxis=gX(), yaxis=gY(), legend=leg(),
+        title=dict(text=title, font=dict(color="#4a5e7a", size=11)))
+    return fig
 
 # ═══════════════════════════════════════════════════════════
 # PAGE — CHATBOT
@@ -626,6 +834,7 @@ def page_chatbot():
       <span class='badge badge-lav'>Production</span>
       <span class='badge badge-coral'>Logistics</span>
       <span class='badge badge-sky'>Decision Alert</span>
+      <span class='badge badge-purple'>3-Model Ensemble</span>
     </div>""", unsafe_allow_html=True)
 
     with st.sidebar:
@@ -634,16 +843,15 @@ def page_chatbot():
             color:#4a5e7a;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:8px'>
             AI Config</div>""", unsafe_allow_html=True)
         api_key = st.text_input(
-            "Groq API Key",
-            type="password",
-            placeholder="gsk_xxxxxxxxxxxxxxxxx",
-            help="Paste your Groq API key"
+            "Groq API Key", type="password",
+            placeholder="gsk_xxxxxxxxxxxxxxxxx", help="Paste your Groq API key"
         )
         if api_key and len(api_key.strip()) > 10:
             if api_key.strip().startswith("gsk_"):
                 st.markdown("<div style='font-size:0.62rem;color:#56e0a0;font-family:DM Mono,monospace;margin-top:4px'>✅ Key looks valid</div>", unsafe_allow_html=True)
             else:
                 st.markdown("<div style='font-size:0.62rem;color:#ff6b6b;font-family:DM Mono,monospace;margin-top:4px'>⚠️ Key should start with gsk_</div>", unsafe_allow_html=True)
+
     ctx    = build_context()
     system = build_system_prompt(ctx)
 
@@ -653,7 +861,7 @@ def page_chatbot():
     key_ok = bool(api_key and len(api_key.strip()) > 10)
     if not key_ok:
         st.markdown("""<div class='info-banner banner-amber'>
-          <b style='color:#000000'>⚠️ API Key Required</b>
+          <b style='color:#000000'>⚠️ API Key Required — Enter Groq key in the sidebar</b>
         </div>""", unsafe_allow_html=True)
 
     if "chat_msgs" not in st.session_state:
@@ -673,7 +881,7 @@ def page_chatbot():
         "What is the EOQ for Fashion & Apparel and why?",
         "Which warehouse handles the most volume and is it optimal?",
         "Calculate total logistics cost saving if I switch carriers",
-        "What is the NRMSE of the demand forecast and is it acceptable?",
+        "Which model (Ridge/RF/GradBoost) has the best R² score?",
         "If I increase lead time to 14 days, how does ROP change?",
         "What are the top 5 revenue-generating products?",
     ]
@@ -683,7 +891,7 @@ def page_chatbot():
         cols = st.columns(4)
         for i, s in enumerate(CHAT_SUGGESTIONS):
             with cols[i % 4]:
-                clicked = st.button(s, key=f"sug_{i}", use_container_width=True)         
+                clicked = st.button(s, key=f"sug_{i}", use_container_width=True)
                 if clicked:
                     if not key_ok:
                         st.warning("⚠️ Enter your API key in the sidebar first.")
@@ -710,9 +918,7 @@ def page_chatbot():
                     html_parts.append("<div style='height:5px'></div>")
                 elif _re.match(r"^[▸\-•] ", line):
                     body = line[2:].strip()
-                    html_parts.append(f"<div style='display:flex;gap:8px;margin:5px 0'><span style='color:#000000;flex-shrink:0;margin-top:2px'>▸</span><span style='color:#c8d4e8;line-height:1.65'>{body}</span></div>")
-                elif line.startswith("**") and line.endswith("**"):
-                    html_parts.append(f"<div style='color:#000000;font-weight:700;margin:8px 0 3px'>{line[2:-2]}</div>")
+                    html_parts.append(f"<div style='display:flex;gap:8px;margin:5px 0'><span style='color:#000000;flex-shrink:0;margin-top:2px'>▸</span><span style='color:#334155;line-height:1.65'>{body}</span></div>")
                 else:
                     html_parts.append(f"<div style='color:#334155;line-height:1.65;margin:3px 0'>{line}</div>")
             st.markdown(f"<div style='margin:10px 0'><div class='chat-ai-bubble'>{chr(10).join(html_parts)}</div></div>", unsafe_allow_html=True)
@@ -721,7 +927,7 @@ def page_chatbot():
     ci, cb, cc = st.columns([5,1,1])
     with ci:
         user_in = st.text_input("Ask anything…", key="user_input",
-            placeholder="e.g. Which SKU should I reorder first and what quantity?",
+            placeholder="e.g. Which model had the best accuracy on the hold-out period?",
             label_visibility="collapsed")
     with cb:
         if st.button("Send", use_container_width=True):
@@ -760,7 +966,7 @@ def page_chatbot():
                     st.markdown(f"<div class='alert-item alert-warn'><b style='color:#000000'>{r['Region']}</b> → <b style='color:#000000'>{r['Optimal_Carrier']}</b><br><span style='color:#4a5e7a;font-size:0.71rem'>Save ₹{r['Potential_Saving']:,.0f} ({r['Saving_Pct']:.1f}%)</span></div>", unsafe_allow_html=True)
 
         sp()
-        sec("Revenue Forecast — Next 3 Months", "📈")
+        sec("Revenue Forecast — Next 3 Months (Ensemble)", "📈")
         m_rev = ops.groupby("YM")["Net_Revenue"].sum().rename("v")
         r_rev = ml_forecast(m_rev.values.astype(float), m_rev.index, 3)
         if r_rev is not None:
@@ -783,17 +989,21 @@ def page_overview():
 
     st.markdown("""<div class='page-title' style='background:linear-gradient(135deg,#f5a623,#ff6b6b,#2ed8c3);
          -webkit-background-clip:text;-webkit-text-fill-color:transparent'>OmniFlow D2D</div>
-    <div class='page-subtitle'>Predictive Logistics & AI-Powered Demand-to-Delivery Intelligence</div>
+    <div class='page-subtitle'>Predictive Logistics & AI-Powered Demand-to-Delivery Intelligence · 3-Model Ensemble Forecasting</div>
     """, unsafe_allow_html=True)
 
     st.markdown("""<div class='about-card'>
       <div style='font-size:1.0rem;font-weight:700;color:#334155;margin-bottom:10px'>About This Platform</div>
       <p style='color:#334155;line-height:1.85;margin:0;font-size:0.86rem'>
-        <b style='color:#000000'>OmniFlow</b> is an end to end intelligence platform built on
+        <b style='color:#000000'>OmniFlow</b> is an end-to-end intelligence platform built on
         <b style='color:#000000'>D2D orders</b> across India.
         Modules are causally connected: Demand signals drive Inventory EOQ/SS,
         which drives Production targets, which informs Logistics optimisation.
-        All forecasting uses <b style='color:#000000'>Ridge Regression with structural-break detection</b>.
+        All forecasting uses a <b style='color:#000000'>3-Model Ensemble</b>:
+        <span class='model-pill pill-ridge'>Ridge Regression</span>
+        <span class='model-pill pill-rf'>Random Forest</span>
+        <span class='model-pill pill-gb'>Gradient Boosting</span>
+        blended with <b style='color:#000000'>inverse-RMSE weights</b> for maximum accuracy.
         Revenue KPIs are net of returns.
       </p>
     </div>""", unsafe_allow_html=True)
@@ -814,7 +1024,7 @@ def page_overview():
 
     c_l, c_r = st.columns([3,2], gap="large")
     with c_l:
-        sec("Monthly Net Revenue")
+        sec("Monthly Net Revenue + Ensemble Forecast")
         m_rev_s = ops.groupby(ops["Order_Date"].dt.to_period("M"))["Net_Revenue"].sum().rename("v")
         r_ov = ml_forecast(m_rev_s.values.astype(float), m_rev_s.index, n_future=6)
         fig = go.Figure()
@@ -822,16 +1032,16 @@ def page_overview():
             x_ci = list(r_ov["fut_ds"]) + list(r_ov["fut_ds"])[::-1]
             y_ci = list(r_ov["ci_hi"])  + list(r_ov["ci_lo"])[::-1]
             fig.add_trace(go.Scatter(x=x_ci, y=y_ci, fill="toself",
-                fillcolor="rgba(245,166,35,0.06)", line=dict(color="rgba(0,0,0,0)"),
+                fillcolor="rgba(139,92,246,0.06)", line=dict(color="rgba(0,0,0,0)"),
                 name="90% CI", showlegend=True))
             fig.add_trace(go.Scatter(x=r_ov["hist_ds"], y=r_ov["hist_y"], name="Actual",
                 fill="tozeroy", fillcolor="rgba(245,166,35,0.04)",
                 line=dict(color="#F59E0B", width=2.5),
                 hovertemplate="<b>%{x|%b %Y}</b><br>₹%{y:,.0f}<extra></extra>"))
-            fig.add_trace(go.Scatter(x=r_ov["fut_ds"], y=r_ov["forecast"], name="Forecast",
+            fig.add_trace(go.Scatter(x=r_ov["fut_ds"], y=r_ov["forecast"], name="Ensemble Forecast",
                 mode="lines+markers",
-                line=dict(color="#F59E0B", width=2.5, dash="dot"),
-                marker=dict(size=7, color="#F59E0B", line=dict(color="#FFFFFF", width=2)),
+                line=dict(color="#8B5CF6", width=2.5, dash="dot"),
+                marker=dict(size=7, color="#8B5CF6", line=dict(color="#FFFFFF", width=2)),
                 hovertemplate="<b>%{x|%b %Y}</b><br>₹%{y:,.0f}<extra></extra>"))
         fig.update_layout(**CD(), height=260, xaxis=gX(),
             yaxis={**gY(), "tickformat":",.0f"}, legend=leg())
@@ -880,29 +1090,29 @@ def page_overview():
         border:1px solid var(--border);border-radius:16px;padding:22px;
         display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:0'>
       <div style='background:#f8fafc;color:#0f172a;border:1px solid #e5e7eb;border-radius:12px;padding:11px 17px;
-           font-weight:700;font-size:0.78rem;text-align:center;min-width:95px;font-family:DM Mono,monospace'>
-           Demand<span style='display:block;font-size:0.58rem;font-weight:400;color:#4a5e7a;margin-top:3px'>Forecast</span></div>
+           font-weight:700;font-size:0.78rem;text-align:center;min-width:110px;font-family:DM Mono,monospace'>
+           Demand<span style='display:block;font-size:0.58rem;font-weight:400;color:#4a5e7a;margin-top:3px'>Ridge+RF+GB</span></div>
       <div style='color:#4a5e7a;font-size:1.2rem;padding:0 8px;opacity:0.5'>→</div>
       <div style='background:#f8fafc;border-radius:12px;padding:11px 17px;
-           font-weight:700;font-size:0.78rem;text-align:center;min-width:95px;
+           font-weight:700;font-size:0.78rem;text-align:center;min-width:110px;
            border:1px solid #e5e7eb;color:#0f172a;font-family:DM Mono,monospace'>
            Inventory<span style='display:block;font-size:0.58rem;font-weight:400;color:#4a5e7a;margin-top:3px'>EOQ + ROP</span></div>
       <div style='color:#4a5e7a;font-size:1.2rem;padding:0 8px;opacity:0.5'>→</div>
       <div style='background:#f8fafc;color:#0f172a;border:1px solid #e5e7eb;border-radius:12px;padding:11px 17px;
-           font-weight:700;font-size:0.78rem;text-align:center;min-width:95px;font-family:DM Mono,monospace'>
+           font-weight:700;font-size:0.78rem;text-align:center;min-width:110px;font-family:DM Mono,monospace'>
            Production<span style='display:block;font-size:0.58rem;font-weight:400;color:#4a5e7a;margin-top:3px'>6-Month Plan</span></div>
       <div style='color:#4a5e7a;font-size:1.2rem;padding:0 8px;opacity:0.5'>→</div>
       <div style='background:#f8fafc;color:#0f172a;border:1px solid #e5e7eb;border-radius:12px;padding:11px 17px;
-           font-weight:700;font-size:0.78rem;text-align:center;min-width:95px;font-family:DM Mono,monospace'>
+           font-weight:700;font-size:0.78rem;text-align:center;min-width:110px;font-family:DM Mono,monospace'>
            Logistics<span style='display:block;font-size:0.58rem;font-weight:400;color:#4a5e7a;margin-top:3px'>+ Cost Opt</span></div>
       <div style='color:#4a5e7a;font-size:1.2rem;padding:0 8px;opacity:0.5'>→</div>
       <div style='background:#f8fafc;color:#0f172a;border:1px solid #e5e7eb;border-radius:12px;padding:11px 17px;
-           font-weight:700;font-size:0.78rem;text-align:center;min-width:95px;font-family:DM Mono,monospace'>
+           font-weight:700;font-size:0.78rem;text-align:center;min-width:110px;font-family:DM Mono,monospace'>
            AI Chatbot<span style='display:block;font-size:0.58rem;font-weight:400;color:#4a5e7a;margin-top:3px'>Groq LLaMA</span></div>
     </div>""", unsafe_allow_html=True)
 
 # ═══════════════════════════════════════════════════════════
-# PAGE — DEMAND FORECASTING  (UPDATED)
+# PAGE — DEMAND FORECASTING
 # ═══════════════════════════════════════════════════════════
 def page_demand():
     df  = load_data()
@@ -911,17 +1121,58 @@ def page_demand():
     ops["YM"] = ops["Order_Date"].dt.to_period("M")
 
     st.markdown("<div class='page-title' style='color:#000000'>Demand Forecasting</div>", unsafe_allow_html=True)
-   
-    banner("""<b style='color:#000000'>Model:</b> Ridge Regression with trend,
-    Fourier seasonal terms, structural-break dummy for business scale-up,
-    and trend×regime interaction. 4-month hold-out evaluation. 90% CI from residual std.""", "amber")
+    
+    banner("""<b style='color:#000000'>🤖 3-Model Ensemble:</b>
+    <span class='model-pill pill-ridge'>Ridge Regression</span>
+    <span class='model-pill pill-rf'>Random Forest (200 trees)</span>
+    <span class='model-pill pill-gb'>Gradient Boosting (200 est)</span>
+    — blended with <b>inverse-RMSE weights</b> from 4-month hold-out.
+    Features: trend, polynomial, 3-harmonic Fourier seasonality, structural-break dummy, quarter indicators, log-trend.
+    90% CI from ensemble residual std.""", "purple")
 
-    sec("Overall Model Performance")
+    sec("Overall Ensemble Model Performance")
     m_orders = ops.groupby("YM")["Order_ID"].count().rename("v")
     res_overall = ml_forecast(m_orders.values.astype(float), m_orders.index, n_future=6)
     if res_overall is not None:
         render_model_quality(res_overall)
     sp()
+
+    # Model comparison radar / bar
+    if res_overall and "model_metrics" in res_overall:
+        sec("Model Accuracy Comparison")
+        mm = res_overall["model_metrics"]
+        mnames = ["Ridge", "RandomForest", "GradBoost", "Ensemble"]
+        r2_vals    = [mm[m]["r2"]    for m in mnames if m in mm]
+        nrmse_vals = [mm[m]["nrmse"] for m in mnames if m in mm]
+        labels     = [m for m in mnames if m in mm]
+        colors_bar = [MODEL_COLORS.get(m, "#888") for m in labels]
+
+        bca, bcb = st.columns(2, gap="large")
+        with bca:
+            fig_r2 = go.Figure(go.Bar(
+                x=labels, y=r2_vals,
+                marker=dict(color=colors_bar, line=dict(color="rgba(0,0,0,0)")),
+                text=[f"{v:.3f}" for v in r2_vals], textposition="outside",
+                textfont=dict(color="#334155")))
+            fig_r2.add_hline(y=0.9, line_dash="dash", line_color="#22C55E",
+                annotation_text=" Target R²=0.90", annotation_font=dict(color="#22C55E", size=10))
+            fig_r2.update_layout(**CD(), height=240, xaxis=gX(),
+                yaxis={**gY(), "title":"R² Score", "range":[0,1]},
+                title=dict(text="R² Score by Model (higher = better)", font=dict(size=11,color="#4a5e7a")))
+            st.plotly_chart(fig_r2, use_container_width=True, key="model_r2_bar")
+        with bcb:
+            fig_nrmse = go.Figure(go.Bar(
+                x=labels, y=[v*100 for v in nrmse_vals],
+                marker=dict(color=colors_bar, line=dict(color="rgba(0,0,0,0)")),
+                text=[f"{v*100:.1f}%" for v in nrmse_vals], textposition="outside",
+                textfont=dict(color="#334155")))
+            fig_nrmse.add_hline(y=15, line_dash="dash", line_color="#22C55E",
+                annotation_text=" Target NRMSE<15%", annotation_font=dict(color="#22C55E", size=10))
+            fig_nrmse.update_layout(**CD(), height=240, xaxis=gX(),
+                yaxis={**gY(), "title":"NRMSE %"},
+                title=dict(text="NRMSE % by Model (lower = better)", font=dict(size=11,color="#4a5e7a")))
+            st.plotly_chart(fig_nrmse, use_container_width=True, key="model_nrmse_bar")
+        sp()
 
     c1, c2, c3 = st.columns([2,2,1])
     metric_opt = c1.selectbox("Metric",    ["Orders (#)","Quantity (Units)","Net Revenue (₹)"])
@@ -936,29 +1187,11 @@ def page_demand():
             return sub.groupby("YM")["Order_ID"].count().rename("v")
         return sub.groupby("YM")[col].sum().rename("v")
 
-    def draw(series, color="#F59E0B", title="", chart_key="demand_main"):
+    def draw(series, color="#8B5CF6", title="", chart_key="demand_main"):
         res = ml_forecast(series.values.astype(float), series.index, n_future=horizon)
         if res is None:
             st.info("Insufficient data."); return None
-
-        fig = go.Figure()
-        x_ci = list(res["fut_ds"]) + list(res["fut_ds"])[::-1]
-        y_ci = list(res["ci_hi"])  + list(res["ci_lo"])[::-1]
-        fig.add_trace(go.Scatter(x=x_ci, y=y_ci, fill="toself",
-            fillcolor="rgba(245,166,35,0.07)", line=dict(color="rgba(0,0,0,0)"), name="90% CI", showlegend=False))
-        fig.add_trace(go.Scatter(x=res["hist_ds"], y=res["fitted"], name="Model Fit",
-            line=dict(color=color,width=1.5,dash="dot"), opacity=0.5))
-        fig.add_trace(go.Scatter(x=res["hist_ds"], y=res["hist_y"], name="Actual",
-            line=dict(color="#4a5e7a",width=2),
-            hovertemplate="<b>%{x|%b %Y}</b><br>%{y:,.0f}<extra></extra>"))
-        fig.add_trace(go.Scatter(x=res["fut_ds"], y=res["forecast"], name="Forecast",
-            line=dict(color=color,width=2.5,dash="dot"), mode="lines+markers",
-            marker=dict(size=7,color=color,line=dict(color="#FFFFFF",width=2)),
-            hovertemplate="<b>%{x|%b %Y}</b><br>%{y:,.0f}<extra></extra>"))
-        fig.add_trace(go.Scatter(x=res["eval_ds"], y=res["eval_pred"], name="Eval Pred",
-            mode="markers", marker=dict(size=10,color="#EF4444",symbol="x",line=dict(color="#FFFFFF",width=2))))
-        fig.update_layout(**CD(), height=320, xaxis=gX(), yaxis=gY(), legend=leg(),
-            title=dict(text=title, font=dict(color="#4a5e7a",size=11)))
+        fig = draw_ensemble_chart(res, chart_key=chart_key, height=320, title=title)
         st.plotly_chart(fig, use_container_width=True, key=chart_key)
         return res
 
@@ -966,10 +1199,13 @@ def page_demand():
         series = get_series(ops)
         res = draw(series, chart_key="demand_overall")
         if res is not None:
-            sec("Forecast Table")
+            sec("Forecast Table (Ensemble)")
             tbl = pd.DataFrame({
                 "Month":     [d.strftime("%b %Y") for d in res["fut_ds"]],
-                "Forecast":  res["forecast"].round(0).astype(int),
+                "Ensemble":  res["forecast"].round(0).astype(int),
+                "Ridge":     np.maximum(res["forecast_per_model"]["Ridge"], 0).round(0).astype(int),
+                "RandomForest": np.maximum(res["forecast_per_model"]["RandomForest"], 0).round(0).astype(int),
+                "GradBoost": np.maximum(res["forecast_per_model"]["GradBoost"], 0).round(0).astype(int),
                 "Lower 90%": res["ci_lo"].round(0).astype(int),
                 "Upper 90%": res["ci_hi"].round(0).astype(int),
             })
@@ -1006,20 +1242,36 @@ def page_demand():
             rows_yoy.append({"Category":cat,
                 "2024 (₹M)":round(r24/1e6,1), "2025 (₹M)":round(r25/1e6,1),
                 "YoY 24→25":f"{g25:+.1f}%",
-                "Projected (₹M)":round(r_proj/1e6,1), "YoY Growth (Proj)":f"{g_proj:+.1f}% "})
+                "Projected (₹M)":round(r_proj/1e6,1), "YoY Growth (Proj)":f"{g_proj:+.1f}%"})
         st.dataframe(pd.DataFrame(rows_yoy).sort_values("Projected (₹M)", ascending=False),
                      use_container_width=True, hide_index=True)
 
     sp()
-    sec("Category-Level Demand Forecast")
-    tabs2 = st.tabs(list(cat_monthly.columns))
-    for _ci, (tab, cat, col2) in enumerate(zip(tabs2, cat_monthly.columns, COLORS)):
+    sec("Category-Level Demand Forecast (Ensemble)")
+    cat_monthly2 = ops.groupby(["YM","Category"])["Quantity"].sum().unstack(fill_value=0)
+    tabs2 = st.tabs(list(cat_monthly2.columns))
+    for _ci, (tab, cat, col2) in enumerate(zip(tabs2, cat_monthly2.columns, COLORS)):
         with tab:
-            vals = ops[ops["Category"]==cat].groupby("YM")["Quantity"].sum().rename("v")
-            draw(vals, color=col2, title=cat, chart_key=f"demand_cat_{_ci}")
+            vals = cat_monthly2[cat].rename("v")
+            res2 = ml_forecast(vals.values.astype(float), vals.index, n_future=6)
+            if res2 is None:
+                st.info("Insufficient data."); continue
+            fig = draw_ensemble_chart(res2, chart_key=f"demand_cat_{_ci}", height=300, title=cat)
+            st.plotly_chart(fig, use_container_width=True, key=f"demand_cat_{_ci}")
+            # Per-model forecast table
+            tbl2 = pd.DataFrame({
+                "Month":      [d.strftime("%b %Y") for d in res2["fut_ds"]],
+                "Ensemble":   res2["forecast"].round(0).astype(int),
+                "Ridge":      np.maximum(res2["forecast_per_model"]["Ridge"],0).round(0).astype(int),
+                "RandomForest":np.maximum(res2["forecast_per_model"]["RandomForest"],0).round(0).astype(int),
+                "GradBoost":  np.maximum(res2["forecast_per_model"]["GradBoost"],0).round(0).astype(int),
+                "CI Lo":      res2["ci_lo"].round(0).astype(int),
+                "CI Hi":      res2["ci_hi"].round(0).astype(int),
+            })
+            st.dataframe(tbl2, use_container_width=True, hide_index=True)
 
 # ═══════════════════════════════════════════════════════════
-# PAGE — INVENTORY  (UPDATED)
+# PAGE — INVENTORY
 # ═══════════════════════════════════════════════════════════
 def page_inventory():
     df  = load_data()
@@ -1081,12 +1333,12 @@ def page_inventory():
     st.dataframe(crit_df.sort_values("Current Stock"), use_container_width=True, hide_index=True)
 
     sp()
-    sec("Inventory Demand Forecast")
+    sec("Inventory Demand Forecast (Ensemble)")
     cat_monthly = ops.groupby(["YM","Category"])["Quantity"].sum().unstack(fill_value=0)
     if cat_monthly.empty:
         st.info("No category demand data available for forecasting.")
-        return  
-    tabs = st.tabs(list(cat_monthly.columns)) 
+        return
+    tabs = st.tabs(list(cat_monthly.columns))
     for tab,cat in zip(tabs,cat_monthly.columns):
         with tab:
             series = cat_monthly[cat]
@@ -1094,16 +1346,9 @@ def page_inventory():
             if res is None:
                 st.info("Not enough data for forecast.")
                 continue
-            fig = go.Figure()
-            fig.add_trace(go.Scatter(
-                x=res["hist_ds"],y=res["hist_y"],name="Actual",line=dict(color="#4a5e7a")
-            ))
-            fig.add_trace(go.Scatter(
-                x=res["fut_ds"],y=res["forecast"],
-                name="Forecast",line=dict(color="#f59e0b",dash="dot")
-            ))
-            fig.update_layout(**CD(),height=280,xaxis=gX(),yaxis=gY())
-            st.plotly_chart(fig,use_container_width=True)
+            fig = draw_ensemble_chart(res, chart_key=f"inv_demand_{cat}", height=280)
+            st.plotly_chart(fig, use_container_width=True, key=f"inv_demand_{cat}")
+
     sp()
     sec("SKU-Level Inventory Table")
     cat_f  = st.multiselect("Filter Category", sorted(df["Category"].unique()), default=sorted(df["Category"].unique()))
@@ -1113,7 +1358,7 @@ def page_inventory():
     for c in ["Avg/Month","Current Stock","EOQ","Safety Stock","ROP"]:
         disp[c] = disp[c].astype(int)
     st.dataframe(disp.sort_values("Status"), use_container_width=True, hide_index=True)
-  
+
     sp()
     sec("Stock Level Forecast — Depletion & Replenishment Simulation")
     cat_monthly_qty = ops.groupby(["YM","Category"])["Quantity"].sum().unstack(fill_value=0)
@@ -1122,10 +1367,8 @@ def page_inventory():
     for tab, cat in zip(tabs_inv, cats):
         with tab:
             cat_inv = inv[inv["Category"] == cat]
-            if cat_inv.empty:
-                with tab:
-                    st.info("No inventory data for this category.")
-                continue
+            if cat_inv.empty or cat not in cat_monthly_qty.columns:
+                st.info("No data."); continue
 
             avg_eoq   = max(int(cat_inv["EOQ"].mean()), 1)
             avg_rop   = max(int(cat_inv["ROP"].mean()), 1)
@@ -1134,32 +1377,20 @@ def page_inventory():
             n_crit_cat = (cat_inv["Status"] == "🔴 Critical").sum()
             n_low_cat  = (cat_inv["Status"] == "🟡 Low").sum()
 
-            if cat not in cat_monthly_qty.columns:
-                with tab:
-                    st.info("No demand data.")
-                continue
-
             vals = cat_monthly_qty[cat].values.astype(float)
             res  = ml_forecast(vals, cat_monthly_qty.index, 6)
             if res is None:
-                with tab:
-                    st.info("Insufficient data for forecast.")
-                continue
+                st.info("Insufficient data for forecast."); continue
 
-            stock          = avg_stock
-            stock_levels   = []
-            reorder_months = []
-            reorder_qty    = []
-            months_labels  = [d.strftime("%b %Y") for d in res["fut_ds"]]
-
+            stock=avg_stock; stock_levels=[]; reorder_months=[]; reorder_qty=[]
+            months_labels = [d.strftime("%b %Y") for d in res["fut_ds"]]
             for i, fc_demand in enumerate(res["forecast"]):
                 stock -= fc_demand
                 if stock <= avg_rop:
                     n_orders = max(1, int(np.ceil((avg_rop + avg_ss - stock) / avg_eoq)) + 1)
                     order_qty = n_orders * avg_eoq
                     stock += order_qty
-                    reorder_months.append(i)
-                    reorder_qty.append(order_qty)
+                    reorder_months.append(i); reorder_qty.append(order_qty)
                 stock = max(stock, avg_ss)
                 stock_levels.append(round(stock))
 
@@ -1167,95 +1398,51 @@ def page_inventory():
             resid = res["resid_std"]
             ci_upper = [max(s + resid * (i+1) * 0.5, avg_ss) for i, s in enumerate(stock_levels)]
             ci_lower = [max(s - resid * (i+1) * 0.5, 0)       for i, s in enumerate(stock_levels)]
-            x_ci     = months_labels + months_labels[::-1]
-            y_ci     = ci_upper + ci_lower[::-1]
-            fig.add_trace(go.Scatter(
-                x=x_ci, y=y_ci, fill="toself",
-                fillcolor="rgba(46,216,195,0.06)",
-                line=dict(color="rgba(0,0,0,0)"),
-                name="Stock Uncertainty Band",
-                showlegend=True
-            ))
-
-            fig.add_trace(go.Scatter(
-                x=months_labels, y=stock_levels, name="Projected Stock",
+            fig.add_trace(go.Scatter(x=months_labels+months_labels[::-1], y=ci_upper+ci_lower[::-1],
+                fill="toself", fillcolor="rgba(46,216,195,0.06)", line=dict(color="rgba(0,0,0,0)"),
+                name="Stock Uncertainty Band"))
+            fig.add_trace(go.Scatter(x=months_labels, y=stock_levels, name="Projected Stock",
                 mode="lines+markers", line=dict(color="#06B6D4", width=3),
-                marker=dict(
-                    size=10, color=stock_levels,
+                marker=dict(size=10, color=stock_levels,
                     colorscale=[[0,"#EF4444"],[0.4,"#F59E0B"],[1,"#22C55E"]],
                     cmin=avg_ss, cmax=max(stock_levels) if stock_levels else 1,
-                    line=dict(color="#FFFFFF", width=2),showscale=False
-                ),
-                hovertemplate="<b>%{x}</b><br>Stock: %{y} units<extra></extra>"
-            ))
-
-            fig.add_hline(
-                y=avg_rop, line_dash="dash", line_color="#F59E0B", line_width=2,
-                annotation_text=f"  ROP: {avg_rop} units",
-                annotation_font=dict(color="#F59E0B", size=11, family="DM Mono"),
-                annotation_position="top left"
-            )
-
-            fig.add_hline(
-                y=avg_ss, line_dash="dot", line_color="#EF4444", line_width=2,
-                annotation_text=f"  Safety Stock: {avg_ss} units",
-                annotation_font=dict(color="#EF4444", size=11, family="DM Mono"),
-                annotation_position="bottom left"
-            )
-
+                    line=dict(color="#FFFFFF", width=2), showscale=False),
+                hovertemplate="<b>%{x}</b><br>Stock: %{y} units<extra></extra>"))
+            fig.add_hline(y=avg_rop, line_dash="dash", line_color="#F59E0B", line_width=2,
+                annotation_text=f"  ROP: {avg_rop}", annotation_font=dict(color="#F59E0B",size=11,family="DM Mono"))
+            fig.add_hline(y=avg_ss, line_dash="dot", line_color="#EF4444", line_width=2,
+                annotation_text=f"  SS: {avg_ss}", annotation_font=dict(color="#EF4444",size=11,family="DM Mono"))
             for ri, rqty in zip(reorder_months, reorder_qty):
-                fig.add_vline(
-                    x=ri, line_dash="dot",
-                    line_color="rgba(155,135,212,0.6)", line_width=1.5
-                )
-                fig.add_annotation(
-                    x=months_labels[ri],
-                    y=max(stock_levels) * 1.08 if stock_levels else avg_rop * 2,
-                    text=f"📦 +{rqty}u",showarrow=False,
-                    font=dict(color="#8B5CF6", size=10, family="DM Mono"),
+                fig.add_vline(x=ri, line_dash="dot", line_color="rgba(155,135,212,0.6)", line_width=1.5)
+                fig.add_annotation(x=months_labels[ri], y=max(stock_levels)*1.08 if stock_levels else avg_rop*2,
+                    text=f"📦 +{rqty}u", showarrow=False,
+                    font=dict(color="#8B5CF6",size=10,family="DM Mono"),
                     bgcolor="rgba(22,34,54,0.8)",bordercolor="rgba(155,135,212,0.3)",
-                    borderwidth=1,borderpad=4
-                )
-
-            fig.update_layout(
-                **CD(), height=320,
-                xaxis={**gX(), "title": "Month"},
-                yaxis={**gY(), "title": "Units in Stock"},
-                legend={**leg(), "orientation": "h", "y": -0.25},
-                title=dict(
-                    text=f"{cat} — Avg across {len(cat_inv)} SKUs | tarting stock: {avg_stock} units",
-                    font=dict(color="#333333", size=11)
-                )
-            )
+                    borderwidth=1, borderpad=4)
+            fig.update_layout(**CD(), height=320,
+                xaxis={**gX(),"title":"Month"}, yaxis={**gY(),"title":"Units in Stock"},
+                legend={**leg(),"orientation":"h","y":-0.25},
+                title=dict(text=f"{cat} — Ensemble forecast · Starting stock: {avg_stock} units",
+                           font=dict(color="#333333",size=11)))
             st.plotly_chart(fig, use_container_width=True, key=f"inv_stock_{cat}")
 
-            ka, kb, kc, kd, ke = st.columns(5)
-            kpi(ka, "Starting Stock",  avg_stock,  "mint", "current avg")
-            kpi(kb, "ROP (avg)",       avg_rop,    "mint", "trigger level")
-            kpi(kc, "Safety Stock",    avg_ss,     "mint", "min buffer")
-            kpi(kd, "EOQ (avg)",       avg_eoq,    "mint", "order batch size")
-            kpi(ke, "Reorders Needed", len(reorder_months), "mint",
-                "over 6 months" if len(reorder_months) == 0 else f"across {len(reorder_months)} month(s)")
+            ka,kb,kc,kd,ke = st.columns(5)
+            kpi(ka,"Starting Stock", avg_stock, "mint","current avg")
+            kpi(kb,"ROP (avg)",      avg_rop,   "mint","trigger level")
+            kpi(kc,"Safety Stock",   avg_ss,    "mint","min buffer")
+            kpi(kd,"EOQ (avg)",      avg_eoq,   "mint","order batch size")
+            kpi(ke,"Reorders",       len(reorder_months),"mint",
+                "over 6 months" if len(reorder_months)==0 else f"across {len(reorder_months)} month(s)")
             sp(0.5)
-
             if n_crit_cat > 0:
-                st.markdown(f"""<div class='info-banner banner-coral'>
-                  🔴 <b style='color:#000000'>{n_crit_cat} Critical SKUs</b> in this category are below Safety Stock right now.
-                  Immediate replenishment required.
-                </div>""", unsafe_allow_html=True)
+                banner(f"🔴 <b style='color:#000000'>{n_crit_cat} Critical SKUs</b> in {cat} are below Safety Stock. Immediate replenishment required.", "coral")
             elif n_low_cat > 0:
-                st.markdown(f"""<div class='info-banner banner-amber'>
-                  🟡 <b style='color:#000000'>{n_low_cat} SKUs</b> approaching ROP,
-                  place orders this week to avoid stockout within the forecast horizon.
-                </div>""", unsafe_allow_html=True)
+                banner(f"🟡 <b style='color:#000000'>{n_low_cat} SKUs</b> approaching ROP — place orders this week.", "amber")
             else:
-                st.markdown(f"""<div class='info-banner banner-mint'>
-                  ✅ All SKUs in <b style='color:#000000'>{cat}</b> are currently Adequate.
-                  Monitor the forecast — next reorder triggered at ROP = {avg_rop} units.
-                </div>""", unsafe_allow_html=True)
+                banner(f"✅ All SKUs in <b style='color:#000000'>{cat}</b> are Adequate. Next reorder at ROP={avg_rop}.", "mint")
 
     sp()
-    sec("Category Demand Forecast to Inventory Needs")
+    sec("Category Demand Forecast Comparison")
     fig3 = go.Figure()
     for i, cat in enumerate(cat_monthly_qty.columns):
         r = ml_forecast(cat_monthly_qty[cat].values.astype(float), cat_monthly_qty.index, 6)
@@ -1278,7 +1465,6 @@ def page_production():
 
     plan   = compute_production(cap, buf)
     inv    = compute_inventory()
-    n_crit = (inv["Status"]=="🔴 Critical").sum()
 
     if plan.empty:
         st.warning("Insufficient data for production plan."); return
@@ -1293,25 +1479,22 @@ def page_production():
     kpi(c4,"Peak Month",       peak.strftime("%b %Y"),"amber","highest demand")
     sp()
 
-    sec("Production Target vs Demand Forecast")
-
+    sec("Production Target vs Ensemble Demand Forecast")
     df_prod  = load_data()
     ops_prod = get_ops(df_prod).copy()
     ops_prod["YM"] = ops_prod["Order_Date"].dt.to_period("M")
     hist_qty = ops_prod.groupby("YM")["Quantity"].sum().rename("v")
     hist_ts  = _to_timestamp_index(hist_qty.index)
     fig = go.Figure()
-   
     fig.add_trace(go.Scatter(x=hist_ts, y=hist_qty.values, name="Historical Demand",
         fill="tozeroy", fillcolor="rgba(74,94,122,0.12)",
         line=dict(color="#4a5e7a", width=1.8),
         hovertemplate="<b>%{x|%b %Y}</b><br>%{y:,.0f} units<extra></extra>"))
-   
     fig.add_trace(go.Bar(x=agg["Month_dt"], y=agg["Production"], name="Production Target",
         marker=dict(color="#8B5CF6", line=dict(color="rgba(0,0,0,0)"))))
     fig.add_trace(go.Bar(x=agg["Month_dt"], y=agg["Crit_Boost"]+agg["Low_Boost"],
         name="Inv. Replenishment", marker=dict(color="rgba(255,107,107,0.7)", line=dict(color="rgba(0,0,0,0)"))))
-    fig.add_trace(go.Scatter(x=agg["Month_dt"], y=agg["Demand_Forecast"], name="Demand Forecast",
+    fig.add_trace(go.Scatter(x=agg["Month_dt"], y=agg["Demand_Forecast"], name="Ensemble Forecast",
         mode="lines+markers", line=dict(color="#F59E0B",width=2.5),
         marker=dict(size=8,color="#F59E0B",line=dict(color="#FFFFFF",width=2))))
     fig.update_layout(**CD(), height=320, barmode="stack", xaxis=gX(), yaxis=gY(), legend=leg())
@@ -1325,27 +1508,23 @@ def page_production():
         fig2 = go.Figure()
         for i, cat in enumerate(plan["Category"].unique()):
             clr = COLORS[i%len(COLORS)]
-            
             if cat in cat_hist.columns:
                 fig2.add_trace(go.Scatter(x=cat_hist_ts, y=cat_hist[cat].values,
-                    name=f"{cat} (hist)", line=dict(color=clr, width=1.5, dash="dot"),
-                    opacity=0.6, showlegend=False,
-                    hovertemplate=f"<b>{cat}</b><br>%{{x|%b %Y}}<br>%{{y:,.0f}} actual<extra></extra>"))
-           
+                    name=f"{cat} (hist)", line=dict(color=clr,width=1.5,dash="dot"),
+                    opacity=0.6, showlegend=False))
             s = plan[plan["Category"]==cat].sort_values("Month_dt")
             fig2.add_trace(go.Bar(x=s["Month_dt"], y=s["Production"], name=cat,
                 marker=dict(color=clr, line=dict(color="rgba(0,0,0,0)"))))
         fig2.update_layout(**CD(), height=280, barmode="stack",
             xaxis=gX(), yaxis=gY(), legend={**leg(),"orientation":"h","y":-0.3})
         st.plotly_chart(fig2, use_container_width=True, key="chart_12")
-
     with cr:
         sec("Production Demand Gap")
         agg["Gap"] = agg["Production"] - agg["Demand_Forecast"]
         fig3 = go.Figure(go.Bar(x=agg["Month_dt"], y=agg["Gap"],
             marker=dict(color=["#22C55E" if g>=0 else "#EF4444" for g in agg["Gap"]], line=dict(color="rgba(0,0,0,0)")),
             text=[f"{g:+.0f}" for g in agg["Gap"]], textposition="outside", textfont=dict(color="#333333")))
-        fig3.add_hline(y=0, line_dash="dash", line_color="rgba(255,255,255,0.1)")
+        fig3.add_hline(y=0, line_dash="dash", line_color="rgba(0,0,0,0.2)")
         fig3.update_layout(**CD(), height=280, xaxis=gX(), yaxis={**gY(),"title":"Units Surplus / Deficit"})
         st.plotly_chart(fig3, use_container_width=True, key="chart_13")
 
@@ -1367,7 +1546,6 @@ def page_logistics():
     del_df = get_delivered(df)
 
     st.markdown("<div class='page-title' style='color:#000000'>Logistics Optimisation</div>", unsafe_allow_html=True)
-   
     carr, best_carr, opt,_ = compute_logistics()
     t1,t2,t3,t4,t5 = st.tabs(["Carrier Scorecard","Cost Optimisation","Delay Intel","Warehouse Forecast","Regions"])
 
@@ -1392,34 +1570,26 @@ def page_logistics():
         st.dataframe(d2[["Carrier","Orders","Avg Days","Avg Cost","Return Rate","Delay Index","Perf Score"]], use_container_width=True, hide_index=True)
 
         sp()
-        sec("Carrier Order Volume")
+        sec("Carrier Order Volume + Ensemble Forecast")
         cm = del_df.groupby([del_df["Order_Date"].dt.to_period("M"),"Courier_Partner"])["Order_ID"].count().unstack(fill_value=0)
         fig_carr_combo = go.Figure()
         for i, c in enumerate(cm.columns):
             clr = COLORS[i%len(COLORS)]
             r = ml_forecast(cm[c].values.astype(float), cm.index, 6)
             if r is None:
-                fig_carr_combo.add_trace(go.Scatter(x=cm.index.to_timestamp(), y=cm[c],
-                    name=c, line=dict(color=clr, width=2)))
+                fig_carr_combo.add_trace(go.Scatter(x=cm.index.to_timestamp(), y=cm[c], name=c, line=dict(color=clr,width=2)))
                 continue
-           
             x_ci = list(r["fut_ds"]) + list(r["fut_ds"])[::-1]
             y_ci = list(r["ci_hi"])  + list(r["ci_lo"])[::-1]
             fig_carr_combo.add_trace(go.Scatter(x=x_ci, y=y_ci, fill="toself",
                 fillcolor=f"rgba({int(clr[1:3],16)},{int(clr[3:5],16)},{int(clr[5:7],16)},0.06)",
                 line=dict(color="rgba(0,0,0,0)"), showlegend=False))
-            
-            fig_carr_combo.add_trace(go.Scatter(x=r["hist_ds"], y=r["hist_y"],
-                name=c, line=dict(color=clr, width=2.5),
-                hovertemplate=f"<b>{c}</b><br>%{{x|%b %Y}}<br>%{{y:,.0f}} orders<extra></extra>"))
-           
+            fig_carr_combo.add_trace(go.Scatter(x=r["hist_ds"], y=r["hist_y"], name=c,
+                line=dict(color=clr, width=2.5)))
             fig_carr_combo.add_trace(go.Scatter(x=r["fut_ds"], y=r["forecast"],
                 name=f"{c} (fcst)", line=dict(color=clr, width=2.5, dash="dot"),
-                mode="lines+markers", marker=dict(size=6, line=dict(color="#FFFFFF",width=1.5)),
-                showlegend=False,
-                hovertemplate=f"<b>{c} Forecast</b><br>%{{x|%b %Y}}<br>%{{y:,.0f}} orders<extra></extra>"))
-        fig_carr_combo.update_layout(**CD(), height=300, xaxis=gX(),
-            yaxis={**gY(),"title":"Orders"}, legend=leg())
+                mode="lines+markers", marker=dict(size=6,line=dict(color="#FFFFFF",width=1.5)), showlegend=False))
+        fig_carr_combo.update_layout(**CD(), height=300, xaxis=gX(), yaxis={**gY(),"title":"Orders"}, legend=leg())
         st.plotly_chart(fig_carr_combo, use_container_width=True, key="chart_15")
 
         sec("Recommended Carrier per Category")
@@ -1444,47 +1614,27 @@ def page_logistics():
         kpi(c3,"Total Saving Potential",f"₹{total_saving:,.0f}","sky","by region switch")
         kpi(c4,"Saving %",              f"{total_saving/total_current*100:.1f}%","sky","of total spend")
         sp()
-    
         sec("Region-Level Cost Comparison")
         fig_cost = go.Figure()
-        fig_cost.add_trace(go.Bar(name="Current Avg ₹", x=opt["Region"], y=opt["Current_Avg_Cost"], marker=dict(color="#EF4444", line=dict(color="rgba(0,0,0,0)"))))
-        fig_cost.add_trace(go.Bar(name="Optimal Avg ₹", x=opt["Region"], y=opt["Min_Avg_Cost"],     marker=dict(color="#22C55E", line=dict(color="rgba(0,0,0,0)"))))
+        fig_cost.add_trace(go.Bar(name="Current Avg ₹", x=opt["Region"], y=opt["Current_Avg_Cost"], marker=dict(color="#EF4444",line=dict(color="rgba(0,0,0,0)"))))
+        fig_cost.add_trace(go.Bar(name="Optimal Avg ₹", x=opt["Region"], y=opt["Min_Avg_Cost"],     marker=dict(color="#22C55E",line=dict(color="rgba(0,0,0,0)"))))
         fig_cost.update_layout(**CD(), height=280, barmode="group", xaxis={**gX(),"tickangle":-25}, yaxis=gY(), legend=leg())
         st.plotly_chart(fig_cost, use_container_width=True, key="chart_16")
-
         sec("Saving by Region")
         s_sorted = opt.sort_values("Potential_Saving", ascending=False)
-        fig_sav = go.Figure(go.Bar(
-            x=s_sorted["Region"],y=s_sorted["Potential_Saving"],
-            marker=dict(color="#F59E0B", line=dict(color="rgba(0,0,0,0)")),
+        fig_sav = go.Figure(go.Bar(x=s_sorted["Region"],y=s_sorted["Potential_Saving"],
+            marker=dict(color="#F59E0B",line=dict(color="rgba(0,0,0,0)")),
             text=[f"₹{v:,.0f}" for v in s_sorted["Potential_Saving"]],
-            textposition="outside",textfont=dict(color="#333333")
-        ))
+            textposition="outside",textfont=dict(color="#333333")))
         fig_sav.update_layout(**CD(), height=250, xaxis={**gX(),"tickangle":-25}, yaxis=gY())
         st.plotly_chart(fig_sav, use_container_width=True, key="chart_17")
-        
         sp()
-        sec("Logistics Order Forecast")
-        
-        delivered = get_delivered(df)  
-        series = delivered.groupby(delivered["Order_Date"].dt.to_period("M"))["Order_ID"].count()
+        sec("Logistics Order Forecast (Ensemble)")
+        series = del_df.groupby(del_df["Order_Date"].dt.to_period("M"))["Order_ID"].count()
         res = ml_forecast(series.values.astype(float), series.index, 6)
-        if res is None:
-            st.info("Insufficient data for forecast.")
-        else:
-            fig = go.Figure()
-            
-            fig.add_trace(go.Scatter(
-                x=res["hist_ds"],y=res["hist_y"],name="Orders",line=dict(color="#4a5e7a")
-            ))
-            
-            fig.add_trace(go.Scatter(
-                x=res["fut_ds"],y=res["forecast"],name="Forecast",line=dict(color="#06b6d4",dash="dot")
-            ))
-            
-            fig.update_layout(**CD(),height=300,xaxis=gX(),yaxis=gY())   
-            st.plotly_chart(fig,use_container_width=True)
-    
+        if res:
+            fig = draw_ensemble_chart(res, chart_key="log_ord_fc", height=300)
+            st.plotly_chart(fig, use_container_width=True, key="log_ord_fc")
         sec("Optimisation Recommendation Table")
         opt_disp = opt.copy()
         opt_disp["Current_Avg_Cost"] = opt_disp["Current_Avg_Cost"].round(1)
@@ -1499,7 +1649,6 @@ def page_logistics():
         thr = st.slider("Delay Threshold (days)", 3, 10, 7)
         del_df2 = del_df.copy()
         del_df2["Delayed"] = del_df2["Delivery_Days"] > thr
-
         cl3, cr3 = st.columns(2, gap="large")
         with cl3:
             sec("Delay Rate by Region")
@@ -1520,7 +1669,6 @@ def page_logistics():
                 text=[f"{v}%" for v in cd["Rate"]], textposition="outside", textfont=dict(color="#333333")))
             fig_c.update_layout(**CD(), height=300, xaxis=gX(), yaxis={**gY(),"title":"Delay %"})
             st.plotly_chart(fig_c, use_container_width=True, key="chart_19")
-
         sec("Carrier × Region Delay Heatmap")
         pv = del_df2.groupby(["Courier_Partner","Region"])["Delayed"].mean().unstack(fill_value=0)*100
         fig_h = go.Figure(go.Heatmap(z=pv.values, x=list(pv.columns), y=list(pv.index),
@@ -1531,45 +1679,29 @@ def page_logistics():
             xaxis=dict(showgrid=False,tickangle=-25,color="#64748B"),
             yaxis=dict(showgrid=False,color="#64748B"))
         st.plotly_chart(fig_h, use_container_width=True, key="chart_20")
-
-        sec("Avg Delivery Days Forecast")
+        sec("Avg Delivery Days Forecast (Ensemble)")
         delay_m = del_df.groupby(del_df["Order_Date"].dt.to_period("M"))["Delivery_Days"].mean().rename("v")
         r_del   = ml_forecast(delay_m.values.astype(float), delay_m.index, 6)
         if r_del:
-            fig_d = go.Figure()
-            x_ci = list(r_del["fut_ds"])+list(r_del["fut_ds"])[::-1]
-            y_ci = list(r_del["ci_hi"])+list(r_del["ci_lo"])[::-1]
-            fig_d.add_trace(go.Scatter(x=x_ci,y=y_ci,fill="toself",fillcolor="rgba(255,107,107,0.07)",line=dict(color="rgba(0,0,0,0)"),showlegend=False))
-            fig_d.add_trace(go.Scatter(x=r_del["hist_ds"],y=r_del["hist_y"],name="Historical",line=dict(color="#4a5e7a",width=2)))
-            fig_d.add_trace(go.Scatter(x=r_del["fut_ds"],y=r_del["forecast"],name="Forecast",
-                line=dict(color="#EF4444",width=2.5,dash="dot"),mode="lines+markers",
-                marker=dict(size=8,color="#EF4444",line=dict(color="#FFFFFF",width=2))))
-            fig_d.update_layout(**CD(), height=250, xaxis=gX(), yaxis={**gY(),"title":"Avg Delivery Days"}, legend=leg())
-            st.plotly_chart(fig_d, use_container_width=True, key="chart_21")
+            fig_d = draw_ensemble_chart(r_del, chart_key="delay_fc", height=250)
+            st.plotly_chart(fig_d, use_container_width=True, key="delay_fc")
 
     with t4:
-        sec("Warehouse Shipment Volume")
+        sec("Warehouse Shipment Volume + Ensemble Forecast")
         wm = del_df.groupby([del_df["Order_Date"].dt.to_period("M"),"Warehouse"])["Quantity"].sum().unstack(fill_value=0)
         fig_wh = go.Figure()
         wf_rows = []
         for i, wh in enumerate(wm.columns):
             clr = COLORS[i%len(COLORS)]
             r = ml_forecast(wm[wh].values.astype(float), wm.index, 6)
-            if r is None:        
+            if r is None:
                 fig_wh.add_trace(go.Bar(x=wm.index.to_timestamp(), y=wm[wh], name=wh,
-                    marker=dict(color=clr, line=dict(color="rgba(0,0,0,0)"))))
-                continue
-            
+                    marker=dict(color=clr, line=dict(color="rgba(0,0,0,0)")))); continue
             fig_wh.add_trace(go.Bar(x=r["hist_ds"], y=r["hist_y"], name=wh,
-                marker=dict(color=clr, opacity=0.85, line=dict(color="rgba(0,0,0,0)")),
-                hovertemplate=f"<b>{wh}</b><br>%{{x|%b %Y}}<br>%{{y:,.0f}} units<extra></extra>"))
-            
-            fig_wh.add_trace(go.Scatter(x=r["fut_ds"], y=r["forecast"],
-                name=f"{wh} (fcst)", mode="lines+markers",
-                line=dict(color=clr, width=2.5, dash="dot"),
-                marker=dict(size=8, line=dict(color="#FFFFFF", width=2)),
-                showlegend=False,
-                hovertemplate=f"<b>{wh} Forecast</b><br>%{{x|%b %Y}}<br>%{{y:,.0f}} units<extra></extra>"))
+                marker=dict(color=clr, opacity=0.85, line=dict(color="rgba(0,0,0,0)"))))
+            fig_wh.add_trace(go.Scatter(x=r["fut_ds"], y=r["forecast"], name=f"{wh} (fcst)",
+                mode="lines+markers", line=dict(color=clr, width=2.5, dash="dot"),
+                marker=dict(size=8,line=dict(color="#FFFFFF",width=2)), showlegend=False))
             for dt, fc, hi in zip(r["fut_ds"], r["forecast"], r["ci_hi"]):
                 wf_rows.append({"Month":dt,"Warehouse":wh,"Forecast":fc,"Upper":hi})
         fig_wh.update_layout(**CD(), height=310, barmode="stack", xaxis=gX(), yaxis=gY(), legend=leg())
@@ -1581,7 +1713,6 @@ def page_logistics():
             tbl_wf["Upper"]    = tbl_wf["Upper"].round(0).astype(int)
             tbl_wf.columns     = ["Month","Warehouse","Forecast Units","Upper Bound"]
             st.dataframe(tbl_wf.sort_values(["Month","Warehouse"]), use_container_width=True, hide_index=True)
-
         sec("Top Products per Warehouse")
         wsel = st.selectbox("Warehouse", sorted(del_df["Warehouse"].unique()))
         tp = del_df[del_df["Warehouse"]==wsel].groupby("Product_Name")["Quantity"].sum().sort_values(ascending=False).head(10)
@@ -1597,14 +1728,11 @@ def page_logistics():
             Orders=("Order_ID","count"), Revenue=("Net_Revenue","sum"),
             Qty=("Quantity","sum"), Avg_Del=("Delivery_Days","mean"),
             Returns=("Return_Flag","mean")).reset_index().sort_values("Revenue",ascending=False)
-
         met = st.selectbox("Metric", ["Revenue","Orders","Qty","Avg_Del","Returns"])
         fig_r = go.Figure(go.Bar(x=rs["Region"], y=rs[met],
-            marker=dict(color=[COLORS[i%len(COLORS)] for i in range(len(rs))], line=dict(color="rgba(0,0,0,0)")),
-            hovertemplate="<b>%{x}</b><br>%{y:,.2f}<extra></extra>"))
+            marker=dict(color=[COLORS[i%len(COLORS)] for i in range(len(rs))], line=dict(color="rgba(0,0,0,0)"))))
         fig_r.update_layout(**CD(), height=290, xaxis={**gX(),"tickangle":-25}, yaxis=gY())
         st.plotly_chart(fig_r, use_container_width=True, key="chart_24")
-
         cl5, cr5 = st.columns(2, gap="large")
         with cl5:
             sec("Best Carrier per Region")
@@ -1621,8 +1749,7 @@ def page_logistics():
                 text=[f"{v:.1f}%" for v in rr.values], textposition="outside", textfont=dict(color="#333333")))
             fig_ret.update_layout(**CD(), height=270, xaxis=gX(), yaxis=dict(showgrid=False,color="#64748B"))
             st.plotly_chart(fig_ret, use_container_width=True, key="chart_25")
-
-        sec("Region Revenue Forecast")
+        sec("Region Revenue Forecast (Ensemble)")
         top_reg = del_df["Region"].value_counts().head(5).index.tolist()
         fig_rf  = go.Figure()
         for i, reg in enumerate(top_reg):
@@ -1645,7 +1772,19 @@ st.sidebar.markdown("""<div style='padding:18px 0 26px'>
        letter-spacing:-0.04em;background:linear-gradient(135deg,#f5a623,#ff6b6b,#2ed8c3);
        -webkit-background-clip:text;-webkit-text-fill-color:transparent'>OmniFlow</div>
   <div style='font-family:DM Mono,monospace;font-size:0.62rem;color:#4a5e7a;
-       margin-top:2px;letter-spacing:0.05em'>D2D INTELLIGENCE</div>
+       margin-top:2px;letter-spacing:0.05em'>D2D INTELLIGENCE · 3-MODEL ENSEMBLE</div>
+</div>""", unsafe_allow_html=True)
+
+st.sidebar.markdown("""<div style='font-family:DM Mono,monospace;font-size:0.6rem;
+    color:#4a5e7a;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.08em'>
+    Forecast Engine</div>
+    <div style='font-size:0.72rem;color:#334155;background:#f8faff;border:1px solid #c7d7fd;
+    border-radius:10px;padding:10px 12px;margin-bottom:16px;line-height:1.8'>
+    <span style='color:#3B82F6;font-weight:700'>① Ridge</span> +
+    <span style='color:#22C55E;font-weight:700'>② Random Forest</span> +
+    <span style='color:#F59E0B;font-weight:700'>③ Grad Boost</span>
+    <br><span style='color:#8B5CF6;font-weight:700'>④ Ensemble</span>
+    via inverse-RMSE blend
 </div>""", unsafe_allow_html=True)
 
 PAGES = {
