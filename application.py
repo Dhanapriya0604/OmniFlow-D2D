@@ -355,12 +355,27 @@ def _fit_predict_model(model, Xtr, ytr, Xte, Xfull, X_fut, sc):
     forecast  = np.maximum(model.predict(Xfut_s), 0)
     return eval_pred, fitted, forecast
 
+def _detect_regime(series_values, min_idx=6):
+    """Find the index where a structural break (growth acceleration) most likely occurred.
+    Uses rolling mean comparison — picks the point with maximum ratio of
+    post-mean to pre-mean, constrained so both windows have at least min_idx points."""
+    n = len(series_values)
+    best_idx, best_ratio = min_idx, 1.0
+    for i in range(min_idx, n - min_idx):
+        pre  = series_values[:i].mean()
+        post = series_values[i:].mean()
+        ratio = post / (pre + 1e-9)
+        if ratio > best_ratio:
+            best_ratio = ratio
+            best_idx   = i
+    return best_idx
+
 def ml_forecast(series_values, ds_index, n_future=6):
     n = len(series_values)
     if n < 6:
         return None
 
-    regime_idx = 15
+    regime_idx = _detect_regime(series_values)
     X_all  = build_features(n, n_future, ds_index, regime_idx)
     X_hist = X_all[:n]
     X_fut  = X_all[n:]
@@ -611,6 +626,7 @@ def compute_production(cap_mult=1.0, buffer_pct=0.15):
 def compute_logistics(w_speed=0.40, w_cost=0.35, w_returns=0.25):
     df     = load_data()
     del_df = get_delivered(df)
+    plan   = compute_production()   # feed from production module
 
     carr = del_df.groupby("Courier_Partner").agg(
         Orders=("Order_ID","count"), Avg_Days=("Delivery_Days","mean"),
@@ -621,15 +637,9 @@ def compute_logistics(w_speed=0.40, w_cost=0.35, w_returns=0.25):
     carr["Norm_Days"]    = 1 - (carr["Avg_Days"]    - carr["Avg_Days"].min())    / (carr["Avg_Days"].max()    - carr["Avg_Days"].min()    + 1e-9)
     carr["Norm_Cost"]    = 1 - (carr["Avg_Cost"]    - carr["Avg_Cost"].min())    / (carr["Avg_Cost"].max()    - carr["Avg_Cost"].min()    + 1e-9)
     carr["Norm_Returns"] = 1 - (carr["Return_Rate"] - carr["Return_Rate"].min()) / (carr["Return_Rate"].max() - carr["Return_Rate"].min() + 1e-9)
-
-    carr["Perf_Score"] = (
-        w_speed   * carr["Norm_Days"] +
-        w_cost    * carr["Norm_Cost"] +
-        w_returns * carr["Norm_Returns"]
-    ).round(3)
-
-    carr["Delay_Index"] = (carr["Avg_Days"] / carr["Avg_Days"].min()).round(2)
-    carr["Cost_Score"]  = (carr["Avg_Cost"] / carr["Avg_Cost"].min()).round(2)
+    carr["Perf_Score"]   = (w_speed*carr["Norm_Days"] + w_cost*carr["Norm_Cost"] + w_returns*carr["Norm_Returns"]).round(3)
+    carr["Delay_Index"]  = (carr["Avg_Days"] / carr["Avg_Days"].min()).round(2)
+    carr["Cost_Score"]   = (carr["Avg_Cost"] / carr["Avg_Cost"].min()).round(2)
 
     region_carr_score = (
         del_df.groupby(["Region","Courier_Partner"]).agg(
@@ -669,7 +679,34 @@ def compute_logistics(w_speed=0.40, w_cost=0.35, w_returns=0.25):
     opt["Potential_Saving"] = ((opt["Current_Avg_Cost"] - opt["Min_Avg_Cost"]) * opt["Orders"]).round(0)
     opt["Saving_Pct"]       = ((opt["Current_Avg_Cost"] - opt["Min_Avg_Cost"]) / opt["Current_Avg_Cost"] * 100).round(1)
 
-    return carr, best, opt, current
+    # --- Production-driven forward shipment plan ---
+    # avg shipping cost per unit from historical data
+    avg_ship_cost_per_unit = (del_df["Shipping_Cost_INR"].sum() /
+                               del_df["Quantity"].replace(0, np.nan).sum())
+    avg_ship_cost_per_unit = max(avg_ship_cost_per_unit, 1.0)
+
+    # avg units per order (for order volume projection)
+    avg_units_per_order = max(del_df["Quantity"].mean(), 1.0)
+
+    fwd_rows = []
+    if not plan.empty:
+        for _, row in plan.iterrows():
+            proj_units  = row["Production"]
+            proj_orders = round(proj_units / avg_units_per_order)
+            proj_cost   = round(proj_units * avg_ship_cost_per_unit, 0)
+            fwd_rows.append({
+                "Month_dt":    row["Month_dt"],
+                "Month":       row["Month"],
+                "Category":    row["Category"],
+                "Prod_Units":  int(proj_units),
+                "Proj_Orders": int(proj_orders),
+                "Proj_Ship_Cost": int(proj_cost),
+                "CI_Lo_Units": int(row["CI_Lo"]),
+                "CI_Hi_Units": int(row["CI_Hi"]),
+            })
+    fwd_plan = pd.DataFrame(fwd_rows)
+
+    return carr, best, opt, current, fwd_plan
 
 def build_context():
     df  = load_data()
@@ -691,7 +728,7 @@ def build_context():
 
     inv  = compute_inventory()
     plan = compute_production()
-    carr, best_carr, opt, _ = compute_logistics()
+    carr, best_carr, opt, _, fwd_plan = compute_logistics()
 
     n_crit     = (inv["Status"]=="🔴 Critical").sum()
     n_low      = (inv["Status"]=="🟡 Low").sum()
@@ -707,6 +744,10 @@ def build_context():
     best_str   = ", ".join([f"{r['Region']}→{r['Courier_Partner']}(score:{r['Score']:.2f})" for _,r in best_carr.iterrows()])
     saving_total = opt["Potential_Saving"].sum()
     saving_str   = "; ".join([f"{r['Region']}: save ₹{r['Potential_Saving']:,.0f} with {r['Optimal_Carrier']}" for _,r in opt.iterrows() if r['Potential_Saving']>0])
+    fwd_str = ""
+    if not fwd_plan.empty:
+        fwd_agg = fwd_plan.groupby("Month").agg(Units=("Prod_Units","sum"), Cost=("Proj_Ship_Cost","sum")).reset_index()
+        fwd_str = "; ".join([f"{r['Month']}:{r['Units']:.0f}u/₹{r['Cost']:,.0f}" for _,r in fwd_agg.iterrows()])
     cat_rev  = ops.groupby("Category")["Net_Revenue"].sum().sort_values(ascending=False)
     cat_str  = ", ".join([f"{k}:₹{v/1e6:.1f}M" for k,v in cat_rev.items()])
     top_reg  = ops.groupby("Region")["Net_Revenue"].sum().sort_values(ascending=False).head(5)
@@ -735,20 +776,21 @@ Order Forecast: {fc_str(r_ord, lambda v: f"{v:.0f}")}
 Qty Forecast:   {fc_str(r_qty, lambda v: f"{v:.0f}u")}
 Revenue Forecast: {fc_str(r_rev, lambda v: f"₹{v/1e6:.1f}M")}
 
-[MODULE 2 — INVENTORY (EOQ + Full SS + ROP + ABC)]
+[MODULE 2 — INVENTORY (EOQ + Full SS + ROP + ABC | fed by Demand forecast)]
 Critical: {n_crit} | Low: {n_low} | Adequate: {inv['Status'].eq('🟢 Adequate').sum()}
 ABC: {abc_str}
 Reorder IMMEDIATELY: {crit_prods}
 Est. Stockout Loss/Day: ₹{total_stockout_cost:,.0f}
 
-[MODULE 3 — PRODUCTION (6-month, decay-corrected boosts)]
+[MODULE 3 — PRODUCTION (6-month | fed by Demand + Inventory)]
 By Category: {prod_str}
 Peak Month: {peak_mo}
 
-[MODULE 4 — LOGISTICS (Weighted Score: Speed 40%, Cost 35%, Returns 25%)]
+[MODULE 4 — LOGISTICS (fed by Production Plan | Score: Speed 40%, Cost 35%, Returns 25%)]
 Carriers: {carr_str}
 Best per Region: {best_str}
 Cost Saving: ₹{saving_total:,.0f} | {saving_str}
+Forward Shipment Plan (production-driven): {fwd_str if fwd_str else 'N/A'}
 
 CATEGORIES: {cat_str}
 TOP REGIONS: {reg_str}
@@ -996,7 +1038,7 @@ def page_chatbot():
             st.markdown("""<div style='font-size:0.74rem;font-weight:700;color:#f5a623;
                 letter-spacing:0.06em;text-transform:uppercase;font-family:DM Mono,monospace;margin-bottom:10px'>
                 💰 Cost Saving Opportunities</div>""", unsafe_allow_html=True)
-            _, _, opt, _ = compute_logistics()
+            _, _, opt, _, _ = compute_logistics()
             for _, r in opt.sort_values("Potential_Saving", ascending=False).head(5).iterrows():
                 if r["Potential_Saving"] > 0:
                     st.markdown(f"<div class='alert-item alert-warn'><b style='color:#000000'>{r['Region']}</b> → <b style='color:#000000'>{r['Optimal_Carrier']}</b><br><span style='color:#4a5e7a;font-size:0.71rem'>Save ₹{r['Potential_Saving']:,.0f} ({r['Saving_Pct']:.1f}%)</span></div>", unsafe_allow_html=True)
@@ -1455,7 +1497,8 @@ def page_inventory():
 
     sp()
     sec("Stock Level Forecast — Depletion & Replenishment Simulation")
-    cat_monthly_qty = ops.groupby(["YM","Category"])["Quantity"].sum().unstack(fill_value=0)
+    plan_for_inv = compute_production()   # feed from production module
+    cat_monthly_qty = ops.groupby(["YM","Category"])["Net_Qty"].sum().unstack(fill_value=0)
     cats = sorted(inv["Category"].unique())
     tabs_inv = st.tabs(cats)
     for tab, cat in zip(tabs_inv, cats):
@@ -1464,26 +1507,39 @@ def page_inventory():
             if cat_inv.empty or cat not in cat_monthly_qty.columns:
                 st.info("No data."); continue
 
-            avg_eoq   = max(int(cat_inv["EOQ"].mean()), 1)
-            avg_rop   = max(int(cat_inv["ROP"].mean()), 1)
-            avg_ss    = max(int(cat_inv["SS"].mean()), 0)
-            avg_stock = max(int(cat_inv["Current_Stock"].mean()), 0)
-            n_crit_cat = (cat_inv["Status"] == "🔴 Critical").sum()
-            n_low_cat  = (cat_inv["Status"] == "🟡 Low").sum()
+            avg_eoq    = max(int(cat_inv["EOQ"].mean()), 1)
+            avg_rop    = max(int(cat_inv["ROP"].mean()), 1)
+            avg_ss     = max(int(cat_inv["SS"].mean()), 0)
+            # Use SUM of current stock across all SKUs in category — not avg
+            total_stock = max(int(cat_inv["Current_Stock"].sum()), 0)
+            n_crit_cat  = (cat_inv["Status"] == "🔴 Critical").sum()
+            n_low_cat   = (cat_inv["Status"] == "🟡 Low").sum()
+
+            # Use production plan forecast as demand driver (production = what needs to ship)
+            cat_plan = plan_for_inv[plan_for_inv["Category"] == cat].sort_values("Month_dt") if not plan_for_inv.empty else pd.DataFrame()
 
             vals = cat_monthly_qty[cat].values.astype(float)
             res  = ml_forecast(vals, cat_monthly_qty.index, 6)
             if res is None:
                 st.info("Insufficient data for forecast."); continue
 
-            stock=avg_stock; stock_levels=[]; reorder_months=[]; reorder_qty=[]
+            # Use production forecast if available, else fall back to demand forecast
+            if not cat_plan.empty and len(cat_plan) == len(res["fut_ds"]):
+                sim_demand = cat_plan["Demand_Forecast"].values
+                sim_label  = "Production-driven demand"
+            else:
+                sim_demand = res["forecast"]
+                sim_label  = "ML demand forecast"
+
+            stock = total_stock
+            stock_levels=[]; reorder_months=[]; reorder_qty=[]
             months_labels = [d.strftime("%b %Y") for d in res["fut_ds"]]
-            for i, fc_demand in enumerate(res["forecast"]):
+            for i, fc_demand in enumerate(sim_demand):
                 stock -= fc_demand
                 if stock <= avg_rop:
-                    n_orders = max(1, int(np.ceil((avg_rop + avg_ss - stock) / avg_eoq)) + 1)
+                    n_orders  = max(1, int(np.ceil((avg_rop + avg_ss - stock) / avg_eoq)) + 1)
                     order_qty = n_orders * avg_eoq
-                    stock += order_qty
+                    stock    += order_qty
                     reorder_months.append(i); reorder_qty.append(order_qty)
                 stock = max(stock, avg_ss)
                 stock_levels.append(round(stock))
@@ -1502,6 +1558,12 @@ def page_inventory():
                     cmin=avg_ss, cmax=max(stock_levels) if stock_levels else 1,
                     line=dict(color="#FFFFFF", width=2), showscale=False),
                 hovertemplate="<b>%{x}</b><br>Stock: %{y} units<extra></extra>"))
+            # Overlay production plan demand as a reference line
+            if not cat_plan.empty:
+                fig.add_trace(go.Scatter(
+                    x=months_labels, y=list(sim_demand), name="Production Demand",
+                    mode="lines", line=dict(color="#F59E0B", width=1.5, dash="dot"),
+                    opacity=0.7))
             fig.add_hline(y=avg_rop, line_dash="dash", line_color="#F59E0B", line_width=2,
                 annotation_text=f"  ROP: {avg_rop}", annotation_font=dict(color="#F59E0B",size=11,family="DM Mono"))
             fig.add_hline(y=avg_ss, line_dash="dot", line_color="#EF4444", line_width=2,
@@ -1516,7 +1578,7 @@ def page_inventory():
             fig.update_layout(**CD(), height=320,
                 xaxis={**gX(),"title":"Month"}, yaxis={**gY(),"title":"Units in Stock"},
                 legend={**leg(),"orientation":"h","y":-0.25},
-                title=dict(text=f"{cat} — Ensemble forecast · Starting stock: {avg_stock} units",
+                title=dict(text=f"{cat} — {sim_label} · Starting stock: {total_stock:,} units (category total)",
                            font=dict(color="#333333",size=11)))
             st.plotly_chart(fig, use_container_width=True, key=f"inv_stock_{cat}")
 
@@ -1645,7 +1707,7 @@ def page_logistics():
             st.warning(f"Weights sum to {total_w*100:.0f}% — they will be normalised automatically.")
         w_speed /= total_w; w_cost /= total_w; w_returns /= total_w
 
-    carr, best_carr, opt, _ = compute_logistics(w_speed, w_cost, w_returns)
+    carr, best_carr, opt, _, fwd_plan = compute_logistics(w_speed, w_cost, w_returns)
     t1,t2,t3,t4,t5 = st.tabs(["Carrier Scorecard","Cost Optimisation","Delay Intel","Warehouse Forecast","Regions"])
 
     with t1:
@@ -1756,6 +1818,64 @@ def page_logistics():
         opt_disp.columns = ["Region","Switch To","Current Avg ₹","Optimal Avg ₹","Saving ₹","Saving %","Orders"]
         st.dataframe(opt_disp.sort_values("Saving ₹", ascending=False), use_container_width=True, hide_index=True)
 
+        sp()
+        sec("Forward Shipment Plan (Production-Driven)")
+        if not fwd_plan.empty:
+            banner("Projected shipment volumes and costs are derived from the <b>Production Plan</b> — not historical data. Uses avg shipping cost/unit from delivered orders.", "teal")
+            # Monthly total across all categories
+            fwd_agg = fwd_plan.groupby("Month_dt").agg(
+                Month=("Month","first"),
+                Total_Units=("Prod_Units","sum"),
+                Total_Orders=("Proj_Orders","sum"),
+                Total_Ship_Cost=("Proj_Ship_Cost","sum"),
+                CI_Lo=("CI_Lo_Units","sum"),
+                CI_Hi=("CI_Hi_Units","sum"),
+            ).reset_index().sort_values("Month_dt")
+
+            fa1, fa2, fa3 = st.columns(3)
+            kpi(fa1, "6M Planned Units",   f"{fwd_agg['Total_Units'].sum():,}",         "sky", "from production plan")
+            kpi(fa2, "6M Projected Orders",f"{fwd_agg['Total_Orders'].sum():,}",         "sky", "estimated shipments")
+            kpi(fa3, "6M Proj Ship Cost",  f"₹{fwd_agg['Total_Ship_Cost'].sum():,.0f}", "sky", "at current avg rate")
+            sp()
+
+            fig_fwd = go.Figure()
+            x_ci = list(fwd_agg["Month_dt"]) + list(fwd_agg["Month_dt"])[::-1]
+            y_ci = list(fwd_agg["CI_Hi"])    + list(fwd_agg["CI_Lo"])[::-1]
+            fig_fwd.add_trace(go.Scatter(x=x_ci, y=y_ci, fill="toself",
+                fillcolor="rgba(59,130,246,0.07)", line=dict(color="rgba(0,0,0,0)"), name="Demand CI"))
+            fig_fwd.add_trace(go.Bar(
+                x=fwd_agg["Month_dt"], y=fwd_agg["Total_Units"],
+                name="Planned Shipment Units", marker=dict(color="#3B82F6", opacity=0.8, line=dict(color="rgba(0,0,0,0)")),
+                hovertemplate="<b>%{x|%b %Y}</b><br>Units: %{y:,}<extra></extra>"))
+            fig_fwd.update_layout(**CD(), height=270, barmode="overlay",
+                xaxis=gX(), yaxis={**gY(),"title":"Planned Units"},
+                legend={**leg(),"orientation":"h","y":-0.25})
+            st.plotly_chart(fig_fwd, use_container_width=True, key="fwd_ship_chart")
+
+            # Projected cost line
+            fig_cost_fwd = go.Figure(go.Scatter(
+                x=fwd_agg["Month_dt"], y=fwd_agg["Total_Ship_Cost"],
+                mode="lines+markers", line=dict(color="#8B5CF6", width=2.5),
+                marker=dict(size=8, color="#8B5CF6", line=dict(color="#FFFFFF", width=2)),
+                fill="toself", fillcolor="rgba(139,92,246,0.06)",
+                hovertemplate="<b>%{x|%b %Y}</b><br>Proj Cost: ₹%{y:,.0f}<extra></extra>",
+                name="Projected Shipping Cost"))
+            fig_cost_fwd.update_layout(**CD(), height=230,
+                xaxis=gX(), yaxis={**gY(),"title":"₹ Shipping Cost"})
+            st.plotly_chart(fig_cost_fwd, use_container_width=True, key="fwd_cost_chart")
+
+            # Per-category breakdown table
+            sec("Category Breakdown — 6-Month Shipment Plan")
+            cat_fwd = fwd_plan.groupby("Category").agg(
+                Units=("Prod_Units","sum"),
+                Orders=("Proj_Orders","sum"),
+                Ship_Cost=("Proj_Ship_Cost","sum"),
+            ).reset_index().sort_values("Units", ascending=False)
+            cat_fwd.columns = ["Category","Planned Units","Est. Orders","Proj. Ship Cost ₹"]
+            st.dataframe(cat_fwd, use_container_width=True, hide_index=True)
+        else:
+            st.info("Production plan not available — run production module first.")
+
     with t3:
         sec("Delay Hotspot Analysis", "⚠️")
         thr = st.slider("Delay Threshold (days)", 3, 10, 7)
@@ -1800,6 +1920,7 @@ def page_logistics():
 
     with t4:
         sec("Warehouse Shipment Volume + Ensemble Forecast")
+        banner("Historical bars show delivered volumes. Dotted lines = ML ensemble forecast. Production-driven inbound plan (from production module) shown below.", "purple")
         wm = del_df.groupby([del_df["Order_Date"].dt.to_period("M"),"Warehouse"])["Quantity"].sum().unstack(fill_value=0)
         fig_wh = go.Figure()
         wf_rows = []
@@ -1825,6 +1946,45 @@ def page_logistics():
             tbl_wf["Upper"]    = tbl_wf["Upper"].round(0).astype(int)
             tbl_wf.columns     = ["Month","Warehouse","Forecast Units","Upper Bound"]
             st.dataframe(tbl_wf.sort_values(["Month","Warehouse"]), use_container_width=True, hide_index=True)
+
+        # Production-driven inbound plan per warehouse
+        sp()
+        sec("Production-Driven Inbound Plan per Warehouse")
+        if not fwd_plan.empty:
+            # Distribute production units to warehouses by their historical share
+            wh_share = (del_df.groupby("Warehouse")["Quantity"].sum() /
+                        del_df["Quantity"].sum()).to_dict()
+            inbound_rows = []
+            for _, row in fwd_plan.iterrows():
+                for wh, share in wh_share.items():
+                    inbound_rows.append({
+                        "Month":    row["Month"],
+                        "Month_dt": row["Month_dt"],
+                        "Warehouse": wh,
+                        "Category":  row["Category"],
+                        "Inbound_Units": round(row["Prod_Units"] * share),
+                        "Proj_Ship_Cost": round(row["Proj_Ship_Cost"] * share),
+                    })
+            inbound_df = pd.DataFrame(inbound_rows)
+            inbound_agg = inbound_df.groupby(["Month_dt","Month","Warehouse"]).agg(
+                Inbound_Units=("Inbound_Units","sum"),
+                Proj_Ship_Cost=("Proj_Ship_Cost","sum"),
+            ).reset_index().sort_values(["Month_dt","Warehouse"])
+
+            fig_inb = go.Figure()
+            for i, wh in enumerate(sorted(inbound_agg["Warehouse"].unique())):
+                wdf = inbound_agg[inbound_agg["Warehouse"]==wh]
+                fig_inb.add_trace(go.Bar(
+                    x=wdf["Month"], y=wdf["Inbound_Units"],
+                    name=wh, marker=dict(color=COLORS[i%len(COLORS)], line=dict(color="rgba(0,0,0,0)"))))
+            fig_inb.update_layout(**CD(), height=280, barmode="group",
+                xaxis={**gX(),"tickangle":-25}, yaxis={**gY(),"title":"Planned Inbound Units"}, legend=leg())
+            st.plotly_chart(fig_inb, use_container_width=True, key="wh_inbound_chart")
+            disp_inb = inbound_agg[["Month","Warehouse","Inbound_Units","Proj_Ship_Cost"]].copy()
+            disp_inb.columns = ["Month","Warehouse","Planned Inbound Units","Proj. Ship Cost ₹"]
+            st.dataframe(disp_inb, use_container_width=True, hide_index=True)
+        else:
+            st.info("Production plan not available.")
         sec("Top Products per Warehouse")
         wsel = st.selectbox("Warehouse", sorted(del_df["Warehouse"].unique()))
         tp = del_df[del_df["Warehouse"]==wsel].groupby("Product_Name")["Quantity"].sum().sort_values(ascending=False).head(10)
