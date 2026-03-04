@@ -224,13 +224,12 @@ def model_quality_verdict(nrmse, r2):
 
 def render_model_quality(res):
     grade, label, explanation, accuracy_pct, icon = model_quality_verdict(res["nrmse"], res["r2"])
-    
-    # Show individual model metrics
+  
     if "model_metrics" in res:
         st.markdown("<div class='ensemble-card'>", unsafe_allow_html=True)
         st.markdown("""<div style='font-size:0.75rem;font-weight:700;color:#4a5e7a;
             letter-spacing:0.08em;text-transform:uppercase;margin-bottom:12px'>
-            🤖 Individual Model Performance (Hold-out Evaluation)</div>""", unsafe_allow_html=True)
+            Individual Model Performance (Hold-out Evaluation)</div>""", unsafe_allow_html=True)
         mm = res["model_metrics"]
         mc1, mc2, mc3, mc4 = st.columns(4)
         for col, (mname, pill_cls, clr) in zip(
@@ -249,7 +248,6 @@ def render_model_quality(res):
                 </div>""", unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
 
-        # Weights display
         weights = res.get("weights", {})
         if weights:
             total = sum(weights.values())
@@ -292,7 +290,7 @@ def render_model_quality(res):
       <div style='font-size:0.85rem;color:#334155;
            border-top:1px solid rgba(0,0,0,0.06);
            padding-top:10px;line-height:1.6'>
-        📋 <b>Interpretation:</b> {explanation}
+        <b>Interpretation:</b> {explanation}
       </div>
     </div>
     """, unsafe_allow_html=True)
@@ -345,7 +343,6 @@ def build_features(n_hist, n_future, ds_hist, regime_start_idx):
     return X
 
 def _fit_predict_model(model, Xtr, ytr, Xte, Xfull, X_fut, sc):
-    """Fit a single model, return eval_pred, fitted, forecast."""
     Xtr_s  = sc.transform(Xtr)
     Xte_s  = sc.transform(Xte)
     Xall_s = sc.transform(Xfull)
@@ -374,13 +371,9 @@ def ml_forecast(series_values, ds_index, n_future=6):
 
     models = {
         "Ridge":        Ridge(alpha=0.5),
-        "RandomForest": RandomForestRegressor(n_estimators=200, max_depth=6,
-                                              min_samples_leaf=2, random_state=42),
-        "GradBoost":    GradientBoostingRegressor(n_estimators=200, max_depth=4,
-                                                  learning_rate=0.05, subsample=0.8,
-                                                  random_state=42),
+        "RandomForest": RandomForestRegressor(n_estimators=200, max_depth=6,min_samples_leaf=2, random_state=42),
+        "GradBoost":    GradientBoostingRegressor(n_estimators=200, max_depth=4,learning_rate=0.05, subsample=0.8,random_state=42),
     }
-
     eval_preds  = {}
     model_rmses = {}
     model_metrics = {}
@@ -400,7 +393,6 @@ def ml_forecast(series_values, ds_index, n_future=6):
     inv_rmse  = {m: 1.0 / (r + 1e-9) for m, r in model_rmses.items()}
     total_inv = sum(inv_rmse.values())
     weights   = {m: v / total_inv for m, v in inv_rmse.items()}
-
     ypred_eval = sum(weights[m] * eval_preds[m] for m in models)
 
     sc2 = StandardScaler()
@@ -415,7 +407,6 @@ def ml_forecast(series_values, ds_index, n_future=6):
 
     ensemble_fitted   = sum(weights[m] * fitted_per_model[m]   for m in models)
     ensemble_forecast = sum(weights[m] * forecast_per_model[m] for m in models)
-
     residuals = series_values - ensemble_fitted
     resid_std = residuals.std()
     ss_res_e  = np.sum(residuals ** 2)
@@ -426,7 +417,6 @@ def ml_forecast(series_values, ds_index, n_future=6):
     mae_e     = mean_absolute_error(yte, ypred_eval)
 
     model_metrics["Ensemble"] = {"rmse": rmse_e, "nrmse": nrmse_e, "mae": mae_e, "r2": r2_e}
-
     ts_index  = _to_timestamp_index(ds_index)
     last_dt   = ts_index[-1]
     fut_dates = pd.date_range(last_dt + pd.offsets.MonthBegin(1), periods=n_future, freq="MS")
@@ -453,7 +443,6 @@ def ml_forecast(series_values, ds_index, n_future=6):
         "weights":             {m: weights[m] for m in models},
     }
 
-# ─── INVENTORY ──────────────────────────────────────────────
 @st.cache_data(show_spinner=False)
 def compute_inventory(order_cost=500, hold_pct=0.20, lead_time=7, z=1.65):
     df  = load_data()
@@ -461,11 +450,9 @@ def compute_inventory(order_cost=500, hold_pct=0.20, lead_time=7, z=1.65):
     ops = ops.copy()
     ops["YM"] = ops["Order_Date"].dt.to_period("M")
 
-    sku_monthly = (ops.groupby(["SKU_ID","YM"])["Quantity"]
-                   .sum().reset_index().sort_values(["SKU_ID","YM"]))
+    sku_monthly = (ops.groupby(["SKU_ID","YM"])["Quantity"].sum().reset_index().sort_values(["SKU_ID","YM"]))
     sku_stats = (ops.groupby(["SKU_ID","Product_Name","Category"])
-                 .agg(avg_price=("Sell_Price","mean"), total_qty=("Quantity","sum"))
-                 .reset_index())
+                 .agg(avg_price=("Sell_Price","mean"), total_qty=("Quantity","sum")).reset_index())
 
     rows = []
     for _, sk in sku_stats.iterrows():
@@ -518,10 +505,8 @@ def compute_inventory(order_cost=500, hold_pct=0.20, lead_time=7, z=1.65):
             "Unit_Price": round(uc,0), "Annual_Demand": round(ann_d,0),
             "Forecast_6M": int(avg_d * 6 * 1.05),
         })
-
     return pd.DataFrame(rows)
 
-# ─── PRODUCTION ─────────────────────────────────────────────
 @st.cache_data(show_spinner=False)
 def compute_production(cap_mult=1.0, buffer_pct=0.15):
     df  = load_data()
@@ -529,7 +514,6 @@ def compute_production(cap_mult=1.0, buffer_pct=0.15):
     inv = compute_inventory()
     ops = ops.copy()
     ops["YM"] = ops["Order_Date"].dt.to_period("M")
-
     cat_monthly = ops.groupby(["YM","Category"])["Quantity"].sum().unstack(fill_value=0)
     ds_index    = cat_monthly.index
 
@@ -557,10 +541,8 @@ def compute_production(cap_mult=1.0, buffer_pct=0.15):
                 "CI_Lo": round(res["ci_lo"][i],0),
                 "CI_Hi": round(res["ci_hi"][i],0),
             })
-
     return pd.DataFrame(rows)
 
-# ─── LOGISTICS ──────────────────────────────────────────────
 @st.cache_data(show_spinner=False)
 def compute_logistics():
     df     = load_data()
@@ -600,17 +582,15 @@ def compute_logistics():
 
     return carr, best, opt, current
 
-# ─── CHATBOT CONTEXT ────────────────────────────────────────
+
 def build_context():
     df  = load_data()
     ops = get_ops(df)
     ops = ops.copy()
     ops["YM"] = ops["Order_Date"].dt.to_period("M")
-
     m_orders = ops.groupby("YM")["Order_ID"].count().rename("v")
     m_qty    = ops.groupby("YM")["Quantity"].sum().rename("v")
     m_rev    = ops.groupby("YM")["Net_Revenue"].sum().rename("v")
-
     r_ord = ml_forecast(m_orders.values.astype(float), m_orders.index, 6)
     r_rev = ml_forecast(m_rev.values.astype(float),    m_rev.index,    6)
     r_qty = ml_forecast(m_qty.values.astype(float),    m_qty.index,    6)
@@ -680,7 +660,6 @@ CATEGORIES: {cat_str}
 TOP REGIONS: {reg_str}
 TOP PRODUCTS: {sku_str}"""
 
-# ─── LLM CALL ───────────────────────────────────────────────
 def call_llm(messages, system, api_key):
     hdrs = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
     body = {
@@ -726,24 +705,19 @@ Streamlit dashboard for an India D2D e-commerce business.
 === LIVE SUPPLY CHAIN CONTEXT ===
 {ctx}"""
 
-# HELPER: Draw ensemble forecast chart with per-model lines
 def draw_ensemble_chart(res, chart_key, height=320, title="", show_models=True):
-    """Draw forecast chart with optional per-model visibility."""
     fig = go.Figure()
 
-    # CI band
     x_ci = list(res["fut_ds"]) + list(res["fut_ds"])[::-1]
     y_ci = list(res["ci_hi"])  + list(res["ci_lo"])[::-1]
     fig.add_trace(go.Scatter(x=x_ci, y=y_ci, fill="toself",
         fillcolor="rgba(139,92,246,0.07)", line=dict(color="rgba(0,0,0,0)"),
         name="90% CI", showlegend=True))
 
-    # Actual history
     fig.add_trace(go.Scatter(x=res["hist_ds"], y=res["hist_y"], name="Actual",
         line=dict(color="#4a5e7a", width=2),
         hovertemplate="<b>%{x|%b %Y}</b><br>Actual: %{y:,.0f}<extra></extra>"))
 
-    # Per-model fitted lines (history only, dashed, subtle)
     if show_models and "fitted_per_model" in res:
         model_styles = [
             ("Ridge",        MODEL_COLORS["Ridge"],       "dot"),
@@ -758,11 +732,10 @@ def draw_ensemble_chart(res, chart_key, height=320, title="", show_models=True):
                     opacity=0.55, visible="legendonly",
                     hovertemplate=f"<b>{mname}</b><br>%{{x|%b %Y}}<br>%{{y:,.0f}}<extra></extra>"))
 
-    # Ensemble fitted
+    
     fig.add_trace(go.Scatter(x=res["hist_ds"], y=res["fitted"], name="Ensemble fit",
         line=dict(color=MODEL_COLORS["Ensemble"], width=1.5, dash="dot"), opacity=0.6))
 
-    # Per-model forecasts (future, visible by default)
     if show_models and "forecast_per_model" in res:
         model_styles = [
             ("Ridge",        MODEL_COLORS["Ridge"],       "dot"),
@@ -778,14 +751,12 @@ def draw_ensemble_chart(res, chart_key, height=320, title="", show_models=True):
                     visible="legendonly",
                     hovertemplate=f"<b>{mname} Forecast</b><br>%{{x|%b %Y}}<br>%{{y:,.0f}}<extra></extra>"))
 
-    # Ensemble forecast (prominent)
     fig.add_trace(go.Scatter(x=res["fut_ds"], y=res["forecast"], name="Ensemble Forecast",
         line=dict(color=MODEL_COLORS["Ensemble"], width=2.8, dash="dot"),
         mode="lines+markers",
         marker=dict(size=8, color=MODEL_COLORS["Ensemble"], line=dict(color="#FFFFFF", width=2)),
         hovertemplate="<b>Ensemble Forecast</b><br>%{x|%b %Y}<br>%{y:,.0f}<extra></extra>"))
 
-    # Eval markers
     fig.add_trace(go.Scatter(x=res["eval_ds"], y=res["eval_pred"], name="Eval (ensemble)",
         mode="markers",
         marker=dict(size=10, color="#EF4444", symbol="x", line=dict(color="#FFFFFF", width=2))))
@@ -794,7 +765,6 @@ def draw_ensemble_chart(res, chart_key, height=320, title="", show_models=True):
         title=dict(text=title, font=dict(color="#4a5e7a", size=11)))
     return fig
 
-# PAGE — CHATBOT
 def page_chatbot():
     df  = load_data()
     ops = get_ops(df)
@@ -952,7 +922,6 @@ def page_chatbot():
                     "mint" if chg >= 0 else "coral", f"{chg:+.1f}% | CI ₹{lo/1e6:.1f}M–₹{hi/1e6:.1f}M")
                 last = fc
 
-# PAGE — OVERVIEW
 def page_overview():
     df  = load_data()
     ops = get_ops(df)
@@ -961,7 +930,7 @@ def page_overview():
 
     st.markdown("""<div class='page-title' style='background:linear-gradient(135deg,#f5a623,#ff6b6b,#2ed8c3);
          -webkit-background-clip:text;-webkit-text-fill-color:transparent'>OmniFlow D2D</div>
-    <div class='page-subtitle'>Predictive Logistics & AI-Powered Demand-to-Delivery Intelligence · 3-Model Ensemble Forecasting</div>
+    <div class='page-subtitle'>Predictive Logistics & AI-Powered Demand-to-Delivery Intelligence</div>
     """, unsafe_allow_html=True)
 
     st.markdown("""<div class='about-card'>
@@ -1091,14 +1060,6 @@ def page_demand():
     ops["YM"] = ops["Order_Date"].dt.to_period("M")
 
     st.markdown("<div class='page-title' style='color:#000000'>Demand Forecasting</div>", unsafe_allow_html=True)
-    
-    banner("""<b style='color:#000000'>🤖 3-Model Ensemble:</b>
-    <span class='model-pill pill-ridge'>Ridge Regression</span>
-    <span class='model-pill pill-rf'>Random Forest (200 trees)</span>
-    <span class='model-pill pill-gb'>Gradient Boosting (200 est)</span>
-    — blended with <b>inverse-RMSE weights</b> from 4-month hold-out.
-    Features: trend, polynomial, 3-harmonic Fourier seasonality, structural-break dummy, quarter indicators, log-trend.
-    90% CI from ensemble residual std.""", "purple")
 
     sec("Overall Ensemble Model Performance")
     m_orders = ops.groupby("YM")["Order_ID"].count().rename("v")
@@ -1107,7 +1068,6 @@ def page_demand():
         render_model_quality(res_overall)
     sp()
 
-    # Model comparison radar / bar
     if res_overall and "model_metrics" in res_overall:
         sec("Model Accuracy Comparison")
         mm = res_overall["model_metrics"]
@@ -1240,7 +1200,6 @@ def page_demand():
             })
             st.dataframe(tbl2, use_container_width=True, hide_index=True)
 
-# PAGE — INVENTORY
 def page_inventory():
     df  = load_data()
     ops = get_ops(df)
@@ -1422,7 +1381,6 @@ def page_inventory():
     fig3.update_layout(**CD(), height=280, xaxis=gX(), yaxis={**gY(),"title":"Forecast Units"}, legend=leg())
     st.plotly_chart(fig3, use_container_width=True, key="inv_cat_demand")
 
-# PAGE — PRODUCTION
 def page_production():
     st.markdown("<div class='page-title' style='color:#000000'>Production Planning</div>", unsafe_allow_html=True)
     p1,p2 = st.columns(2)
@@ -1501,7 +1459,6 @@ def page_production():
     d3.columns = ["Month","Category","Demand Fc","Crit Boost","Low Boost","Buffer","Production","Demand Lo","Demand Hi"]
     st.dataframe(d3.sort_values("Month"), use_container_width=True, hide_index=True)
 
-# PAGE — LOGISTICS
 def page_logistics():
     df     = load_data()
     ops    = get_ops(df)
@@ -1609,7 +1566,7 @@ def page_logistics():
         st.dataframe(opt_disp.sort_values("Saving ₹", ascending=False), use_container_width=True, hide_index=True)
 
     with t3:
-        sec("Delay Hotspot Analysis", "⚠️")
+        sec("Delay Hotspot Analysis")
         thr = st.slider("Delay Threshold (days)", 3, 10, 7)
         del_df2 = del_df.copy()
         del_df2["Delayed"] = del_df2["Delivery_Days"] > thr
@@ -1740,27 +1697,10 @@ def page_logistics():
         fig_rf.update_layout(**CD(), height=270, xaxis=gX(), yaxis=gY(), legend=leg())
         st.plotly_chart(fig_rf, use_container_width=True, key="chart_26")
 
-# ─── SIDEBAR ────────────────────────────────────────────────
 st.sidebar.markdown("""<div style='padding:18px 0 26px'>
-  <div style='font-family:DM Mono,monospace;font-size:0.58rem;letter-spacing:0.16em;
-       text-transform:uppercase;color:#4a5e7a;margin-bottom:5px'>Supply Chain Platform</div>
   <div style='font-family:Outfit,sans-serif;font-size:1.75rem;font-weight:900;
        letter-spacing:-0.04em;background:linear-gradient(135deg,#f5a623,#ff6b6b,#2ed8c3);
-       -webkit-background-clip:text;-webkit-text-fill-color:transparent'>OmniFlow</div>
-  <div style='font-family:DM Mono,monospace;font-size:0.62rem;color:#4a5e7a;
-       margin-top:2px;letter-spacing:0.05em'>D2D INTELLIGENCE · 3-MODEL ENSEMBLE</div>
-</div>""", unsafe_allow_html=True)
-
-st.sidebar.markdown("""<div style='font-family:DM Mono,monospace;font-size:0.6rem;
-    color:#4a5e7a;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.08em'>
-    Forecast Engine</div>
-    <div style='font-size:0.72rem;color:#334155;background:#f8faff;border:1px solid #c7d7fd;
-    border-radius:10px;padding:10px 12px;margin-bottom:16px;line-height:1.8'>
-    <span style='color:#3B82F6;font-weight:700'>① Ridge</span> +
-    <span style='color:#22C55E;font-weight:700'>② Random Forest</span> +
-    <span style='color:#F59E0B;font-weight:700'>③ Grad Boost</span>
-    <br><span style='color:#8B5CF6;font-weight:700'>④ Ensemble</span>
-    via inverse-RMSE blend
+       -webkit-background-clip:text;-webkit-text-fill-color:transparent'>OmniFlow D2D</div>
 </div>""", unsafe_allow_html=True)
 
 PAGES = {
