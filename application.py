@@ -1,184 +1,84 @@
-# ============================================================
-# OmniFlow D2D Intelligence Platform  |  Final-Year Project
-# Supply-chain-accurate · ML forecasting · API-powered chatbot
-# ============================================================
-
 import streamlit as st
 st.set_page_config(
-    page_title="OmniFlow D2D Intelligence",
-    page_icon="⬡",
-    layout="wide",
-    initial_sidebar_state="expanded"
+    page_title="OmniFlow D2D Intelligence",page_icon="⬡",
+    layout="wide",initial_sidebar_state="expanded"
 )
+def inject_css():
+    st.markdown("""
+    <style>
+    :root {
+        --bg: #f8fafc;
+        --text: #0f172a;
+        --muted: #475569;
+        --primary: #1e3a8a;
+        --border: #e5e7eb;
+        --accent: #e0e7ff;
+    }
+    html, body {
+        background-color: var(--bg);
+        color: var(--text);
+        font-family: Inter, system-ui;
+    }
+    section.main > div {
+        animation: fadeIn 0.4s ease-in-out;
+    }
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(6px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    .section-title {
+        font-size: 28px;
+        font-weight: 800;
+        margin: 28px 0 14px 0;
+    }
+    .card {
+        background: white;
+        padding: 22px;
+        border-radius: 16px;
+        border: 1px solid var(--border);
+        box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+        transition: all 0.25s ease;
+    }
+    .card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 18px 40px rgba(0,0,0,0.14);
+    }
+    .metric-card {
+        background: linear-gradient(180deg, #eef4ff, #ffffff);
+        padding: 18px;
+        text-align: center;
+        border-radius: 16px;
+        box-shadow: 0 6px 18px rgba(30,58,138,0.18);
+        transition: all 0.25s ease;
+    }
+    .metric-card:hover {
+        transform: translateY(-6px);
+        box-shadow: 0 16px 36px rgba(30,58,138,0.28);
+    }
+    .metric-label {
+        font-size: 14px;
+        color: var(--muted);
+    }
+    .metric-value {
+        font-size: 30px;
+        font-weight: 900;
+        color: var(--primary);
+    }
+    .stTabs [data-baseweb="tab"] {
+        background: #f1f5f9;
+        border-radius: 12px;
+        padding: 10px 18px;
+        font-weight: 600;
+        color: var(--muted);
+    }
+    .stTabs [aria-selected="true"] {
+        background: var(--accent);
+        color: var(--primary);
+        box-shadow: 0 6px 18px rgba(30,58,138,0.25);
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
-st.markdown("""
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap');
-
-/* ================= THEME ================= */
-:root{
-  --bg:#f5f7fb;
-  --sidebar:#ffffff;
-  --card:#ffffff;
-  --border:#e5e7eb;
-
-  --blue:#2563eb;
-  --green:#16a34a;
-  --amber:#ea580c;
-  --red:#dc2626;
-  --purple:#7c3aed;
-  --teal:#0d9488;
-
-  --text-main:#0f172a;
-  --text-secondary:#334155;
-  --text-muted:#64748b;
-
-  --shadow-soft:0 6px 16px rgba(0,0,0,0.05);
-  --shadow-hover:0 16px 40px rgba(0,0,0,0.12);
-  --radius:16px;
-}
-
-/* BASE */
-html,body,[class*="css"]{
-  font-family:'Inter',sans-serif!important;
-  background:var(--bg)!important;
-  color:var(--text-main)!important;
-}
-.stApp{background:var(--bg)!important;}
-
-/* SIDEBAR */
-section[data-testid="stSidebar"]{
-  background:linear-gradient(180deg,#ffffff,#f1f5f9)!important;
-  border-right:1px solid var(--border)!important;
-}
-section[data-testid="stSidebar"] *{
-  font-size:0.85rem!important;
-}
-
-/* TITLES */
-.page-title{
-  font-size:2.3rem;
-  font-weight:900;
-  background:linear-gradient(90deg,#2563eb,#0ea5a4);
-  -webkit-background-clip:text;
-  -webkit-text-fill-color:transparent;
-}
-.page-subtitle{
-  font-size:0.8rem;
-  color:var(--text-muted);
-  font-family:'JetBrains Mono',monospace!important;
-}
-
-/* KPI CARDS */
-.metric-card{
-  position:relative;
-  border-radius:var(--radius);
-  padding:18px;
-  border:1px solid var(--border);
-  background:#ffffff;
-  box-shadow:var(--shadow-soft);
-  transition:all 0.25s ease;
-  overflow:hidden;
-}
-.metric-card::before{
-  content:"";
-  position:absolute;
-  top:0;
-  left:0;
-  width:100%;
-  height:4px;
-  background:linear-gradient(90deg,#2563eb,#0ea5a4);
-}
-.metric-card:hover{
-  transform:translateY(-5px) scale(1.01);
-  box-shadow:var(--shadow-hover);
-}
-
-.metric-label{
-  font-size:0.68rem;
-  text-transform:uppercase;
-  color:var(--text-muted);
-  letter-spacing:0.08em;
-  margin-bottom:6px;
-}
-.metric-value{
-  font-size:2rem;
-  font-weight:900;
-}
-.metric-sub{
-  font-size:0.7rem;
-  color:var(--text-muted);
-}
-
-/* COLOR VARIANTS */
-.metric-card.sky .metric-value{color:var(--blue);}
-.metric-card.mint .metric-value{color:var(--green);}
-.metric-card.amber .metric-value{color:var(--amber);}
-.metric-card.coral .metric-value{color:var(--red);}
-.metric-card.lav .metric-value{color:var(--purple);}
-.metric-card.teal .metric-value{color:var(--teal);}
-
-/* MODEL QUALITY CARD */
-.model-quality-card{
-  background:#ffffff;
-  border:1px solid var(--border);
-  border-radius:16px;
-  padding:20px;
-  box-shadow:var(--shadow-soft);
-}
-.model-quality-card *{
-  color:var(--text-main)!important;
-}
-
-/* BADGES */
-.badge{
-  padding:4px 10px;
-  border-radius:8px;
-  font-size:0.65rem;
-  font-weight:600;
-  border:1px solid;
-}
-.badge-amber{background:#fff7ed;color:#c2410c;border-color:#fdba74;}
-.badge-teal{background:#f0fdfa;color:#0f766e;border-color:#99f6e4;}
-.badge-coral{background:#fef2f2;color:#b91c1c;border-color:#fca5a5;}
-.badge-sky{background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe;}
-.badge-lav{background:#f5f3ff;color:#6d28d9;border-color:#c4b5fd;}
-.badge-mint{background:#ecfdf5;color:#047857;border-color:#a7f3d0;}
-
-/* TABS */
-.stTabs [data-baseweb="tab-list"]{
-  background:#eef2f7!important;
-  border-radius:10px!important;
-}
-.stTabs [aria-selected="true"]{
-  background:#ffffff!important;
-  font-weight:700!important;
-  box-shadow:0 2px 6px rgba(0,0,0,0.08)!important;
-}
-
-/* BUTTON */
-.stButton>button{
-  background:#ffffff!important;
-  border:1px solid #d1d5db!important;
-  border-radius:8px!important;
-  font-weight:600!important;
-}
-.stButton>button:hover{
-  border-color:var(--blue)!important;
-  color:var(--blue)!important;
-  transform:translateY(-2px);
-}
-
-/* TABLE */
-[data-testid="stDataFrame"]{
-  border:1px solid var(--border);
-  border-radius:10px;
-}
-
-footer{visibility:hidden;}
-#MainMenu{visibility:hidden;}
-</style>
-""", unsafe_allow_html=True)
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
@@ -223,7 +123,6 @@ def banner(html, cls="teal"):
 def sp(n=1):
     st.markdown(f"<div style='height:{n*14}px'></div>", unsafe_allow_html=True)
 
-# ─── MODEL QUALITY VERDICT ──────────────────────────────────
 def model_quality_verdict(nrmse, r2):
     """Return (grade, label, css_class, explanation, accuracy_pct) based on NRMSE + R²."""
     accuracy_pct = max(0, round((1 - nrmse) * 100, 1))
@@ -298,7 +197,6 @@ def render_model_quality(res):
     """, unsafe_allow_html=True)
     sp(0.5)
 
-# ─── DATA LOADING ───────────────────────────────────────────
 @st.cache_data(show_spinner="Loading & cleaning data…")
 def load_data():
     df = pd.read_csv(DATA_FILE, parse_dates=["Order_Date"])
@@ -318,7 +216,6 @@ def get_ops(df):
 def get_delivered(df):
     return df[df["Order_Status"] == "Delivered"].copy()
 
-# ─── ML FORECASTING ─────────────────────────────────────────
 def _to_timestamp_index(idx):
     if hasattr(idx, 'to_timestamp'):
         return idx.to_timestamp()
@@ -835,6 +732,7 @@ def page_chatbot():
 # PAGE — OVERVIEW
 # ═══════════════════════════════════════════════════════════
 def page_overview():
+    inject_css()
     df  = load_data()
     ops = get_ops(df)
     ops = ops.copy()
