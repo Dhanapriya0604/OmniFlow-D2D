@@ -197,7 +197,7 @@ def inject_css():
     }
     </style>
     """, unsafe_allow_html=True)
-
+inject_css()
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
@@ -851,7 +851,6 @@ def page_chatbot():
 # PAGE — OVERVIEW
 # ═══════════════════════════════════════════════════════════
 def page_overview():
-    inject_css()
     df  = load_data()
     ops = get_ops(df)
     ops = ops.copy()
