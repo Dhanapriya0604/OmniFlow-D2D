@@ -13,6 +13,9 @@ def inject_css():
         --primary: #1e3a8a;
         --border: #e5e7eb;
         --accent: #e0e7ff;
+        --panel:#ffffff;
+        --surface:#f8fafc;
+        --deep:#0f172a;
     }
     html, body {
         background-color: var(--bg);
@@ -75,6 +78,122 @@ def inject_css():
         background: var(--accent);
         color: var(--primary);
         box-shadow: 0 6px 18px rgba(30,58,138,0.25);
+    }
+    /* PAGE TITLES */
+    .page-title{
+        font-size:34px;
+        font-weight:900;
+        margin-bottom:4px;
+    }   
+    .page-subtitle{
+        font-size:14px;
+        color:#64748b;
+        margin-bottom:18px;
+    }    
+    /* SECTION HEADER */    
+    .section-header{
+        margin-top:20px;
+        margin-bottom:8px;
+    }   
+    .section-header-line{
+        height:2px;
+        background:linear-gradient(90deg,#e5e7eb,transparent);
+        margin-top:6px;
+    }    
+    /* METRIC SUBTEXT */  
+    .metric-sub{
+        font-size:11px;
+        color:#64748b;
+        margin-top:4px;
+    }  
+    /* BADGES */  
+    .badge{
+        display:inline-block;
+        padding:6px 10px;
+        font-size:11px;
+        font-weight:600;
+        border-radius:8px;
+        margin-right:6px;
+    } 
+    .badge-amber{background:#fff7ed;color:#ea580c}
+    .badge-teal{background:#ecfeff;color:#0891b2}
+    .badge-lav{background:#f5f3ff;color:#7c3aed}
+    .badge-coral{background:#fff1f2;color:#e11d48}
+    .badge-sky{background:#eff6ff;color:#2563eb}
+    .badge-mint{background:#ecfdf5;color:#059669}
+    
+    /* INFO BANNERS */  
+    .info-banner{
+        border-radius:12px;
+        padding:14px 16px;
+        margin:10px 0;
+        font-size:13px;
+    }
+    
+    .banner-teal{
+        background:#f0fdfa;
+        border:1px solid #5eead4;
+    }
+    
+    .banner-amber{
+        background:#fffbeb;
+        border:1px solid #fbbf24;
+    }
+    
+    /* CHAT BUBBLES */
+    
+    .chat-user-bubble{
+        background:#1e3a8a;
+        color:white;
+        padding:10px 14px;
+        border-radius:14px;
+        max-width:70%;
+        margin-left:auto;
+    }
+    
+    .chat-ai-bubble{
+        background:#f1f5f9;
+        padding:12px 14px;
+        border-radius:14px;
+        max-width:80%;
+    }
+    
+    /* ALERTS */
+    
+    .alert-item{
+        border-radius:10px;
+        padding:10px 12px;
+        margin-bottom:8px;
+        border:1px solid #e5e7eb;
+    }
+    
+    .alert-critical{
+        background:#fef2f2;
+    }
+    
+    .alert-warn{
+        background:#fff7ed;
+    }
+    
+    /* MODEL QUALITY CARD */
+    
+    .model-quality-card{
+        background:white;
+        border-radius:16px;
+        padding:18px;
+        border:1px solid #e5e7eb;
+        box-shadow:0 6px 20px rgba(0,0,0,0.08);
+    }
+    
+    /* ABOUT CARD */
+    
+    .about-card{
+        background:white;
+        border:1px solid #e5e7eb;
+        border-radius:16px;
+        padding:18px;
+        margin-bottom:20px;
+        box-shadow:0 6px 20px rgba(0,0,0,0.08);
     }
     </style>
     """, unsafe_allow_html=True)
