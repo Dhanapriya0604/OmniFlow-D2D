@@ -229,7 +229,7 @@ def render_model_quality(res):
         st.markdown("<div class='ensemble-card'>", unsafe_allow_html=True)
         st.markdown("""<div style='font-size:0.75rem;font-weight:700;color:#4a5e7a;
             letter-spacing:0.08em;text-transform:uppercase;margin-bottom:12px'>
-            🤖 Individual Model Performance (Hold-out Evaluation)</div>""", unsafe_allow_html=True)
+            Individual Model Performance</div>""", unsafe_allow_html=True)
         mm = res["model_metrics"]
         mc1, mc2, mc3, mc4 = st.columns(4)
         for col, (mname, pill_cls, clr) in zip(
@@ -290,7 +290,7 @@ def render_model_quality(res):
       <div style='font-size:0.85rem;color:#334155;
            border-top:1px solid rgba(0,0,0,0.06);
            padding-top:10px;line-height:1.6'>
-        📋 <b>Interpretation:</b> {explanation}
+        <b>Interpretation:</b> {explanation}
       </div>
     </div>
     """, unsafe_allow_html=True)
@@ -377,12 +377,9 @@ def ml_forecast(series_values, ds_index, n_future=6):
     X_fut  = X_all[n:]
 
     models = {
-        "Ridge":        Ridge(alpha=1.0),
-        "RandomForest": RandomForestRegressor(n_estimators=100, max_depth=3,
-                                              min_samples_leaf=4, random_state=42),
-        "GradBoost":    GradientBoostingRegressor(n_estimators=80, max_depth=2,
-                                                  learning_rate=0.08, subsample=0.9,
-                                                  random_state=42),
+        "Ridge": Ridge(alpha=1.0),
+        "RandomForest": RandomForestRegressor(n_estimators=100, max_depth=3, min_samples_leaf=4, random_state=42),
+        "GradBoost": GradientBoostingRegressor(n_estimators=80, max_depth=2, learning_rate=0.08, subsample=0.9, random_state=42),
     }
 
     eval_preds  = {}
@@ -427,7 +424,6 @@ def ml_forecast(series_values, ds_index, n_future=6):
     inv_rmse  = {m: 1.0 / (r + 1e-9) for m, r in model_rmses.items()}
     total_inv = sum(inv_rmse.values())
     weights   = {m: v / total_inv for m, v in inv_rmse.items()}
-
     ypred_eval = sum(weights[m] * eval_preds[m] for m in models)
 
     sc2 = StandardScaler()
@@ -442,7 +438,6 @@ def ml_forecast(series_values, ds_index, n_future=6):
 
     ensemble_fitted   = sum(weights[m] * fitted_per_model[m]   for m in models)
     ensemble_forecast = sum(weights[m] * forecast_per_model[m] for m in models)
-
     residuals = series_values - ensemble_fitted
     resid_std = residuals.std()
     ss_res_e  = np.sum(residuals ** 2)
@@ -451,7 +446,6 @@ def ml_forecast(series_values, ds_index, n_future=6):
     rmse_e    = np.sqrt(mean_squared_error(yte, ypred_eval))
     nrmse_e   = rmse_e / np.mean(yte) if np.mean(yte) > 0 else 0
     mae_e     = mean_absolute_error(yte, ypred_eval)
-
     model_metrics["Ensemble"] = {"rmse": rmse_e, "nrmse": nrmse_e, "mae": mae_e, "r2": r2_e}
 
     ts_index  = _to_timestamp_index(ds_index)
@@ -498,8 +492,7 @@ def compute_inventory(order_cost=500, hold_pct=0.20, lead_time=7, z=1.65):
                  .reset_index())
 
     del_ops    = df[df["Order_Status"] == "Delivered"].copy()
-    lt_std_map = (del_ops.groupby("Category")["Delivery_Days"]
-                  .std().fillna(1.0).to_dict())
+    lt_std_map = (del_ops.groupby("Category")["Delivery_Days"].std().fillna(1.0).to_dict())
 
     rows = []
     for _, sk in sku_stats.iterrows():
@@ -516,15 +509,12 @@ def compute_inventory(order_cost=500, hold_pct=0.20, lead_time=7, z=1.65):
         daily_d  = avg_d / 30.0
         ann_d    = econ_d * 12
         uc       = max(sk["avg_price"], 1.0)
-
         eoq       = int(np.sqrt(2 * ann_d * order_cost / (uc * hold_pct))) if ann_d > 0 else 10
         eoq       = max(eoq, 1)
-
         daily_std  = std_d / np.sqrt(30)
         lt_std     = lt_std_map.get(sk["Category"], 1.0)
         ss = int(z * np.sqrt(lead_time * daily_std**2 + daily_d**2 * lt_std**2))
         ss = max(ss, 0)
-
         rop = int(daily_d * lead_time + ss)
         rop = max(rop, 1)
 
@@ -538,7 +528,6 @@ def compute_inventory(order_cost=500, hold_pct=0.20, lead_time=7, z=1.65):
                 pending   = n_orders * eoq
 
         current_stock = max(stock, 0)
-
         if current_stock < ss:
             status = "🔴 Critical"
         elif current_stock < rop:
@@ -550,7 +539,6 @@ def compute_inventory(order_cost=500, hold_pct=0.20, lead_time=7, z=1.65):
         daily_margin = daily_d * uc * margin_rate
         days_exposed = max(lead_time - (current_stock / daily_d if daily_d > 0 else 0), 0)
         stockout_cost = round(daily_margin * days_exposed, 0) if status == "🔴 Critical" else 0
-
         rows.append({
             "SKU_ID": sku, "Product_Name": sk["Product_Name"],
             "Category": sk["Category"],
@@ -565,7 +553,6 @@ def compute_inventory(order_cost=500, hold_pct=0.20, lead_time=7, z=1.65):
     inv_df = pd.DataFrame(rows)
     if inv_df.empty:
         return inv_df
-
     inv_df = inv_df.sort_values("Total_Revenue", ascending=False).reset_index(drop=True)
     cum_pct = inv_df["Total_Revenue"].cumsum() / inv_df["Total_Revenue"].sum() * 100
     inv_df["ABC"] = np.where(cum_pct <= 70, "A", np.where(cum_pct <= 90, "B", "C"))
@@ -578,20 +565,16 @@ def compute_production(cap_mult=1.0, buffer_pct=0.15):
     inv = compute_inventory()
     ops = ops.copy()
     ops["YM"] = ops["Order_Date"].dt.to_period("M")
-
     cat_monthly = ops.groupby(["YM","Category"])["Net_Qty"].sum().unstack(fill_value=0)
     ds_index    = cat_monthly.index
-
     rows = []
     for cat in cat_monthly.columns:
         vals = cat_monthly[cat].values.astype(float)
         res  = ml_forecast(vals, ds_index)
         if res is None:
             continue
-
         crit_total = float(inv[(inv["Category"]==cat)&(inv["Status"]=="🔴 Critical")]["Monthly_Avg"].sum())
         low_total  = float(inv[(inv["Category"]==cat)&(inv["Status"]=="🟡 Low")]["Monthly_Avg"].sum())
-
         boost_schedule = {0: 1.0, 1: 0.25}
 
         for i, (dt, fc) in enumerate(zip(res["fut_ds"], res["forecast"])):
@@ -611,7 +594,6 @@ def compute_production(cap_mult=1.0, buffer_pct=0.15):
                 "CI_Lo": round(res["ci_lo"][i], 0),
                 "CI_Hi": round(res["ci_hi"][i], 0),
             })
-
     return pd.DataFrame(rows)
 
 @st.cache_data(show_spinner=False)
@@ -652,32 +634,23 @@ def compute_logistics(w_speed=0.40, w_cost=0.35, w_returns=0.25):
     best = (region_carr_score.sort_values("Score", ascending=False)
             .groupby("Region").first().reset_index()
             [["Region","Courier_Partner","Avg_Days","Avg_Cost","Score"]])
-
     current = (del_df.groupby(["Region","Courier_Partner"])
                .agg(Orders=("Order_ID","count"), Total_Cost=("Shipping_Cost_INR","sum"))
                .reset_index())
-
     cheapest = (del_df.groupby(["Region","Courier_Partner"])
                 .agg(avg_cost=("Shipping_Cost_INR","mean"), orders=("Order_ID","count"))
                 .reset_index().sort_values("avg_cost").groupby("Region").first().reset_index()
                 .rename(columns={"Courier_Partner":"Optimal_Carrier","avg_cost":"Min_Avg_Cost"}))
-
     region_costs = (del_df.groupby("Region")
                     .agg(Current_Avg_Cost=("Shipping_Cost_INR","mean"),
                          Orders=("Order_ID","count"), Total_Spend=("Shipping_Cost_INR","sum"))
                     .reset_index())
-
     opt = region_costs.merge(cheapest[["Region","Optimal_Carrier","Min_Avg_Cost"]], on="Region")
     opt["Potential_Saving"] = ((opt["Current_Avg_Cost"] - opt["Min_Avg_Cost"]) * opt["Orders"]).round(0)
     opt["Saving_Pct"]       = ((opt["Current_Avg_Cost"] - opt["Min_Avg_Cost"]) / opt["Current_Avg_Cost"] * 100).round(1)
 
-    # --- Production-driven forward shipment plan ---
-    # avg shipping cost per unit from historical data
-    avg_ship_cost_per_unit = (del_df["Shipping_Cost_INR"].sum() /
-                               del_df["Quantity"].replace(0, np.nan).sum())
+    avg_ship_cost_per_unit = (del_df["Shipping_Cost_INR"].sum() / del_df["Quantity"].replace(0, np.nan).sum())
     avg_ship_cost_per_unit = max(avg_ship_cost_per_unit, 1.0)
-
-    # avg units per order (for order volume projection)
     avg_units_per_order = max(del_df["Quantity"].mean(), 1.0)
 
     fwd_rows = []
@@ -697,7 +670,6 @@ def compute_logistics(w_speed=0.40, w_cost=0.35, w_returns=0.25):
                 "CI_Hi_Units": int(row["CI_Hi"]),
             })
     fwd_plan = pd.DataFrame(fwd_rows)
-
     return carr, best, opt, current, fwd_plan
 
 def build_context():
@@ -705,11 +677,9 @@ def build_context():
     ops = get_ops(df)
     ops = ops.copy()
     ops["YM"] = ops["Order_Date"].dt.to_period("M")
-
     m_orders = ops.groupby("YM")["Order_ID"].count().rename("v")
     m_qty    = ops.groupby("YM")["Net_Qty"].sum().rename("v")
     m_rev    = ops.groupby("YM")["Net_Revenue"].sum().rename("v")
-
     r_ord = ml_forecast(m_orders.values.astype(float), m_orders.index, 6)
     r_rev = ml_forecast(m_rev.values.astype(float),    m_rev.index,    6)
     r_qty = ml_forecast(m_qty.values.astype(float),    m_qty.index,    6)
@@ -721,14 +691,12 @@ def build_context():
     inv  = compute_inventory()
     plan = compute_production()
     carr, best_carr, opt, _, fwd_plan = compute_logistics()
-
     n_crit     = (inv["Status"]=="🔴 Critical").sum()
     n_low      = (inv["Status"]=="🟡 Low").sum()
     crit_prods = ", ".join(inv[inv["Status"]=="🔴 Critical"]["Product_Name"].head(5).tolist())
     total_stockout_cost = inv["Stockout_Cost_Day"].sum()
     abc_counts = inv["ABC"].value_counts().to_dict() if "ABC" in inv.columns else {}
     abc_str    = ", ".join([f"{k}:{v} SKUs" for k,v in sorted(abc_counts.items())])
-
     prod_sum   = plan.groupby("Category")["Production"].sum().to_dict() if not plan.empty else {}
     prod_str   = ", ".join([f"{k}:{v:.0f}u" for k,v in prod_sum.items()])
     peak_mo    = plan.groupby("Month_dt")["Production"].sum().idxmax().strftime("%b %Y") if not plan.empty else "N/A"
@@ -746,7 +714,6 @@ def build_context():
     reg_str  = ", ".join([f"{k}:₹{v/1e6:.1f}M" for k,v in top_reg.items()])
     top_sku  = ops.groupby("Product_Name")["Net_Revenue"].sum().sort_values(ascending=False).head(8)
     sku_str  = ", ".join(top_sku.index.tolist())
-
     if r_ord:
         mm = r_ord.get("model_metrics", {})
         ens = mm.get("Ensemble", {}); ridge = mm.get("Ridge", {})
@@ -755,7 +722,6 @@ def build_context():
                       f"Ridge R²:{ridge.get('r2',0):.2f} | RF R²:{rf.get('r2',0):.2f} | GB R²:{gb.get('r2',0):.2f}")
     else:
         metric_str = ""
-
     return f"""=== OmniFlow D2D Intelligence ===
 DATASET: 5,200 orders | Jan 2024–Dec 2025 | India D2D (Amazon, Flipkart, B2B)
 SUMMARY: Net Revenue ₹{ops['Net_Revenue'].sum()/1e7:.2f}Cr | Active Orders {len(ops):,} |
@@ -839,7 +805,6 @@ def draw_ensemble_chart(res, chart_key, height=320, title="", show_models=True):
         ("GradBoost",    MODEL_COLORS["GradBoost"],    "longdash"),
     ]
 
-    # Shade forecast zone so history vs future is unambiguous
     fc_start = res["fut_ds"][0]
     fc_end   = res["fut_ds"][-1]
     fig.add_vrect(x0=fc_start, x1=fc_end,
@@ -905,14 +870,6 @@ def page_chatbot():
     ops["YM"] = ops["Order_Date"].dt.to_period("M")
 
     st.markdown("<div class='page-title' style='color:#000000'>Decision Intelligence Chatbot</div>", unsafe_allow_html=True)
-    st.markdown("""<div style='margin-bottom:16px'>
-      <span class='badge badge-amber'>Demand</span>
-      <span class='badge badge-teal'>Inventory</span>
-      <span class='badge badge-lav'>Production</span>
-      <span class='badge badge-coral'>Logistics</span>
-      <span class='badge badge-sky'>Decision Alert</span>
-      <span class='badge badge-purple'>3-Model Ensemble</span>
-    </div>""", unsafe_allow_html=True)
 
     with st.sidebar:
         st.markdown("""<div style='margin-top:18px;border-top:1px solid rgba(255,255,255,0.06);
@@ -1036,14 +993,14 @@ def page_chatbot():
         with al2:
             st.markdown("""<div style='font-size:0.74rem;font-weight:700;color:#f5a623;
                 letter-spacing:0.06em;text-transform:uppercase;font-family:DM Mono,monospace;margin-bottom:10px'>
-                💰 Cost Saving Opportunities</div>""", unsafe_allow_html=True)
+                Cost Saving Opportunities</div>""", unsafe_allow_html=True)
             _, _, opt, _, _ = compute_logistics()
             for _, r in opt.sort_values("Potential_Saving", ascending=False).head(5).iterrows():
                 if r["Potential_Saving"] > 0:
                     st.markdown(f"<div class='alert-item alert-warn'><b style='color:#000000'>{r['Region']}</b> → <b style='color:#000000'>{r['Optimal_Carrier']}</b><br><span style='color:#4a5e7a;font-size:0.71rem'>Save ₹{r['Potential_Saving']:,.0f} ({r['Saving_Pct']:.1f}%)</span></div>", unsafe_allow_html=True)
 
         sp()
-        sec("Revenue Forecast — Next 3 Months (Ensemble)", "📈")
+        sec("Revenue Forecast — Next 3 Months")
         m_rev = ops.groupby("YM")["Net_Revenue"].sum().rename("v")
         r_rev = ml_forecast(m_rev.values.astype(float), m_rev.index, 3)
         if r_rev is not None:
@@ -1063,7 +1020,7 @@ def page_overview():
 
     st.markdown("""<div class='page-title' style='background:linear-gradient(135deg,#f5a623,#ff6b6b,#2ed8c3);
          -webkit-background-clip:text;-webkit-text-fill-color:transparent'>OmniFlow D2D</div>
-    <div class='page-subtitle'>Predictive Logistics & AI-Powered Demand-to-Delivery Intelligence · 3-Model Ensemble Forecasting</div>
+    <div class='page-subtitle'>Predictive Logistics & AI-Powered Demand-to-Delivery Intelligence</div>
     """, unsafe_allow_html=True)
 
     st.markdown("""<div class='about-card'>
@@ -1098,7 +1055,7 @@ def page_overview():
 
     c_l, c_r = st.columns([3,2], gap="large")
     with c_l:
-        sec("Monthly Net Revenue + Ensemble Forecast")
+        sec("Monthly Net Revenue")
         m_rev_s = ops.groupby(ops["Order_Date"].dt.to_period("M"))["Net_Revenue"].sum().rename("v")
         r_ov = ml_forecast(m_rev_s.values.astype(float), m_rev_s.index, n_future=6)
         fig = go.Figure()
@@ -1107,11 +1064,6 @@ def page_overview():
                 fillcolor="rgba(139,92,246,0.04)", layer="below", line_width=0)
             fig.add_vline(x=r_ov["fut_ds"][0], line_dash="dash",
                 line_color="rgba(139,92,246,0.45)", line_width=1.5)
-            fig.add_annotation(x=r_ov["fut_ds"][0], y=1, yref="paper",
-                yanchor="top", xanchor="left", text=" Forecast →", showarrow=False,
-                font=dict(color="#8B5CF6", size=9, family="DM Mono"),
-                bgcolor="rgba(255,255,255,0.82)",
-                bordercolor="rgba(139,92,246,0.4)", borderwidth=1, borderpad=3)
             x_ci = list(r_ov["fut_ds"]) + list(r_ov["fut_ds"])[::-1]
             y_ci = list(r_ov["ci_hi"])  + list(r_ov["ci_lo"])[::-1]
             fig.add_trace(go.Scatter(x=x_ci, y=y_ci, fill="toself",
@@ -1145,13 +1097,13 @@ def page_overview():
             marker=dict(colors=COLORS, line=dict(color="#FFFFFF",width=3)),
             textinfo="label+percent", textfont=dict(size=10,color="#333333")))
         fig2.update_layout(**CD(), height=260, showlegend=False,
-            annotations=[dict(text="Net Rev",x=.5,y=.5,showarrow=False,font=dict(size=10,color="#4a5e7a",family="DM Mono"))])
+            annotations=[dict(text="Net Revenue",x=.5,y=.5,showarrow=False,font=dict(size=10,color="#4a5e7a",family="DM Mono"))])
         st.plotly_chart(fig2, use_container_width=True, key="chart_2")
 
     sp(0.5)
     c3a, c3b, c3c = st.columns(3, gap="large")
     with c3a:
-        sec("Order Volume Forecast (6M)")
+        sec("Order Volume Forecast")
         m_ord = ops.groupby(ops["Order_Date"].dt.to_period("M"))["Order_ID"].count().rename("v")
         r_ord_ov = ml_forecast(m_ord.values.astype(float), m_ord.index, n_future=6)
         if r_ord_ov:
@@ -1171,7 +1123,7 @@ def page_overview():
             st.plotly_chart(fig3, use_container_width=True, key="chart_3")
 
     with c3b:
-        sec("Units Sold Forecast (6M)")
+        sec("Units Sold Forecast")
         m_qty = ops.groupby(ops["Order_Date"].dt.to_period("M"))["Net_Qty"].sum().rename("v")
         r_qty_ov = ml_forecast(m_qty.values.astype(float), m_qty.index, n_future=6)
         if r_qty_ov:
@@ -1233,14 +1185,6 @@ def page_demand():
 
     st.markdown("<div class='page-title' style='color:#000000'>Demand Forecasting</div>", unsafe_allow_html=True)
     
-    banner("""<b style='color:#000000'>🤖 3-Model Ensemble:</b>
-    <span class='model-pill pill-ridge'>Ridge Regression</span>
-    <span class='model-pill pill-rf'>Random Forest</span>
-    <span class='model-pill pill-gb'>Gradient Boosting</span>
-    — blended via <b>inverse-RMSE weights</b> from rolling walk-forward CV (3 folds).
-    Quantity demand uses <b>Net_Qty</b> (returns excluded — loop-back correction applied).
-    Asymmetric log-normal 90% CI. Features: trend, Fourier seasonality, structural-break, quarter dummies.""", "purple")
-
     sec("Overall Ensemble Model Performance")
     m_orders = ops.groupby("YM")["Order_ID"].count().rename("v")
     res_overall = ml_forecast(m_orders.values.astype(float), m_orders.index, n_future=6)
@@ -1289,7 +1233,7 @@ def page_demand():
     level_opt  = c2.selectbox("Breakdown", ["Overall","Category","Region","Sales Channel"])
     horizon    = c3.slider("Months ahead", 3, 12, 6)
 
-    col_map = {"Orders (#)":"Order_ID","Quantity (Units)":"Net_Qty","Net Revenue (₹)":"Net_Revenue"}
+    col_map = {"Orders":"Order_ID","Quantity":"Net_Qty","Net Revenue (₹)":"Net_Revenue"}
     col = col_map[metric_opt]
 
     def get_series(sub):
@@ -1309,7 +1253,7 @@ def page_demand():
         series = get_series(ops)
         res = draw(series, chart_key="demand_overall")
         if res is not None:
-            sec("Forecast Table (Ensemble)")
+            sec("Forecast Table")
             tbl = pd.DataFrame({
                 "Month":     [d.strftime("%b %Y") for d in res["fut_ds"]],
                 "Ensemble":  res["forecast"].round(0).astype(int),
@@ -1357,7 +1301,7 @@ def page_demand():
                      use_container_width=True, hide_index=True)
 
     sp()
-    sec("Category-Level Demand Forecast (Ensemble)")
+    sec("Category-Level Demand Forecast")
     cat_monthly2 = ops.groupby(["YM","Category"])["Net_Qty"].sum().unstack(fill_value=0)
     tabs2 = st.tabs(list(cat_monthly2.columns))
     for _ci, (tab, cat, col2) in enumerate(zip(tabs2, cat_monthly2.columns, COLORS)):
@@ -1503,7 +1447,7 @@ def page_inventory():
     st.dataframe(crit_df.sort_values("Stockout ₹/Day", ascending=False), use_container_width=True, hide_index=True)
 
     sp()
-    sec("Inventory Demand Forecast (Ensemble)")
+    sec("Inventory Demand Forecast")
     cat_monthly = ops.groupby(["YM","Category"])["Net_Qty"].sum().unstack(fill_value=0)
     if cat_monthly.empty:
         st.info("No category demand data available for forecasting.")
@@ -1543,7 +1487,6 @@ def page_inventory():
 
     sp()
     sec("Stock Level Forecast — Depletion & Replenishment Simulation")
-    banner("All simulations below project <b>future stock levels</b> month-by-month from the current position. Demand driven by production plan (Jan–Jun 2026). Reorder triggers shown as 📦.", "purple")
     plan_for_inv = compute_production()
     cat_monthly_qty = ops.groupby(["YM","Category"])["Net_Qty"].sum().unstack(fill_value=0)
     cats = sorted(inv["Category"].unique())
@@ -1557,13 +1500,12 @@ def page_inventory():
             avg_eoq    = max(int(cat_inv["EOQ"].mean()), 1)
             avg_rop    = max(int(cat_inv["ROP"].mean()), 1)
             avg_ss     = max(int(cat_inv["SS"].mean()), 0)
-            # Use SUM of current stock across all SKUs in category — not avg
+           
             total_stock = max(int(cat_inv["Current_Stock"].sum()), 0)
             n_crit_cat  = (cat_inv["Status"] == "🔴 Critical").sum()
             n_low_cat   = (cat_inv["Status"] == "🟡 Low").sum()
 
             cat_plan = plan_for_inv[plan_for_inv["Category"] == cat].sort_values("Month_dt") if not plan_for_inv.empty else pd.DataFrame()
-
             vals = cat_monthly_qty[cat].values.astype(float)
             res  = ml_forecast(vals, cat_monthly_qty.index, 6)
             if res is None:
@@ -1696,10 +1638,7 @@ def page_production():
         mode="lines+markers", line=dict(color="#F59E0B",width=2.5),
         marker=dict(size=8,color="#F59E0B",line=dict(color="#FFFFFF",width=2))))
     fig.add_vline(x=forecast_start, line_dash="dash", line_color="rgba(139,92,246,0.5)", line_width=2)
-    fig.add_annotation(x=forecast_start, y=1, yref="paper", yanchor="top",
-        text="◀ History  |  Forecast ▶", showarrow=False,
-        font=dict(color="#8B5CF6", size=10, family="DM Mono"),
-        bgcolor="rgba(255,255,255,0.85)", bordercolor="#8B5CF6", borderwidth=1, borderpad=4)
+    
     fig.update_layout(**CD(), height=320, barmode="stack", xaxis=gX(), yaxis=gY(), legend=leg())
     st.plotly_chart(fig, use_container_width=True, key="chart_11")
 
@@ -1767,7 +1706,7 @@ def page_logistics():
 
     with t1:
         sec("Carrier Performance Scorecard")
-        banner(f"Score weights: <b>Speed {w_speed*100:.0f}%</b> · <b>Cost {w_cost*100:.0f}%</b> · <b>Returns {w_returns*100:.0f}%</b> — normalised composite 0–1 (higher = better)", "teal")
+        
         fig = go.Figure()
         for i, (_, r) in enumerate(carr.iterrows()):
             fig.add_trace(go.Scatter(x=[r["Avg_Days"]], y=[r["Avg_Cost"]], mode="markers+text",
@@ -1787,7 +1726,7 @@ def page_logistics():
         st.dataframe(d2.sort_values("Perf Score", ascending=False), use_container_width=True, hide_index=True)
 
         sp()
-        sec("Carrier Order Volume + Ensemble Forecast")
+        sec("Carrier Order Volume")
         cm = del_df.groupby([del_df["Order_Date"].dt.to_period("M"),"Courier_Partner"])["Order_ID"].count().unstack(fill_value=0)
         fig_carr_combo = go.Figure()
         for i, c in enumerate(cm.columns):
@@ -1858,7 +1797,7 @@ def page_logistics():
         fig_sav.update_layout(**CD(), height=250, xaxis={**gX(),"tickangle":-25}, yaxis=gY())
         st.plotly_chart(fig_sav, use_container_width=True, key="chart_17")
         sp()
-        sec("Logistics Order Forecast (Ensemble)")
+        sec("Logistics Order Forecast")
         series = del_df.groupby(del_df["Order_Date"].dt.to_period("M"))["Order_ID"].count()
         res = ml_forecast(series.values.astype(float), series.index, 6)
         if res:
@@ -1874,10 +1813,9 @@ def page_logistics():
         st.dataframe(opt_disp.sort_values("Saving ₹", ascending=False), use_container_width=True, hide_index=True)
 
         sp()
-        sec("Forward Shipment Plan (Production-Driven)")
+        sec("Forward Shipment Plan")
         if not fwd_plan.empty:
-            banner("Projected shipment volumes and costs are derived from the <b>Production Plan</b> — not historical data. Uses avg shipping cost/unit from delivered orders.", "teal")
-            # Monthly total across all categories
+            
             fwd_agg = fwd_plan.groupby("Month_dt").agg(
                 Month=("Month","first"),
                 Total_Units=("Prod_Units","sum"),
@@ -1907,7 +1845,6 @@ def page_logistics():
                 legend={**leg(),"orientation":"h","y":-0.25})
             st.plotly_chart(fig_fwd, use_container_width=True, key="fwd_ship_chart")
 
-            # Projected cost line
             fig_cost_fwd = go.Figure(go.Scatter(
                 x=fwd_agg["Month_dt"], y=fwd_agg["Total_Ship_Cost"],
                 mode="lines+markers", line=dict(color="#8B5CF6", width=2.5),
@@ -1919,8 +1856,7 @@ def page_logistics():
                 xaxis=gX(), yaxis={**gY(),"title":"₹ Shipping Cost"})
             st.plotly_chart(fig_cost_fwd, use_container_width=True, key="fwd_cost_chart")
 
-            # Per-category breakdown table
-            sec("Category Breakdown — 6-Month Shipment Plan")
+            sec("Category Breakdown")
             cat_fwd = fwd_plan.groupby("Category").agg(
                 Units=("Prod_Units","sum"),
                 Orders=("Proj_Orders","sum"),
@@ -1932,7 +1868,7 @@ def page_logistics():
             st.info("Production plan not available — run production module first.")
 
     with t3:
-        sec("Delay Hotspot Analysis", "⚠️")
+        sec("Delay Hotspot Analysis")
         thr = st.slider("Delay Threshold (days)", 3, 10, 7)
         del_df2 = del_df.copy()
         del_df2["Delayed"] = del_df2["Delivery_Days"] > thr
@@ -1956,7 +1892,7 @@ def page_logistics():
                 text=[f"{v}%" for v in cd["Rate"]], textposition="outside", textfont=dict(color="#333333")))
             fig_c.update_layout(**CD(), height=300, xaxis=gX(), yaxis={**gY(),"title":"Delay %"})
             st.plotly_chart(fig_c, use_container_width=True, key="chart_19")
-        sec("Carrier × Region Delay Heatmap")
+        sec("Carrier & Region Delay Heatmap")
         pv = del_df2.groupby(["Courier_Partner","Region"])["Delayed"].mean().unstack(fill_value=0)*100
         fig_h = go.Figure(go.Heatmap(z=pv.values, x=list(pv.columns), y=list(pv.index),
             colorscale=[[0,"#0d1829"],[0.4,"#7c4fd0"],[0.7,"#e87adb"],[1,"#EF4444"]],
@@ -1966,7 +1902,7 @@ def page_logistics():
             xaxis=dict(showgrid=False,tickangle=-25,color="#64748B"),
             yaxis=dict(showgrid=False,color="#64748B"))
         st.plotly_chart(fig_h, use_container_width=True, key="chart_20")
-        sec("Avg Delivery Days Forecast (Ensemble)")
+        sec("Avg Delivery Days Forecast")
         delay_m = del_df.groupby(del_df["Order_Date"].dt.to_period("M"))["Delivery_Days"].mean().rename("v")
         r_del   = ml_forecast(delay_m.values.astype(float), delay_m.index, 6)
         if r_del:
@@ -1975,7 +1911,6 @@ def page_logistics():
 
     with t4:
         sec("Warehouse Shipment Volume + Ensemble Forecast")
-        banner("Historical bars show delivered volumes. Dotted lines = ML ensemble forecast. Production-driven inbound plan (from production module) shown below.", "purple")
         wm = del_df.groupby([del_df["Order_Date"].dt.to_period("M"),"Warehouse"])["Quantity"].sum().unstack(fill_value=0)
         fig_wh = go.Figure()
         wf_rows = []
@@ -2002,12 +1937,10 @@ def page_logistics():
             tbl_wf.columns     = ["Month","Warehouse","Forecast Units","Upper Bound"]
             st.dataframe(tbl_wf.sort_values(["Month","Warehouse"]), use_container_width=True, hide_index=True)
 
-        # Production-driven inbound plan per warehouse
         sp()
         sec("Production-Driven Inbound Plan per Warehouse")
         if not fwd_plan.empty:
-            wh_share = (del_df.groupby("Warehouse")["Quantity"].sum() /
-                        del_df["Quantity"].sum()).to_dict()
+            wh_share = (del_df.groupby("Warehouse")["Quantity"].sum() / del_df["Quantity"].sum()).to_dict()
             inbound_rows = []
             for _, row in fwd_plan.iterrows():
                 for wh, share in wh_share.items():
@@ -2110,7 +2043,7 @@ def page_logistics():
         st.plotly_chart(fig_r, use_container_width=True, key="chart_24")
         cl5, cr5 = st.columns(2, gap="large")
         with cl5:
-            sec("Best Carrier per Region (Multi-factor Score)")
+            sec("Best Carrier per Region")
             bc = best_carr[["Region","Courier_Partner","Avg_Days","Avg_Cost","Score"]].copy()
             bc["Avg_Days"]  = bc["Avg_Days"].round(1)
             bc["Avg_Cost"]  = bc["Avg_Cost"].round(1)
@@ -2125,7 +2058,7 @@ def page_logistics():
                 text=[f"{v:.1f}%" for v in rr.values], textposition="outside", textfont=dict(color="#333333")))
             fig_ret.update_layout(**CD(), height=270, xaxis=gX(), yaxis=dict(showgrid=False,color="#64748B"))
             st.plotly_chart(fig_ret, use_container_width=True, key="chart_25")
-        sec("Region Revenue Forecast (Ensemble)")
+        sec("Region Revenue Forecast")
         top_reg = del_df["Region"].value_counts().head(5).index.tolist()
         fig_rf  = go.Figure()
         for i, reg in enumerate(top_reg):
@@ -2141,25 +2074,9 @@ def page_logistics():
         st.plotly_chart(fig_rf, use_container_width=True, key="chart_26")
 
 st.sidebar.markdown("""<div style='padding:18px 0 26px'>
-  <div style='font-family:DM Mono,monospace;font-size:0.58rem;letter-spacing:0.16em;
-       text-transform:uppercase;color:#4a5e7a;margin-bottom:5px'>Supply Chain Platform</div>
   <div style='font-family:Outfit,sans-serif;font-size:1.75rem;font-weight:900;
        letter-spacing:-0.04em;background:linear-gradient(135deg,#f5a623,#ff6b6b,#2ed8c3);
-       -webkit-background-clip:text;-webkit-text-fill-color:transparent'>OmniFlow</div>
-  <div style='font-family:DM Mono,monospace;font-size:0.62rem;color:#4a5e7a;
-       margin-top:2px;letter-spacing:0.05em'>D2D INTELLIGENCE · 3-MODEL ENSEMBLE</div>
-</div>""", unsafe_allow_html=True)
-
-st.sidebar.markdown("""<div style='font-family:DM Mono,monospace;font-size:0.6rem;
-    color:#4a5e7a;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.08em'>
-    Forecast Engine</div>
-    <div style='font-size:0.72rem;color:#334155;background:#f8faff;border:1px solid #c7d7fd;
-    border-radius:10px;padding:10px 12px;margin-bottom:16px;line-height:1.8'>
-    <span style='color:#3B82F6;font-weight:700'>① Ridge</span> +
-    <span style='color:#22C55E;font-weight:700'>② Random Forest</span> +
-    <span style='color:#F59E0B;font-weight:700'>③ Grad Boost</span>
-    <br><span style='color:#8B5CF6;font-weight:700'>④ Ensemble</span>
-    via inverse-RMSE blend
+       -webkit-background-clip:text;-webkit-text-fill-color:transparent'>OmniFlow D2D</div>
 </div>""", unsafe_allow_html=True)
 
 PAGES = {
