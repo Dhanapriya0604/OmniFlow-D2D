@@ -344,7 +344,6 @@ def build_features(n_hist, n_future, ds_hist, regime_start_idx):
     return X
 
 def _fit_predict_model(model, Xtr, ytr, Xte, Xfull, X_fut, sc):
-    """Fit a single model, return eval_pred, fitted, forecast."""
     Xtr_s  = sc.transform(Xtr)
     Xte_s  = sc.transform(Xte)
     Xall_s = sc.transform(Xfull)
@@ -356,9 +355,6 @@ def _fit_predict_model(model, Xtr, ytr, Xte, Xfull, X_fut, sc):
     return eval_pred, fitted, forecast
 
 def _detect_regime(series_values, min_idx=6):
-    """Find the index where a structural break (growth acceleration) most likely occurred.
-    Uses rolling mean comparison — picks the point with maximum ratio of
-    post-mean to pre-mean, constrained so both windows have at least min_idx points."""
     n = len(series_values)
     best_idx, best_ratio = min_idx, 1.0
     for i in range(min_idx, n - min_idx):
@@ -501,7 +497,6 @@ def compute_inventory(order_cost=500, hold_pct=0.20, lead_time=7, z=1.65):
                  .agg(avg_price=("Sell_Price","mean"), total_qty=("Net_Qty","sum"))
                  .reset_index())
 
-    # Use only delivered orders for lead time std (Shipped orders have no Delivery_Days)
     del_ops    = df[df["Order_Status"] == "Delivered"].copy()
     lt_std_map = (del_ops.groupby("Category")["Delivery_Days"]
                   .std().fillna(1.0).to_dict())
@@ -517,7 +512,7 @@ def compute_inventory(order_cost=500, hold_pct=0.20, lead_time=7, z=1.65):
         avg_d    = demands.mean()
         std_d    = demands.std() if len(demands) > 1 else avg_d * 0.2
         peak_d   = demands.max()
-        econ_d   = (avg_d * 0.6 + peak_d * 0.4)   # blended avg+peak for EOQ
+        econ_d   = (avg_d * 0.6 + peak_d * 0.4)
         daily_d  = avg_d / 30.0
         ann_d    = econ_d * 12
         uc       = max(sk["avg_price"], 1.0)
@@ -526,7 +521,7 @@ def compute_inventory(order_cost=500, hold_pct=0.20, lead_time=7, z=1.65):
         eoq       = max(eoq, 1)
 
         daily_std  = std_d / np.sqrt(30)
-        lt_std     = lt_std_map.get(sk["Category"], 1.0)  # lead time std in days
+        lt_std     = lt_std_map.get(sk["Category"], 1.0)
         ss = int(z * np.sqrt(lead_time * daily_std**2 + daily_d**2 * lt_std**2))
         ss = max(ss, 0)
 
@@ -559,12 +554,10 @@ def compute_inventory(order_cost=500, hold_pct=0.20, lead_time=7, z=1.65):
         rows.append({
             "SKU_ID": sku, "Product_Name": sk["Product_Name"],
             "Category": sk["Category"],
-            "Monthly_Avg": round(avg_d, 1),  "Monthly_Std": round(std_d, 1),
-            "Daily_Std":   round(daily_std, 2),
+            "Monthly_Avg": round(avg_d, 1), "Monthly_Std": round(std_d, 1),
             "EOQ": eoq, "SS": ss, "ROP": rop,
             "Current_Stock": current_stock, "Status": status,
-            "Unit_Price": round(uc, 0),    "Annual_Demand": round(ann_d, 0),
-            "Forecast_6M": int(avg_d * 6 * 1.05),
+            "Unit_Price": round(uc, 0),     "Annual_Demand": round(ann_d, 0),
             "Stockout_Cost_Day": stockout_cost,
             "Total_Revenue": round(sk["total_qty"] * uc, 0),
         })
@@ -574,9 +567,8 @@ def compute_inventory(order_cost=500, hold_pct=0.20, lead_time=7, z=1.65):
         return inv_df
 
     inv_df = inv_df.sort_values("Total_Revenue", ascending=False).reset_index(drop=True)
-    inv_df["Rev_Cum_Pct"] = inv_df["Total_Revenue"].cumsum() / inv_df["Total_Revenue"].sum() * 100
-    inv_df["ABC"] = np.where(inv_df["Rev_Cum_Pct"] <= 70, "A",
-                    np.where(inv_df["Rev_Cum_Pct"] <= 90, "B", "C"))
+    cum_pct = inv_df["Total_Revenue"].cumsum() / inv_df["Total_Revenue"].sum() * 100
+    inv_df["ABC"] = np.where(cum_pct <= 70, "A", np.where(cum_pct <= 90, "B", "C"))
     return inv_df
 
 @st.cache_data(show_spinner=False)
@@ -626,7 +618,7 @@ def compute_production(cap_mult=1.0, buffer_pct=0.15):
 def compute_logistics(w_speed=0.40, w_cost=0.35, w_returns=0.25):
     df     = load_data()
     del_df = get_delivered(df)
-    plan   = compute_production()   # feed from production module
+    plan   = compute_production()
 
     carr = del_df.groupby("Courier_Partner").agg(
         Orders=("Order_ID","count"), Avg_Days=("Delivery_Days","mean"),
@@ -840,8 +832,25 @@ def build_system_prompt(ctx):
 {ctx}"""
 
 def draw_ensemble_chart(res, chart_key, height=320, title="", show_models=True):
-    """Draw forecast chart with optional per-model visibility."""
     fig = go.Figure()
+    model_styles = [
+        ("Ridge",        MODEL_COLORS["Ridge"],        "dot"),
+        ("RandomForest", MODEL_COLORS["RandomForest"], "dashdot"),
+        ("GradBoost",    MODEL_COLORS["GradBoost"],    "longdash"),
+    ]
+
+    # Shade forecast zone so history vs future is unambiguous
+    fc_start = res["fut_ds"][0]
+    fc_end   = res["fut_ds"][-1]
+    fig.add_vrect(x0=fc_start, x1=fc_end,
+        fillcolor="rgba(139,92,246,0.04)", layer="below", line_width=0)
+    fig.add_vline(x=fc_start, line_dash="dash",
+        line_color="rgba(139,92,246,0.45)", line_width=1.5)
+    fig.add_annotation(x=fc_start, y=1, yref="paper", yanchor="top", xanchor="left",
+        text=" Forecast →", showarrow=False,
+        font=dict(color="#8B5CF6", size=9, family="DM Mono"),
+        bgcolor="rgba(255,255,255,0.82)",
+        bordercolor="rgba(139,92,246,0.4)", borderwidth=1, borderpad=3)
 
     x_ci = list(res["fut_ds"]) + list(res["fut_ds"])[::-1]
     y_ci = list(res["ci_hi"])  + list(res["ci_lo"])[::-1]
@@ -854,11 +863,6 @@ def draw_ensemble_chart(res, chart_key, height=320, title="", show_models=True):
         hovertemplate="<b>%{x|%b %Y}</b><br>Actual: %{y:,.0f}<extra></extra>"))
 
     if show_models and "fitted_per_model" in res:
-        model_styles = [
-            ("Ridge",        MODEL_COLORS["Ridge"],       "dot"),
-            ("RandomForest", MODEL_COLORS["RandomForest"],"dashdot"),
-            ("GradBoost",    MODEL_COLORS["GradBoost"],   "longdash"),
-        ]
         for mname, clr, dash in model_styles:
             if mname in res["fitted_per_model"]:
                 fig.add_trace(go.Scatter(
@@ -871,11 +875,6 @@ def draw_ensemble_chart(res, chart_key, height=320, title="", show_models=True):
         line=dict(color=MODEL_COLORS["Ensemble"], width=1.5, dash="dot"), opacity=0.6))
 
     if show_models and "forecast_per_model" in res:
-        model_styles = [
-            ("Ridge",        MODEL_COLORS["Ridge"],       "dot"),
-            ("RandomForest", MODEL_COLORS["RandomForest"],"dashdot"),
-            ("GradBoost",    MODEL_COLORS["GradBoost"],   "longdash"),
-        ]
         for mname, clr, dash in model_styles:
             if mname in res["forecast_per_model"]:
                 fig.add_trace(go.Scatter(
@@ -1104,6 +1103,15 @@ def page_overview():
         r_ov = ml_forecast(m_rev_s.values.astype(float), m_rev_s.index, n_future=6)
         fig = go.Figure()
         if r_ov is not None:
+            fig.add_vrect(x0=r_ov["fut_ds"][0], x1=r_ov["fut_ds"][-1],
+                fillcolor="rgba(139,92,246,0.04)", layer="below", line_width=0)
+            fig.add_vline(x=r_ov["fut_ds"][0], line_dash="dash",
+                line_color="rgba(139,92,246,0.45)", line_width=1.5)
+            fig.add_annotation(x=r_ov["fut_ds"][0], y=1, yref="paper",
+                yanchor="top", xanchor="left", text=" Forecast →", showarrow=False,
+                font=dict(color="#8B5CF6", size=9, family="DM Mono"),
+                bgcolor="rgba(255,255,255,0.82)",
+                bordercolor="rgba(139,92,246,0.4)", borderwidth=1, borderpad=3)
             x_ci = list(r_ov["fut_ds"]) + list(r_ov["fut_ds"])[::-1]
             y_ci = list(r_ov["ci_hi"])  + list(r_ov["ci_lo"])[::-1]
             fig.add_trace(go.Scatter(x=x_ci, y=y_ci, fill="toself",
@@ -1121,6 +1129,14 @@ def page_overview():
         fig.update_layout(**CD(), height=260, xaxis=gX(),
             yaxis={**gY(), "tickformat":",.0f"}, legend=leg())
         st.plotly_chart(fig, use_container_width=True, key="chart_1")
+        if r_ov is not None:
+            ov_tbl = pd.DataFrame({
+                "Month":       [d.strftime("%b %Y") for d in r_ov["fut_ds"]],
+                "Revenue (₹)": [f"₹{v/1e6:.2f}M" for v in r_ov["forecast"]],
+                "Lower 90%":   [f"₹{v/1e6:.2f}M" for v in r_ov["ci_lo"]],
+                "Upper 90%":   [f"₹{v/1e6:.2f}M" for v in r_ov["ci_hi"]],
+            })
+            st.dataframe(ov_tbl, use_container_width=True, hide_index=True)
 
     with c_r:
         sec("Net Revenue by Category")
@@ -1135,21 +1151,44 @@ def page_overview():
     sp(0.5)
     c3a, c3b, c3c = st.columns(3, gap="large")
     with c3a:
-        sec("Orders by Channel")
-        ch = ops["Sales_Channel"].value_counts()
-        fig3 = go.Figure(go.Bar(x=ch.values, y=ch.index, orientation="h",
-            marker=dict(color=COLORS[:len(ch)], line=dict(color="rgba(0,0,0,0)")),
-            text=ch.values, textposition="outside", textfont=dict(color="#333333",size=10),cliponaxis=False))
-        fig3.update_layout(**CD(), height=240, xaxis=gX(), yaxis=dict(showgrid=False,color="#64748B"))
-        st.plotly_chart(fig3, use_container_width=True, key="chart_3")
+        sec("Order Volume Forecast (6M)")
+        m_ord = ops.groupby(ops["Order_Date"].dt.to_period("M"))["Order_ID"].count().rename("v")
+        r_ord_ov = ml_forecast(m_ord.values.astype(float), m_ord.index, n_future=6)
+        if r_ord_ov:
+            fig3 = go.Figure()
+            fig3.add_trace(go.Scatter(x=r_ord_ov["hist_ds"], y=r_ord_ov["hist_y"],
+                name="Actual", line=dict(color="#4a5e7a", width=1.5), opacity=0.7))
+            fig3.add_trace(go.Scatter(x=r_ord_ov["fut_ds"], y=r_ord_ov["forecast"],
+                name="Forecast", mode="lines+markers",
+                line=dict(color="#3B82F6", width=2.5, dash="dot"),
+                marker=dict(size=7, color="#3B82F6", line=dict(color="#FFFFFF", width=2)),
+                hovertemplate="<b>%{x|%b %Y}</b><br>%{y:,.0f} orders<extra></extra>"))
+            x_ci = list(r_ord_ov["fut_ds"]) + list(r_ord_ov["fut_ds"])[::-1]
+            y_ci = list(r_ord_ov["ci_hi"])  + list(r_ord_ov["ci_lo"])[::-1]
+            fig3.add_trace(go.Scatter(x=x_ci, y=y_ci, fill="toself",
+                fillcolor="rgba(59,130,246,0.07)", line=dict(color="rgba(0,0,0,0)"), showlegend=False))
+            fig3.update_layout(**CD(), height=240, xaxis=gX(), yaxis={**gY(),"title":"Orders"}, legend=leg())
+            st.plotly_chart(fig3, use_container_width=True, key="chart_3")
 
     with c3b:
-        sec("Top Regions by Net Revenue")
-        reg = ops.groupby("Region")["Net_Revenue"].sum().sort_values(ascending=False)
-        fig4 = go.Figure(go.Bar(x=reg.index, y=reg.values,
-            marker=dict(color=COLORS_S*2, line=dict(color="rgba(0,0,0,0)"))))
-        fig4.update_layout(**CD(), height=240, xaxis={**gX(),"tickangle":-30}, yaxis=gY())
-        st.plotly_chart(fig4, use_container_width=True, key="chart_4")
+        sec("Units Sold Forecast (6M)")
+        m_qty = ops.groupby(ops["Order_Date"].dt.to_period("M"))["Net_Qty"].sum().rename("v")
+        r_qty_ov = ml_forecast(m_qty.values.astype(float), m_qty.index, n_future=6)
+        if r_qty_ov:
+            fig4 = go.Figure()
+            fig4.add_trace(go.Scatter(x=r_qty_ov["hist_ds"], y=r_qty_ov["hist_y"],
+                name="Actual", line=dict(color="#4a5e7a", width=1.5), opacity=0.7))
+            fig4.add_trace(go.Scatter(x=r_qty_ov["fut_ds"], y=r_qty_ov["forecast"],
+                name="Forecast", mode="lines+markers",
+                line=dict(color="#22C55E", width=2.5, dash="dot"),
+                marker=dict(size=7, color="#22C55E", line=dict(color="#FFFFFF", width=2)),
+                hovertemplate="<b>%{x|%b %Y}</b><br>%{y:,.0f} units<extra></extra>"))
+            x_ci4 = list(r_qty_ov["fut_ds"]) + list(r_qty_ov["fut_ds"])[::-1]
+            y_ci4 = list(r_qty_ov["ci_hi"])  + list(r_qty_ov["ci_lo"])[::-1]
+            fig4.add_trace(go.Scatter(x=x_ci4, y=y_ci4, fill="toself",
+                fillcolor="rgba(34,197,94,0.07)", line=dict(color="rgba(0,0,0,0)"), showlegend=False))
+            fig4.update_layout(**CD(), height=240, xaxis=gX(), yaxis={**gY(),"title":"Units"}, legend=leg())
+            st.plotly_chart(fig4, use_container_width=True, key="chart_4")
 
     with c3c:
         sec("Order Status Split")
@@ -1319,7 +1358,7 @@ def page_demand():
 
     sp()
     sec("Category-Level Demand Forecast (Ensemble)")
-    cat_monthly2 = ops.groupby(["YM","Category"])["Quantity"].sum().unstack(fill_value=0)
+    cat_monthly2 = ops.groupby(["YM","Category"])["Net_Qty"].sum().unstack(fill_value=0)
     tabs2 = st.tabs(list(cat_monthly2.columns))
     for _ci, (tab, cat, col2) in enumerate(zip(tabs2, cat_monthly2.columns, COLORS)):
         with tab:
@@ -1367,7 +1406,7 @@ def page_inventory():
     n_low  = (inv["Status"]=="🟡 Low").sum()
     n_ok   = (inv["Status"]=="🟢 Adequate").sum()
     total_stockout = inv["Stockout_Cost_Day"].sum()
-    n_a = (inv["ABC"]=="A").sum(); n_b = (inv["ABC"]=="B").sum(); n_c = (inv["ABC"]=="C").sum()
+    n_a = (inv["ABC"]=="A").sum()
 
     c1,c2,c3,c4,c5,c6 = st.columns(6)
     kpi(c1, "Total SKUs",       len(inv),          "mint")
@@ -1465,7 +1504,7 @@ def page_inventory():
 
     sp()
     sec("Inventory Demand Forecast (Ensemble)")
-    cat_monthly = ops.groupby(["YM","Category"])["Quantity"].sum().unstack(fill_value=0)
+    cat_monthly = ops.groupby(["YM","Category"])["Net_Qty"].sum().unstack(fill_value=0)
     if cat_monthly.empty:
         st.info("No category demand data available for forecasting.")
         return
@@ -1479,6 +1518,13 @@ def page_inventory():
                 continue
             fig = draw_ensemble_chart(res, chart_key=f"inv_demand_{cat}", height=280)
             st.plotly_chart(fig, use_container_width=True, key=f"inv_demand_{cat}")
+            inv_fc_tbl = pd.DataFrame({
+                "Month":    [d.strftime("%b %Y") for d in res["fut_ds"]],
+                "Forecast": res["forecast"].round(0).astype(int),
+                "Lower 90%": res["ci_lo"].round(0).astype(int),
+                "Upper 90%": res["ci_hi"].round(0).astype(int),
+            })
+            st.dataframe(inv_fc_tbl, use_container_width=True, hide_index=True)
 
     sp()
     sec("SKU-Level Inventory Table")
@@ -1497,7 +1543,8 @@ def page_inventory():
 
     sp()
     sec("Stock Level Forecast — Depletion & Replenishment Simulation")
-    plan_for_inv = compute_production()   # feed from production module
+    banner("All simulations below project <b>future stock levels</b> month-by-month from the current position. Demand driven by production plan (Jan–Jun 2026). Reorder triggers shown as 📦.", "purple")
+    plan_for_inv = compute_production()
     cat_monthly_qty = ops.groupby(["YM","Category"])["Net_Qty"].sum().unstack(fill_value=0)
     cats = sorted(inv["Category"].unique())
     tabs_inv = st.tabs(cats)
@@ -1515,7 +1562,6 @@ def page_inventory():
             n_crit_cat  = (cat_inv["Status"] == "🔴 Critical").sum()
             n_low_cat   = (cat_inv["Status"] == "🟡 Low").sum()
 
-            # Use production plan forecast as demand driver (production = what needs to ship)
             cat_plan = plan_for_inv[plan_for_inv["Category"] == cat].sort_values("Month_dt") if not plan_for_inv.empty else pd.DataFrame()
 
             vals = cat_monthly_qty[cat].values.astype(float)
@@ -1523,7 +1569,6 @@ def page_inventory():
             if res is None:
                 st.info("Insufficient data for forecast."); continue
 
-            # Use production forecast if available, else fall back to demand forecast
             if not cat_plan.empty and len(cat_plan) == len(res["fut_ds"]):
                 sim_demand = cat_plan["Demand_Forecast"].values
                 sim_label  = "Production-driven demand"
@@ -1558,7 +1603,6 @@ def page_inventory():
                     cmin=avg_ss, cmax=max(stock_levels) if stock_levels else 1,
                     line=dict(color="#FFFFFF", width=2), showscale=False),
                 hovertemplate="<b>%{x}</b><br>Stock: %{y} units<extra></extra>"))
-            # Overlay production plan demand as a reference line
             if not cat_plan.empty:
                 fig.add_trace(go.Scatter(
                     x=months_labels, y=list(sim_demand), name="Production Demand",
@@ -1583,7 +1627,7 @@ def page_inventory():
             st.plotly_chart(fig, use_container_width=True, key=f"inv_stock_{cat}")
 
             ka,kb,kc,kd,ke = st.columns(5)
-            kpi(ka,"Starting Stock", avg_stock, "mint","current avg")
+            kpi(ka,"Starting Stock", total_stock, "mint","category total")
             kpi(kb,"ROP (avg)",      avg_rop,   "mint","trigger level")
             kpi(kc,"Safety Stock",   avg_ss,    "mint","min buffer")
             kpi(kd,"EOQ (avg)",      avg_eoq,   "mint","order batch size")
@@ -1636,20 +1680,26 @@ def page_production():
     df_prod  = load_data()
     ops_prod = get_ops(df_prod).copy()
     ops_prod["YM"] = ops_prod["Order_Date"].dt.to_period("M")
-    hist_qty = ops_prod.groupby("YM")["Quantity"].sum().rename("v")
+    hist_qty = ops_prod.groupby("YM")["Net_Qty"].sum().rename("v")
     hist_ts  = _to_timestamp_index(hist_qty.index)
+    forecast_start = agg["Month_dt"].min()
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=hist_ts, y=hist_qty.values, name="Historical Demand",
         fill="tozeroy", fillcolor="rgba(74,94,122,0.12)",
         line=dict(color="#4a5e7a", width=1.8),
         hovertemplate="<b>%{x|%b %Y}</b><br>%{y:,.0f} units<extra></extra>"))
-    fig.add_trace(go.Bar(x=agg["Month_dt"], y=agg["Production"], name="Production Target",
+    fig.add_trace(go.Bar(x=agg["Month_dt"], y=agg["Production"], name="Production Target (Forecast)",
         marker=dict(color="#8B5CF6", line=dict(color="rgba(0,0,0,0)"))))
     fig.add_trace(go.Bar(x=agg["Month_dt"], y=agg["Crit_Boost"]+agg["Low_Boost"],
         name="Inv. Replenishment", marker=dict(color="rgba(255,107,107,0.7)", line=dict(color="rgba(0,0,0,0)"))))
-    fig.add_trace(go.Scatter(x=agg["Month_dt"], y=agg["Demand_Forecast"], name="Ensemble Forecast",
+    fig.add_trace(go.Scatter(x=agg["Month_dt"], y=agg["Demand_Forecast"], name="Ensemble Demand Forecast",
         mode="lines+markers", line=dict(color="#F59E0B",width=2.5),
         marker=dict(size=8,color="#F59E0B",line=dict(color="#FFFFFF",width=2))))
+    fig.add_vline(x=forecast_start, line_dash="dash", line_color="rgba(139,92,246,0.5)", line_width=2)
+    fig.add_annotation(x=forecast_start, y=1, yref="paper", yanchor="top",
+        text="◀ History  |  Forecast ▶", showarrow=False,
+        font=dict(color="#8B5CF6", size=10, family="DM Mono"),
+        bgcolor="rgba(255,255,255,0.85)", bordercolor="#8B5CF6", borderwidth=1, borderpad=4)
     fig.update_layout(**CD(), height=320, barmode="stack", xaxis=gX(), yaxis=gY(), legend=leg())
     st.plotly_chart(fig, use_container_width=True, key="chart_11")
 
@@ -1659,6 +1709,11 @@ def page_production():
         cat_hist = ops_prod.groupby(["YM","Category"])["Quantity"].sum().unstack(fill_value=0)
         cat_hist_ts = _to_timestamp_index(cat_hist.index)
         fig2 = go.Figure()
+        first_fc_dt = plan["Month_dt"].min()
+        fig2.add_vrect(x0=first_fc_dt, x1=plan["Month_dt"].max(),
+            fillcolor="rgba(139,92,246,0.04)", layer="below", line_width=0)
+        fig2.add_vline(x=first_fc_dt, line_dash="dash",
+            line_color="rgba(139,92,246,0.4)", line_width=1.5)
         for i, cat in enumerate(plan["Category"].unique()):
             clr = COLORS[i%len(COLORS)]
             if cat in cat_hist.columns:
@@ -1951,7 +2006,6 @@ def page_logistics():
         sp()
         sec("Production-Driven Inbound Plan per Warehouse")
         if not fwd_plan.empty:
-            # Distribute production units to warehouses by their historical share
             wh_share = (del_df.groupby("Warehouse")["Quantity"].sum() /
                         del_df["Quantity"].sum()).to_dict()
             inbound_rows = []
