@@ -323,7 +323,6 @@ def _to_timestamp_index(idx):
     return pd.DatetimeIndex(idx)
 
 def build_features(n_hist, n_future, ds_hist, regime_start_idx):
-    """Build rich feature matrix for all models."""
     all_t       = np.arange(n_hist + n_future)
     ts          = _to_timestamp_index(ds_hist)
     hist_months = ts.month.values
@@ -331,24 +330,17 @@ def build_features(n_hist, n_future, ds_hist, regime_start_idx):
     fut_months  = np.array([(last_month + i - 1) % 12 + 1 for i in range(1, n_future + 1)])
     mn          = np.concatenate([hist_months, fut_months])
     regime      = (all_t >= regime_start_idx).astype(float)
-    # Enhanced feature set: trend, polynomial, Fourier (2 harmonics), regime interaction, quarter dummies
     quarter = np.where(mn <= 3, 1, np.where(mn <= 6, 2, np.where(mn <= 9, 3, 4)))
     q1 = (quarter == 1).astype(float)
     q2 = (quarter == 2).astype(float)
     q3 = (quarter == 3).astype(float)
     X = np.column_stack([
-        all_t,
-        all_t ** 2,
-        np.sin(2 * np.pi * mn / 12),
-        np.cos(2 * np.pi * mn / 12),
-        np.sin(4 * np.pi * mn / 12),
-        np.cos(4 * np.pi * mn / 12),
-        np.sin(6 * np.pi * mn / 12),   # 3rd harmonic
-        np.cos(6 * np.pi * mn / 12),
-        regime,
-        all_t * regime,
-        q1, q2, q3,                    # quarter indicators
-        np.log1p(all_t),               # log trend
+        all_t, all_t ** 2,
+        np.sin(2 * np.pi * mn / 12), np.cos(2 * np.pi * mn / 12),
+        np.sin(4 * np.pi * mn / 12), np.cos(4 * np.pi * mn / 12),
+        np.sin(6 * np.pi * mn / 12), np.cos(6 * np.pi * mn / 12),
+        regime, all_t * regime,
+        q1, q2, q3, np.log1p(all_t),
     ])
     return X
 
@@ -365,11 +357,6 @@ def _fit_predict_model(model, Xtr, ytr, Xte, Xfull, X_fut, sc):
     return eval_pred, fitted, forecast
 
 def ml_forecast(series_values, ds_index, n_future=6):
-    """
-    3-Model Ensemble: Ridge Regression + Random Forest + Gradient Boosting.
-    Weights determined by inverse-RMSE on hold-out (last 4 months).
-    Returns blended forecast + per-model breakdown.
-    """
     n = len(series_values)
     if n < 6:
         return None
@@ -382,11 +369,9 @@ def ml_forecast(series_values, ds_index, n_future=6):
     Xtr, Xte = X_hist[:-h], X_hist[-h:]
     ytr, yte = series_values[:-h], series_values[-h:]
 
-    # Shared scaler (fit on train only)
     sc = StandardScaler()
     sc.fit(Xtr)
 
-    # ── Three models ────────────────────────────────────────────
     models = {
         "Ridge":        Ridge(alpha=0.5),
         "RandomForest": RandomForestRegressor(n_estimators=200, max_depth=6,
@@ -400,7 +385,6 @@ def ml_forecast(series_values, ds_index, n_future=6):
     model_rmses = {}
     model_metrics = {}
 
-    # Eval pass (train on Xtr, predict Xte)
     for mname, mdl in models.items():
         ep, _, _ = _fit_predict_model(mdl, Xtr, ytr, Xte, X_hist, X_fut, sc)
         rmse  = np.sqrt(mean_squared_error(yte, ep))
@@ -413,15 +397,12 @@ def ml_forecast(series_values, ds_index, n_future=6):
         model_rmses[mname] = rmse
         model_metrics[mname] = {"rmse": rmse, "nrmse": nrmse, "mae": mae, "r2": r2}
 
-    # Inverse-RMSE weights
-    inv_rmse = {m: 1.0 / (r + 1e-9) for m, r in model_rmses.items()}
+    inv_rmse  = {m: 1.0 / (r + 1e-9) for m, r in model_rmses.items()}
     total_inv = sum(inv_rmse.values())
     weights   = {m: v / total_inv for m, v in inv_rmse.items()}
 
-    # Blended eval prediction
     ypred_eval = sum(weights[m] * eval_preds[m] for m in models)
 
-    # Full-data retrain for final forecast
     sc2 = StandardScaler()
     sc2.fit(X_hist)
     fitted_per_model   = {}
@@ -432,11 +413,9 @@ def ml_forecast(series_values, ds_index, n_future=6):
         fitted_per_model[mname]   = fitted
         forecast_per_model[mname] = forecast
 
-    # Blended ensemble
     ensemble_fitted   = sum(weights[m] * fitted_per_model[m]   for m in models)
     ensemble_forecast = sum(weights[m] * forecast_per_model[m] for m in models)
 
-    # Metrics on ensemble
     residuals = series_values - ensemble_fitted
     resid_std = residuals.std()
     ss_res_e  = np.sum(residuals ** 2)
@@ -446,7 +425,6 @@ def ml_forecast(series_values, ds_index, n_future=6):
     nrmse_e   = rmse_e / np.mean(yte) if np.mean(yte) > 0 else 0
     mae_e     = mean_absolute_error(yte, ypred_eval)
 
-    # Add ensemble to model_metrics
     model_metrics["Ensemble"] = {"rmse": rmse_e, "nrmse": nrmse_e, "mae": mae_e, "r2": r2_e}
 
     ts_index  = _to_timestamp_index(ds_index)
@@ -748,9 +726,7 @@ Streamlit dashboard for an India D2D e-commerce business.
 === LIVE SUPPLY CHAIN CONTEXT ===
 {ctx}"""
 
-# ═══════════════════════════════════════════════════════════
 # HELPER: Draw ensemble forecast chart with per-model lines
-# ═══════════════════════════════════════════════════════════
 def draw_ensemble_chart(res, chart_key, height=320, title="", show_models=True):
     """Draw forecast chart with optional per-model visibility."""
     fig = go.Figure()
@@ -818,9 +794,7 @@ def draw_ensemble_chart(res, chart_key, height=320, title="", show_models=True):
         title=dict(text=title, font=dict(color="#4a5e7a", size=11)))
     return fig
 
-# ═══════════════════════════════════════════════════════════
 # PAGE — CHATBOT
-# ═══════════════════════════════════════════════════════════
 def page_chatbot():
     df  = load_data()
     ops = get_ops(df)
@@ -978,9 +952,7 @@ def page_chatbot():
                     "mint" if chg >= 0 else "coral", f"{chg:+.1f}% | CI ₹{lo/1e6:.1f}M–₹{hi/1e6:.1f}M")
                 last = fc
 
-# ═══════════════════════════════════════════════════════════
 # PAGE — OVERVIEW
-# ═══════════════════════════════════════════════════════════
 def page_overview():
     df  = load_data()
     ops = get_ops(df)
@@ -1111,9 +1083,7 @@ def page_overview():
            AI Chatbot<span style='display:block;font-size:0.58rem;font-weight:400;color:#4a5e7a;margin-top:3px'>Groq LLaMA</span></div>
     </div>""", unsafe_allow_html=True)
 
-# ═══════════════════════════════════════════════════════════
 # PAGE — DEMAND FORECASTING
-# ═══════════════════════════════════════════════════════════
 def page_demand():
     df  = load_data()
     ops = get_ops(df)
@@ -1270,9 +1240,7 @@ def page_demand():
             })
             st.dataframe(tbl2, use_container_width=True, hide_index=True)
 
-# ═══════════════════════════════════════════════════════════
 # PAGE — INVENTORY
-# ═══════════════════════════════════════════════════════════
 def page_inventory():
     df  = load_data()
     ops = get_ops(df)
@@ -1454,9 +1422,7 @@ def page_inventory():
     fig3.update_layout(**CD(), height=280, xaxis=gX(), yaxis={**gY(),"title":"Forecast Units"}, legend=leg())
     st.plotly_chart(fig3, use_container_width=True, key="inv_cat_demand")
 
-# ═══════════════════════════════════════════════════════════
 # PAGE — PRODUCTION
-# ═══════════════════════════════════════════════════════════
 def page_production():
     st.markdown("<div class='page-title' style='color:#000000'>Production Planning</div>", unsafe_allow_html=True)
     p1,p2 = st.columns(2)
@@ -1535,9 +1501,7 @@ def page_production():
     d3.columns = ["Month","Category","Demand Fc","Crit Boost","Low Boost","Buffer","Production","Demand Lo","Demand Hi"]
     st.dataframe(d3.sort_values("Month"), use_container_width=True, hide_index=True)
 
-# ═══════════════════════════════════════════════════════════
 # PAGE — LOGISTICS
-# ═══════════════════════════════════════════════════════════
 def page_logistics():
     df     = load_data()
     ops    = get_ops(df)
@@ -1728,10 +1692,22 @@ def page_logistics():
             Orders=("Order_ID","count"), Revenue=("Net_Revenue","sum"),
             Qty=("Quantity","sum"), Avg_Del=("Delivery_Days","mean"),
             Returns=("Return_Flag","mean")).reset_index().sort_values("Revenue",ascending=False)
-        met = st.selectbox("Metric", ["Revenue","Orders","Qty","Avg_Del","Returns"])
-        fig_r = go.Figure(go.Bar(x=rs["Region"], y=rs[met],
-            marker=dict(color=[COLORS[i%len(COLORS)] for i in range(len(rs))], line=dict(color="rgba(0,0,0,0)"))))
-        fig_r.update_layout(**CD(), height=290, xaxis={**gX(),"tickangle":-25}, yaxis=gY())
+        # Convert Returns to percentage for display
+        rs["Returns_Pct"] = (rs["Returns"] * 100).round(1)
+
+        met = st.selectbox("Metric", ["Revenue","Orders","Qty","Avg_Del","Return Rate (%)"])
+        met_col_map = {"Revenue":"Revenue","Orders":"Orders","Qty":"Qty","Avg_Del":"Avg_Del","Return Rate (%)":"Returns_Pct"}
+        met_label_map = {"Revenue":"Revenue (₹)","Orders":"Orders","Qty":"Units Sold","Avg_Del":"Avg Delivery Days","Return Rate (%)":"Return Rate (%)"}
+        plot_col = met_col_map[met]
+        y_vals = rs[plot_col]
+        fig_r = go.Figure(go.Bar(
+            x=rs["Region"], y=y_vals,
+            marker=dict(color=[COLORS[i%len(COLORS)] for i in range(len(rs))], line=dict(color="rgba(0,0,0,0)")),
+            text=[f"{v:.1f}%" if met=="Return Rate (%)" else f"{v:,.0f}" for v in y_vals],
+            textposition="outside", textfont=dict(color="#333333")))
+        fig_r.update_layout(**CD(), height=290,
+            xaxis={**gX(),"tickangle":-25},
+            yaxis={**gY(),"title":met_label_map[met]})
         st.plotly_chart(fig_r, use_container_width=True, key="chart_24")
         cl5, cr5 = st.columns(2, gap="large")
         with cl5:
