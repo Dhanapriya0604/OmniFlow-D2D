@@ -633,19 +633,17 @@ def page_chatbot():
             padding-top:16px;font-family:DM Mono,monospace;font-size:0.65rem;
             color:#4a5e7a;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:8px'>
             AI Config</div>""", unsafe_allow_html=True)
-        api_key = st.text_input(
-            "API Key", type="password", key="llm_api_key",
-            placeholder="xxx_xxxxxxxxxxxxxxxxxxxx",
-            help="Paste your API key"
+       api_key = st.text_input(
+            "Groq API Key",
+            type="password",
+            placeholder="gsk_xxxxxxxxxxxxxxxxx",
+            help="Paste your Groq API key"
         )
         if api_key and len(api_key.strip()) > 10:
             if api_key.strip().startswith("gsk_"):
                 st.markdown("<div style='font-size:0.62rem;color:#56e0a0;font-family:DM Mono,monospace;margin-top:4px'>✅ Key looks valid</div>", unsafe_allow_html=True)
             else:
                 st.markdown("<div style='font-size:0.62rem;color:#ff6b6b;font-family:DM Mono,monospace;margin-top:4px'>⚠️ Key should start with gsk_</div>", unsafe_allow_html=True)
-        else:
-            st.markdown("<div style='font-size:0.6rem;color:#4a5e7a;font-family:DM Mono,monospace;margin-top:4px'>console.groq.com — free tier</div>", unsafe_allow_html=True)
-
     ctx    = build_context()
     system = build_system_prompt(ctx)
 
@@ -913,19 +911,11 @@ def page_demand():
     ops["YM"] = ops["Order_Date"].dt.to_period("M")
 
     st.markdown("<div class='page-title' style='color:#000000'>Demand Forecasting</div>", unsafe_allow_html=True)
-    st.markdown("<div class='page-subtitle'>Ridge Regression · Structural Break · Fourier Seasonality · RMSE / NRMSE / R² / Accuracy</div>", unsafe_allow_html=True)
-    st.markdown("""<div style='margin-bottom:16px'>
-      <span class='badge badge-amber'>OUTPUT → Inventory</span>
-      <span class='badge badge-teal'>→ Production</span>
-      <span class='badge badge-coral'>→ Logistics</span>
-      <span class='badge badge-sky'>→ Chatbot</span>
-    </div>""", unsafe_allow_html=True)
-
+   
     banner("""<b style='color:#000000'>Model:</b> Ridge Regression with trend,
     Fourier seasonal terms, structural-break dummy for business scale-up,
     and trend×regime interaction. 4-month hold-out evaluation. 90% CI from residual std.""", "amber")
 
-    # ── OVERALL MODEL QUALITY PANEL (always visible at top) ──
     sec("Overall Model Performance")
     m_orders = ops.groupby("YM")["Order_ID"].count().rename("v")
     res_overall = ml_forecast(m_orders.values.astype(float), m_orders.index, n_future=6)
@@ -1038,7 +1028,6 @@ def page_inventory():
     ops["YM"] = ops["Order_Date"].dt.to_period("M")
 
     st.markdown("<div class='page-title' style='color:#000000'>Inventory Optimisation</div>", unsafe_allow_html=True)
-    st.markdown("<div class='page-subtitle'>Wilson EOQ · Safety Stock Formula · Simulated (s,Q) Policy · 6-Month Stock Forecast</div>", unsafe_allow_html=True)
    
     with st.expander("Inventory Parameters", expanded=False):
         p1,p2,p3,p4 = st.columns(4)
@@ -1093,8 +1082,11 @@ def page_inventory():
 
     sp()
     sec("Inventory Demand Forecast")
-    cat_monthly = ops.groupby(["YM","Category"])["Quantity"].sum().unstack(fill_value=0)  
-    tabs = st.tabs(cat_monthly.columns)   
+    cat_monthly = ops.groupby(["YM","Category"])["Quantity"].sum().unstack(fill_value=0)
+    if cat_monthly.empty:
+        st.info("No category demand data available for forecasting.")
+        return  
+    tabs = st.tabs(list(cat_monthly.columns)) 
     for tab,cat in zip(tabs,cat_monthly.columns):
         with tab:
             series = cat_monthly[cat]
