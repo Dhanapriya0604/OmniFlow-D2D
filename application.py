@@ -633,7 +633,7 @@ def page_chatbot():
             padding-top:16px;font-family:DM Mono,monospace;font-size:0.65rem;
             color:#4a5e7a;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:8px'>
             AI Config</div>""", unsafe_allow_html=True)
-       api_key = st.text_input(
+        api_key = st.text_input(
             "Groq API Key",
             type="password",
             placeholder="gsk_xxxxxxxxxxxxxxxxx",
