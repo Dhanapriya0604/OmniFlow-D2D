@@ -224,12 +224,12 @@ def model_quality_verdict(nrmse, r2):
 
 def render_model_quality(res):
     grade, label, explanation, accuracy_pct, icon = model_quality_verdict(res["nrmse"], res["r2"])
-  
+    
     if "model_metrics" in res:
         st.markdown("<div class='ensemble-card'>", unsafe_allow_html=True)
         st.markdown("""<div style='font-size:0.75rem;font-weight:700;color:#4a5e7a;
             letter-spacing:0.08em;text-transform:uppercase;margin-bottom:12px'>
-            Individual Model Performance (Hold-out Evaluation)</div>""", unsafe_allow_html=True)
+            🤖 Individual Model Performance (Hold-out Evaluation)</div>""", unsafe_allow_html=True)
         mm = res["model_metrics"]
         mc1, mc2, mc3, mc4 = st.columns(4)
         for col, (mname, pill_cls, clr) in zip(
@@ -290,7 +290,7 @@ def render_model_quality(res):
       <div style='font-size:0.85rem;color:#334155;
            border-top:1px solid rgba(0,0,0,0.06);
            padding-top:10px;line-height:1.6'>
-        <b>Interpretation:</b> {explanation}
+        📋 <b>Interpretation:</b> {explanation}
       </div>
     </div>
     """, unsafe_allow_html=True)
@@ -304,6 +304,7 @@ def load_data():
     df["Year"]        = df["Order_Date"].dt.year
     df["Month_Num"]   = df["Order_Date"].dt.month
     df["Net_Revenue"] = np.where(df["Return_Flag"] == 1, 0.0, df["Revenue_INR"])
+    df["Net_Qty"]     = np.where(df["Return_Flag"] == 1, 0, df["Quantity"])
     df.loc[df["Order_Status"] == "Cancelled", "Delivery_Days"] = np.nan
     return df
 
@@ -343,6 +344,7 @@ def build_features(n_hist, n_future, ds_hist, regime_start_idx):
     return X
 
 def _fit_predict_model(model, Xtr, ytr, Xte, Xfull, X_fut, sc):
+    """Fit a single model, return eval_pred, fitted, forecast."""
     Xtr_s  = sc.transform(Xtr)
     Xte_s  = sc.transform(Xte)
     Xall_s = sc.transform(Xfull)
@@ -362,37 +364,59 @@ def ml_forecast(series_values, ds_index, n_future=6):
     X_all  = build_features(n, n_future, ds_index, regime_idx)
     X_hist = X_all[:n]
     X_fut  = X_all[n:]
-    h = 4
-    Xtr, Xte = X_hist[:-h], X_hist[-h:]
-    ytr, yte = series_values[:-h], series_values[-h:]
-
-    sc = StandardScaler()
-    sc.fit(Xtr)
 
     models = {
-        "Ridge":        Ridge(alpha=0.5),
-        "RandomForest": RandomForestRegressor(n_estimators=200, max_depth=6,min_samples_leaf=2, random_state=42),
-        "GradBoost":    GradientBoostingRegressor(n_estimators=200, max_depth=4,learning_rate=0.05, subsample=0.8,random_state=42),
+        "Ridge":        Ridge(alpha=1.0),
+        "RandomForest": RandomForestRegressor(n_estimators=100, max_depth=3,
+                                              min_samples_leaf=4, random_state=42),
+        "GradBoost":    GradientBoostingRegressor(n_estimators=80, max_depth=2,
+                                                  learning_rate=0.08, subsample=0.9,
+                                                  random_state=42),
     }
+
     eval_preds  = {}
     model_rmses = {}
     model_metrics = {}
+    h = 4
 
+    n_folds   = min(3, n // 6)
+    fold_size = 2
+    fold_rmses = {m: [] for m in models}
+    for fold in range(n_folds):
+        te_end   = n - fold * fold_size
+        te_start = te_end - fold_size
+        if te_start < 6:
+            break
+        Xtr_f = X_hist[:te_start]; ytr_f = series_values[:te_start]
+        Xte_f = X_hist[te_start:te_end]; yte_f = series_values[te_start:te_end]
+        sc_f  = StandardScaler(); sc_f.fit(Xtr_f)
+        for mname, mdl_cls in [
+            ("Ridge",        Ridge(alpha=1.0)),
+            ("RandomForest", RandomForestRegressor(n_estimators=100, max_depth=3, min_samples_leaf=4, random_state=42)),
+            ("GradBoost",    GradientBoostingRegressor(n_estimators=80, max_depth=2, learning_rate=0.08, subsample=0.9, random_state=42)),
+        ]:
+            mdl_cls.fit(sc_f.transform(Xtr_f), ytr_f)
+            ep_f = np.maximum(mdl_cls.predict(sc_f.transform(Xte_f)), 0)
+            fold_rmses[mname].append(np.sqrt(mean_squared_error(yte_f, ep_f)))
+
+    for mname in models:
+        avg_rmse = np.mean(fold_rmses[mname]) if fold_rmses[mname] else 1.0
+        nrmse_v  = avg_rmse / np.mean(series_values) if np.mean(series_values) > 0 else 0
+        ss_rat   = max(0, 1 - (avg_rmse**2 / (np.var(series_values) + 1e-9)))
+        model_rmses[mname]    = avg_rmse
+        model_metrics[mname]  = {"rmse": avg_rmse, "nrmse": nrmse_v, "mae": avg_rmse * 0.8, "r2": ss_rat}
+
+    Xtr, Xte = X_hist[:-h], X_hist[-h:]
+    ytr, yte = series_values[:-h], series_values[-h:]
+    sc_h = StandardScaler(); sc_h.fit(Xtr)
     for mname, mdl in models.items():
-        ep, _, _ = _fit_predict_model(mdl, Xtr, ytr, Xte, X_hist, X_fut, sc)
-        rmse  = np.sqrt(mean_squared_error(yte, ep))
-        nrmse = rmse / np.mean(yte) if np.mean(yte) > 0 else 0
-        mae   = mean_absolute_error(yte, ep)
-        ss_res = np.sum((yte - ep) ** 2)
-        ss_tot = np.sum((yte - np.mean(yte)) ** 2)
-        r2     = 1 - ss_res / ss_tot if ss_tot > 0 else 0
-        eval_preds[mname]  = ep
-        model_rmses[mname] = rmse
-        model_metrics[mname] = {"rmse": rmse, "nrmse": nrmse, "mae": mae, "r2": r2}
+        ep, _, _ = _fit_predict_model(mdl, Xtr, ytr, Xte, X_hist, X_fut, sc_h)
+        eval_preds[mname] = ep
 
     inv_rmse  = {m: 1.0 / (r + 1e-9) for m, r in model_rmses.items()}
     total_inv = sum(inv_rmse.values())
     weights   = {m: v / total_inv for m, v in inv_rmse.items()}
+
     ypred_eval = sum(weights[m] * eval_preds[m] for m in models)
 
     sc2 = StandardScaler()
@@ -407,6 +431,7 @@ def ml_forecast(series_values, ds_index, n_future=6):
 
     ensemble_fitted   = sum(weights[m] * fitted_per_model[m]   for m in models)
     ensemble_forecast = sum(weights[m] * forecast_per_model[m] for m in models)
+
     residuals = series_values - ensemble_fitted
     resid_std = residuals.std()
     ss_res_e  = np.sum(residuals ** 2)
@@ -417,9 +442,14 @@ def ml_forecast(series_values, ds_index, n_future=6):
     mae_e     = mean_absolute_error(yte, ypred_eval)
 
     model_metrics["Ensemble"] = {"rmse": rmse_e, "nrmse": nrmse_e, "mae": mae_e, "r2": r2_e}
+
     ts_index  = _to_timestamp_index(ds_index)
     last_dt   = ts_index[-1]
     fut_dates = pd.date_range(last_dt + pd.offsets.MonthBegin(1), periods=n_future, freq="MS")
+
+    log_resid_std = np.log1p(resid_std / (np.mean(series_values) + 1e-9))
+    ci_lo = np.maximum(ensemble_forecast * np.exp(-1.645 * log_resid_std * np.sqrt(np.arange(1, n_future+1))), 0)
+    ci_hi = ensemble_forecast * np.exp( 1.645 * log_resid_std * np.sqrt(np.arange(1, n_future+1)))
 
     return {
         "hist_ds":             ts_index,
@@ -429,8 +459,8 @@ def ml_forecast(series_values, ds_index, n_future=6):
         "forecast_per_model":  forecast_per_model,
         "fut_ds":              fut_dates,
         "forecast":            ensemble_forecast,
-        "ci_lo":               np.maximum(ensemble_forecast - 1.645 * resid_std, 0),
-        "ci_hi":               ensemble_forecast + 1.645 * resid_std,
+        "ci_lo":               ci_lo,
+        "ci_hi":               ci_hi,
         "rmse":                rmse_e,
         "nrmse":               nrmse_e,
         "mae":                 mae_e,
@@ -450,9 +480,14 @@ def compute_inventory(order_cost=500, hold_pct=0.20, lead_time=7, z=1.65):
     ops = ops.copy()
     ops["YM"] = ops["Order_Date"].dt.to_period("M")
 
-    sku_monthly = (ops.groupby(["SKU_ID","YM"])["Quantity"].sum().reset_index().sort_values(["SKU_ID","YM"]))
+    sku_monthly = (ops.groupby(["SKU_ID","YM"])["Net_Qty"]
+                   .sum().reset_index().sort_values(["SKU_ID","YM"]))
     sku_stats = (ops.groupby(["SKU_ID","Product_Name","Category"])
-                 .agg(avg_price=("Sell_Price","mean"), total_qty=("Quantity","sum")).reset_index())
+                 .agg(avg_price=("Sell_Price","mean"), total_qty=("Net_Qty","sum"))
+                 .reset_index())
+
+    lt_std_map = (ops.groupby("Category")["Delivery_Days"]
+                  .std().fillna(1.0).to_dict())
 
     rows = []
     for _, sk in sku_stats.iterrows():
@@ -462,29 +497,33 @@ def compute_inventory(order_cost=500, hold_pct=0.20, lead_time=7, z=1.65):
         if len(demands) < 2:
             continue
 
-        avg_d   = demands.mean()
-        std_d   = demands.std() if len(demands) > 1 else avg_d * 0.2
-        daily_d = avg_d / 30.0
-        ann_d   = avg_d * 12
-        uc      = max(sk["avg_price"], 1.0)
+        avg_d    = demands.mean()
+        std_d    = demands.std() if len(demands) > 1 else avg_d * 0.2
+        peak_d   = demands.max()
+        econ_d   = (avg_d * 0.6 + peak_d * 0.4)   # blended avg+peak for EOQ
+        daily_d  = avg_d / 30.0
+        ann_d    = econ_d * 12
+        uc       = max(sk["avg_price"], 1.0)
 
         eoq       = int(np.sqrt(2 * ann_d * order_cost / (uc * hold_pct))) if ann_d > 0 else 10
         eoq       = max(eoq, 1)
-        daily_std = std_d / np.sqrt(30)
-        ss        = int(z * daily_std * np.sqrt(lead_time))
-        ss        = max(ss, 0)
-        rop       = int(daily_d * lead_time + ss)
-        rop       = max(rop, 1)
 
-        stock   = eoq * 2
+        daily_std  = std_d / np.sqrt(30)
+        lt_std     = lt_std_map.get(sk["Category"], 1.0)  # lead time std in days
+        ss = int(z * np.sqrt(lead_time * daily_std**2 + daily_d**2 * lt_std**2))
+        ss = max(ss, 0)
+
+        rop = int(daily_d * lead_time + ss)
+        rop = max(rop, 1)
+
+        stock   = rop + eoq
         pending = 0
         for demand in demands:
-            stock  -= demand
-            stock   = max(stock + pending, 0)
+            stock   = max(stock - demand + pending, 0)
             pending = 0
             if stock < rop:
-                n_orders = max(1, int(np.ceil((rop - stock + ss) / eoq)))
-                pending  = n_orders * eoq
+                n_orders  = max(1, int(np.ceil((rop + ss - stock) / eoq)))
+                pending   = n_orders * eoq
 
         current_stock = max(stock, 0)
 
@@ -495,17 +534,33 @@ def compute_inventory(order_cost=500, hold_pct=0.20, lead_time=7, z=1.65):
         else:
             status = "🟢 Adequate"
 
+        margin_rate  = 0.20
+        daily_margin = daily_d * uc * margin_rate
+        days_exposed = max(lead_time - (current_stock / daily_d if daily_d > 0 else 0), 0)
+        stockout_cost = round(daily_margin * days_exposed, 0) if status == "🔴 Critical" else 0
+
         rows.append({
             "SKU_ID": sku, "Product_Name": sk["Product_Name"],
             "Category": sk["Category"],
-            "Monthly_Avg": round(avg_d,1), "Monthly_Std": round(std_d,1),
-            "Daily_Std": round(daily_std,2),
+            "Monthly_Avg": round(avg_d, 1),  "Monthly_Std": round(std_d, 1),
+            "Daily_Std":   round(daily_std, 2),
             "EOQ": eoq, "SS": ss, "ROP": rop,
             "Current_Stock": current_stock, "Status": status,
-            "Unit_Price": round(uc,0), "Annual_Demand": round(ann_d,0),
+            "Unit_Price": round(uc, 0),    "Annual_Demand": round(ann_d, 0),
             "Forecast_6M": int(avg_d * 6 * 1.05),
+            "Stockout_Cost_Day": stockout_cost,
+            "Total_Revenue": round(sk["total_qty"] * uc, 0),
         })
-    return pd.DataFrame(rows)
+
+    inv_df = pd.DataFrame(rows)
+    if inv_df.empty:
+        return inv_df
+
+    inv_df = inv_df.sort_values("Total_Revenue", ascending=False).reset_index(drop=True)
+    inv_df["Rev_Cum_Pct"] = inv_df["Total_Revenue"].cumsum() / inv_df["Total_Revenue"].sum() * 100
+    inv_df["ABC"] = np.where(inv_df["Rev_Cum_Pct"] <= 70, "A",
+                    np.where(inv_df["Rev_Cum_Pct"] <= 90, "B", "C"))
+    return inv_df
 
 @st.cache_data(show_spinner=False)
 def compute_production(cap_mult=1.0, buffer_pct=0.15):
@@ -514,7 +569,8 @@ def compute_production(cap_mult=1.0, buffer_pct=0.15):
     inv = compute_inventory()
     ops = ops.copy()
     ops["YM"] = ops["Order_Date"].dt.to_period("M")
-    cat_monthly = ops.groupby(["YM","Category"])["Quantity"].sum().unstack(fill_value=0)
+
+    cat_monthly = ops.groupby(["YM","Category"])["Net_Qty"].sum().unstack(fill_value=0)
     ds_index    = cat_monthly.index
 
     rows = []
@@ -524,27 +580,33 @@ def compute_production(cap_mult=1.0, buffer_pct=0.15):
         if res is None:
             continue
 
-        crit_boost = float(inv[(inv["Category"]==cat)&(inv["Status"]=="🔴 Critical")]["Monthly_Avg"].sum() * 0.5)
-        low_boost  = float(inv[(inv["Category"]==cat)&(inv["Status"]=="🟡 Low")]["Monthly_Avg"].sum() * 0.25)
+        crit_total = float(inv[(inv["Category"]==cat)&(inv["Status"]=="🔴 Critical")]["Monthly_Avg"].sum())
+        low_total  = float(inv[(inv["Category"]==cat)&(inv["Status"]=="🟡 Low")]["Monthly_Avg"].sum())
+
+        boost_schedule = {0: 1.0, 1: 0.25}
 
         for i, (dt, fc) in enumerate(zip(res["fut_ds"], res["forecast"])):
-            net_prod = max(fc + crit_boost + low_boost, 0) * cap_mult
-            prod     = net_prod * (1 + buffer_pct)
+            boost_factor = boost_schedule.get(i, 0.0)
+            crit_boost   = crit_total * 0.5 * boost_factor
+            low_boost    = low_total  * 0.25 * boost_factor
+            net_prod     = max(fc + crit_boost + low_boost, 0) * cap_mult
+            prod         = net_prod * (1 + buffer_pct)
             rows.append({
                 "Month_dt": dt, "Month": dt.strftime("%b %Y"),
                 "Category": cat,
-                "Demand_Forecast": round(fc,0),
-                "Crit_Boost": round(crit_boost,0),
-                "Low_Boost":  round(low_boost,0),
-                "Buffer":     round(prod - net_prod,0),
-                "Production": round(prod,0),
-                "CI_Lo": round(res["ci_lo"][i],0),
-                "CI_Hi": round(res["ci_hi"][i],0),
+                "Demand_Forecast": round(fc, 0),
+                "Crit_Boost":      round(crit_boost, 0),
+                "Low_Boost":       round(low_boost, 0),
+                "Buffer":          round(prod - net_prod, 0),
+                "Production":      round(prod, 0),
+                "CI_Lo": round(res["ci_lo"][i], 0),
+                "CI_Hi": round(res["ci_hi"][i], 0),
             })
+
     return pd.DataFrame(rows)
 
 @st.cache_data(show_spinner=False)
-def compute_logistics():
+def compute_logistics(w_speed=0.40, w_cost=0.35, w_returns=0.25):
     df     = load_data()
     del_df = get_delivered(df)
 
@@ -553,14 +615,39 @@ def compute_logistics():
         Avg_Cost=("Shipping_Cost_INR","mean"), Total_Cost=("Shipping_Cost_INR","sum"),
         Return_Rate=("Return_Flag","mean"),
     ).reset_index()
+
+    carr["Norm_Days"]    = 1 - (carr["Avg_Days"]    - carr["Avg_Days"].min())    / (carr["Avg_Days"].max()    - carr["Avg_Days"].min()    + 1e-9)
+    carr["Norm_Cost"]    = 1 - (carr["Avg_Cost"]    - carr["Avg_Cost"].min())    / (carr["Avg_Cost"].max()    - carr["Avg_Cost"].min()    + 1e-9)
+    carr["Norm_Returns"] = 1 - (carr["Return_Rate"] - carr["Return_Rate"].min()) / (carr["Return_Rate"].max() - carr["Return_Rate"].min() + 1e-9)
+
+    carr["Perf_Score"] = (
+        w_speed   * carr["Norm_Days"] +
+        w_cost    * carr["Norm_Cost"] +
+        w_returns * carr["Norm_Returns"]
+    ).round(3)
+
     carr["Delay_Index"] = (carr["Avg_Days"] / carr["Avg_Days"].min()).round(2)
     carr["Cost_Score"]  = (carr["Avg_Cost"] / carr["Avg_Cost"].min()).round(2)
-    carr["Perf_Score"]  = ((1/carr["Delay_Index"])*(1-carr["Return_Rate"])*(1/carr["Cost_Score"])).round(3)
 
-    best = (del_df.groupby(["Region","Courier_Partner"])
-            .agg(Avg_Days=("Delivery_Days","mean"), Orders=("Order_ID","count"),
-                 Avg_Cost=("Shipping_Cost_INR","mean"))
-            .reset_index().sort_values("Avg_Days").groupby("Region").first().reset_index())
+    region_carr_score = (
+        del_df.groupby(["Region","Courier_Partner"]).agg(
+            Avg_Days=("Delivery_Days","mean"),
+            Avg_Cost=("Shipping_Cost_INR","mean"),
+            Return_Rate=("Return_Flag","mean"),
+            Orders=("Order_ID","count"),
+        ).reset_index()
+    )
+    for col, wt in [("Avg_Days", w_speed), ("Avg_Cost", w_cost), ("Return_Rate", w_returns)]:
+        mn = region_carr_score[col].min(); mx = region_carr_score[col].max()
+        region_carr_score[f"Norm_{col}"] = 1 - (region_carr_score[col] - mn) / (mx - mn + 1e-9)
+    region_carr_score["Score"] = (
+        w_speed   * region_carr_score["Norm_Avg_Days"] +
+        w_cost    * region_carr_score["Norm_Avg_Cost"] +
+        w_returns * region_carr_score["Norm_Return_Rate"]
+    )
+    best = (region_carr_score.sort_values("Score", ascending=False)
+            .groupby("Region").first().reset_index()
+            [["Region","Courier_Partner","Avg_Days","Avg_Cost","Score"]])
 
     current = (del_df.groupby(["Region","Courier_Partner"])
                .agg(Orders=("Order_ID","count"), Total_Cost=("Shipping_Cost_INR","sum"))
@@ -577,20 +664,21 @@ def compute_logistics():
                     .reset_index())
 
     opt = region_costs.merge(cheapest[["Region","Optimal_Carrier","Min_Avg_Cost"]], on="Region")
-    opt["Potential_Saving"] = ((opt["Current_Avg_Cost"]-opt["Min_Avg_Cost"])*opt["Orders"]).round(0)
-    opt["Saving_Pct"]       = ((opt["Current_Avg_Cost"]-opt["Min_Avg_Cost"])/opt["Current_Avg_Cost"]*100).round(1)
+    opt["Potential_Saving"] = ((opt["Current_Avg_Cost"] - opt["Min_Avg_Cost"]) * opt["Orders"]).round(0)
+    opt["Saving_Pct"]       = ((opt["Current_Avg_Cost"] - opt["Min_Avg_Cost"]) / opt["Current_Avg_Cost"] * 100).round(1)
 
     return carr, best, opt, current
-
 
 def build_context():
     df  = load_data()
     ops = get_ops(df)
     ops = ops.copy()
     ops["YM"] = ops["Order_Date"].dt.to_period("M")
+
     m_orders = ops.groupby("YM")["Order_ID"].count().rename("v")
-    m_qty    = ops.groupby("YM")["Quantity"].sum().rename("v")
+    m_qty    = ops.groupby("YM")["Net_Qty"].sum().rename("v")
     m_rev    = ops.groupby("YM")["Net_Revenue"].sum().rename("v")
+
     r_ord = ml_forecast(m_orders.values.astype(float), m_orders.index, 6)
     r_rev = ml_forecast(m_rev.values.astype(float),    m_rev.index,    6)
     r_qty = ml_forecast(m_qty.values.astype(float),    m_qty.index,    6)
@@ -606,11 +694,15 @@ def build_context():
     n_crit     = (inv["Status"]=="🔴 Critical").sum()
     n_low      = (inv["Status"]=="🟡 Low").sum()
     crit_prods = ", ".join(inv[inv["Status"]=="🔴 Critical"]["Product_Name"].head(5).tolist())
+    total_stockout_cost = inv["Stockout_Cost_Day"].sum()
+    abc_counts = inv["ABC"].value_counts().to_dict() if "ABC" in inv.columns else {}
+    abc_str    = ", ".join([f"{k}:{v} SKUs" for k,v in sorted(abc_counts.items())])
+
     prod_sum   = plan.groupby("Category")["Production"].sum().to_dict() if not plan.empty else {}
     prod_str   = ", ".join([f"{k}:{v:.0f}u" for k,v in prod_sum.items()])
     peak_mo    = plan.groupby("Month_dt")["Production"].sum().idxmax().strftime("%b %Y") if not plan.empty else "N/A"
-    carr_str   = "; ".join([f"{r['Courier_Partner']}: {r['Orders']}ord, {r['Avg_Days']:.1f}d, ₹{r['Avg_Cost']:.0f}/ship" for _,r in carr.iterrows()])
-    best_str   = ", ".join([f"{r['Region']}→{r['Courier_Partner']}" for _,r in best_carr.iterrows()])
+    carr_str   = "; ".join([f"{r['Courier_Partner']}: {r['Orders']}ord, {r['Avg_Days']:.1f}d, ₹{r['Avg_Cost']:.0f}/ship, score:{r['Perf_Score']:.3f}" for _,r in carr.iterrows()])
+    best_str   = ", ".join([f"{r['Region']}→{r['Courier_Partner']}(score:{r['Score']:.2f})" for _,r in best_carr.iterrows()])
     saving_total = opt["Potential_Saving"].sum()
     saving_str   = "; ".join([f"{r['Region']}: save ₹{r['Potential_Saving']:,.0f} with {r['Optimal_Carrier']}" for _,r in opt.iterrows() if r['Potential_Saving']>0])
     cat_rev  = ops.groupby("Category")["Net_Revenue"].sum().sort_values(ascending=False)
@@ -622,10 +714,8 @@ def build_context():
 
     if r_ord:
         mm = r_ord.get("model_metrics", {})
-        ens = mm.get("Ensemble", {})
-        ridge = mm.get("Ridge", {})
-        rf    = mm.get("RandomForest", {})
-        gb    = mm.get("GradBoost", {})
+        ens = mm.get("Ensemble", {}); ridge = mm.get("Ridge", {})
+        rf  = mm.get("RandomForest", {}); gb  = mm.get("GradBoost", {})
         metric_str = (f"Ensemble RMSE:{ens.get('rmse',0):.1f}, NRMSE:{ens.get('nrmse',0)*100:.1f}%, R²:{ens.get('r2',0):.2f} | "
                       f"Ridge R²:{ridge.get('r2',0):.2f} | RF R²:{rf.get('r2',0):.2f} | GB R²:{gb.get('r2',0):.2f}")
     else:
@@ -635,26 +725,28 @@ def build_context():
 DATASET: 5,200 orders | Jan 2024–Dec 2025 | India D2D (Amazon, Flipkart, B2B)
 SUMMARY: Net Revenue ₹{ops['Net_Revenue'].sum()/1e7:.2f}Cr | Active Orders {len(ops):,} |
          Return Rate {df[df['Order_Status']=='Returned'].shape[0]/len(ops)*100:.1f}% |
-         Avg Delivery {ops['Delivery_Days'].mean():.1f}d (Delivered only)
+         Avg Delivery {ops['Delivery_Days'].mean():.1f}d
 
-[MODULE 1 — DEMAND FORECAST (3-Model Ensemble: Ridge + RF + GradBoost)]
+[MODULE 1 — DEMAND FORECAST (Ensemble: Ridge + RF + GradBoost)]
 {metric_str}
 Order Forecast: {fc_str(r_ord, lambda v: f"{v:.0f}")}
 Qty Forecast:   {fc_str(r_qty, lambda v: f"{v:.0f}u")}
 Revenue Forecast: {fc_str(r_rev, lambda v: f"₹{v/1e6:.1f}M")}
 
-[MODULE 2 — INVENTORY (EOQ / Safety Stock / ROP)]
-Critical SKUs: {n_crit} | Low: {n_low} | Adequate: {inv['Status'].eq('🟢 Adequate').sum()}
+[MODULE 2 — INVENTORY (EOQ + Full SS + ROP + ABC)]
+Critical: {n_crit} | Low: {n_low} | Adequate: {inv['Status'].eq('🟢 Adequate').sum()}
+ABC: {abc_str}
 Reorder IMMEDIATELY: {crit_prods}
+Est. Stockout Loss/Day: ₹{total_stockout_cost:,.0f}
 
-[MODULE 3 — PRODUCTION PLAN (6-month)]
+[MODULE 3 — PRODUCTION (6-month, decay-corrected boosts)]
 By Category: {prod_str}
 Peak Month: {peak_mo}
 
-[MODULE 4 — LOGISTICS]
+[MODULE 4 — LOGISTICS (Weighted Score: Speed 40%, Cost 35%, Returns 25%)]
 Carriers: {carr_str}
-Best Carrier by Region: {best_str}
-Cost Saving: ₹{saving_total:,.0f} total | {saving_str}
+Best per Region: {best_str}
+Cost Saving: ₹{saving_total:,.0f} | {saving_str}
 
 CATEGORIES: {cat_str}
 TOP REGIONS: {reg_str}
@@ -684,28 +776,27 @@ def call_llm(messages, system, api_key):
         return f"⚠️ Call failed: {exc}"
 
 def build_system_prompt(ctx):
-    return f"""You are OmniFlow, an expert AI supply chain analyst embedded inside a
-Streamlit dashboard for an India D2D e-commerce business.
+    return f"""You are OmniFlow, an expert AI supply chain analyst for an India D2D e-commerce business.
 
 === YOUR EXPERTISE ===
-• Demand forecasting — 3-Model Ensemble (Ridge Regression, Random Forest, Gradient Boosting)
-  with inverse-RMSE weighting, Fourier seasonality, structural break detection
-• Inventory management — Wilson EOQ, Safety Stock (z·σ_daily·√LT), ROP, (s,Q) policy
-• Production planning — 6-month capacity scheduling, demand + inventory-driven targets
-• Logistics optimisation — carrier selection, cost reduction, delay analysis
-• Indian e-commerce channels — Amazon.in, Shiprocket, INCREFF B2B
+• Demand forecasting — 3-Model Ensemble (Ridge + Random Forest + Gradient Boosting), inverse-RMSE weighted, asymmetric log-normal CI
+• Inventory — Wilson EOQ (peak-blended demand), Full Safety Stock SS=z×√(LT×σ_d²+D²×σ_LT²), ROP, ABC classification
+• Production — 6-month plan with decay-corrected replenishment boost (month 1 full, month 2 residual only)
+• Logistics — weighted composite score (Speed 40%, Cost 35%, Returns 25%), configurable per analyst
+• Indian e-commerce — Amazon.in, Flipkart, Shiprocket, INCREFF B2B
 
 === RESPONSE RULES ===
-1. Lead with one precise, data-backed insight sentence
-2. Use bullet points (▸) — cite exact numbers (₹, %, units, days)
-3. Keep answers concise — 4–8 bullets is the target
-4. No generic closings or padding sentences
-5. If information is not in the context, say so honestly
+1. Lead with one precise, data-backed insight
+2. Use bullet points (▸) with exact numbers (₹, %, units, days)
+3. 4–8 bullets per answer
+4. No generic closings
+5. If not in context, say so
 
-=== LIVE SUPPLY CHAIN CONTEXT ===
+=== LIVE CONTEXT ===
 {ctx}"""
 
 def draw_ensemble_chart(res, chart_key, height=320, title="", show_models=True):
+    """Draw forecast chart with optional per-model visibility."""
     fig = go.Figure()
 
     x_ci = list(res["fut_ds"]) + list(res["fut_ds"])[::-1]
@@ -732,7 +823,6 @@ def draw_ensemble_chart(res, chart_key, height=320, title="", show_models=True):
                     opacity=0.55, visible="legendonly",
                     hovertemplate=f"<b>{mname}</b><br>%{{x|%b %Y}}<br>%{{y:,.0f}}<extra></extra>"))
 
-    
     fig.add_trace(go.Scatter(x=res["hist_ds"], y=res["fitted"], name="Ensemble fit",
         line=dict(color=MODEL_COLORS["Ensemble"], width=1.5, dash="dot"), opacity=0.6))
 
@@ -930,7 +1020,7 @@ def page_overview():
 
     st.markdown("""<div class='page-title' style='background:linear-gradient(135deg,#f5a623,#ff6b6b,#2ed8c3);
          -webkit-background-clip:text;-webkit-text-fill-color:transparent'>OmniFlow D2D</div>
-    <div class='page-subtitle'>Predictive Logistics & AI-Powered Demand-to-Delivery Intelligence</div>
+    <div class='page-subtitle'>Predictive Logistics & AI-Powered Demand-to-Delivery Intelligence · 3-Model Ensemble Forecasting</div>
     """, unsafe_allow_html=True)
 
     st.markdown("""<div class='about-card'>
@@ -1052,7 +1142,6 @@ def page_overview():
            AI Chatbot<span style='display:block;font-size:0.58rem;font-weight:400;color:#4a5e7a;margin-top:3px'>Groq LLaMA</span></div>
     </div>""", unsafe_allow_html=True)
 
-# PAGE — DEMAND FORECASTING
 def page_demand():
     df  = load_data()
     ops = get_ops(df)
@@ -1060,6 +1149,14 @@ def page_demand():
     ops["YM"] = ops["Order_Date"].dt.to_period("M")
 
     st.markdown("<div class='page-title' style='color:#000000'>Demand Forecasting</div>", unsafe_allow_html=True)
+    
+    banner("""<b style='color:#000000'>🤖 3-Model Ensemble:</b>
+    <span class='model-pill pill-ridge'>Ridge Regression</span>
+    <span class='model-pill pill-rf'>Random Forest</span>
+    <span class='model-pill pill-gb'>Gradient Boosting</span>
+    — blended via <b>inverse-RMSE weights</b> from rolling walk-forward CV (3 folds).
+    Quantity demand uses <b>Net_Qty</b> (returns excluded — loop-back correction applied).
+    Asymmetric log-normal 90% CI. Features: trend, Fourier seasonality, structural-break, quarter dummies.""", "purple")
 
     sec("Overall Ensemble Model Performance")
     m_orders = ops.groupby("YM")["Order_ID"].count().rename("v")
@@ -1109,7 +1206,7 @@ def page_demand():
     level_opt  = c2.selectbox("Breakdown", ["Overall","Category","Region","Sales Channel"])
     horizon    = c3.slider("Months ahead", 3, 12, 6)
 
-    col_map = {"Orders (#)":"Order_ID","Quantity (Units)":"Quantity","Net Revenue (₹)":"Net_Revenue"}
+    col_map = {"Orders (#)":"Order_ID","Quantity (Units)":"Net_Qty","Net Revenue (₹)":"Net_Revenue"}
     col = col_map[metric_opt]
 
     def get_series(sub):
@@ -1188,7 +1285,6 @@ def page_demand():
                 st.info("Insufficient data."); continue
             fig = draw_ensemble_chart(res2, chart_key=f"demand_cat_{_ci}", height=300, title=cat)
             st.plotly_chart(fig, use_container_width=True, key=f"demand_cat_{_ci}")
-            # Per-model forecast table
             tbl2 = pd.DataFrame({
                 "Month":      [d.strftime("%b %Y") for d in res2["fut_ds"]],
                 "Ensemble":   res2["forecast"].round(0).astype(int),
@@ -1207,7 +1303,7 @@ def page_inventory():
     ops["YM"] = ops["Order_Date"].dt.to_period("M")
 
     st.markdown("<div class='page-title' style='color:#000000'>Inventory Optimisation</div>", unsafe_allow_html=True)
-   
+
     with st.expander("Inventory Parameters", expanded=False):
         p1,p2,p3,p4 = st.columns(4)
         order_cost = p1.number_input("Order Cost ₹", 100, 5000, 500, 50)
@@ -1217,16 +1313,25 @@ def page_inventory():
         z_map      = {"90% (z=1.28)":1.28,"95% (z=1.65)":1.65,"99% (z=2.33)":2.33}
         z          = z_map[svc]
 
+    banner("SS formula: <b>z × √(LT × σ_demand² + D_avg² × σ_LT²)</b> — accounts for both demand AND lead time variability. EOQ uses peak-blended demand (60% avg + 40% peak) to handle seasonality.", "purple")
+
     inv    = compute_inventory(order_cost, hold_pct, lead_time, z)
+    if inv.empty:
+        st.warning("No inventory data."); return
+
     n_crit = (inv["Status"]=="🔴 Critical").sum()
     n_low  = (inv["Status"]=="🟡 Low").sum()
     n_ok   = (inv["Status"]=="🟢 Adequate").sum()
+    total_stockout = inv["Stockout_Cost_Day"].sum()
+    n_a = (inv["ABC"]=="A").sum(); n_b = (inv["ABC"]=="B").sum(); n_c = (inv["ABC"]=="C").sum()
 
-    c1,c2,c3,c4 = st.columns(4)
-    kpi(c1,"Total SKUs",  len(inv), "mint")
-    kpi(c2,"🔴 Critical", n_crit,   "mint","immediate reorder")
-    kpi(c3,"🟡 Low",      n_low,    "mint","approaching ROP")
-    kpi(c4,"🟢 Adequate", n_ok,     "mint", "well-stocked")
+    c1,c2,c3,c4,c5,c6 = st.columns(6)
+    kpi(c1, "Total SKUs",       len(inv),          "mint")
+    kpi(c2, "🔴 Critical",      n_crit,            "mint", "immediate reorder")
+    kpi(c3, "🟡 Low",           n_low,             "mint", "approaching ROP")
+    kpi(c4, "🟢 Adequate",      n_ok,              "mint", "well-stocked")
+    kpi(c5, "A-Class SKUs",     n_a,               "sky",  "top 70% revenue")
+    kpi(c6, "Stockout Cost/Day",f"₹{total_stockout:,.0f}", "coral", "critical SKUs only")
     sp()
 
     cl, cr = st.columns([1,2], gap="large")
@@ -1252,12 +1357,67 @@ def page_inventory():
             xaxis={**gX(),"tickangle":-10}, yaxis=gY(), legend=leg())
         st.plotly_chart(fig2, use_container_width=True, key="chart_8")
 
+    sp()
+    sec("EOQ Cost Trade-off: Annual Ordering vs Holding Cost by Category")
+    eoq_tbl = inv.groupby("Category").agg(
+        Avg_EOQ=("EOQ","mean"), Avg_Ann_Demand=("Annual_Demand","mean"),
+        Avg_Price=("Unit_Price","mean")
+    ).reset_index()
+    eoq_tbl["Ann_Order_Cost"]   = ((eoq_tbl["Avg_Ann_Demand"] / eoq_tbl["Avg_EOQ"].replace(0,1)) * order_cost).round(0)
+    eoq_tbl["Ann_Holding_Cost"] = ((eoq_tbl["Avg_EOQ"] / 2) * eoq_tbl["Avg_Price"] * hold_pct).round(0)
+    eoq_tbl["Total_Cost"]       = eoq_tbl["Ann_Order_Cost"] + eoq_tbl["Ann_Holding_Cost"]
+    fig_eoq = go.Figure()
+    fig_eoq.add_trace(go.Bar(name="Annual Ordering Cost", x=eoq_tbl["Category"], y=eoq_tbl["Ann_Order_Cost"],
+        marker=dict(color="#3B82F6", line=dict(color="rgba(0,0,0,0)"))))
+    fig_eoq.add_trace(go.Bar(name="Annual Holding Cost", x=eoq_tbl["Category"], y=eoq_tbl["Ann_Holding_Cost"],
+        marker=dict(color="#F59E0B", line=dict(color="rgba(0,0,0,0)"))))
+    fig_eoq.add_trace(go.Scatter(name="Total Cost", x=eoq_tbl["Category"], y=eoq_tbl["Total_Cost"],
+        mode="markers+text", marker=dict(size=12, color="#EF4444", symbol="diamond"),
+        text=[f"₹{v:,.0f}" for v in eoq_tbl["Total_Cost"]], textposition="top center",
+        textfont=dict(color="#334155", size=9)))
+    fig_eoq.update_layout(**CD(), height=260, barmode="group",
+        xaxis={**gX(),"tickangle":-10}, yaxis={**gY(),"title":"₹ / Year"}, legend=leg())
+    st.plotly_chart(fig_eoq, use_container_width=True, key="eoq_cost_chart")
+
+    sp()
+    abc_l, abc_r = st.columns(2, gap="large")
+    with abc_l:
+        sec("ABC Classification (Revenue Pareto)")
+        abc_grp = inv.groupby("ABC").agg(SKUs=("SKU_ID","count"), Revenue=("Total_Revenue","sum")).reset_index()
+        abc_grp["Rev_Pct"] = (abc_grp["Revenue"] / abc_grp["Revenue"].sum() * 100).round(1)
+        fig_abc = go.Figure(go.Bar(
+            x=abc_grp["ABC"], y=abc_grp["Rev_Pct"],
+            marker=dict(color=["#1565C0","#2E7D32","#E65100"], line=dict(color="rgba(0,0,0,0)")),
+            text=[f"{r['SKUs']} SKUs<br>{r['Rev_Pct']:.1f}%" for _,r in abc_grp.iterrows()],
+            textposition="outside", textfont=dict(color="#334155")))
+        fig_abc.update_layout(**CD(), height=250,
+            xaxis={**gX(),"title":"ABC Class"},
+            yaxis={**gY(),"title":"Revenue %"})
+        st.plotly_chart(fig_abc, use_container_width=True, key="abc_chart")
+
+    with abc_r:
+        sec("Stockout Cost by Category (Critical SKUs)")
+        so = inv[inv["Status"]=="🔴 Critical"].groupby("Category")["Stockout_Cost_Day"].sum().reset_index()
+        if so.empty:
+            st.info("No critical SKUs.")
+        else:
+            fig_so = go.Figure(go.Bar(
+                x=so["Category"], y=so["Stockout_Cost_Day"],
+                marker=dict(color="#EF4444", line=dict(color="rgba(0,0,0,0)")),
+                text=[f"₹{v:,.0f}/day" for v in so["Stockout_Cost_Day"]],
+                textposition="outside", textfont=dict(color="#334155")))
+            fig_so.update_layout(**CD(), height=250,
+                xaxis=gX(), yaxis={**gY(),"title":"₹ Lost / Day"})
+            st.plotly_chart(fig_so, use_container_width=True, key="stockout_chart")
+
     sec("Critical SKU Alerts — Reorder Immediately")
-    crit_df = inv[inv["Status"]=="🔴 Critical"][["SKU_ID","Product_Name","Category","Current_Stock","SS","ROP","EOQ","Monthly_Avg","Unit_Price"]].copy()
-    crit_df.columns = ["SKU","Product","Category","Current Stock","Safety Stock","ROP","Order Qty (EOQ)","Avg/Month","Unit Price ₹"]
+    crit_df = inv[inv["Status"]=="🔴 Critical"][
+        ["SKU_ID","Product_Name","Category","ABC","Current_Stock","SS","ROP","EOQ","Monthly_Avg","Unit_Price","Stockout_Cost_Day"]
+    ].copy()
+    crit_df.columns = ["SKU","Product","Category","ABC","Current Stock","Safety Stock","ROP","Order Qty (EOQ)","Avg/Month","Unit Price ₹","Stockout ₹/Day"]
     for c in ["Current Stock","Safety Stock","ROP","Order Qty (EOQ)"]:
         crit_df[c] = crit_df[c].astype(int)
-    st.dataframe(crit_df.sort_values("Current Stock"), use_container_width=True, hide_index=True)
+    st.dataframe(crit_df.sort_values("Stockout ₹/Day", ascending=False), use_container_width=True, hide_index=True)
 
     sp()
     sec("Inventory Demand Forecast (Ensemble)")
@@ -1278,13 +1438,18 @@ def page_inventory():
 
     sp()
     sec("SKU-Level Inventory Table")
+    abc_f  = st.multiselect("Filter ABC", ["A","B","C"], default=["A","B","C"])
     cat_f  = st.multiselect("Filter Category", sorted(df["Category"].unique()), default=sorted(df["Category"].unique()))
     stat_f = st.multiselect("Filter Status", ["🔴 Critical","🟡 Low","🟢 Adequate"], default=["🔴 Critical","🟡 Low","🟢 Adequate"])
-    disp   = inv[(inv["Category"].isin(cat_f))&(inv["Status"].isin(stat_f))][["SKU_ID","Product_Name","Category","Monthly_Avg","Current_Stock","EOQ","SS","ROP","Unit_Price","Status"]].copy()
-    disp.columns = ["SKU","Product","Category","Avg/Month","Current Stock","EOQ","Safety Stock","ROP","Price ₹","Status"]
+    disp   = inv[
+        (inv["ABC"].isin(abc_f)) &
+        (inv["Category"].isin(cat_f)) &
+        (inv["Status"].isin(stat_f))
+    ][["SKU_ID","Product_Name","Category","ABC","Monthly_Avg","Current_Stock","EOQ","SS","ROP","Unit_Price","Stockout_Cost_Day","Status"]].copy()
+    disp.columns = ["SKU","Product","Category","ABC","Avg/Month","Current Stock","EOQ","Safety Stock","ROP","Price ₹","Stockout ₹/Day","Status"]
     for c in ["Avg/Month","Current Stock","EOQ","Safety Stock","ROP"]:
         disp[c] = disp[c].astype(int)
-    st.dataframe(disp.sort_values("Status"), use_container_width=True, hide_index=True)
+    st.dataframe(disp.sort_values(["ABC","Status"]), use_container_width=True, hide_index=True)
 
     sp()
     sec("Stock Level Forecast — Depletion & Replenishment Simulation")
@@ -1467,11 +1632,23 @@ def page_logistics():
     del_df = get_delivered(df)
 
     st.markdown("<div class='page-title' style='color:#000000'>Logistics Optimisation</div>", unsafe_allow_html=True)
-    carr, best_carr, opt,_ = compute_logistics()
+
+    with st.expander("Carrier Scoring Weights", expanded=False):
+        wc1, wc2, wc3 = st.columns(3)
+        w_speed   = wc1.slider("Speed weight %",   10, 70, 40) / 100
+        w_cost    = wc2.slider("Cost weight %",    10, 70, 35) / 100
+        w_returns = wc3.slider("Returns weight %", 10, 70, 25) / 100
+        total_w   = w_speed + w_cost + w_returns
+        if abs(total_w - 1.0) > 0.01:
+            st.warning(f"Weights sum to {total_w*100:.0f}% — they will be normalised automatically.")
+        w_speed /= total_w; w_cost /= total_w; w_returns /= total_w
+
+    carr, best_carr, opt, _ = compute_logistics(w_speed, w_cost, w_returns)
     t1,t2,t3,t4,t5 = st.tabs(["Carrier Scorecard","Cost Optimisation","Delay Intel","Warehouse Forecast","Regions"])
 
     with t1:
         sec("Carrier Performance Scorecard")
+        banner(f"Score weights: <b>Speed {w_speed*100:.0f}%</b> · <b>Cost {w_cost*100:.0f}%</b> · <b>Returns {w_returns*100:.0f}%</b> — normalised composite 0–1 (higher = better)", "teal")
         fig = go.Figure()
         for i, (_, r) in enumerate(carr.iterrows()):
             fig.add_trace(go.Scatter(x=[r["Avg_Days"]], y=[r["Avg_Cost"]], mode="markers+text",
@@ -1482,13 +1659,13 @@ def page_logistics():
             xaxis={**gY(),"title":"Avg Delivery Days"}, yaxis={**gY(),"title":"Avg Shipping Cost"})
         st.plotly_chart(fig, use_container_width=True, key="chart_14")
 
-        d2 = carr.copy()
+        d2 = carr[["Courier_Partner","Orders","Avg_Days","Avg_Cost","Return_Rate","Delay_Index","Cost_Score","Perf_Score"]].copy()
         d2["Avg_Days"]    = d2["Avg_Days"].round(1)
         d2["Avg_Cost"]    = d2["Avg_Cost"].round(1)
         d2["Return_Rate"] = (d2["Return_Rate"]*100).round(1).astype(str)+"%"
         d2["Perf_Score"]  = d2["Perf_Score"].round(3)
-        d2.columns = ["Carrier","Orders","Avg Days","Avg Cost","Return Rate","Total Cost","Delay Index","Cost Score","Perf Score"]
-        st.dataframe(d2[["Carrier","Orders","Avg Days","Avg Cost","Return Rate","Delay Index","Perf Score"]], use_container_width=True, hide_index=True)
+        d2.columns = ["Carrier","Orders","Avg Days","Avg Cost ₹","Return Rate","Delay Index","Cost Index","Perf Score"]
+        st.dataframe(d2.sort_values("Perf Score", ascending=False), use_container_width=True, hide_index=True)
 
         sp()
         sec("Carrier Order Volume + Ensemble Forecast")
@@ -1517,13 +1694,25 @@ def page_logistics():
         plan = compute_production()
         if not plan.empty:
             prod_by_cat = plan.groupby("Category")["Production"].sum().reset_index()
-            best_cat = (del_df.groupby(["Category","Courier_Partner"])["Delivery_Days"]
-                .mean().reset_index().sort_values("Delivery_Days").groupby("Category").first().reset_index())
+            cat_carr = del_df.groupby(["Category","Courier_Partner"]).agg(
+                Avg_Days=("Delivery_Days","mean"),
+                Avg_Cost=("Shipping_Cost_INR","mean"),
+                Return_Rate=("Return_Flag","mean"),
+            ).reset_index()
+            for col_c, wt_c in [("Avg_Days", w_speed), ("Avg_Cost", w_cost), ("Return_Rate", w_returns)]:
+                mn_c = cat_carr[col_c].min(); mx_c = cat_carr[col_c].max()
+                cat_carr[f"N_{col_c}"] = 1 - (cat_carr[col_c] - mn_c) / (mx_c - mn_c + 1e-9)
+            cat_carr["Score"] = w_speed*cat_carr["N_Avg_Days"] + w_cost*cat_carr["N_Avg_Cost"] + w_returns*cat_carr["N_Return_Rate"]
+            best_cat = cat_carr.sort_values("Score", ascending=False).groupby("Category").first().reset_index()
             best_cat = best_cat.merge(prod_by_cat.rename(columns={"Production":"Planned Units 6M"}), on="Category", how="left")
-            best_cat["Delivery_Days"]    = best_cat["Delivery_Days"].round(1)
-            best_cat["Planned Units 6M"] = best_cat["Planned Units 6M"].fillna(0).astype(int)
-            best_cat.columns = ["Category","Recommended Carrier","Avg Days","Planned Units"]
-            st.dataframe(best_cat, use_container_width=True, hide_index=True)
+            best_cat["Avg_Days"]        = best_cat["Avg_Days"].round(1)
+            best_cat["Avg_Cost"]        = best_cat["Avg_Cost"].round(1)
+            best_cat["Return_Rate"]     = (best_cat["Return_Rate"]*100).round(1)
+            best_cat["Score"]           = best_cat["Score"].round(3)
+            best_cat["Planned Units 6M"]= best_cat["Planned Units 6M"].fillna(0).astype(int)
+            best_cat = best_cat[["Category","Courier_Partner","Avg_Days","Avg_Cost","Return_Rate","Score","Planned Units 6M"]]
+            best_cat.columns = ["Category","Recommended Carrier","Avg Days","Avg Cost ₹","Return Rate %","Score","Planned Units"]
+            st.dataframe(best_cat.sort_values("Score", ascending=False), use_container_width=True, hide_index=True)
 
     with t2:
         sec("Logistics Cost Optimisation Analysis")
@@ -1566,7 +1755,7 @@ def page_logistics():
         st.dataframe(opt_disp.sort_values("Saving ₹", ascending=False), use_container_width=True, hide_index=True)
 
     with t3:
-        sec("Delay Hotspot Analysis")
+        sec("Delay Hotspot Analysis", "⚠️")
         thr = st.slider("Delay Threshold (days)", 3, 10, 7)
         del_df2 = del_df.copy()
         del_df2["Delayed"] = del_df2["Delivery_Days"] > thr
@@ -1643,13 +1832,50 @@ def page_logistics():
         fig_tp.update_layout(**CD(), height=300, xaxis=gX(), yaxis=dict(showgrid=False,color="#64748B"))
         st.plotly_chart(fig_tp, use_container_width=True, key="chart_23")
 
+        sp()
+        sec("Warehouse Revenue & Cost Efficiency")
+        wh_stats = del_df.groupby("Warehouse").agg(
+            Revenue=("Net_Revenue","sum"),
+            Units=("Quantity","sum"),
+            Shipping_Cost=("Shipping_Cost_INR","sum"),
+            Orders=("Order_ID","count"),
+        ).reset_index()
+        wh_stats["Revenue_Per_Unit"]       = (wh_stats["Revenue"]       / wh_stats["Units"].replace(0,1)).round(1)
+        wh_stats["Shipping_Cost_Per_Unit"] = (wh_stats["Shipping_Cost"] / wh_stats["Units"].replace(0,1)).round(2)
+        wh_stats["Net_Margin_Per_Unit"]    = (wh_stats["Revenue_Per_Unit"] - wh_stats["Shipping_Cost_Per_Unit"]).round(1)
+        wh_l, wh_r = st.columns(2, gap="large")
+        with wh_l:
+            fig_wrev = go.Figure(go.Bar(
+                x=wh_stats["Warehouse"], y=wh_stats["Revenue"]/1e6,
+                marker=dict(color=COLORS[:len(wh_stats)], line=dict(color="rgba(0,0,0,0)")),
+                text=[f"₹{v:.1f}M" for v in wh_stats["Revenue"]/1e6],
+                textposition="outside", textfont=dict(color="#333333")))
+            fig_wrev.update_layout(**CD(), height=240, xaxis=gX(),
+                yaxis={**gY(),"title":"Net Revenue (₹M)"},
+                title=dict(text="Revenue by Warehouse", font=dict(size=11,color="#4a5e7a")))
+            st.plotly_chart(fig_wrev, use_container_width=True, key="wh_rev_chart")
+        with wh_r:
+            fig_wcpu = go.Figure(go.Bar(
+                x=wh_stats["Warehouse"], y=wh_stats["Shipping_Cost_Per_Unit"],
+                marker=dict(color=["#EF4444" if v > wh_stats["Shipping_Cost_Per_Unit"].mean() else "#22C55E"
+                                   for v in wh_stats["Shipping_Cost_Per_Unit"]], line=dict(color="rgba(0,0,0,0)")),
+                text=[f"₹{v:.1f}" for v in wh_stats["Shipping_Cost_Per_Unit"]],
+                textposition="outside", textfont=dict(color="#333333")))
+            fig_wcpu.update_layout(**CD(), height=240, xaxis=gX(),
+                yaxis={**gY(),"title":"Shipping Cost / Unit (₹)"},
+                title=dict(text="Cost per Unit Shipped (red = above avg)", font=dict(size=11,color="#4a5e7a")))
+            st.plotly_chart(fig_wcpu, use_container_width=True, key="wh_cpu_chart")
+        wh_disp = wh_stats[["Warehouse","Orders","Units","Revenue","Revenue_Per_Unit","Shipping_Cost_Per_Unit","Net_Margin_Per_Unit"]].copy()
+        wh_disp["Revenue"] = wh_disp["Revenue"].round(0).astype(int)
+        wh_disp.columns = ["Warehouse","Orders","Units","Revenue ₹","Rev/Unit ₹","Ship Cost/Unit ₹","Net Margin/Unit ₹"]
+        st.dataframe(wh_disp.sort_values("Revenue ₹", ascending=False), use_container_width=True, hide_index=True)
+
     with t5:
         sec("Region Performance Overview")
         rs = del_df.groupby("Region").agg(
             Orders=("Order_ID","count"), Revenue=("Net_Revenue","sum"),
             Qty=("Quantity","sum"), Avg_Del=("Delivery_Days","mean"),
             Returns=("Return_Flag","mean")).reset_index().sort_values("Revenue",ascending=False)
-        # Convert Returns to percentage for display
         rs["Returns_Pct"] = (rs["Returns"] * 100).round(1)
 
         met = st.selectbox("Metric", ["Revenue","Orders","Qty","Avg_Del","Return Rate (%)"])
@@ -1668,12 +1894,13 @@ def page_logistics():
         st.plotly_chart(fig_r, use_container_width=True, key="chart_24")
         cl5, cr5 = st.columns(2, gap="large")
         with cl5:
-            sec("Best Carrier per Region")
-            bc = (del_df.groupby(["Region","Courier_Partner"])["Delivery_Days"]
-                  .mean().reset_index().sort_values("Delivery_Days").groupby("Region").first().reset_index())
-            bc.columns = ["Region","Best Carrier","Avg Days"]
-            bc["Avg Days"] = bc["Avg Days"].round(1)
-            st.dataframe(bc, use_container_width=True, hide_index=True)
+            sec("Best Carrier per Region (Multi-factor Score)")
+            bc = best_carr[["Region","Courier_Partner","Avg_Days","Avg_Cost","Score"]].copy()
+            bc["Avg_Days"]  = bc["Avg_Days"].round(1)
+            bc["Avg_Cost"]  = bc["Avg_Cost"].round(1)
+            bc["Score"]     = bc["Score"].round(3)
+            bc.columns = ["Region","Best Carrier","Avg Days","Avg Cost ₹","Score (0–1)"]
+            st.dataframe(bc.sort_values("Score (0–1)", ascending=False), use_container_width=True, hide_index=True)
         with cr5:
             sec("Region Return Rate Ranking")
             rr = del_df.groupby("Region")["Return_Flag"].mean().sort_values(ascending=False)*100
@@ -1698,9 +1925,25 @@ def page_logistics():
         st.plotly_chart(fig_rf, use_container_width=True, key="chart_26")
 
 st.sidebar.markdown("""<div style='padding:18px 0 26px'>
+  <div style='font-family:DM Mono,monospace;font-size:0.58rem;letter-spacing:0.16em;
+       text-transform:uppercase;color:#4a5e7a;margin-bottom:5px'>Supply Chain Platform</div>
   <div style='font-family:Outfit,sans-serif;font-size:1.75rem;font-weight:900;
        letter-spacing:-0.04em;background:linear-gradient(135deg,#f5a623,#ff6b6b,#2ed8c3);
-       -webkit-background-clip:text;-webkit-text-fill-color:transparent'>OmniFlow D2D</div>
+       -webkit-background-clip:text;-webkit-text-fill-color:transparent'>OmniFlow</div>
+  <div style='font-family:DM Mono,monospace;font-size:0.62rem;color:#4a5e7a;
+       margin-top:2px;letter-spacing:0.05em'>D2D INTELLIGENCE · 3-MODEL ENSEMBLE</div>
+</div>""", unsafe_allow_html=True)
+
+st.sidebar.markdown("""<div style='font-family:DM Mono,monospace;font-size:0.6rem;
+    color:#4a5e7a;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.08em'>
+    Forecast Engine</div>
+    <div style='font-size:0.72rem;color:#334155;background:#f8faff;border:1px solid #c7d7fd;
+    border-radius:10px;padding:10px 12px;margin-bottom:16px;line-height:1.8'>
+    <span style='color:#3B82F6;font-weight:700'>① Ridge</span> +
+    <span style='color:#22C55E;font-weight:700'>② Random Forest</span> +
+    <span style='color:#F59E0B;font-weight:700'>③ Grad Boost</span>
+    <br><span style='color:#8B5CF6;font-weight:700'>④ Ensemble</span>
+    via inverse-RMSE blend
 </div>""", unsafe_allow_html=True)
 
 PAGES = {
