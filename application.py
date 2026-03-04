@@ -486,14 +486,16 @@ def compute_inventory(order_cost=500, hold_pct=0.20, lead_time=7, z=1.65):
                  .agg(avg_price=("Sell_Price","mean"), total_qty=("Net_Qty","sum"))
                  .reset_index())
 
-    lt_std_map = (ops.groupby("Category")["Delivery_Days"]
+    # Use only delivered orders for lead time std (Shipped orders have no Delivery_Days)
+    del_ops    = df[df["Order_Status"] == "Delivered"].copy()
+    lt_std_map = (del_ops.groupby("Category")["Delivery_Days"]
                   .std().fillna(1.0).to_dict())
 
     rows = []
     for _, sk in sku_stats.iterrows():
         sku     = sk["SKU_ID"]
         skd     = sku_monthly[sku_monthly["SKU_ID"]==sku].sort_values("YM")
-        demands = skd["Quantity"].values
+        demands = skd["Net_Qty"].values
         if len(demands) < 2:
             continue
 
