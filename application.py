@@ -763,7 +763,7 @@ def page_inventory():
                 **CD(), height=400,
                 xaxis={**gX(), "title":"Current Stock (units)"},
                 yaxis={**gY(), "title":"Reorder Point (units)"},
-                legend={**leg(), "orientation":"h","y":-0.18},
+                legend={**leg(), "orientation":"h","y":-0.18})
             st.plotly_chart(fig_sc, use_container_width=True, key="scatter_stock")
 
             action = sv[sv["Prod_Need"]>0].sort_values(["Status","Prod_Need"], ascending=[True,False])
