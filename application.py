@@ -298,7 +298,6 @@ def model_grade(nrmse,r2):
 def render_model_quality(res):
     g,l,icon,acc = model_grade(res["nrmse"],res["r2"])
     if "model_metrics" in res:
-        st.markdown("<div class='ensemble-card'>", unsafe_allow_html=True)
         st.markdown("""<div style='font-size:11px;font-weight:700;color:#4a5e7a;
             letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px'>
             Individual Model Performance</div>""", unsafe_allow_html=True)
