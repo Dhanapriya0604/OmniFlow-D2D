@@ -718,7 +718,7 @@ def page_inventory():
     ops["YM"]=ops["Order_Date"].dt.to_period("M")
     st.markdown("<div class='page-title'>Inventory Optimisation</div>", unsafe_allow_html=True)
 
-    with st.expander("Inventory Parameters", expanded=False):
+    with st.expander("⚙️ Parameters", expanded=False):
         p1,p2,p3,p4=st.columns(4)
         order_cost=p1.number_input("Order Cost ₹",100,5000,500,50)
         hold_pct=p2.slider("Holding Cost %",5,40,20)/100
@@ -734,302 +734,219 @@ def page_inventory():
     n_ok=inv["Status"].str.startswith("🟢").sum()
     total_stockout=inv["Stockout_Cost"].sum()
     total_prod_need=inv["Prod_Need"].sum()
-    n_a=(inv["ABC"]=="A").sum()
 
     c1,c2,c3,c4,c5,c6=st.columns(6)
     kpi(c1,"Total SKUs",len(inv),"sky")
     kpi(c2,"🔴 Critical",n_crit,"coral","below safety stock")
     kpi(c3,"🟡 Low",n_low,"amber","below ROP")
     kpi(c4,"🟢 Adequate/Over",n_ok,"mint","above ROP")
-    kpi(c5,"Stockout Risk ₹",f"₹{total_stockout:,.0f}","coral","critical SKUs")
-    kpi(c6,"Units to Produce",f"{total_prod_need:,}","amber","to reach ROP+EOQ")
+    kpi(c5,"Stockout Risk",f"₹{total_stockout:,.0f}","coral","critical SKUs")
+    kpi(c6,"Units to Produce",f"{total_prod_need:,}","amber","to ROP+EOQ")
     sp()
 
-    # ── TAB LAYOUT ──
     tab_alerts, tab_eoq, tab_abc, tab_sim, tab_table = st.tabs([
-        "🚨 SKU Stock Alerts & Production Needs",
-        "📊 EOQ Cost Trade-off & Forecast",
+        "🚨 Stock Position",
+        "📊 EOQ Analysis",
         "🏷️ ABC Classification",
         "🔄 Depletion Simulation",
         "📋 Full SKU Table"
     ])
 
-    # ── TAB 1: SKU STOCK ALERTS ──────────────────────────────────
+    # ── TAB 1: SCATTER — STOCK POSITION ──────────────────────────
     with tab_alerts:
-        sec("SKU-Level Stock Alerts & What to Produce")
+        sc1, sc2, sc3 = st.columns([2,2,1])
+        cat_f  = sc1.multiselect("Category", sorted(inv["Category"].unique()),
+                    default=sorted(inv["Category"].unique()), key="al_cat")
+        stat_f = sc2.multiselect("Status",
+                    ["🔴 Critical","🟡 Low","🟢 Adequate","🟢 Overstocked"],
+                    default=["🔴 Critical","🟡 Low","🟢 Adequate","🟢 Overstocked"], key="al_stat")
+        abc_f  = sc3.multiselect("ABC", ["A","B","C"], default=["A","B","C"], key="al_abc")
 
-        # Summary bar
-        crit_df=inv[inv["Status"]=="🔴 Critical"].copy()
-        low_df=inv[inv["Status"]=="🟡 Low"].copy()
+        sv = inv[(inv["Category"].isin(cat_f))&(inv["Status"].isin(stat_f))&(inv["ABC"].isin(abc_f))].copy()
 
-        # Filter controls
-        af1,af2,af3=st.columns([2,2,1])
-        cat_f=af1.multiselect("Category",sorted(inv["Category"].unique()),default=sorted(inv["Category"].unique()),key="al_cat")
-        stat_f=af2.multiselect("Status",["🔴 Critical","🟡 Low","🟢 Adequate","🟢 Overstocked"],
-            default=["🔴 Critical","🟡 Low"],key="al_stat")
-        abc_f=af3.multiselect("ABC",["A","B","C"],default=["A","B","C"],key="al_abc")
-
-        disp_inv=inv[(inv["Category"].isin(cat_f))&(inv["Status"].isin(stat_f))&(inv["ABC"].isin(abc_f))].copy()
-        disp_inv=disp_inv.sort_values(["Status","Stockout_Cost"],ascending=[True,False])
-
-        if disp_inv.empty:
+        if sv.empty:
             banner("✅ No SKUs match selected filters.","mint")
         else:
-            # Render SKU alert cards
-            for _,row in disp_inv.iterrows():
-                st_cls="sku-critical" if "Critical" in row["Status"] else ("sku-low" if "Low" in row["Status"] else "sku-ok")
-                icon="🔴" if "Critical" in row["Status"] else ("🟡" if "Low" in row["Status"] else "🟢")
-                urgency_color="#ef4444" if "Critical" in row["Status"] else ("#f59e0b" if "Low" in row["Status"] else "#22c55e")
+            # ── SCATTER: Current Stock vs ROP ──────────────────
+            # X = Current Stock  |  Y = ROP  |  size = Prod_Need  |  color = Status
+            STATUS_CLR = {"🔴 Critical":"#ef4444","🟡 Low":"#f59e0b",
+                          "🟢 Adequate":"#22c55e","🟢 Overstocked":"#06b6d4"}
+            fig_sc = go.Figure()
 
-                weeks=row["Weeks_Cover"]
-                if weeks < 1: urgency="URGENT — <1 week cover"
-                elif weeks < 2: urgency=f"{weeks}w cover — order this week"
-                elif weeks < 4: urgency=f"{weeks}w cover — order soon"
-                else: urgency=f"{weeks}w cover — monitor"
+            # Diagonal line: x == y  →  stock exactly at ROP
+            ax_max = max(sv["Current_Stock"].max(), sv["ROP"].max()) * 1.1
+            fig_sc.add_trace(go.Scatter(
+                x=[0, ax_max], y=[0, ax_max],
+                mode="lines", line=dict(color="rgba(100,116,139,0.25)", width=1.5, dash="dash"),
+                name="Stock = ROP", hoverinfo="skip"))
+            # Shaded danger zone: stock < ROP
+            fig_sc.add_vrect(x0=0, x1=sv["ROP"].mean(),
+                fillcolor="rgba(239,68,68,0.04)", layer="below", line_width=0)
 
-                prod_need=int(row["Prod_Need"])
-                fc6=row.get("Forecast_Next6",[])
-                fc_str_val=", ".join([f"{int(v)}" for v in fc6]) if fc6 else "—"
+            for status, clr in STATUS_CLR.items():
+                grp = sv[sv["Status"]==status]
+                if grp.empty: continue
+                bubble_sz = np.clip(grp["Prod_Need"].values, 8, 60)
+                fig_sc.add_trace(go.Scatter(
+                    x=grp["Current_Stock"], y=grp["ROP"],
+                    mode="markers",
+                    marker=dict(size=bubble_sz, color=clr, opacity=0.82,
+                                line=dict(color="#FFFFFF", width=1.5),
+                                sizemode="area", sizeref=2.*60/(40.**2), sizemin=6),
+                    name=status,
+                    customdata=grp[["Product_Name","SKU_ID","ABC","Category",
+                                    "Prod_Need","Weeks_Cover","Stockout_Cost","EOQ","SS"]].values,
+                    hovertemplate=(
+                        "<b>%{customdata[0]}</b> · %{customdata[1]}<br>"
+                        "ABC: %{customdata[2]} · %{customdata[3]}<br>"
+                        "Stock: <b>%{x}</b> · ROP: <b>%{y}</b><br>"
+                        "📦 Order: <b>%{customdata[4]} units</b> · %{customdata[5]:.1f}w cover<br>"
+                        "EOQ: %{customdata[7]} · SS: %{customdata[8]}<br>"
+                        "⚠️ Stockout risk: ₹%{customdata[6]:,.0f}<extra></extra>")))
 
-                st.markdown(f"""
-                <div class='sku-alert-card {st_cls}'>
-                  <div style='display:flex;align-items:flex-start;gap:12px'>
-                    <div style='font-size:20px;margin-top:2px'>{icon}</div>
-                    <div style='flex:1;min-width:0'>
-                      <div style='display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px'>
-                        <span style='font-size:13px;font-weight:800;color:#0f172a'>{row["Product_Name"]}</span>
-                        <span style='font-size:10px;background:#f1f5f9;color:#475569;padding:2px 7px;border-radius:5px;font-family:DM Mono,monospace'>{row["SKU_ID"]}</span>
-                        <span style='font-size:10px;background:#e0e7ff;color:#1e3a8a;padding:2px 7px;border-radius:5px;font-weight:700'>{row["ABC"]}-Class</span>
-                        <span style='font-size:10px;background:#faf5ff;color:#7c3aed;padding:2px 7px;border-radius:5px'>{row["Category"]}</span>
-                      </div>
-                      <div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-top:6px'>
-                        <div style='background:rgba(255,255,255,0.7);border-radius:8px;padding:6px 10px;border:1px solid #f1f5f9'>
-                          <div style='font-size:9px;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em'>Current Stock</div>
-                          <div style='font-size:16px;font-weight:900;color:{urgency_color}'>{int(row["Current_Stock"])} units</div>
-                          <div style='font-size:9px;color:#94a3b8;font-family:DM Mono'>{urgency}</div>
-                        </div>
-                        <div style='background:rgba(255,255,255,0.7);border-radius:8px;padding:6px 10px;border:1px solid #f1f5f9'>
-                          <div style='font-size:9px;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em'>Safety Stock / ROP</div>
-                          <div style='font-size:16px;font-weight:900;color:#0f172a'>{int(row["SS"])} / {int(row["ROP"])}</div>
-                          <div style='font-size:9px;color:#94a3b8;font-family:DM Mono'>EOQ: {int(row["EOQ"])} units</div>
-                        </div>
-                        <div style='background:{"rgba(239,68,68,0.08)" if prod_need>0 else "rgba(34,197,94,0.08)"};border-radius:8px;padding:6px 10px;border:1px solid {"#fecaca" if prod_need>0 else "#bbf7d0"}'>
-                          <div style='font-size:9px;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em'>📦 Produce / Order</div>
-                          <div style='font-size:16px;font-weight:900;color:{"#dc2626" if prod_need>0 else "#16a34a"}'>{prod_need} units</div>
-                          <div style='font-size:9px;color:#94a3b8;font-family:DM Mono'>to reach ROP + 1 EOQ</div>
-                        </div>
-                        <div style='background:rgba(255,255,255,0.7);border-radius:8px;padding:6px 10px;border:1px solid #f1f5f9'>
-                          <div style='font-size:9px;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em'>Demand Forecast (6M)</div>
-                          <div style='font-size:11px;font-weight:700;color:#475569;font-family:DM Mono'>{fc_str_val}</div>
-                          <div style='font-size:9px;color:#94a3b8'>units/month</div>
-                        </div>
-                        <div style='background:rgba(255,255,255,0.7);border-radius:8px;padding:6px 10px;border:1px solid #f1f5f9'>
-                          <div style='font-size:9px;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em'>Unit Price</div>
-                          <div style='font-size:16px;font-weight:900;color:#0f172a'>₹{int(row["Unit_Price"]):,}</div>
-                          <div style='font-size:9px;color:#94a3b8;font-family:DM Mono'>Avg sell price</div>
-                        </div>
-                        <div style='background:{"rgba(239,68,68,0.08)" if row["Stockout_Cost"]>0 else "rgba(248,250,252,1)"};border-radius:8px;padding:6px 10px;border:1px solid {"#fecaca" if row["Stockout_Cost"]>0 else "#f1f5f9"}'>
-                          <div style='font-size:9px;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em'>Stockout Risk</div>
-                          <div style='font-size:16px;font-weight:900;color:{"#dc2626" if row["Stockout_Cost"]>0 else "#64748b"}'>₹{int(row["Stockout_Cost"]):,}</div>
-                          <div style='font-size:9px;color:#94a3b8;font-family:DM Mono'>margin at risk</div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                """, unsafe_allow_html=True)
+            fig_sc.update_layout(
+                **CD(), height=400,
+                xaxis={**gX(), "title":"Current Stock (units)"},
+                yaxis={**gY(), "title":"Reorder Point (units)"},
+                legend={**leg(), "orientation":"h","y":-0.18},
+                title=dict(text="Stock Position — bubble size = units to order · left of dash line = below ROP",
+                           font=dict(size=11, color="#64748b")))
+            st.plotly_chart(fig_sc, use_container_width=True, key="scatter_stock")
 
-        sp()
-
-        # Production Need Summary by Category
-        sec("Production Need Summary by Category")
-        prod_cat=inv[inv["Prod_Need"]>0].groupby("Category").agg(
-            SKUs_Needing=("SKU_ID","count"),
-            Total_Units=("Prod_Need","sum"),
-            Stockout_Risk=("Stockout_Cost","sum"),
-            Avg_Weeks_Cover=("Weeks_Cover","mean")
-        ).reset_index().sort_values("Total_Units",ascending=False)
-
-        if not prod_cat.empty:
-            fig_pn=go.Figure()
-            fig_pn.add_trace(go.Bar(
-                x=prod_cat["Category"],y=prod_cat["Total_Units"],
-                name="Units to Produce/Order",
-                marker=dict(color=["#ef4444" if r>0 else "#22c55e" for r in prod_cat["Total_Units"]],
-                            line=dict(color="rgba(0,0,0,0)")),
-                text=[f"{int(v):,} units" for v in prod_cat["Total_Units"]],
-                textposition="outside",textfont=dict(color="#334155")))
-            fig_pn.update_layout(**CD(),height=240,xaxis=gX(),
-                yaxis={**gY(),"title":"Units Required"},
-                title=dict(text="Units needed to replenish to ROP + 1 EOQ buffer",font=dict(size=11,color="#64748b")))
-            st.plotly_chart(fig_pn,use_container_width=True,key="prod_need_chart")
-
-            prod_cat["Total_Units"]=prod_cat["Total_Units"].astype(int)
-            prod_cat["Stockout_Risk"]=prod_cat["Stockout_Risk"].apply(lambda x:f"₹{int(x):,}")
-            prod_cat["Avg_Weeks_Cover"]=prod_cat["Avg_Weeks_Cover"].round(1)
-            prod_cat.columns=["Category","SKUs Needing Stock","Units to Order","Stockout Risk ₹","Avg Weeks Cover"]
-            st.dataframe(prod_cat,use_container_width=True,hide_index=True)
-
-        sp()
-
-        # SKU-level production need chart (top 20 by need)
-        sec("Top SKUs by Production Need")
-        top_need=inv[inv["Prod_Need"]>0].sort_values("Prod_Need",ascending=False).head(20)
-        if not top_need.empty:
-            fig_tn=go.Figure()
-            bar_colors=["#ef4444" if "Critical" in s else "#f59e0b" for s in top_need["Status"]]
-            fig_tn.add_trace(go.Bar(
-                y=top_need["Product_Name"].str[:28],x=top_need["Prod_Need"],
-                orientation="h",
-                marker=dict(color=bar_colors,line=dict(color="rgba(0,0,0,0)")),
-                text=[f"{int(v):,}" for v in top_need["Prod_Need"]],
-                textposition="outside",textfont=dict(color="#334155"),
-                customdata=top_need[["Current_Stock","ROP","EOQ","Category"]].values,
-                hovertemplate="<b>%{y}</b><br>Need: %{x} units<br>Stock: %{customdata[0]} | ROP: %{customdata[1]} | EOQ: %{customdata[2]}<br>%{customdata[3]}<extra></extra>"))
-            cd_wide = CD(); cd_wide["margin"] = dict(l=220,r=60,t=42,b=30)
-            fig_tn.update_layout(**cd_wide,height=max(300,len(top_need)*30),
-                xaxis={**gX(),"title":"Units to Order/Produce"},
-                yaxis=dict(showgrid=False,color="#64748b",automargin=True))
-            st.plotly_chart(fig_tn,use_container_width=True,key="top_need_chart")
-
-    # ── TAB 2: EOQ COST TRADE-OFF + FORECAST ─────────────────────
-    with tab_eoq:
-        sec("EOQ Cost Trade-off by Category")
-        eoq_tbl=inv.groupby("Category").agg(
-            Avg_EOQ=("EOQ","mean"),Avg_Ann_Demand=("Annual_Demand","mean"),
-            Avg_Price=("Unit_Price","mean")).reset_index()
-        eoq_tbl["Ann_Order_Cost"]=(eoq_tbl["Avg_Ann_Demand"]/eoq_tbl["Avg_EOQ"].replace(0,1)*order_cost).round(0)
-        eoq_tbl["Ann_Holding_Cost"]=(eoq_tbl["Avg_EOQ"]/2*eoq_tbl["Avg_Price"]*hold_pct).round(0)
-        eoq_tbl["Total_Cost"]=eoq_tbl["Ann_Order_Cost"]+eoq_tbl["Ann_Holding_Cost"]
-
-        fig_eoq=go.Figure()
-        fig_eoq.add_trace(go.Bar(name="Annual Ordering Cost",x=eoq_tbl["Category"],y=eoq_tbl["Ann_Order_Cost"],
-            marker=dict(color="#3B82F6",line=dict(color="rgba(0,0,0,0)"))))
-        fig_eoq.add_trace(go.Bar(name="Annual Holding Cost",x=eoq_tbl["Category"],y=eoq_tbl["Ann_Holding_Cost"],
-            marker=dict(color="#F59E0B",line=dict(color="rgba(0,0,0,0)"))))
-        fig_eoq.add_trace(go.Scatter(name="Total Cost",x=eoq_tbl["Category"],y=eoq_tbl["Total_Cost"],
-            mode="markers+text",marker=dict(size=12,color="#EF4444",symbol="diamond"),
-            text=[f"₹{v:,.0f}" for v in eoq_tbl["Total_Cost"]],
-            textposition="top center",textfont=dict(color="#334155",size=9)))
-        fig_eoq.update_layout(**CD(),height=270,barmode="group",
-            xaxis={**gX(),"tickangle":-10},yaxis={**gY(),"title":"₹/Year"},legend=leg())
-        st.plotly_chart(fig_eoq,use_container_width=True,key="eoq_cost")
-
-        # EOQ table
-        eoq_disp=eoq_tbl.copy()
-        eoq_disp["Avg_EOQ"]=eoq_disp["Avg_EOQ"].round(0).astype(int)
-        eoq_disp["Avg_Ann_Demand"]=eoq_disp["Avg_Ann_Demand"].round(0).astype(int)
-        eoq_disp["Avg_Price"]=eoq_disp["Avg_Price"].round(0).apply(lambda x:f"₹{int(x):,}")
-        eoq_disp["Ann_Order_Cost"]=eoq_disp["Ann_Order_Cost"].apply(lambda x:f"₹{int(x):,}")
-        eoq_disp["Ann_Holding_Cost"]=eoq_disp["Ann_Holding_Cost"].apply(lambda x:f"₹{int(x):,}")
-        eoq_disp["Total_Cost"]=eoq_disp["Total_Cost"].apply(lambda x:f"₹{int(x):,}")
-        eoq_disp.columns=["Category","Avg EOQ","Avg Ann Demand","Avg Price","Order Cost/Yr","Holding Cost/Yr","Total Cost/Yr"]
-        st.dataframe(eoq_disp,use_container_width=True,hide_index=True)
-
-        sp()
-        # EOQ + FUTURE DEMAND FORECAST overlay
-        sec("EOQ vs Future Demand Forecast by Category")
-        banner("📈 <b>How to read:</b> Grey bars = historical monthly demand · Purple line = ML ensemble forecast · Red diamond = EOQ order quantity. "
-               "EOQ should broadly match 1–3 months of demand for efficient reordering.","sky")
-        sp(0.5)
-
-        cat_qty=ops.groupby(["YM","Category"])["Net_Qty"].sum().unstack(fill_value=0)
-        eoq_by_cat=inv.groupby("Category")["EOQ"].mean().to_dict()
-        tabs_eoq=st.tabs(list(cat_qty.columns))
-        for i,(tab,cat) in enumerate(zip(tabs_eoq,cat_qty.columns)):
-            with tab:
-                res=ml_forecast(cat_qty[cat].values.astype(float),cat_qty.index,6)
-                if res is None: st.info("Insufficient data."); continue
-                avg_eoq=eoq_by_cat.get(cat,0)
-                fig=go.Figure()
-                # Historical bars
-                fig.add_trace(go.Bar(
-                    x=res["hist_ds"],y=res["hist_y"],name="Historical Demand",
-                    marker=dict(color="rgba(100,116,139,0.35)",line=dict(color="rgba(0,0,0,0)"))))
-                # CI band
-                x_ci=list(res["fut_ds"])+list(res["fut_ds"])[::-1]
-                y_ci=list(res["ci_hi"])+list(res["ci_lo"])[::-1]
-                fig.add_trace(go.Scatter(x=x_ci,y=y_ci,fill="toself",
-                    fillcolor="rgba(139,92,246,0.07)",line=dict(color="rgba(0,0,0,0)"),name="90% CI"))
-                # Forecast line
-                fig.add_trace(go.Scatter(
-                    x=res["fut_ds"],y=res["forecast"],name="Demand Forecast",
-                    mode="lines+markers",line=dict(color="#8B5CF6",width=2.8,dash="dot"),
-                    marker=dict(size=8,color="#8B5CF6",line=dict(color="#FFFFFF",width=2)),
-                    hovertemplate="<b>%{x|%b %Y}</b><br>Forecast: %{y:,.0f}<extra></extra>"))
-                # EOQ reference line
-                fig.add_hline(y=avg_eoq, line_dash="dash", line_color="#EF4444", line_width=2,
-                    annotation_text=f"  Avg EOQ = {int(avg_eoq):,} units",
-                    annotation_font=dict(color="#EF4444",size=10,family="DM Mono"))
-                # EOQ markers on forecast
-                fig.add_trace(go.Scatter(
-                    x=res["fut_ds"],y=[avg_eoq]*len(res["fut_ds"]),name="EOQ Level",
-                    mode="markers",marker=dict(size=10,color="#EF4444",symbol="diamond",
-                        line=dict(color="#FFFFFF",width=2)),
-                    hovertemplate=f"EOQ = {int(avg_eoq):,} units<extra></extra>"))
-                fig.add_vline(x=res["fut_ds"][0],line_dash="dash",
-                    line_color="rgba(139,92,246,0.4)",line_width=1.5)
-                fig.update_layout(**CD(),height=280,barmode="overlay",
-                    xaxis=gX(),yaxis={**gY(),"title":"Units/Month"},legend=leg(),
-                    title=dict(text=f"{cat} — EOQ vs Forecast Demand",font=dict(size=11,color="#64748b")))
-                st.plotly_chart(fig,use_container_width=True,key=f"eoq_fc_{i}")
-
-                # Table
-                fc_table=pd.DataFrame({
-                    "Month":[d.strftime("%b %Y") for d in res["fut_ds"]],
-                    "Forecast Demand":res["forecast"].round(0).astype(int),
-                    "Ci Low":res["ci_lo"].round(0).astype(int),
-                    "CI High":res["ci_hi"].round(0).astype(int),
-                    "Avg EOQ":[int(avg_eoq)]*6,
-                    "EOQ covers (months)":[round(avg_eoq/max(v,1),1) for v in res["forecast"]]
-                })
-                st.dataframe(fc_table,use_container_width=True,hide_index=True)
+            # ── COMPACT ACTION TABLE (critical + low only) ──────
+            action = sv[sv["Prod_Need"]>0].sort_values(["Status","Prod_Need"], ascending=[True,False])
+            if not action.empty:
                 sp(0.5)
-                # Insight
-                avg_fc=float(np.mean(res["forecast"]))
-                if avg_eoq>0 and avg_fc>0:
-                    months_cover=avg_eoq/avg_fc
-                    if months_cover<1:
-                        banner(f"⚠️ <b>{cat}</b>: EOQ ({int(avg_eoq)} units) covers only <b>{months_cover:.1f} months</b> of forecast demand — consider increasing order size.","amber")
-                    elif months_cover>3:
-                        banner(f"📦 <b>{cat}</b>: EOQ ({int(avg_eoq)} units) covers <b>{months_cover:.1f} months</b> — may be over-ordering, review holding costs.","sky")
-                    else:
-                        banner(f"✅ <b>{cat}</b>: EOQ ({int(avg_eoq)} units) covers <b>{months_cover:.1f} months</b> — well-balanced order quantity.","mint")
+                sec("Action Queue — SKUs needing replenishment")
+                tbl = action[["SKU_ID","Product_Name","Category","ABC","Status",
+                               "Current_Stock","ROP","SS","EOQ","Prod_Need",
+                               "Weeks_Cover","Stockout_Cost"]].copy()
+                tbl["Weeks_Cover"] = tbl["Weeks_Cover"].round(1)
+                tbl["Stockout_Cost"] = tbl["Stockout_Cost"].apply(lambda x: f"₹{int(x):,}" if x>0 else "—")
+                tbl.columns = ["SKU","Product","Cat","ABC","Status",
+                                "Stock","ROP","SS","EOQ","📦 Order",
+                                "Wks Cover","Stockout Risk"]
+                for c in ["Stock","ROP","SS","EOQ","📦 Order"]: tbl[c]=tbl[c].astype(int)
+                st.dataframe(tbl, use_container_width=True, hide_index=True, height=300)
+
+    # ── TAB 2: EOQ ANALYSIS — scatter + cost bars ─────────────────
+    with tab_eoq:
+        eoq_tbl = inv.groupby("Category").agg(
+            Avg_EOQ=("EOQ","mean"), Avg_Ann_Demand=("Annual_Demand","mean"),
+            Avg_Price=("Unit_Price","mean"), SKU_Count=("SKU_ID","count")).reset_index()
+        eoq_tbl["Ann_Order_Cost"]  = (eoq_tbl["Avg_Ann_Demand"]/eoq_tbl["Avg_EOQ"].replace(0,1)*order_cost).round(0)
+        eoq_tbl["Ann_Holding_Cost"]= (eoq_tbl["Avg_EOQ"]/2*eoq_tbl["Avg_Price"]*hold_pct).round(0)
+        eoq_tbl["Total_Cost"]      = eoq_tbl["Ann_Order_Cost"]+eoq_tbl["Ann_Holding_Cost"]
+        eoq_tbl["Months_Cover"]    = (eoq_tbl["Avg_EOQ"]/(eoq_tbl["Avg_Ann_Demand"]/12).replace(0,np.nan)).round(1)
+
+        col_l, col_r = st.columns(2, gap="large")
+
+        with col_l:
+            sec("EOQ vs Annual Demand — by Category")
+            banner("📌 <b>Scatter:</b> X = avg EOQ · Y = annual demand · bubble = SKU count · "
+                   "ideal when EOQ covers 1–3 months of demand.", "sky")
+            fig_es = go.Figure()
+            cat_colors = {c: COLORS[i%len(COLORS)] for i,c in enumerate(eoq_tbl["Category"])}
+            for _,r in eoq_tbl.iterrows():
+                mc = r["Months_Cover"] if not np.isnan(r["Months_Cover"]) else 0
+                flag = "⚠️ under" if mc<1 else ("📦 over" if mc>3 else "✅ ok")
+                fig_es.add_trace(go.Scatter(
+                    x=[r["Avg_EOQ"]], y=[r["Avg_Ann_Demand"]],
+                    mode="markers+text",
+                    text=[r["Category"][:10]], textposition="top center",
+                    textfont=dict(size=9, color="#334155"),
+                    marker=dict(size=max(r["SKU_Count"]*5, 18), color=cat_colors[r["Category"]],
+                                opacity=0.85, line=dict(color="#fff", width=2)),
+                    name=r["Category"],
+                    hovertemplate=(f"<b>{r['Category']}</b><br>"
+                        f"Avg EOQ: {int(r['Avg_EOQ'])}<br>"
+                        f"Ann Demand: {int(r['Avg_Ann_Demand'])}<br>"
+                        f"Covers: {mc:.1f} months  {flag}<br>"
+                        f"SKUs: {int(r['SKU_Count'])}<extra></extra>")))
+            # 1-month and 3-month cover reference lines (y = 12x and y = 4x)
+            x_ref = np.linspace(0, eoq_tbl["Avg_EOQ"].max()*1.15, 50)
+            fig_es.add_trace(go.Scatter(x=x_ref, y=x_ref*12, mode="lines",
+                line=dict(color="#ef4444", width=1, dash="dot"),
+                name="1-mo cover", hoverinfo="skip"))
+            fig_es.add_trace(go.Scatter(x=x_ref, y=x_ref*4, mode="lines",
+                line=dict(color="#22c55e", width=1, dash="dot"),
+                name="3-mo cover", hoverinfo="skip"))
+            fig_es.update_layout(**CD(), height=320,
+                xaxis={**gX(),"title":"Avg EOQ (units/order)"},
+                yaxis={**gY(),"title":"Annual Demand (units/yr)"},
+                showlegend=False,
+                title=dict(text="Red dotted = 1-mo cover  ·  Green dotted = 3-mo cover",
+                           font=dict(size=10,color="#64748b")))
+            st.plotly_chart(fig_es, use_container_width=True, key="eoq_scatter")
+
+        with col_r:
+            sec("Annual Cost Trade-off by Category")
+            fig_eoq = go.Figure()
+            fig_eoq.add_trace(go.Bar(name="Ordering Cost", x=eoq_tbl["Category"],
+                y=eoq_tbl["Ann_Order_Cost"],
+                marker=dict(color="#3B82F6", line=dict(color="rgba(0,0,0,0)"))))
+            fig_eoq.add_trace(go.Bar(name="Holding Cost", x=eoq_tbl["Category"],
+                y=eoq_tbl["Ann_Holding_Cost"],
+                marker=dict(color="#F59E0B", line=dict(color="rgba(0,0,0,0)"))))
+            fig_eoq.add_trace(go.Scatter(name="Total", x=eoq_tbl["Category"],
+                y=eoq_tbl["Total_Cost"], mode="markers+text",
+                marker=dict(size=11, color="#EF4444", symbol="diamond"),
+                text=[f"₹{v/1e3:.0f}k" for v in eoq_tbl["Total_Cost"]],
+                textposition="top center", textfont=dict(color="#334155", size=9)))
+            fig_eoq.update_layout(**CD(), height=320, barmode="group",
+                xaxis={**gX(),"tickangle":-10},
+                yaxis={**gY(),"title":"₹/Year"}, legend=leg())
+            st.plotly_chart(fig_eoq, use_container_width=True, key="eoq_cost")
+
+        # Compact summary table
+        sp(0.5)
+        edisp = eoq_tbl[["Category","Avg_EOQ","Avg_Ann_Demand","Months_Cover",
+                          "Ann_Order_Cost","Ann_Holding_Cost","Total_Cost"]].copy()
+        edisp["Avg_EOQ"]          = edisp["Avg_EOQ"].round(0).astype(int)
+        edisp["Avg_Ann_Demand"]   = edisp["Avg_Ann_Demand"].round(0).astype(int)
+        edisp["Ann_Order_Cost"]   = edisp["Ann_Order_Cost"].apply(lambda x: f"₹{int(x):,}")
+        edisp["Ann_Holding_Cost"] = edisp["Ann_Holding_Cost"].apply(lambda x: f"₹{int(x):,}")
+        edisp["Total_Cost"]       = edisp["Total_Cost"].apply(lambda x: f"₹{int(x):,}")
+        edisp.columns = ["Category","Avg EOQ","Ann Demand","Months Cover","Order Cost/Yr","Holding Cost/Yr","Total/Yr"]
+        st.dataframe(edisp, use_container_width=True, hide_index=True)
 
     # ── TAB 3: ABC CLASSIFICATION ────────────────────────────────
     with tab_abc:
-        al,ar=st.columns(2,gap="large")
+        al, ar = st.columns(2, gap="large")
         with al:
             sec("ABC Pareto Classification")
-            abc_grp=inv.groupby("ABC").agg(SKUs=("SKU_ID","count"),Revenue=("Total_Revenue","sum")).reset_index()
-            abc_grp["Rev_Pct"]=(abc_grp["Revenue"]/abc_grp["Revenue"].sum()*100).round(1)
-            fig_abc=go.Figure(go.Bar(x=abc_grp["ABC"],y=abc_grp["Rev_Pct"],
-                marker=dict(color=["#1565C0","#2E7D32","#E65100"],line=dict(color="rgba(0,0,0,0)")),
+            abc_grp = inv.groupby("ABC").agg(SKUs=("SKU_ID","count"),Revenue=("Total_Revenue","sum")).reset_index()
+            abc_grp["Rev_Pct"] = (abc_grp["Revenue"]/abc_grp["Revenue"].sum()*100).round(1)
+            fig_abc = go.Figure(go.Bar(x=abc_grp["ABC"], y=abc_grp["Rev_Pct"],
+                marker=dict(color=["#1565C0","#2E7D32","#E65100"], line=dict(color="rgba(0,0,0,0)")),
                 text=[f"{r['SKUs']} SKUs · {r['Rev_Pct']:.1f}%" for _,r in abc_grp.iterrows()],
-                textposition="outside",textfont=dict(color="#334155")))
-            fig_abc.update_layout(**CD(),height=260,xaxis={**gX(),"title":"ABC Class"},yaxis={**gY(),"title":"Revenue %"})
-            st.plotly_chart(fig_abc,use_container_width=True,key="abc_chart")
+                textposition="outside", textfont=dict(color="#334155")))
+            fig_abc.update_layout(**CD(), height=260,
+                xaxis={**gX(),"title":"ABC Class"}, yaxis={**gY(),"title":"Revenue %"})
+            st.plotly_chart(fig_abc, use_container_width=True, key="abc_chart")
         with ar:
             sec("Stockout Risk by Category")
-            so=inv[inv["Stockout_Cost"]>0].groupby("Category")["Stockout_Cost"].sum().reset_index()
+            so = inv[inv["Stockout_Cost"]>0].groupby("Category")["Stockout_Cost"].sum().reset_index()
             if so.empty:
-                banner("✅ No stockout risk detected across all categories.","mint")
+                banner("✅ No stockout risk detected.","mint")
             else:
-                fig_so=go.Figure(go.Bar(x=so["Category"],y=so["Stockout_Cost"],
-                    marker=dict(color="#EF4444",line=dict(color="rgba(0,0,0,0)")),
+                fig_so = go.Figure(go.Bar(x=so["Category"], y=so["Stockout_Cost"],
+                    marker=dict(color="#EF4444", line=dict(color="rgba(0,0,0,0)")),
                     text=[f"₹{v:,.0f}" for v in so["Stockout_Cost"]],
-                    textposition="outside",textfont=dict(color="#334155")))
-                fig_so.update_layout(**CD(),height=260,xaxis=gX(),yaxis={**gY(),"title":"₹ Stockout Risk"})
-                st.plotly_chart(fig_so,use_container_width=True,key="stockout_chart")
+                    textposition="outside", textfont=dict(color="#334155")))
+                fig_so.update_layout(**CD(), height=260,
+                    xaxis=gX(), yaxis={**gY(),"title":"₹ Stockout Risk"})
+                st.plotly_chart(fig_so, use_container_width=True, key="stockout_chart")
         sp()
         sec("EOQ / Safety Stock / ROP by Category")
-        ci2=inv.groupby("Category")[["EOQ","SS","ROP"]].mean().reset_index()
-        fig2=go.Figure()
+        ci2 = inv.groupby("Category")[["EOQ","SS","ROP"]].mean().reset_index()
+        fig2 = go.Figure()
         for i,(m2,lbl) in enumerate([("EOQ","EOQ"),("SS","Safety Stock"),("ROP","Reorder Point")]):
-            fig2.add_trace(go.Bar(name=lbl,x=ci2["Category"],y=ci2[m2].round(1),
-                marker=dict(color=["#F59E0B","#06B6D4","#8B5CF6"][i],line=dict(color="rgba(0,0,0,0)"))))
-        fig2.update_layout(**CD(),height=240,barmode="group",xaxis={**gX(),"tickangle":-10},yaxis=gY(),legend=leg())
-        st.plotly_chart(fig2,use_container_width=True,key="inv_eoq_bar")
+            fig2.add_trace(go.Bar(name=lbl, x=ci2["Category"], y=ci2[m2].round(1),
+                marker=dict(color=["#F59E0B","#06B6D4","#8B5CF6"][i], line=dict(color="rgba(0,0,0,0)"))))
+        fig2.update_layout(**CD(), height=240, barmode="group",
+            xaxis={**gX(),"tickangle":-10}, yaxis=gY(), legend=leg())
+        st.plotly_chart(fig2, use_container_width=True, key="inv_eoq_bar")
 
     # ── TAB 4: DEPLETION SIMULATION ──────────────────────────────
     with tab_sim:
