@@ -571,7 +571,7 @@ def page_overview():
     <div class='card'>
     <div style='font-size:13px;font-weight:800;color:#1e3a8a;margin-bottom:6px'>Platform Purpose</div>
     <div style='font-size:12.8px;line-height:1.7;color:#475569'>
-    OmniFlow D2D is an AI-powered supply chain analytics system that transforms historical e-commerce order data into operational decisions across demand, inventory, production and logistics.
+    OmniFlow D2D is an end to end AI-powered supply chain analytics system that transforms historical e-commerce order data into operational decisions across demand, inventory, production and logistics.
     </div>
     </div>  
     <div class='card'>
