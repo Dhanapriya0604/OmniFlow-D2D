@@ -1282,15 +1282,15 @@ def page_chatbot():
             else:
                 st.markdown("<div style='font-size:10px;color:#ff6b6b;font-family:DM Mono;margin-top:3px'>⚠️ Should start with gsk_</div>",unsafe_allow_html=True)
     sp()
-        sec("Revenue Forecast")
-        m_rev=ops.groupby("YM")["Net_Revenue"].sum().rename("v")
-        r_rev=ml_forecast(m_rev.values.astype(float),m_rev.index,6)
-        if r_rev is not None:
-            last=float(m_rev.iloc[-1]); rc=st.columns(6)
-            for i,(dt,fc,lo,hi) in enumerate(zip(r_rev["fut_ds"],r_rev["forecast"],r_rev["ci_lo"],r_rev["ci_hi"])):
-                chg=(fc-last)/last*100 if last>0 else 0
-                kpi(rc[i],f"{'📈' if chg>=0 else '📉'} {dt.strftime('%b %Y')}",f"₹{fc/1e6:.1f}M","mint" if chg>=0 else "coral",f"{chg:+.1f}% | CI ₹{lo/1e6:.1f}M–₹{hi/1e6:.1f}M")
-                last=fc
+    sec("Revenue Forecast")
+    m_rev=ops.groupby("YM")["Net_Revenue"].sum().rename("v")
+    r_rev=ml_forecast(m_rev.values.astype(float),m_rev.index,6)
+    if r_rev is not None:
+        last=float(m_rev.iloc[-1]); rc=st.columns(6)
+        for i,(dt,fc,lo,hi) in enumerate(zip(r_rev["fut_ds"],r_rev["forecast"],r_rev["ci_lo"],r_rev["ci_hi"])):
+            chg=(fc-last)/last*100 if last>0 else 0
+            kpi(rc[i],f"{'📈' if chg>=0 else '📉'} {dt.strftime('%b %Y')}",f"₹{fc/1e6:.1f}M","mint" if chg>=0 else "coral",f"{chg:+.1f}% | CI ₹{lo/1e6:.1f}M–₹{hi/1e6:.1f}M")
+            last=fc
     ctx=build_context()
     system=f"""You are OmniFlow, an expert AI supply chain analyst for an India D2D e-commerce business.
 EXPERTISE: Demand forecasting (Ridge+RF+GradBoost ensemble), Inventory (Wilson EOQ, full safety stock, ROP, ABC), Production planning, Logistics (weighted composite score), Indian e-commerce.
