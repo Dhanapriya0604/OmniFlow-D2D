@@ -118,13 +118,15 @@ def sp(n=1):
 @st.cache_data(show_spinner="Loading data…")
 def load_data():
     df = pd.read_csv(DATA_FILE, parse_dates=["Order_Date"])
-    df["Region"]      = df["Region"].replace("Pune","Maharashtra")
+    # FIX: "Pune" is a City, not a Region — Region column already has "Maharashtra" correctly.
+    # Removed: df["Region"] = df["Region"].replace("Pune","Maharashtra")  # redundant
     df["YearMonth"]   = df["Order_Date"].dt.to_period("M")
     df["Year"]        = df["Order_Date"].dt.year
     df["Month_Num"]   = df["Order_Date"].dt.month
     df["Net_Revenue"] = np.where(df["Return_Flag"]==1, 0.0, df["Revenue_INR"])
     df["Net_Qty"]     = np.where(df["Return_Flag"]==1, 0,   df["Quantity"])
-    df.loc[df["Order_Status"]=="Cancelled","Delivery_Days"] = np.nan
+    # FIX: Cancelled and Returned orders already have null Delivery_Days in source CSV.
+    # Removed redundant: df.loc[df["Order_Status"]=="Cancelled","Delivery_Days"] = np.nan
     return df
 
 @st.cache_data
@@ -357,7 +359,7 @@ def compute_inventory(order_cost=500, hold_pct=0.20, lead_time=7, z=1.65):
     df_sorted=df.sort_values("Order_Date")
     sku_snapshot=df_sorted.groupby("SKU_ID").agg(
         actual_stock=("Current_Stock_Units","last"),
-        dataset_rop=("Reorder_Point","last"),      
+        dataset_rop=("Reorder_Point","last"),
         dataset_status=("Stock_Status","last"),
         Product_Name=("Product_Name","first"),
         Category=("Category","first"),
@@ -372,7 +374,7 @@ def compute_inventory(order_cost=500, hold_pct=0.20, lead_time=7, z=1.65):
         cat_hist_avg[cat]=float(cat_monthly[cat].mean())
         res=ml_forecast(cat_monthly[cat].values.astype(float),cat_monthly.index,6)
         if res is not None:
-            cat_forecast[cat]=float(np.mean(res["forecast"]))  
+            cat_forecast[cat]=float(np.mean(res["forecast"]))
 
     rows=[]
     for _,sk in sku_snapshot.iterrows():
@@ -387,7 +389,6 @@ def compute_inventory(order_cost=500, hold_pct=0.20, lead_time=7, z=1.65):
         if cat in cat_forecast and cat in cat_hist_avg and cat_hist_avg[cat]>0:
             sku_share=avg_d/cat_hist_avg[cat]
             fc_monthly=cat_forecast[cat]*sku_share
-            # Conservative blend: 50% historical, 30% peak, 20% forecast
             econ_d=avg_d*0.50+peak_d*0.30+fc_monthly*0.20
         else:
             econ_d=avg_d*0.60+peak_d*0.40
@@ -461,7 +462,7 @@ def compute_production(cap_mult=1.0, buffer_pct=0.15):
         for i,(dt,fc) in enumerate(zip(res["fut_ds"],res["forecast"])):
             bf=boost_schedule.get(i,0.0)
             crit_boost=crit_gap*bf
-            low_boost=low_gap*bf*0.5  # low priority gets half weight
+            low_boost=low_gap*bf*0.5
             net_prod=max(fc+crit_boost+low_boost,0)*cap_mult
             prod=net_prod*(1+buffer_pct)
             rows.append({"Month_dt":dt,"Month":dt.strftime("%b %Y"),"Category":cat,
@@ -564,9 +565,12 @@ def build_context():
         mm=r_ord.get("model_metrics",{}); ens=mm.get("Ensemble",{})
         metric_str=f"Ensemble RMSE:{ens.get('rmse',0):.1f}, NRMSE:{ens.get('nrmse',0)*100:.1f}%, R²:{ens.get('r2',0):.2f}"
     else: metric_str=""
+    # FIX: Clarified order count — 5,010 is total dataset; 4,319 are active (Delivered+Shipped)
+    # FIX: Return rate uses total orders denominator (industry standard: 9.3%)
+    ret_rate_pct = df[df["Order_Status"]=="Returned"].shape[0] / len(df) * 100
     return f"""=== OmniFlow D2D Intelligence ===
-DATASET: 5,010 orders | Jan 2024–Dec 2025 | India D2D (Amazon, Flipkart, B2B)
-SUMMARY: Net Revenue ₹{ops['Net_Revenue'].sum()/1e7:.2f}Cr | Active Orders {len(ops):,} | Return Rate {df[df['Order_Status']=='Returned'].shape[0]/len(ops)*100:.1f}% | Avg Delivery {ops['Delivery_Days'].mean():.1f}d
+DATASET: {len(df):,} total orders | {len(ops):,} active (Delivered+Shipped) | Jan 2024–Dec 2025 | India D2D (Amazon, Flipkart, B2B)
+SUMMARY: Net Revenue ₹{ops['Net_Revenue'].sum()/1e7:.2f}Cr | Active Orders {len(ops):,} | Return Rate {ret_rate_pct:.1f}% (of all orders) | Avg Delivery {ops['Delivery_Days'].mean():.1f}d
 [DEMAND FORECAST] {metric_str}
 Order Forecast: {fc_str(r_ord,lambda v:f"{v:.0f}")}
 Qty Forecast: {fc_str(r_qty,lambda v:f"{v:.0f}u")}
@@ -598,7 +602,8 @@ def page_overview():
     ops["YM"]=ops["Order_Date"].dt.to_period("M")
     delivered=df[df["Order_Status"]=="Delivered"]
     net_rev=ops["Net_Revenue"].sum()
-    ret_rate=df[df["Order_Status"]=="Returned"].shape[0]/len(ops)*100
+    # FIX: Return rate denominator = total orders (industry standard), not active orders only
+    ret_rate=df[df["Order_Status"]=="Returned"].shape[0]/len(df)*100
     avg_del=delivered["Delivery_Days"].mean()
 
     st.markdown("""
@@ -614,7 +619,7 @@ def page_overview():
     kpi(c1,"Net Revenue",f"₹{net_rev/1e7:.1f}Cr","amber","excl. returns")
     kpi(c2,"Active Orders",f"{len(ops):,}","sky","Del + Shipped")
     kpi(c3,"Units Sold",f"{ops['Quantity'].sum():,}","sky","all products")
-    kpi(c4,"Return Rate",f"{ret_rate:.1f}%","coral","of active")
+    kpi(c4,"Return Rate",f"{ret_rate:.1f}%","coral","of all orders")
     kpi(c5,"Avg Delivery",f"{avg_del:.1f}d","mint","delivered only")
     kpi(c6,"SKU Categories",f"{df['Category'].nunique()}","sky","product types")
     sp()
@@ -943,13 +948,10 @@ def page_inventory():
             cat_inv=inv[inv["Category"]==cat]
             if cat_inv.empty or cat not in cat_qty.columns: st.info("No data."); continue
 
-            total_eoq=max(int(cat_inv["EOQ"].sum()),1)      
-            total_rop=max(int(cat_inv["ROP"].sum()),1)     
-            total_ss=max(int(cat_inv["SS"].sum()),0)          
-            total_stock=max(int(cat_inv["Current_Stock"].sum()),0)  
-            avg_eoq=max(int(cat_inv["EOQ"].mean()),1)       
-            avg_rop=max(int(cat_inv["ROP"].mean()),1)
-            avg_ss=max(int(cat_inv["SS"].mean()),0)
+            total_eoq=max(int(cat_inv["EOQ"].sum()),1)
+            total_rop=max(int(cat_inv["ROP"].sum()),1)
+            total_ss=max(int(cat_inv["SS"].sum()),0)
+            total_stock=max(int(cat_inv["Current_Stock"].sum()),0)
 
             cat_plan=plan_for_inv[plan_for_inv["Category"]==cat].sort_values("Month_dt") if not plan_for_inv.empty else pd.DataFrame()
             res=ml_forecast(cat_qty[cat].values.astype(float),cat_qty.index,6)
@@ -962,7 +964,7 @@ def page_inventory():
             for i,fc in enumerate(sim_demand):
                 stock = stock - fc
                 if stock < total_rop:
-                    target = total_rop + total_ss + fc  
+                    target = total_rop + total_ss + fc
                     shortfall = target - stock
                     n_batches = max(1, int(np.ceil(shortfall / total_eoq)))
                     order_qty = n_batches * total_eoq
