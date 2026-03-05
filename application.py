@@ -90,8 +90,6 @@ DATA_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "india_ecom
 COLORS    = ["#1565C0","#2E7D32","#E65100","#C62828","#6A1B9A","#00695C"]
 MODEL_COLORS = {"Ridge":"#3B82F6","RandomForest":"#22C55E","GradBoost":"#F59E0B","Ensemble":"#8B5CF6"}
 
-# ─── Layout helpers ──────────────────────────────────────────────────────────
-
 def CD():
     return dict(paper_bgcolor="rgba(0,0,0,0)",plot_bgcolor="rgba(0,0,0,0)",
         font=dict(color="#334155",family="Inter,sans-serif",size=11),
@@ -117,8 +115,6 @@ def banner(html, cls="teal"):
 def sp(n=1):
     st.markdown(f"<div style='height:{n*12}px'></div>", unsafe_allow_html=True)
 
-# ─── Data loading ─────────────────────────────────────────────────────────────
-
 @st.cache_data(show_spinner="Loading data…")
 def load_data():
     df = pd.read_csv(DATA_FILE, parse_dates=["Order_Date"])
@@ -135,8 +131,6 @@ def load_data():
 def get_ops(df):   return df[df["Order_Status"].isin(["Delivered","Shipped"])].copy()
 @st.cache_data
 def get_delivered(df): return df[df["Order_Status"]=="Delivered"].copy()
-
-# ─── ML Forecast engine ───────────────────────────────────────────────────────
 
 def _to_ts(idx):
     return idx.to_timestamp() if hasattr(idx,"to_timestamp") else pd.DatetimeIndex(idx)
@@ -247,8 +241,6 @@ def ml_forecast(vals, ds_idx, n_future=6):
         eval_actual=yte,eval_pred=ypred_eval,eval_ds=ts_idx[-h:],
         model_metrics=model_metrics,weights={m:weights[m] for m in models})
 
-# ─── Chart helper ─────────────────────────────────────────────────────────────
-
 def ensemble_chart(res, chart_key, height=300, title="", show_models=True):
     fig = go.Figure()
     fig.add_vrect(x0=res["fut_ds"][0], x1=res["fut_ds"][-1],
@@ -307,7 +299,7 @@ def render_model_quality(res):
         st.markdown("<div class='ensemble-card'>", unsafe_allow_html=True)
         st.markdown("""<div style='font-size:11px;font-weight:700;color:#4a5e7a;
             letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px'>
-            🤖 Individual Model Performance (Walk-Forward CV)</div>""", unsafe_allow_html=True)
+            Individual Model Performance</div>""", unsafe_allow_html=True)
         mm=res["model_metrics"]
         cols=st.columns(4)
         for col,(mname,pcls,clr) in zip(cols,[("Ridge","pill-ridge","#3B82F6"),("RandomForest","pill-rf","#22C55E"),
@@ -355,33 +347,19 @@ def render_model_quality(res):
     </div>""", unsafe_allow_html=True)
     sp(0.5)
 
-# ─── Module computations ──────────────────────────────────────────────────────
-
 @st.cache_data
 def compute_inventory(order_cost=500, hold_pct=0.20, lead_time=7, z=1.65):
-    """
-    Inventory optimisation that:
-    1. Uses ACTUAL Current_Stock_Units from dataset (real stock snapshot per SKU)
-    2. Uses dataset Reorder_Point as the ROP baseline (already set by the business)
-    3. Computes EOQ from ML demand forecast (category-level forward demand scaled to SKU)
-    4. Computes Safety Stock from demand variability and lead time variability
-    5. Status = Actual Stock vs ROP and SS thresholds
-    """
+  
     df=load_data(); ops=get_ops(df).copy()
     ops["YM"]=ops["Order_Date"].dt.to_period("M")
     del_ops=df[df["Order_Status"]=="Delivered"].copy()
-
-    # Lead time variability by category from actual delivery data
     lt_std_map=del_ops.groupby("Category")["Delivery_Days"].std().fillna(1.0).to_dict()
-
-    # Monthly demand per SKU from ops history
     sku_monthly=(ops.groupby(["SKU_ID","YM"])["Net_Qty"].sum().reset_index().sort_values(["SKU_ID","YM"]))
 
-    # Actual stock snapshot: latest values per SKU
     df_sorted=df.sort_values("Order_Date")
     sku_snapshot=df_sorted.groupby("SKU_ID").agg(
         actual_stock=("Current_Stock_Units","last"),
-        dataset_rop=("Reorder_Point","last"),        # business-set ROP from dataset
+        dataset_rop=("Reorder_Point","last"),
         dataset_status=("Stock_Status","last"),
         Product_Name=("Product_Name","first"),
         Category=("Category","first"),
@@ -389,7 +367,6 @@ def compute_inventory(order_cost=500, hold_pct=0.20, lead_time=7, z=1.65):
         total_qty=("Net_Qty","sum")
     ).reset_index()
 
-    # Category-level demand forecast (6 months forward) for forward-looking EOQ
     cat_monthly=ops.groupby(["YM","Category"])["Net_Qty"].sum().unstack(fill_value=0)
     cat_forecast={}
     cat_hist_avg={}
@@ -406,12 +383,10 @@ def compute_inventory(order_cost=500, hold_pct=0.20, lead_time=7, z=1.65):
         demands=skd["Net_Qty"].values
         if len(demands)<1: continue
 
-        # Historical demand stats
         avg_d=float(np.mean(demands))
         std_d=float(np.std(demands)) if len(demands)>1 else avg_d*0.25
         peak_d=float(np.max(demands))
 
-        # Forward-looking demand: blend historical avg with forecast-scaled estimate
         if cat in cat_forecast and cat in cat_hist_avg and cat_hist_avg[cat]>0:
             sku_share=avg_d/cat_hist_avg[cat]
             fc_monthly=cat_forecast[cat]*sku_share
@@ -423,24 +398,15 @@ def compute_inventory(order_cost=500, hold_pct=0.20, lead_time=7, z=1.65):
         daily_d=avg_d/30.0
         ann_d=econ_d*12
         uc=max(float(sk["avg_price"]),1.0)
-
-        # EOQ (Wilson formula with blended annual demand)
         eoq=max(int(np.sqrt(2*ann_d*order_cost/(uc*hold_pct))) if ann_d>0 else 10, 1)
 
-        # Safety Stock: z * sqrt(LT*sigma_d^2 + D^2*sigma_LT^2) using user-set lead_time
         daily_std=std_d/np.sqrt(30)
         lt_std=lt_std_map.get(cat, 1.0)
         ss=max(int(z*np.sqrt(lead_time*daily_std**2+daily_d**2*lt_std**2)), 0)
-
-        # Use dataset ROP as the primary trigger (reflects actual business policy)
-        # Augment with computed ROP if it's higher (conservative)
         computed_rop=max(int(daily_d*lead_time+ss), 1)
         rop=max(int(sk["dataset_rop"]), computed_rop)
-
-        # ACTUAL current stock from dataset
         current_stock=int(sk["actual_stock"])
 
-        # Status: compare actual stock to ROP and SS thresholds
         if current_stock<=ss:
             status="🔴 Critical"
         elif current_stock<rop:
@@ -450,10 +416,8 @@ def compute_inventory(order_cost=500, hold_pct=0.20, lead_time=7, z=1.65):
         else:
             status="🟢 Adequate"
 
-        # Days of stock remaining at historical avg demand
         days_stock=round(current_stock/daily_d, 1) if daily_d>0 else 999
 
-        # Stockout cost for critical SKUs
         margin_rate=0.20
         daily_margin=daily_d*uc*margin_rate
         days_exposed=max(lead_time-(current_stock/daily_d if daily_d>0 else 0), 0)
@@ -482,12 +446,6 @@ def compute_inventory(order_cost=500, hold_pct=0.20, lead_time=7, z=1.65):
 
 @st.cache_data
 def compute_production(cap_mult=1.0, buffer_pct=0.15):
-    """
-    Production plan fed by:
-    - ML demand forecast per category (6 months forward)
-    - Inventory replenishment needs (critical/low SKUs from actual stock vs ROP)
-    - Safety buffer on top
-    """
     df=load_data(); ops=get_ops(df).copy()
     ops["YM"]=ops["Order_Date"].dt.to_period("M")
     inv=compute_inventory()
@@ -498,16 +456,14 @@ def compute_production(cap_mult=1.0, buffer_pct=0.15):
         res=ml_forecast(vals,ds_index)
         if res is None: continue
 
-        # Replenishment needed: sum of (ROP - Current_Stock) for critical/low SKUs
         cat_inv=inv[inv["Category"]==cat]
         crit_skus=cat_inv[cat_inv["Status"]=="🔴 Critical"]
         low_skus=cat_inv[cat_inv["Status"]=="🟡 Low"]
 
-        # Replenishment gap = how many units below ROP per SKU (× EOQ to order)
         crit_gap=float((crit_skus["ROP"]-crit_skus["Current_Stock"]).clip(lower=0).sum())
         low_gap=float((low_skus["ROP"]-low_skus["Current_Stock"]).clip(lower=0).sum())
 
-        # Distribute replenishment boost: 60% in month 1, 40% in month 2
+      
         boost_schedule={0:0.60, 1:0.40}
         for i,(dt,fc) in enumerate(zip(res["fut_ds"],res["forecast"])):
             bf=boost_schedule.get(i,0.0)
@@ -566,8 +522,6 @@ def compute_logistics(w_speed=0.40,w_cost=0.35,w_returns=0.25):
                 "Proj_Ship_Cost":int(round(row["Production"]*avg_ship_unit,0)),
                 "CI_Lo_Units":int(row["CI_Lo"]),"CI_Hi_Units":int(row["CI_Hi"])})
     return carr, best, opt, pd.DataFrame(fwd_rows)
-
-# ─── Context builder for chatbot ──────────────────────────────────────────────
 
 def build_context():
     df=load_data(); ops=get_ops(df).copy()
@@ -636,10 +590,6 @@ def call_llm(messages, system, api_key):
     except _requests.exceptions.Timeout: return "⚠️ Request timed out."
     except Exception as e: return f"⚠️ Error: {e}"
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# PAGE: Overview
-# ═══════════════════════════════════════════════════════════════════════════════
-
 def page_overview():
     df=load_data(); ops=get_ops(df).copy()
     ops["YM"]=ops["Order_Date"].dt.to_period("M")
@@ -651,15 +601,12 @@ def page_overview():
     st.markdown("""
     <div style='background:linear-gradient(135deg,#0f172a,#1e3a8a,#2563eb);border-radius:18px;
     padding:30px 32px;margin-bottom:24px;'>
-      <div style='font-size:11px;font-family:DM Mono,monospace;color:#93c5fd;letter-spacing:.14em;
-      text-transform:uppercase;margin-bottom:6px'>Supply Chain Intelligence Platform</div>
-      <div style='font-size:38px;font-weight:900;color:white;letter-spacing:-.02em;line-height:1.1'>
+      <div style='font-size:38px;font-weight:900;color:white;letter-spacing:-.02em;text-transform:uppercase;line-height:1.1'>
         OmniFlow D2D</div>
-      <div style='font-size:13px;color:#93c5fd;margin-top:6px'>
-        Demand-to-Delivery · 3-Model Ensemble Forecasting · India E-Commerce</div>
+      <div style='font-size:11px;font-family:DM Mono,monospace;color:#93c5fd;letter-spacing:.14em;
+      text-transform:uppercase;margin-bottom:6px'>Predictive Logistics & AI Powered Demand-to-Delivery Intelligence</div>
     </div>""", unsafe_allow_html=True)
 
-    # KPIs
     c1,c2,c3,c4,c5,c6=st.columns(6)
     kpi(c1,"Net Revenue",f"₹{net_rev/1e7:.1f}Cr","amber","excl. returns")
     kpi(c2,"Active Orders",f"{len(ops):,}","sky","Del + Shipped")
@@ -669,9 +616,8 @@ def page_overview():
     kpi(c6,"SKU Categories",f"{df['Category'].nunique()}","sky","product types")
     sp()
 
-    # About section
     st.markdown("""<div class='about-section'>
-    <div style='font-size:16px;font-weight:800;color:#0f172a;margin-bottom:14px'>📋 About This Platform</div>
+    <div style='font-size:16px;font-weight:800;color:#0f172a;margin-bottom:14px'>About This Platform</div>
     <p style='color:#334155;line-height:1.9;font-size:13.5px;margin:0 0 14px'>
     <b style='color:#0f172a'>OmniFlow</b> is a fully integrated, end-to-end supply chain intelligence platform
     built on <b>5,010 D2D e-commerce orders</b> across India (Jan 2024 – Dec 2025), spanning
@@ -684,7 +630,7 @@ def page_overview():
     </p>
     <div style='display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-top:16px'>
       <div style='background:#f8faff;border:1px solid #c7d7fd;border-radius:10px;padding:14px'>
-        <div style='font-size:11px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px'>📊 Dataset</div>
+        <div style='font-size:11px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px'>Dataset</div>
         <div style='font-size:12.5px;color:#334155;line-height:1.8'>
           • <b>5,010 orders</b> across Jan 2024 – Dec 2025<br>
           • <b>4 categories</b>: Electronics & Mobiles, Fashion & Apparel, Home & Kitchen, Health & Personal Care<br>
@@ -694,7 +640,7 @@ def page_overview():
         </div>
       </div>
       <div style='background:#f8faff;border:1px solid #c7d7fd;border-radius:10px;padding:14px'>
-        <div style='font-size:11px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px'>🤖 Forecast Engine</div>
+        <div style='font-size:11px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px'>Forecast Engine</div>
         <div style='font-size:12.5px;color:#334155;line-height:1.8'>
           • <span class='model-pill pill-ridge'>Ridge Regression</span> trend + Fourier seasonality<br>
           • <span class='model-pill pill-rf'>Random Forest</span> non-linear demand patterns<br>
@@ -704,7 +650,7 @@ def page_overview():
         </div>
       </div>
       <div style='background:#f8faff;border:1px solid #c7d7fd;border-radius:10px;padding:14px'>
-        <div style='font-size:11px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px'>📦 Inventory Module</div>
+        <div style='font-size:11px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px'>Inventory Module</div>
         <div style='font-size:12.5px;color:#334155;line-height:1.8'>
           • Wilson <b>EOQ</b> with peak-blended demand (60% avg + 40% peak)<br>
           • Full Safety Stock: <b>z·√(LT·σ_d² + D²·σ_LT²)</b><br>
@@ -714,7 +660,7 @@ def page_overview():
         </div>
       </div>
       <div style='background:#f8faff;border:1px solid #c7d7fd;border-radius:10px;padding:14px'>
-        <div style='font-size:11px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px'>🚚 Logistics Module</div>
+        <div style='font-size:11px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px'>Logistics Module</div>
         <div style='font-size:12.5px;color:#334155;line-height:1.8'>
           • Carrier scoring: <b>Speed 40% + Cost 35% + Returns 25%</b> (configurable)<br>
           • Region × carrier delay heatmap<br>
@@ -726,8 +672,7 @@ def page_overview():
     </div>
     </div>""", unsafe_allow_html=True)
 
-    # Pipeline
-    sec("Closed-Loop Module Pipeline","🔄")
+    sec("Closed-Loop Module Pipeline")
     st.markdown("""<div style='background:white;border:1px solid #e5e7eb;border-radius:14px;
     padding:22px;display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:0;margin-bottom:8px'>
       <div class='pipeline-box'>Demand Forecast<span class='pipeline-sub'>Ridge + RF + GB<br>3-Model Ensemble</span></div>
@@ -740,11 +685,10 @@ def page_overview():
       <div style='color:#8B5CF6;font-size:22px;padding:0 10px;font-weight:300'>→</div>
       <div class='pipeline-box' style='border-color:#a78bfa'>AI Chatbot<span class='pipeline-sub'>Groq LLaMA 3.3<br>Full Context</span></div>
     </div>""", unsafe_allow_html=True)
-    banner("Each module is causally connected — Demand signals drive Inventory EOQ/SS, which sets Production targets, which feeds Logistics shipment planning. The AI Chatbot receives the full computed context from all modules.", "purple")
+
     sp()
 
-    # Quick stats
-    sec("Key Business Metrics","📊")
+    sec("Key Business Metrics")
     col_a, col_b = st.columns(2, gap="large")
     with col_a:
         cat=ops.groupby("Category")["Net_Revenue"].sum().sort_values(ascending=False)
@@ -784,31 +728,18 @@ def page_overview():
             annotations=[dict(text="Channel",x=.5,y=.5,showarrow=False,font=dict(size=10,color="#64748b",family="DM Mono"))])
         st.plotly_chart(fig4,use_container_width=True,key="ov_channel")
 
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# PAGE: Demand Forecasting
-# ═══════════════════════════════════════════════════════════════════════════════
-
 def page_demand():
     df=load_data(); ops=get_ops(df).copy()
     ops["YM"]=ops["Order_Date"].dt.to_period("M")
+    st.markdown("<div class='page-title'>Demand Forecasting</div>", unsafe_allow_html=True)
 
-    st.markdown("<div class='page-title'>📈 Demand Forecasting</div>", unsafe_allow_html=True)
-    st.markdown("""<div class='page-subtitle'>3-Model Ensemble · Ridge + Random Forest + Gradient Boosting · Inverse-RMSE Weighted Blend</div>""", unsafe_allow_html=True)
-    banner("""<b>Methodology:</b> Walk-forward cross-validation (3 folds). Features include trend, quadratic trend,
-    Fourier seasonality (3 harmonics), structural-break regime, quarter dummies, log-time.
-    Net_Qty used (returns excluded). Asymmetric log-normal 90% CI widens with forecast horizon.""","purple")
-
-    # Overall model quality
-    sec("Ensemble Model Quality (Overall Orders)","🤖")
+    sec("Ensemble Model Quality")
     m_orders=ops.groupby("YM")["Order_ID"].count().rename("v")
     res_ov=ml_forecast(m_orders.values.astype(float),m_orders.index,6)
     if res_ov: render_model_quality(res_ov)
-
     sp()
-    # Model comparison bars
     if res_ov and "model_metrics" in res_ov:
-        sec("Model Accuracy Comparison","📊")
+        sec("Model Accuracy Comparison")
         mm=res_ov["model_metrics"]
         labels=[m for m in ["Ridge","RandomForest","GradBoost","Ensemble"] if m in mm]
         r2_vals=[mm[m]["r2"] for m in labels]
@@ -833,12 +764,11 @@ def page_demand():
             st.plotly_chart(fig2,use_container_width=True,key="d_nrmse")
     sp()
 
-    # Controls
     c1,c2,c3=st.columns([2,2,1])
-    metric_opt=c1.selectbox("Metric",["Orders (#)","Quantity (Units)","Net Revenue (₹)"],key="d_metric")
+    metric_opt=c1.selectbox("Metric",["Orders","Quantity","Net Revenue"],key="d_metric")
     level_opt=c2.selectbox("Breakdown",["Overall","Category","Region","Sales Channel"],key="d_level")
     horizon=c3.slider("Forecast months",3,12,6,key="d_horizon")
-    col_map={"Orders (#)":"Order_ID","Quantity (Units)":"Net_Qty","Net Revenue (₹)":"Net_Revenue"}
+    col_map={"Orders":"Order_ID","Quantity":"Net_Qty","Net Revenue":"Net_Revenue"}
     col=col_map[metric_opt]
 
     def get_series(sub):
@@ -858,7 +788,7 @@ def page_demand():
             "Lower 90%":res["ci_lo"].round(0).astype(int),"Upper 90%":res["ci_hi"].round(0).astype(int)})
         st.dataframe(tbl,use_container_width=True,hide_index=True)
 
-    sec("Forecast Chart + Table","📉")
+    sec("Forecast Chart with Table")
     if level_opt=="Overall":
         draw_with_table(get_series(ops), chart_key="d_overall")
     else:
@@ -871,7 +801,7 @@ def page_demand():
                 draw_with_table(get_series(ops[ops[grp]==val]),title=val,chart_key=f"d_bd_{i}")
 
     sp()
-    sec("YoY Revenue Growth by Category","📅")
+    sec("YoY Revenue Growth by Category")
     yr_rev=ops.groupby(["Year","Category"])["Net_Revenue"].sum().unstack(fill_value=0)
     cat_monthly=ops.groupby(["YM","Category"])["Net_Revenue"].sum().unstack(fill_value=0)
     proj_next={}
@@ -887,30 +817,18 @@ def page_demand():
                 "Projected ₹M":round(rp/1e6,1),"Projected Growth":f"{(rp-r25)/r25*100:+.1f}%" if r25>0 else "N/A"})
         st.dataframe(pd.DataFrame(rows).sort_values("Projected ₹M",ascending=False),use_container_width=True,hide_index=True)
 
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# PAGE: Inventory
-# ═══════════════════════════════════════════════════════════════════════════════
-
 def page_inventory():
     df=load_data(); ops=get_ops(df).copy()
     ops["YM"]=ops["Order_Date"].dt.to_period("M")
 
-    st.markdown("<div class='page-title'>📦 Inventory Optimisation</div>", unsafe_allow_html=True)
-    st.markdown("<div class='page-subtitle'>Fed by Demand Forecast · EOQ + Full Safety Stock + ROP + ABC Classification</div>", unsafe_allow_html=True)
-
-    with st.expander("⚙️ Inventory Parameters", expanded=False):
+    st.markdown("<div class='page-title'>Inventory Optimisation</div>", unsafe_allow_html=True)
+    with st.expander("Inventory Parameters", expanded=False):
         p1,p2,p3,p4=st.columns(4)
         order_cost=p1.number_input("Order Cost ₹",100,5000,500,50)
         hold_pct=p2.slider("Holding Cost %",5,40,20)/100
         lead_time=p3.slider("Lead Time (days)",1,30,7)
         svc=p4.selectbox("Service Level",["90% (z=1.28)","95% (z=1.65)","99% (z=2.33)"])
         z={"90% (z=1.28)":1.28,"95% (z=1.65)":1.65,"99% (z=2.33)":2.33}[svc]
-
-    banner("""<b>Data pipeline:</b> Current stock comes from the <b>actual dataset snapshot</b> (Current_Stock_Units per SKU).
-    EOQ and Safety Stock are computed using <b>ML demand forecast</b> (blended historical + category-level 6-month forward forecast per SKU share).
-    SS formula: <b>z × √(LT × σ_d² + D_avg² × σ_LT²)</b> · ROP = Daily_Demand × Lead_Time + SS · Status = Actual Stock vs computed ROP/SS.""","purple")
 
     inv=compute_inventory(order_cost,hold_pct,lead_time,z)
     if inv.empty: st.warning("No inventory data."); return
@@ -942,7 +860,7 @@ def page_inventory():
             annotations=[dict(text="SKUs",x=.5,y=.5,showarrow=False,font=dict(size=10,color="#64748b",family="DM Mono"))])
         st.plotly_chart(fig,use_container_width=True,key="inv_status_pie")
     with cr:
-        sec("EOQ / Safety Stock / ROP by Category")
+        sec("EOQ /Safety Stock / ROP by Category")
         ci2=inv.groupby("Category")[["EOQ","SS","ROP"]].mean().reset_index()
         fig2=go.Figure()
         for i,(m2,lbl) in enumerate([("EOQ","EOQ"),("SS","Safety Stock"),("ROP","Reorder Point")]):
@@ -997,7 +915,7 @@ def page_inventory():
     st.dataframe(crit_df.sort_values("Stockout ₹/Day",ascending=False),use_container_width=True,hide_index=True)
 
     sp()
-    sec("Demand Forecast per Category (Feeds into Production)","📈")
+    sec("Demand Forecast per Category")
     cat_qty=ops.groupby(["YM","Category"])["Net_Qty"].sum().unstack(fill_value=0)
     tabs=st.tabs(list(cat_qty.columns))
     for i,(tab,cat) in enumerate(zip(tabs,cat_qty.columns)):
@@ -1012,8 +930,7 @@ def page_inventory():
                 use_container_width=True,hide_index=True)
 
     sp()
-    sec("Stock Depletion & Replenishment Simulation","🔁")
-    banner("Starting stock = <b>actual Current_Stock_Units</b> from dataset (latest per SKU, summed by category). Demand driven by ML ensemble forecast. ROP and SS computed from forecast-blended EOQ model. 📦 = replenishment trigger.","teal")
+    sec("Stock Depletion & Replenishment Simulation")  
     plan_for_inv=compute_production()
     cats=sorted(inv["Category"].unique())
     tabs2=st.tabs(cats)
@@ -1021,61 +938,101 @@ def page_inventory():
         with tab:
             cat_inv=inv[inv["Category"]==cat]
             if cat_inv.empty or cat not in cat_qty.columns: st.info("No data."); continue
-            avg_eoq=max(int(cat_inv["EOQ"].mean()),1); avg_rop=max(int(cat_inv["ROP"].mean()),1)
-            avg_ss=max(int(cat_inv["SS"].mean()),0); total_stock=max(int(cat_inv["Current_Stock"].sum()),0)
+
+            total_eoq=max(int(cat_inv["EOQ"].sum()),1)       
+            total_rop=max(int(cat_inv["ROP"].sum()),1)        
+            total_ss=max(int(cat_inv["SS"].sum()),0)         
+            total_stock=max(int(cat_inv["Current_Stock"].sum()),0) 
+            avg_eoq=max(int(cat_inv["EOQ"].mean()),1)        
+            avg_rop=max(int(cat_inv["ROP"].mean()),1)
+            avg_ss=max(int(cat_inv["SS"].mean()),0)
+
             cat_plan=plan_for_inv[plan_for_inv["Category"]==cat].sort_values("Month_dt") if not plan_for_inv.empty else pd.DataFrame()
             res=ml_forecast(cat_qty[cat].values.astype(float),cat_qty.index,6)
             if res is None: st.info("Insufficient data."); continue
-            sim_demand=cat_plan["Demand_Forecast"].values if not cat_plan.empty and len(cat_plan)==len(res["fut_ds"]) else res["forecast"]
+
+            sim_demand=res["forecast"]
             months_lbl=[d.strftime("%b %Y") for d in res["fut_ds"]]
-            stock=total_stock; stock_levels=[]; reorder_months=[]; reorder_qty=[]
-            for i,fc in enumerate(sim_demand):
-                stock-=fc
-                if stock<=avg_rop:
-                    n_ord=max(1,int(np.ceil((avg_rop+avg_ss-stock)/avg_eoq))+1)
-                    order_qty=n_ord*avg_eoq; stock+=order_qty
-                    reorder_months.append(i); reorder_qty.append(order_qty)
-                stock=max(stock,avg_ss); stock_levels.append(round(stock))
+
+            stock=float(total_stock)
+            stock_levels=[]; reorder_months=[]; reorder_qty_list=[]
+            for i,fc in enumerate(sim_demand):     
+                stock = stock - fc
+                if stock < total_rop:
+                   
+                    target = total_rop + total_ss + fc  # target = comfortable above ROP
+                    shortfall = target - stock
+                    n_batches = max(1, int(np.ceil(shortfall / total_eoq)))
+                    order_qty = n_batches * total_eoq
+                    stock += order_qty
+                    reorder_months.append(i)
+                    reorder_qty_list.append(order_qty)
+               
+                stock = max(stock, total_ss)
+                stock_levels.append(round(stock))
+
             fig=go.Figure()
-            ci_u=[max(s+res["resid_std"]*(i+1)*0.5,avg_ss) for i,s in enumerate(stock_levels)]
-            ci_l=[max(s-res["resid_std"]*(i+1)*0.5,0) for i,s in enumerate(stock_levels)]
+          
+            ci_spread = res["resid_std"] * np.sqrt(np.arange(1,7))
+            ci_u = [max(s + ci_spread[i], total_ss) for i,s in enumerate(stock_levels)]
+            ci_l = [max(s - ci_spread[i], 0) for i,s in enumerate(stock_levels)]
             fig.add_trace(go.Scatter(x=months_lbl+months_lbl[::-1],y=ci_u+ci_l[::-1],fill="toself",
-                fillcolor="rgba(46,216,195,0.06)",line=dict(color="rgba(0,0,0,0)"),name="Uncertainty"))
+                fillcolor="rgba(46,216,195,0.07)",line=dict(color="rgba(0,0,0,0)"),name="Uncertainty Band"))
+
+            stock_colors=[]
+            for s in stock_levels:
+                if s<=total_ss: stock_colors.append("#EF4444")
+                elif s<total_rop: stock_colors.append("#F59E0B")
+                else: stock_colors.append("#22C55E")
+
             fig.add_trace(go.Scatter(x=months_lbl,y=stock_levels,name="Projected Stock",
                 mode="lines+markers",line=dict(color="#06B6D4",width=3),
-                marker=dict(size=10,color=stock_levels,colorscale=[[0,"#EF4444"],[0.4,"#F59E0B"],[1,"#22C55E"]],
-                    cmin=avg_ss,cmax=max(stock_levels) if stock_levels else 1,line=dict(color="#FFFFFF",width=2))))
-            if not cat_plan.empty:
-                fig.add_trace(go.Scatter(x=months_lbl,y=list(sim_demand),name="Production Demand",
-                    mode="lines",line=dict(color="#F59E0B",width=1.5,dash="dot"),opacity=0.7))
-            fig.add_hline(y=avg_rop,line_dash="dash",line_color="#F59E0B",line_width=2,
-                annotation_text=f"  ROP: {avg_rop}",annotation_font=dict(color="#F59E0B",size=10,family="DM Mono"))
-            fig.add_hline(y=avg_ss,line_dash="dot",line_color="#EF4444",line_width=2,
-                annotation_text=f"  SS: {avg_ss}",annotation_font=dict(color="#EF4444",size=10,family="DM Mono"))
-            for ri,rqty in zip(reorder_months,reorder_qty):
+                marker=dict(size=10,color=stock_colors,line=dict(color="#FFFFFF",width=2)),
+                hovertemplate="<b>%{x}</b><br>Stock: %{y:,.0f} units<extra></extra>"))
+
+            fig.add_trace(go.Scatter(x=months_lbl,y=list(sim_demand),name="Monthly Demand Forecast",
+                mode="lines+markers",line=dict(color="#F59E0B",width=1.8,dash="dot"),
+                marker=dict(size=5,color="#F59E0B"),opacity=0.8))
+
+            fig.add_hline(y=total_rop,line_dash="dash",line_color="#F59E0B",line_width=2,
+                annotation_text=f"  Category ROP: {total_rop}",
+                annotation_font=dict(color="#F59E0B",size=10,family="DM Mono"))
+            fig.add_hline(y=total_ss,line_dash="dot",line_color="#EF4444",line_width=2,
+                annotation_text=f"  Category SS: {total_ss}",
+                annotation_font=dict(color="#EF4444",size=10,family="DM Mono"))
+
+            y_top = max(max(stock_levels),total_rop)*1.12 if stock_levels else total_rop*2
+            for ri,rqty in zip(reorder_months,reorder_qty_list):
                 fig.add_vline(x=ri,line_dash="dot",line_color="rgba(139,92,246,0.5)",line_width=1.5)
-                fig.add_annotation(x=months_lbl[ri],y=max(stock_levels)*1.1 if stock_levels else avg_rop*2,
-                    text=f"📦 +{rqty}u",showarrow=False,
+                fig.add_annotation(x=months_lbl[ri],y=y_top,
+                    text=f"📦 +{rqty:,}u",showarrow=False,
                     font=dict(color="#8B5CF6",size=10,family="DM Mono"),
-                    bgcolor="rgba(22,34,54,0.8)",bordercolor="rgba(139,92,246,0.3)",borderwidth=1,borderpad=4)
-            fig.update_layout(**CD(),height=300,xaxis={**gX(),"title":"Month"},
-                yaxis={**gY(),"title":"Units in Stock"},legend={**leg(),"orientation":"h","y":-0.28},
-                title=dict(text=f"{cat} · Starting stock: {total_stock:,} units (category total)",font=dict(color="#64748b",size=11)))
+                    bgcolor="rgba(22,34,54,0.85)",bordercolor="rgba(139,92,246,0.3)",
+                    borderwidth=1,borderpad=4)
+
+            fig.update_layout(**CD(),height=320,
+                xaxis={**gX(),"title":"Month"},
+                yaxis={**gY(),"title":"Category Stock (units)"},
+                legend={**leg(),"orientation":"h","y":-0.28},
+                title=dict(text=f"{cat} · Starting stock: {total_stock:,} units · Monthly demand ~{int(np.mean(sim_demand)):,} units",
+                           font=dict(color="#64748b",size=11)))
             st.plotly_chart(fig,use_container_width=True,key=f"sim_{cat}")
+
             ka,kb,kc,kd,ke=st.columns(5)
-            kpi(ka,"Starting Stock",total_stock,"mint","category total")
-            kpi(kb,"ROP (avg)",avg_rop,"sky","trigger level")
-            kpi(kc,"Safety Stock",avg_ss,"sky","min buffer")
-            kpi(kd,"EOQ (avg)",avg_eoq,"sky","batch size")
-            kpi(ke,"Reorders",len(reorder_months),"mint","over 6 months")
+            kpi(ka,"Starting Stock",f"{total_stock:,}","mint","category total")
+            kpi(kb,"ROP (category)",f"{total_rop:,}","sky","sum of SKU ROPs")
+            kpi(kc,"Safety Stock",f"{total_ss:,}","sky","sum of SKU SS")
+            kpi(kd,"EOQ (category)",f"{total_eoq:,}","sky","sum of SKU EOQs")
+            kpi(ke,"Reorders",len(reorder_months),"mint","triggers over 6M")
             sp(0.5)
-            n_crit_cat=(cat_inv["Status"]=="🔴 Critical").sum(); n_low_cat=(cat_inv["Status"]=="🟡 Low").sum()
+            n_crit_cat=(cat_inv["Status"]=="🔴 Critical").sum()
+            n_low_cat=(cat_inv["Status"]=="🟡 Low").sum()
             if n_crit_cat>0: banner(f"🔴 <b>{n_crit_cat} Critical SKUs</b> in {cat} — immediate replenishment required.","coral")
             elif n_low_cat>0: banner(f"🟡 <b>{n_low_cat} SKUs</b> approaching ROP — place orders this week.","amber")
-            else: banner(f"✅ All {cat} SKUs adequate. Next reorder at ROP={avg_rop}.","mint")
+            else: banner(f"✅ All {cat} SKUs adequate. Category ROP={total_rop}, SS={total_ss}.","mint")
 
     sp()
-    sec("Full SKU-Level Inventory Table","🗃️")
+    sec("SKU-Level Inventory")
     abc_f=st.multiselect("Filter ABC",["A","B","C"],default=["A","B","C"])
     cat_f=st.multiselect("Filter Category",sorted(df["Category"].unique()),default=sorted(df["Category"].unique()))
     stat_f=st.multiselect("Filter Status",sorted(inv["Status"].unique()),default=sorted(inv["Status"].unique()))
@@ -1085,19 +1042,11 @@ def page_inventory():
     for c in ["Current Stock","EOQ","Safety Stock","ROP"]: disp[c]=disp[c].astype(int)
     st.dataframe(disp.sort_values(["ABC","Status"]),use_container_width=True,hide_index=True)
 
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# PAGE: Production
-# ═══════════════════════════════════════════════════════════════════════════════
-
 def page_production():
     df=load_data(); ops=get_ops(df).copy()
     ops["YM"]=ops["Order_Date"].dt.to_period("M")
 
-    st.markdown("<div class='page-title'>🏭 Production Planning</div>", unsafe_allow_html=True)
-    st.markdown("<div class='page-subtitle'>Fed by Demand Forecast + Inventory Status · 6-Month Forward Plan with Replenishment Boost</div>", unsafe_allow_html=True)
-    banner("Production = ML Demand Forecast + Inventory Replenishment Gap (ROP − Current Stock for critical/low SKUs, distributed 60% month 1 / 40% month 2) + Safety Buffer. All values flow from the Inventory module which uses actual stock data.","teal")
-
+    st.markdown("<div class='page-title'>Production Planning</div>", unsafe_allow_html=True)
     p1,p2=st.columns(2)
     cap=p1.slider("Capacity Multiplier",0.5,2.0,1.0,0.1)
     buf=p2.slider("Safety Buffer %",5,40,15)/100
@@ -1115,12 +1064,11 @@ def page_production():
     kpi(c4,"Peak Month",peak.strftime("%b %Y"),"amber","highest volume")
     sp()
 
-    sec("Production Target vs Ensemble Demand Forecast (History + Forward)","📊")
+    sec("Production Target vs Ensemble Demand Forecast")
     hist_qty=ops.groupby("YM")["Net_Qty"].sum().rename("v")
     hist_ts=_to_ts(hist_qty.index)
     forecast_start=agg["Month_dt"].min()
 
-    # Historical ML fit
     res_hist=ml_forecast(hist_qty.values.astype(float),hist_qty.index,6)
 
     fig=go.Figure()
@@ -1143,8 +1091,7 @@ def page_production():
         fig.add_trace(go.Scatter(x=x_ci,y=y_ci,fill="toself",
             fillcolor="rgba(139,92,246,0.07)",line=dict(color="rgba(0,0,0,0)"),name="90% CI"))
     fig.add_vline(x=forecast_start,line_dash="dash",line_color="rgba(139,92,246,0.5)",line_width=2)
-    fig.add_annotation(x=forecast_start,y=1,yref="paper",yanchor="top",
-        text="◀ History  |  Forecast ▶",showarrow=False,
+    fig.add_annotation(x=forecast_start,y=1,yref="paper",showarrow=False,
         font=dict(color="#8B5CF6",size=10,family="DM Mono"),
         bgcolor="rgba(255,255,255,0.85)",bordercolor="#8B5CF6",borderwidth=1,borderpad=4)
     fig.update_layout(**CD(),height=320,barmode="stack",xaxis=gX(),yaxis=gY(),legend=leg())
@@ -1152,7 +1099,7 @@ def page_production():
 
     cl,cr=st.columns(2,gap="large")
     with cl:
-        sec("Production by Category (History + Forecast)")
+        sec("Production by Category")
         cat_hist=ops.groupby(["YM","Category"])["Quantity"].sum().unstack(fill_value=0)
         cat_hist_ts=_to_ts(cat_hist.index)
         fig2=go.Figure()
@@ -1180,27 +1127,21 @@ def page_production():
         fig3.update_layout(**CD(),height=270,xaxis=gX(),yaxis={**gY(),"title":"Units Surplus / Deficit"})
         st.plotly_chart(fig3,use_container_width=True,key="prod_gap")
 
-    sec("Detailed 6-Month Production Schedule","📋")
+    sec("Detailed Forecast Production Schedule")
     cat_f=st.selectbox("Filter Category",["All"]+list(plan["Category"].unique()))
     d2=plan if cat_f=="All" else plan[plan["Category"]==cat_f]
     d3=d2[["Month","Category","Demand_Forecast","Crit_Boost","Low_Boost","Buffer","Production","CI_Lo","CI_Hi"]].copy()
     d3.columns=["Month","Category","Demand Fc","Crit Boost","Low Boost","Buffer","Production","Demand Lo","Demand Hi"]
     st.dataframe(d3.sort_values("Month"),use_container_width=True,hide_index=True)
 
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# PAGE: Logistics
-# ═══════════════════════════════════════════════════════════════════════════════
-
 def page_logistics():
     df=load_data(); ops=get_ops(df).copy()
     ops["YM"]=ops["Order_Date"].dt.to_period("M")
     del_df=get_delivered(df)
 
-    st.markdown("<div class='page-title'>🚚 Logistics Optimisation</div>", unsafe_allow_html=True)
-    st.markdown("<div class='page-subtitle'>Fed by Production Plan · Carrier Scoring · Cost Optimisation · Forward Shipment Planning</div>", unsafe_allow_html=True)
-
-    with st.expander("⚙️ Carrier Scoring Weights", expanded=False):
+    st.markdown("<div class='page-title'>Logistics Optimisation</div>", unsafe_allow_html=True)
+   
+    with st.expander("Carrier Scoring Weights", expanded=False):
         wc1,wc2,wc3=st.columns(3)
         w_speed=wc1.slider("Speed weight %",10,70,40)/100
         w_cost=wc2.slider("Cost weight %",10,70,35)/100
@@ -1210,12 +1151,11 @@ def page_logistics():
     carr,best_carr,opt,fwd_plan=compute_logistics(w_speed,w_cost,w_returns)
     plan=compute_production()
 
-    t1,t2,t3,t4,t5=st.tabs(["📊 Carrier Scorecard","💰 Cost Optimisation","⏱ Delay Analysis","🏭 Forward Plan","🗺 Regions"])
+    t1,t2,t3,t4,t5=st.tabs(["Carrier Scorecard","Cost Optimisation","Delay Analysis","Forward Plan","Regions"])
 
     with t1:
         sec("Carrier Performance Scorecard")
-        banner(f"Composite score: Speed {w_speed*100:.0f}% · Cost {w_cost*100:.0f}% · Returns {w_returns*100:.0f}% — normalised 0–1 (higher = better)","teal")
-        # Bubble chart
+  
         fig=go.Figure()
         for i,(_,r) in enumerate(carr.iterrows()):
             fig.add_trace(go.Scatter(x=[r["Avg_Days"]],y=[r["Avg_Cost"]],mode="markers+text",
@@ -1232,7 +1172,7 @@ def page_logistics():
         st.dataframe(d2.sort_values("Perf Score",ascending=False),use_container_width=True,hide_index=True)
 
         sp()
-        sec("Carrier Order Volume — History + Ensemble Forecast","📈")
+        sec("Carrier Order Volume")
         cm=del_df.groupby([del_df["Order_Date"].dt.to_period("M"),"Courier_Partner"])["Order_ID"].count().unstack(fill_value=0)
         fig_c=go.Figure()
         for i,c in enumerate(cm.columns):
@@ -1248,7 +1188,7 @@ def page_logistics():
         st.plotly_chart(fig_c,use_container_width=True,key="log_carr_fc")
 
         if not plan.empty:
-            sec("Recommended Carrier per Category (Based on Score)")
+            sec("Recommended Carrier per Category")
             cat_carr=del_df.groupby(["Category","Courier_Partner"]).agg(
                 Avg_Days=("Delivery_Days","mean"),Avg_Cost=("Shipping_Cost_INR","mean"),Return_Rate=("Return_Flag","mean")).reset_index()
             for col_c,wt_c in [("Avg_Days",w_speed),("Avg_Cost",w_cost),("Return_Rate",w_returns)]:
@@ -1288,7 +1228,7 @@ def page_logistics():
         fig_sav.update_layout(**CD(),height=240,xaxis={**gX(),"tickangle":-25},yaxis=gY())
         st.plotly_chart(fig_sav,use_container_width=True,key="log_saving")
         sp()
-        sec("Logistics Order Forecast — History + Ensemble","📈")
+        sec("Logistics Order Forecast")
         series=del_df.groupby(del_df["Order_Date"].dt.to_period("M"))["Order_ID"].count()
         res=ml_forecast(series.values.astype(float),series.index,6)
         if res:
@@ -1302,7 +1242,7 @@ def page_logistics():
         st.dataframe(od.sort_values("Saving ₹",ascending=False),use_container_width=True,hide_index=True)
 
     with t3:
-        sec("Delay Hotspot Analysis","⚠️")
+        sec("Delay Hotspot Analysis")
         thr=st.slider("Delay Threshold (days)",3,10,7,key="log_thr")
         del_df2=del_df.copy(); del_df2["Delayed"]=del_df2["Delivery_Days"]>thr
         cl3,cr3=st.columns(2,gap="large")
@@ -1325,7 +1265,7 @@ def page_logistics():
                 text=[f"{v}%" for v in cd["Rate"]],textposition="outside",textfont=dict(color="#334155")))
             fig_cd.update_layout(**CD(),height=290,xaxis=gX(),yaxis={**gY(),"title":"Delay %"})
             st.plotly_chart(fig_cd,use_container_width=True,key="log_delay_carrier")
-        sec("Carrier × Region Delay Heatmap")
+        sec("Carrier with Region Delay Heatmap")
         pv=del_df2.groupby(["Courier_Partner","Region"])["Delayed"].mean().unstack(fill_value=0)*100
         fig_h=go.Figure(go.Heatmap(z=pv.values,x=list(pv.columns),y=list(pv.index),
             colorscale=[[0,"#0d1829"],[0.4,"#7c4fd0"],[0.7,"#e87adb"],[1,"#EF4444"]],
@@ -1334,7 +1274,7 @@ def page_logistics():
         fig_h.update_layout(**CD(),height=255,xaxis=dict(showgrid=False,tickangle=-25,color="#64748b"),
             yaxis=dict(showgrid=False,color="#64748b"))
         st.plotly_chart(fig_h,use_container_width=True,key="log_heat")
-        sec("Avg Delivery Days Forecast — History + Ensemble","📈")
+        sec("Avg Delivery Days Forecast")
         delay_m=del_df.groupby(del_df["Order_Date"].dt.to_period("M"))["Delivery_Days"].mean().rename("v")
         r_del=ml_forecast(delay_m.values.astype(float),delay_m.index,6)
         if r_del:
@@ -1342,8 +1282,7 @@ def page_logistics():
             st.plotly_chart(fig_d,use_container_width=True,key="delay_fc")
 
     with t4:
-        sec("Production-Driven Forward Shipment Plan","🏭")
-        banner("Projected volumes and costs derived from the Production Plan. Uses historical avg shipping cost/unit. Confirms logistics capacity needed for each forecast month.","purple")
+        sec("Production-Driven Forward Shipment Plan")
         if not fwd_plan.empty:
             fwd_agg=fwd_plan.groupby("Month_dt").agg(Month=("Month","first"),
                 Total_Units=("Prod_Units","sum"),Total_Orders=("Proj_Orders","sum"),
@@ -1377,7 +1316,7 @@ def page_logistics():
             cat_fwd.columns=["Category","Planned Units","Est. Orders","Proj. Ship Cost ₹"]
             st.dataframe(cat_fwd,use_container_width=True,hide_index=True)
 
-        sec("Warehouse Shipment Volume — History + Forecast","🏢")
+        sec("Warehouse Shipment Volume")
         wm=del_df.groupby([del_df["Order_Date"].dt.to_period("M"),"Warehouse"])["Quantity"].sum().unstack(fill_value=0)
         fig_wh=go.Figure()
         for i,wh in enumerate(wm.columns):
@@ -1443,7 +1382,7 @@ def page_logistics():
                 text=[f"{v:.1f}%" for v in rr.values],textposition="outside",textfont=dict(color="#334155")))
             fig_ret.update_layout(**CD(),height=270,xaxis=gX(),yaxis=dict(showgrid=False,color="#64748b"))
             st.plotly_chart(fig_ret,use_container_width=True,key="log_ret_rank")
-        sec("Region Revenue Forecast — History + Ensemble","📈")
+        sec("Region Revenue Forecast")
         top_reg=del_df["Region"].value_counts().head(5).index.tolist()
         fig_rf=go.Figure()
         for i,reg in enumerate(top_reg):
@@ -1459,16 +1398,11 @@ def page_logistics():
         fig_rf.update_layout(**CD(),height=260,xaxis=gX(),yaxis=gY(),legend=leg())
         st.plotly_chart(fig_rf,use_container_width=True,key="log_reg_fc")
 
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# PAGE: Decision Chatbot
-# ═══════════════════════════════════════════════════════════════════════════════
-
 def page_chatbot():
     df=load_data(); ops=get_ops(df).copy()
     ops["YM"]=ops["Order_Date"].dt.to_period("M")
 
-    st.markdown("<div class='page-title'>🤖 Decision Intelligence Chatbot</div>", unsafe_allow_html=True)
+    st.markdown("<div class='page-title'>Decision Intelligence Chatbot</div>", unsafe_allow_html=True)
     st.markdown("""<div style='margin-bottom:14px'>
       <span class='badge badge-amber'>Demand</span>
       <span class='badge badge-teal'>Inventory</span>
@@ -1505,7 +1439,7 @@ RESPONSE RULES:
 LIVE CONTEXT:
 {ctx}"""
 
-    with st.expander("📋 Live Context fed to AI", expanded=False):
+    with st.expander("Live Context fed to AI", expanded=False):
         st.code(ctx,language="text")
 
     key_ok=bool(api_key and len(api_key.strip())>10)
@@ -1601,14 +1535,14 @@ LIVE CONTEXT:
         with al2:
             st.markdown("""<div style='font-size:11px;font-weight:700;color:#d97706;
                 letter-spacing:.06em;text-transform:uppercase;font-family:DM Mono;margin-bottom:8px'>
-                💰 Cost Saving Opportunities</div>""",unsafe_allow_html=True)
+                Cost Saving Opportunities</div>""",unsafe_allow_html=True)
             _,_,opt,_=compute_logistics()
             for _,r in opt.sort_values("Potential_Saving",ascending=False).head(5).iterrows():
                 if r["Potential_Saving"]>0:
                     st.markdown(f"<div class='alert-item alert-warn'><b style='color:#0f172a'>{r['Region']}</b> → <b style='color:#0f172a'>{r['Optimal_Carrier']}</b><br><span style='color:#64748b;font-size:11px'>Save ₹{r['Potential_Saving']:,.0f} ({r['Saving_Pct']:.1f}%)</span></div>",unsafe_allow_html=True)
 
         sp()
-        sec("📈 Revenue Forecast — Next 3 Months (Ensemble)")
+        sec("Revenue Forecast")
         m_rev=ops.groupby("YM")["Net_Revenue"].sum().rename("v")
         r_rev=ml_forecast(m_rev.values.astype(float),m_rev.index,3)
         if r_rev is not None:
@@ -1618,39 +1552,19 @@ LIVE CONTEXT:
                 kpi(rc[i],f"{'📈' if chg>=0 else '📉'} {dt.strftime('%b %Y')}",f"₹{fc/1e6:.1f}M","mint" if chg>=0 else "coral",f"{chg:+.1f}% | CI ₹{lo/1e6:.1f}M–₹{hi/1e6:.1f}M")
                 last=fc
 
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# Sidebar + Navigation
-# ═══════════════════════════════════════════════════════════════════════════════
-
 st.sidebar.markdown("""<div style='padding:16px 0 22px'>
-  <div style='font-family:DM Mono,monospace;font-size:9px;letter-spacing:.16em;
-       text-transform:uppercase;color:#4a5e7a;margin-bottom:4px'>Supply Chain Platform</div>
   <div style='font-size:28px;font-weight:900;letter-spacing:-.03em;
        background:linear-gradient(135deg,#f5a623,#ff6b6b,#2ed8c3);
-       -webkit-background-clip:text;-webkit-text-fill-color:transparent'>OmniFlow</div>
-  <div style='font-family:DM Mono,monospace;font-size:10px;color:#4a5e7a;
-       margin-top:2px;letter-spacing:.05em'>D2D INTELLIGENCE · INDIA</div>
-</div>""", unsafe_allow_html=True)
-
-st.sidebar.markdown("""<div style='font-family:DM Mono,monospace;font-size:9px;color:#4a5e7a;
-    margin-bottom:6px;text-transform:uppercase;letter-spacing:.08em'>Closed-Loop Pipeline</div>
-    <div style='font-size:11px;color:#334155;background:#f8faff;border:1px solid #c7d7fd;
-    border-radius:8px;padding:9px 11px;margin-bottom:14px;line-height:1.9'>
-    <span style='color:#3B82F6;font-weight:700'>① Ridge</span> +
-    <span style='color:#22C55E;font-weight:700'>② RF</span> +
-    <span style='color:#F59E0B;font-weight:700'>③ GradBoost</span><br>
-    <span style='color:#8B5CF6;font-weight:700'>④ Ensemble</span> via inverse-RMSE<br>
-    <span style='color:#64748b;font-size:10px'>Demand → Inventory → Production → Logistics</span>
+       -webkit-background-clip:text;-webkit-text-fill-color:transparent'>OmniFlow D2D</div>
 </div>""", unsafe_allow_html=True)
 
 PAGES={
-    "🏠 Overview":                page_overview,
-    "📈 Demand Forecasting":      page_demand,
-    "📦 Inventory Optimisation":  page_inventory,
-    "🏭 Production Planning":     page_production,
-    "🚚 Logistics Optimisation":  page_logistics,
-    "🤖 Decision Chatbot":        page_chatbot,
+    "Overview":                page_overview,
+    "Demand Forecasting":      page_demand,
+    "Inventory Optimisation":  page_inventory,
+    "Production Planning":     page_production,
+    "Logistics Optimisation":  page_logistics,
+    "Decision Chatbot":        page_chatbot,
 }
 sel=st.sidebar.radio("",list(PAGES.keys()))
 PAGES[sel]()
