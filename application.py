@@ -563,24 +563,24 @@ def call_llm(messages, system, api_key):
     except Exception as e: return f"⚠️ Error: {e}"
 
 # ─── PAGE: OVERVIEW ───────────────────────────────────────────────
-def page_overview():   
+def page_overview():
     st.markdown(""" 
-    <div class='about-section'>    
-    <div style='font-size:20px;font-weight:900;margin-bottom:18px;color:#0f172a'> OmniFlow D2D Intelligence Platform</div>    
-    <div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px'>   
+    <div class='about-section'> 
+    <div style='font-size:20px;font-weight:900;margin-bottom:18px;color:#0f172a'>OmniFlow D2D Intelligence Platform</div>
+    <div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px'> 
     <div class='card'>
     <div style='font-size:13px;font-weight:800;color:#1e3a8a;margin-bottom:6px'>Platform Purpose</div>
     <div style='font-size:12.8px;line-height:1.7;color:#475569'>
-    OmniFlow D2D is an AI-powered end to end supply chain analytics system that transforms historical e-commerce order data
-    into operational decisions across demand, inventory, production, logistics and decision intelligence that recommends action based insights.
+    OmniFlow D2D is an AI-powered supply chain analytics system that transforms historical e-commerce order data into operational decisions across demand, inventory, production and logistics.
     </div>
-    </div> 
+    </div>  
     <div class='card'>
     <div style='font-size:13px;font-weight:800;color:#1e3a8a;margin-bottom:6px'>Business Problem</div>
     <div style='font-size:12.8px;line-height:1.7;color:#475569'>
-    E-commerce supply chains often suffer from inaccurate demand estimation,inventory imbalance, inefficient production 
-    planning and suboptimal delivery routing.OmniFlow addresses these challenges through predictive analytics.</div>
-    </div>   
+    E-commerce supply chains often suffer from inaccurate demand estimation, inventory imbalance, inefficient production planning and suboptimal delivery routing.
+    OmniFlow addresses these challenges through predictive analytics.
+    </div>
+    </div> 
     <div class='card'>
     <div style='font-size:13px;font-weight:800;color:#1e3a8a;margin-bottom:6px'>Data Coverage</div>
     <div style='font-size:12.8px;line-height:1.7;color:#475569'>
@@ -588,68 +588,48 @@ def page_overview():
     </div>
     </div> 
     </div> 
-    </div>    
+    </div>  
     """, unsafe_allow_html=True)
-
-    st.markdown(""" 
+ 
+    st.markdown("""   
     <div class='about-section'>  
     <div style='font-size:18px;font-weight:900;margin-bottom:18px'>Analytics Workflow Pipeline</div> 
-    <div style='display:flex;flex-wrap:wrap;gap:12px'>
-    <div class='pipeline-box'>Demand Forecast
-    <span class='pipeline-sub'>ML models predict future orders and product demand</span>
-    </div>  
-    <div class='pipeline-box'>Inventory Optimization
-    <span class='pipeline-sub'>EOQ, Safety Stock and Reorder Point calculations</span>
-    </div>  
-    <div class='pipeline-box'>Production Planning
-    <span class='pipeline-sub'>Production quantity based on forecast and stock gap</span>
-    </div> 
-    <div class='pipeline-box'>Logistics Optimization
-    <span class='pipeline-sub'>Carrier performance scoring and route efficiency</span>
-    </div>  
-    <div class='pipeline-box'>AI Decision Intelligence
-    <span class='pipeline-sub'>LLM powered insights for supply chain decisions</span>
+    <div style='display:flex;flex-wrap:wrap;gap:12px'> 
+    <div class='pipeline-box'>Demand Forecast<span class='pipeline-sub'>ML models predict future orders and product demand</span></div>
+    <div class='pipeline-box'>Inventory Optimization<span class='pipeline-sub'>EOQ, Safety Stock and Reorder Point calculations</span></div>
+    <div class='pipeline-box'>Production Planning<span class='pipeline-sub'>Production quantity based on forecast and stock gap</span></div>
+    <div class='pipeline-box'>Logistics Optimization<span class='pipeline-sub'>Carrier performance scoring and route efficiency</span></div>
+    <div class='pipeline-box'>AI Decision Intelligence<span class='pipeline-sub'>LLM powered insights for supply chain decisions</span></div>
     </div>
     </div> 
-    </div> 
     """, unsafe_allow_html=True)
-
+   
     st.markdown(""" 
-    <div class='about-section'>  
-    <div style='font-size:18px;font-weight:900;margin-bottom:18px'>Technology Stack</div> 
+    <div class='about-section'>
+    <div style='font-size:18px;font-weight:900;margin-bottom:18px'>Technology Stack</div>
     <div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px'>
     <div class='card'>
     <div style='font-weight:800;color:#1e3a8a'>Data Processing</div>
-    <div style='font-size:12.8px;color:#475569;margin-top:6px'>
-    Python, Pandas and NumPy are used for data cleaning, feature engineering and time series transformation.
-    </div>
-    </div>   
+    <div style='font-size:12.8px;color:#475569;margin-top:6px'>Python, Pandas and NumPy are used for data cleaning, feature engineering and time series transformation.</div>
+    </div> 
     <div class='card'>
     <div style='font-weight:800;color:#1e3a8a'>Machine Learning</div>
-    <div style='font-size:12.8px;color:#475569;margin-top:6px'>
-    Demand forecasting uses an ensemble of Ridge Regression, Random Forest and Gradient Boosting models.
-    </div>
+    <div style='font-size:12.8px;color:#475569;margin-top:6px'>Demand forecasting uses an ensemble of Ridge Regression, Random Forest and Gradient Boosting models.</div>
     </div>
     <div class='card'>
     <div style='font-weight:800;color:#1e3a8a'>Optimization Models</div>
-    <div style='font-size:12.8px;color:#475569;margin-top:6px'>
-    Inventory optimisation uses EOQ, Safety Stock and Reorder Point calculations to minimise stock risks.
-    </div>
-    </div>
+    <div style='font-size:12.8px;color:#475569;margin-top:6px'>Inventory optimisation uses EOQ, Safety Stock and Reorder Point calculations to minimise stock risks.</div>
+    </div> 
     <div class='card'>
     <div style='font-weight:800;color:#1e3a8a'>Dashboard & Visualization</div>
-    <div style='font-size:12.8px;color:#475569;margin-top:6px'>
-    Interactive dashboards are built using Streamlit, with Plotly used for advanced data visualisation.
-    </div>
+    <div style='font-size:12.8px;color:#475569;margin-top:6px'>Interactive dashboards are built using Streamlit, with Plotly used for advanced data visualisation.</div>
     </div>
     <div class='card'>
     <div style='font-weight:800;color:#1e3a8a'>AI Decision Layer</div>
-    <div style='font-size:12.8px;color:#475569;margin-top:6px'>
-    A Large Language Model integrated through Groq API generates supply chain insights and recommendations.
+    <div style='font-size:12.8px;color:#475569;margin-top:6px'>A Large Language Model integrated through API generates supply chain insights and recommendations.</div>
     </div>
-    </div>  
     </div> 
-    </div>
+    </div> 
     """, unsafe_allow_html=True)
 
 def page_demand():
@@ -906,10 +886,10 @@ def page_inventory():
                 textposition="outside",textfont=dict(color="#334155"),
                 customdata=top_need[["Current_Stock","ROP","EOQ","Category"]].values,
                 hovertemplate="<b>%{y}</b><br>Need: %{x} units<br>Stock: %{customdata[0]} | ROP: %{customdata[1]} | EOQ: %{customdata[2]}<br>%{customdata[3]}<extra></extra>"))
-            fig_tn.update_layout(**CD(),height=max(300,len(top_need)*30),
+            cd_wide = CD(); cd_wide["margin"] = dict(l=220,r=60,t=42,b=30)
+            fig_tn.update_layout(**cd_wide,height=max(300,len(top_need)*30),
                 xaxis={**gX(),"title":"Units to Order/Produce"},
-                yaxis=dict(showgrid=False,color="#64748b",automargin=True),
-                margin=dict(l=220,r=60,t=42,b=30))
+                yaxis=dict(showgrid=False,color="#64748b",automargin=True))
             st.plotly_chart(fig_tn,use_container_width=True,key="top_need_chart")
 
     # ── TAB 2: EOQ COST TRADE-OFF + FORECAST ─────────────────────
