@@ -63,6 +63,7 @@ from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_squared_error, mean_absolute_error
 import os, requests as _requests
+import datetime as _dt
 DATA_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "india_ecommerce_orders.csv")
 COLORS    = ["#1565C0","#2E7D32","#E65100","#C62828","#6A1B9A","#00695C"]
 MODEL_COLORS = {"Ridge":"#3B82F6","RandomForest":"#22C55E","GradBoost":"#F59E0B","Ensemble":"#8B5CF6"}
@@ -413,6 +414,76 @@ def compute_production(cap_mult=1.0, buffer_pct=0.15):
                 "Low_Boost":round(low_boost,0),"Buffer":round(prod-net_prod,0),
                 "Production":round(prod,0),"CI_Lo":round(res["ci_lo"][i],0),"CI_Hi":round(res["ci_hi"][i],0)})
     return pd.DataFrame(rows)
+@st.cache_data
+def build_sku_production_plan():
+    df        = load_data()
+    ops       = get_ops(df).copy()
+    del_df    = get_delivered(df)
+    inv       = compute_inventory()
+
+    wh_cat = (
+        del_df.groupby(["Category", "Warehouse"])["Quantity"]
+        .sum()
+        .reset_index()
+    )
+    wh_cat["wh_share"] = wh_cat.groupby("Category")["Quantity"].transform(
+        lambda x: x / x.sum()
+    )
+    best_wh = (
+        wh_cat.sort_values("wh_share", ascending=False)
+        .groupby("Category")
+        .first()
+        .reset_index()[["Category", "Warehouse", "wh_share"]]
+        .rename(columns={"Warehouse": "Target_Warehouse", "wh_share": "WH_Share_Pct"})
+    )
+
+    avg_ship = (
+        del_df.groupby(["Category", "Warehouse"])
+        .agg(avg_cost=("Shipping_Cost_INR", "mean"))
+        .reset_index()
+        .rename(columns={"Warehouse": "Target_Warehouse"})
+    )
+
+    needs = inv[inv["Prod_Need"] > 0].copy()
+    needs["Daily_Demand"] = (needs["Monthly_Avg"] / 30).clip(lower=0.01)
+    needs["Days_Left"]    = (needs["Current_Stock"] / needs["Daily_Demand"]).round(1)
+    needs["Days_Left"]    = needs["Days_Left"].clip(upper=999)
+
+    def urgency(row):
+        if row["Status"] == "🔴 Critical":
+            return "🔴 Urgent"
+        if row["Days_Left"] <= 14:
+            return "🟠 High"
+        if row["Days_Left"] <= 30:
+            return "🟡 Medium"
+        return "🟢 Normal"
+
+    needs["Urgency"] = needs.apply(urgency, axis=1)
+    today = _dt.date.today()
+    LEAD_DAYS = 7
+    needs["Ready_By"] = pd.to_datetime(today) + pd.Timedelta(days=LEAD_DAYS)
+    needs["Ship_By"]  = needs["Ready_By"] + pd.Timedelta(days=2)
+
+    needs = needs.merge(best_wh, on="Category", how="left")
+    needs["Target_Warehouse"] = needs["Target_Warehouse"].fillna("Central WH")
+    needs["WH_Share_Pct"]     = (needs["WH_Share_Pct"].fillna(1.0) * 100).round(1)
+
+    needs = needs.merge(avg_ship, on=["Category", "Target_Warehouse"], how="left")
+    needs["avg_cost"] = needs["avg_cost"].fillna(del_df["Shipping_Cost_INR"].mean())
+    needs["Est_Ship_Cost"] = (needs["Prod_Need"] * needs["avg_cost"]).round(0)
+
+    urgency_order = {"🔴 Urgent": 0, "🟠 High": 1, "🟡 Medium": 2, "🟢 Normal": 3}
+    needs["_urg_order"] = needs["Urgency"].map(urgency_order)
+    needs = needs.sort_values(["_urg_order", "Prod_Need"], ascending=[True, False]).reset_index(drop=True)
+
+    return needs[[
+        "SKU_ID", "Product_Name", "Category", "ABC", "Urgency",
+        "Current_Stock", "ROP", "SS", "EOQ", "Prod_Need",
+        "Daily_Demand", "Days_Left", "Monthly_Avg", "Forecast_Avg",
+        "Unit_Price", "Stockout_Cost",
+        "Target_Warehouse", "WH_Share_Pct", "Est_Ship_Cost",
+        "Ready_By", "Ship_By", "Status"
+    ]]
 
 @st.cache_data
 def compute_logistics(w_speed=0.40,w_cost=0.35,w_returns=0.25):
@@ -1040,6 +1111,348 @@ def page_production():
     d3=d2[["Month","Category","Demand_Forecast","Crit_Boost","Low_Boost","Buffer","Production","CI_Lo","CI_Hi"]].copy()
     d3.columns=["Month","Category","Demand Fc","Crit Boost","Low Boost","Buffer","Production","Demand Lo","Demand Hi"]
     st.dataframe(d3.sort_values("Month"),use_container_width=True,hide_index=True)
+    sp()
+    st.markdown("""
+    <div style='background:linear-gradient(135deg,#0f172a,#1e3a8a);
+         border-radius:16px;padding:22px 28px;margin-bottom:22px'>
+      <div style='font-size:22px;font-weight:900;color:white;letter-spacing:-.02em'>
+        📦 SKU Production Intelligence
+      </div>
+      <div style='font-size:12px;color:#93c5fd;font-family:DM Mono,monospace;margin-top:4px'>
+        Which SKUs need production · Days of stock remaining · Target warehouse routing
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    sku_plan = build_sku_production_plan()
+    
+    if sku_plan.empty:
+        banner("✅ All SKUs are adequately stocked — no production orders needed.", "mint")
+    else:
+        # ── Top KPIs ──────────────────────────────────────────────
+        n_urgent  = (sku_plan["Urgency"] == "🔴 Urgent").sum()
+        n_high    = (sku_plan["Urgency"] == "🟠 High").sum()
+        n_medium  = (sku_plan["Urgency"] == "🟡 Medium").sum()
+        n_normal  = (sku_plan["Urgency"] == "🟢 Normal").sum()
+        total_units = int(sku_plan["Prod_Need"].sum())
+        total_ship  = sku_plan["Est_Ship_Cost"].sum()
+        stockout_risk = sku_plan["Stockout_Cost"].sum()
+    
+        k1,k2,k3,k4,k5,k6 = st.columns(6)
+        kpi(k1, "SKUs to Produce",   len(sku_plan),          "sky",   "need replenishment")
+        kpi(k2, "🔴 Urgent",         n_urgent,                "coral", "critical — act today")
+        kpi(k3, "🟠 High",           n_high,                  "amber", "≤14 days stock left")
+        kpi(k4, "Total Units",       f"{total_units:,}",      "sky",   "across all SKUs")
+        kpi(k5, "Est. Ship Cost",    f"₹{total_ship:,.0f}",   "amber", "to target warehouses")
+        kpi(k6, "Stockout Risk",     f"₹{stockout_risk:,.0f}","coral", "if not produced")
+        sp()
+    
+        # ── Tabs ──────────────────────────────────────────────────
+        pt1, pt2, pt3 = st.tabs([
+            "🏭 Production Queue",
+            "🏢 Warehouse Routing",
+            "📊 Visual Analysis"
+        ])
+    
+        # ── TAB 1: Production Queue ───────────────────────────────
+        with pt1:
+            sec("Production Queue — SKUs ordered by urgency")
+    
+            # Filters
+            pf1, pf2, pf3 = st.columns(3)
+            urg_f = pf1.multiselect(
+                "Urgency", ["🔴 Urgent","🟠 High","🟡 Medium","🟢 Normal"],
+                default=["🔴 Urgent","🟠 High","🟡 Medium","🟢 Normal"], key="pq_urg"
+            )
+            cat_pf = pf2.multiselect(
+                "Category", sorted(sku_plan["Category"].unique()),
+                default=sorted(sku_plan["Category"].unique()), key="pq_cat"
+            )
+            abc_pf = pf3.multiselect(
+                "ABC", ["A","B","C"], default=["A","B","C"], key="pq_abc"
+            )
+    
+            filt = sku_plan[
+                sku_plan["Urgency"].isin(urg_f) &
+                sku_plan["Category"].isin(cat_pf) &
+                sku_plan["ABC"].isin(abc_pf)
+            ]
+    
+            # Render cards for urgent/high; table for rest
+            urgent_rows = filt[filt["Urgency"].isin(["🔴 Urgent","🟠 High"])]
+            other_rows  = filt[filt["Urgency"].isin(["🟡 Medium","🟢 Normal"])]
+    
+            if not urgent_rows.empty:
+                st.markdown("""<div style='font-size:11px;font-weight:700;color:#dc2626;
+                    letter-spacing:.08em;text-transform:uppercase;font-family:DM Mono;
+                    margin:12px 0 8px'>⚡ Immediate Action Required</div>""",
+                    unsafe_allow_html=True)
+    
+                cols_per_row = 2
+                rows_data = [
+                    urgent_rows.iloc[i:i+cols_per_row]
+                    for i in range(0, len(urgent_rows), cols_per_row)
+                ]
+                for row_df in rows_data:
+                    cols = st.columns(cols_per_row, gap="medium")
+                    for col, (_, r) in zip(cols, row_df.iterrows()):
+                        days_color = "#ef4444" if r["Days_Left"] <= 7 else "#f59e0b"
+                        urg_bg = "#fef2f2" if r["Urgency"]=="🔴 Urgent" else "#fff7ed"
+                        urg_border = "#ef4444" if r["Urgency"]=="🔴 Urgent" else "#f59e0b"
+                        col.markdown(f"""
+                        <div style='background:{urg_bg};border:1px solid {urg_border};
+                             border-left:4px solid {urg_border};border-radius:12px;
+                             padding:14px 16px;margin-bottom:10px'>
+                          <div style='display:flex;justify-content:space-between;align-items:flex-start'>
+                            <div>
+                              <div style='font-size:13px;font-weight:800;color:#0f172a'>
+                                {r["Product_Name"][:32]}{'…' if len(r["Product_Name"])>32 else ''}
+                              </div>
+                              <div style='font-size:10px;color:#64748b;font-family:DM Mono;margin-top:2px'>
+                                {r["SKU_ID"]} · {r["Category"]} · ABC-{r["ABC"]}
+                              </div>
+                            </div>
+                            <div style='font-size:18px'>{r["Urgency"].split()[0]}</div>
+                          </div>
+                          <div style='display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:12px'>
+                            <div style='text-align:center;background:white;border-radius:8px;padding:8px 4px'>
+                              <div style='font-size:9px;color:#94a3b8;text-transform:uppercase;font-family:DM Mono'>Stock Left</div>
+                              <div style='font-size:20px;font-weight:900;color:{days_color}'>{int(r["Days_Left"]) if r["Days_Left"]<999 else "∞"}d</div>
+                            </div>
+                            <div style='text-align:center;background:white;border-radius:8px;padding:8px 4px'>
+                              <div style='font-size:9px;color:#94a3b8;text-transform:uppercase;font-family:DM Mono'>Produce</div>
+                              <div style='font-size:20px;font-weight:900;color:#1e3a8a'>{int(r["Prod_Need"]):,}</div>
+                            </div>
+                            <div style='text-align:center;background:white;border-radius:8px;padding:8px 4px'>
+                              <div style='font-size:9px;color:#94a3b8;text-transform:uppercase;font-family:DM Mono'>Ship To</div>
+                              <div style='font-size:11px;font-weight:700;color:#059669;margin-top:2px'>{r["Target_Warehouse"]}</div>
+                            </div>
+                          </div>
+                          <div style='display:flex;justify-content:space-between;margin-top:10px;
+                               font-size:10px;color:#64748b;font-family:DM Mono'>
+                            <span>Ready: {r["Ready_By"].strftime("%d %b")}</span>
+                            <span>Ship by: {r["Ship_By"].strftime("%d %b")}</span>
+                            <span>Est. ₹{int(r["Est_Ship_Cost"]):,}</span>
+                          </div>
+                          {"<div style='margin-top:8px;font-size:10px;background:#fee2e2;border-radius:6px;padding:4px 8px;color:#dc2626;font-weight:600'>⚠️ Stockout risk: ₹" + f"{int(r['Stockout_Cost']):,}" + "</div>" if r["Stockout_Cost"]>0 else ""}
+                        </div>
+                        """, unsafe_allow_html=True)
+    
+            if not other_rows.empty:
+                st.markdown("""<div style='font-size:11px;font-weight:700;color:#475569;
+                    letter-spacing:.08em;text-transform:uppercase;font-family:DM Mono;
+                    margin:14px 0 8px'>📋 Scheduled Production</div>""",
+                    unsafe_allow_html=True)
+                tbl = other_rows[[
+                    "SKU_ID","Product_Name","Category","ABC","Urgency",
+                    "Current_Stock","Days_Left","Prod_Need","Target_Warehouse",
+                    "Ready_By","Est_Ship_Cost"
+                ]].copy()
+                tbl["Days_Left"]     = tbl["Days_Left"].apply(lambda x: f"{int(x)}d" if x<999 else "∞")
+                tbl["Est_Ship_Cost"] = tbl["Est_Ship_Cost"].apply(lambda x: f"₹{int(x):,}")
+                tbl["Ready_By"]      = tbl["Ready_By"].dt.strftime("%d %b %Y")
+                tbl.columns = ["SKU","Product","Category","ABC","Urgency",
+                               "Stock","Days Left","📦 Produce","→ Warehouse","Ready By","Ship Cost"]
+                st.dataframe(tbl, use_container_width=True, hide_index=True)
+    
+        # ── TAB 2: Warehouse Routing ───────────────────────────────
+        with pt2:
+            sec("Warehouse Stock Needs & Routing Plan")
+    
+            # Aggregate by warehouse
+            wh_agg = (
+                sku_plan.groupby("Target_Warehouse")
+                .agg(
+                    SKUs=("SKU_ID", "count"),
+                    Total_Units=("Prod_Need", "sum"),
+                    Urgent_SKUs=("Urgency", lambda x: (x == "🔴 Urgent").sum()),
+                    High_SKUs=("Urgency", lambda x: (x == "🟠 High").sum()),
+                    Total_Ship_Cost=("Est_Ship_Cost", "sum"),
+                    Categories=("Category", lambda x: ", ".join(sorted(x.unique()))),
+                    Avg_Days_Left=("Days_Left", lambda x: x[x < 999].mean()),
+                )
+                .reset_index()
+                .sort_values("Urgent_SKUs", ascending=False)
+            )
+    
+            # Warehouse KPI cards
+            wh_cols = st.columns(min(len(wh_agg), 4), gap="medium")
+            for col, (_, wh) in zip(wh_cols, wh_agg.iterrows()):
+                urgency_badge = ""
+                if wh["Urgent_SKUs"] > 0:
+                    urgency_badge = f"<span style='background:#fee2e2;color:#dc2626;padding:2px 8px;border-radius:12px;font-size:10px;font-weight:700'>🔴 {int(wh['Urgent_SKUs'])} urgent</span>"
+                elif wh["High_SKUs"] > 0:
+                    urgency_badge = f"<span style='background:#fff7ed;color:#d97706;padding:2px 8px;border-radius:12px;font-size:10px;font-weight:700'>🟠 {int(wh['High_SKUs'])} high</span>"
+                else:
+                    urgency_badge = f"<span style='background:#f0fdf4;color:#15803d;padding:2px 8px;border-radius:12px;font-size:10px;font-weight:700'>🟢 Scheduled</span>"
+    
+                col.markdown(f"""
+                <div style='background:white;border:1px solid #e5e7eb;border-radius:14px;
+                     padding:18px;box-shadow:0 4px 16px rgba(0,0,0,0.07);height:100%'>
+                  <div style='font-size:16px;font-weight:900;color:#0f172a;margin-bottom:4px'>
+                    🏢 {wh["Target_Warehouse"]}
+                  </div>
+                  <div style='margin-bottom:10px'>{urgency_badge}</div>
+                  <div style='display:grid;grid-template-columns:1fr 1fr;gap:8px'>
+                    <div style='background:#f8fafc;border-radius:8px;padding:8px;text-align:center'>
+                      <div style='font-size:9px;color:#94a3b8;text-transform:uppercase;font-family:DM Mono'>SKUs Inbound</div>
+                      <div style='font-size:24px;font-weight:900;color:#1e3a8a'>{int(wh["SKUs"])}</div>
+                    </div>
+                    <div style='background:#f8fafc;border-radius:8px;padding:8px;text-align:center'>
+                      <div style='font-size:9px;color:#94a3b8;text-transform:uppercase;font-family:DM Mono'>Units Needed</div>
+                      <div style='font-size:24px;font-weight:900;color:#059669'>{int(wh["Total_Units"]):,}</div>
+                    </div>
+                  </div>
+                  <div style='margin-top:10px;font-size:10px;color:#64748b;font-family:DM Mono'>
+                    <div>📦 Ship Cost: <b style='color:#0f172a'>₹{int(wh["Total_Ship_Cost"]):,}</b></div>
+                    <div style='margin-top:3px'>📁 Categories: <b style='color:#0f172a'>{wh["Categories"]}</b></div>
+                    <div style='margin-top:3px'>⏱ Avg days left: <b style='color:#d97706'>{wh["Avg_Days_Left"]:.1f}d</b></div>
+                  </div>
+                </div>
+                """, unsafe_allow_html=True)
+    
+            sp()
+            sec("Detailed Shipment Routing Plan")
+    
+            # Full routing table
+            routing_tbl = sku_plan[[
+                "Target_Warehouse","SKU_ID","Product_Name","Category","ABC","Urgency",
+                "Prod_Need","Days_Left","Ready_By","Ship_By","Est_Ship_Cost","WH_Share_Pct"
+            ]].copy()
+            routing_tbl["Days_Left"]     = routing_tbl["Days_Left"].apply(lambda x: f"{int(x)}d" if x<999 else "∞")
+            routing_tbl["Est_Ship_Cost"] = routing_tbl["Est_Ship_Cost"].apply(lambda x: f"₹{int(x):,}")
+            routing_tbl["Ready_By"]      = routing_tbl["Ready_By"].dt.strftime("%d %b")
+            routing_tbl["Ship_By"]       = routing_tbl["Ship_By"].dt.strftime("%d %b")
+            routing_tbl["WH_Share_Pct"]  = routing_tbl["WH_Share_Pct"].apply(lambda x: f"{x:.0f}%")
+            routing_tbl.columns = [
+                "→ Warehouse","SKU","Product","Category","ABC","Urgency",
+                "📦 Units","Days Left","Ready By","Ship By","Ship Cost","WH Traffic %"
+            ]
+            st.dataframe(
+                routing_tbl.sort_values(["→ Warehouse","Urgency"]),
+                use_container_width=True, hide_index=True, height=380
+            )
+    
+            sp(0.5)
+            # Download hint
+            banner("💡 <b>Routing logic:</b> Each SKU is assigned to the warehouse that historically handles the highest share of its product category — ensuring stock lands where demand is highest.", "sky")
+    
+        # ── TAB 3: Visual Analysis ─────────────────────────────────
+        with pt3:
+            sec("Production Urgency Distribution")
+            va1, va2 = st.columns(2, gap="large")
+    
+            with va1:
+                # Urgency donut
+                urg_counts = sku_plan["Urgency"].value_counts().reset_index()
+                urg_counts.columns = ["Urgency", "Count"]
+                urg_color_map = {
+                    "🔴 Urgent": "#ef4444",
+                    "🟠 High":   "#f97316",
+                    "🟡 Medium": "#eab308",
+                    "🟢 Normal": "#22c55e"
+                }
+                fig_d = go.Figure(go.Pie(
+                    labels=urg_counts["Urgency"],
+                    values=urg_counts["Count"],
+                    hole=0.55,
+                    marker=dict(
+                        colors=[urg_color_map.get(u, "#888") for u in urg_counts["Urgency"]],
+                        line=dict(color="#ffffff", width=2)
+                    ),
+                    textinfo="label+value",
+                    textfont=dict(size=11)
+                ))
+                fig_d.update_layout(
+                    **CD(), height=260,
+                    title=dict(text="SKUs by Urgency Tier", font=dict(size=11, color="#64748b")),
+                    showlegend=False
+                )
+                st.plotly_chart(fig_d, use_container_width=True, key="pq_donut")
+    
+            with va2:
+                # Units needed by category, coloured by urgency
+                cat_units = sku_plan.groupby(["Category","Urgency"])["Prod_Need"].sum().reset_index()
+                fig_bu = go.Figure()
+                for urg, clr in urg_color_map.items():
+                    sub = cat_units[cat_units["Urgency"] == urg]
+                    if sub.empty: continue
+                    fig_bu.add_trace(go.Bar(
+                        name=urg, x=sub["Category"], y=sub["Prod_Need"],
+                        marker=dict(color=clr, line=dict(color="rgba(0,0,0,0)")),
+                        text=sub["Prod_Need"].astype(int),
+                        textposition="inside", textfont=dict(color="white", size=9)
+                    ))
+                fig_bu.update_layout(
+                    **CD(), height=260, barmode="stack",
+                    xaxis={**gX(), "tickangle": -10},
+                    yaxis={**gY(), "title": "Units to Produce"},
+                    legend={**leg(), "orientation":"h", "y":-0.32},
+                    title=dict(text="Units Needed by Category & Urgency", font=dict(size=11, color="#64748b"))
+                )
+                st.plotly_chart(fig_bu, use_container_width=True, key="pq_cat_bar")
+    
+            sp()
+            sec("Days of Stock Remaining — All SKUs Needing Production")
+    
+            # Horizontal bar — days left per SKU (top 20 most urgent)
+            top20 = sku_plan.head(20).copy()
+            top20["Label"] = top20["Product_Name"].str[:22] + " [" + top20["SKU_ID"] + "]"
+            top20["Bar_Color"] = top20["Days_Left"].apply(
+                lambda x: "#ef4444" if x <= 7 else "#f97316" if x <= 14 else "#eab308" if x <= 30 else "#22c55e"
+            )
+            top20_s = top20.sort_values("Days_Left", ascending=True)
+    
+            fig_hl = go.Figure(go.Bar(
+                x=top20_s["Days_Left"].clip(upper=60),
+                y=top20_s["Label"],
+                orientation="h",
+                marker=dict(color=top20_s["Bar_Color"].tolist(), line=dict(color="rgba(0,0,0,0)")),
+                text=[f"{int(v)}d · {int(u):,} units" for v,u in zip(top20_s["Days_Left"], top20_s["Prod_Need"])],
+                textposition="outside",
+                textfont=dict(color="#334155", size=9),
+                customdata=top20_s[["Category","Target_Warehouse","Urgency"]].values,
+                hovertemplate=(
+                    "<b>%{y}</b><br>"
+                    "Days left: %{x:.0f}d<br>"
+                    "Category: %{customdata[0]}<br>"
+                    "→ Warehouse: %{customdata[1]}<br>"
+                    "Urgency: %{customdata[2]}<extra></extra>"
+                )
+            ))
+            fig_hl.add_vline(x=7,  line_dash="dash", line_color="#ef4444", line_width=1.5,
+                             annotation_text=" 7d", annotation_font=dict(color="#ef4444", size=9))
+            fig_hl.add_vline(x=14, line_dash="dash", line_color="#f97316", line_width=1.5,
+                             annotation_text=" 14d", annotation_font=dict(color="#f97316", size=9))
+            fig_hl.add_vline(x=30, line_dash="dash", line_color="#eab308", line_width=1.5,
+                             annotation_text=" 30d", annotation_font=dict(color="#eab308", size=9))
+            fig_hl.update_layout(
+                **CD(), height=max(300, len(top20_s) * 22),
+                xaxis={**gX(), "title": "Days of Stock Remaining", "range": [0, 70]},
+                yaxis=dict(showgrid=False, color="#64748b", automargin=True),
+                title=dict(text="Top 20 Most Urgent SKUs — Days of Stock Left (capped at 60d)", font=dict(size=11, color="#64748b"))
+            )
+            st.plotly_chart(fig_hl, use_container_width=True, key="pq_days_bar")
+    
+            sp()
+            sec("Warehouse Load — Units Inbound")
+            wh_load = sku_plan.groupby("Target_Warehouse")["Prod_Need"].sum().reset_index().sort_values("Prod_Need", ascending=False)
+            fig_wl = go.Figure(go.Bar(
+                x=wh_load["Target_Warehouse"], y=wh_load["Prod_Need"],
+                marker=dict(
+                    color=["#1e3a8a","#2563eb","#3b82f6","#60a5fa","#93c5fd"][:len(wh_load)],
+                    line=dict(color="rgba(0,0,0,0)")
+                ),
+                text=[f"{int(v):,} units" for v in wh_load["Prod_Need"]],
+                textposition="outside", textfont=dict(color="#334155")
+            ))
+            fig_wl.update_layout(
+                **CD(), height=240,
+                xaxis={**gX(), "tickangle": -15},
+                yaxis={**gY(), "title": "Units to Receive"},
+                title=dict(text="Planned Inbound Units per Warehouse", font=dict(size=11, color="#64748b"))
+            )
+            st.plotly_chart(fig_wl, use_container_width=True, key="pq_wh_load")
 
 def page_logistics():
     df=load_data(); ops=get_ops(df).copy(); ops["YM"]=ops["Order_Date"].dt.to_period("M"); del_df=get_delivered(df)
