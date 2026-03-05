@@ -595,107 +595,91 @@ def call_llm(messages, system, api_key):
     except Exception as e: return f"⚠️ Error: {e}"
 
 def page_overview():
-    df=load_data(); ops=get_ops(df).copy()
-    ops["YM"]=ops["Order_Date"].dt.to_period("M")
-    delivered=df[df["Order_Status"]=="Delivered"]
-    net_rev=ops["Net_Revenue"].sum()
-    # FIX: Return rate denominator = total orders (industry standard), not active orders only
-    ret_rate=df[df["Order_Status"]=="Returned"].shape[0]/len(df)*100
-    avg_del=delivered["Delivery_Days"].mean()
-
     st.markdown("""
-    <div style='background:linear-gradient(135deg,#0f172a,#1e3a8a,#2563eb);border-radius:18px;
-    padding:30px 32px;margin-bottom:24px;'>
-      <div style='font-size:38px;font-weight:900;color:white;letter-spacing:-.02em;text-transform:uppercase;line-height:1.1'>
-        OmniFlow D2D</div>
-      <div style='font-size:11px;font-family:DM Mono,monospace;color:#93c5fd;letter-spacing:.14em;
-      text-transform:uppercase;margin-bottom:6px'>Predictive Logistics & AI Powered Demand-to-Delivery Intelligence</div>
-    </div>""", unsafe_allow_html=True)
-
-    c1,c2,c3,c4,c5,c6=st.columns(6)
-    kpi(c1,"Net Revenue",f"₹{net_rev/1e7:.1f}Cr","amber","excl. returns")
-    kpi(c2,"Active Orders",f"{len(ops):,}","sky","Del + Shipped")
-    kpi(c3,"Units Sold",f"{ops['Quantity'].sum():,}","sky","all products")
-    kpi(c4,"Return Rate",f"{ret_rate:.1f}%","coral","of all orders")
-    kpi(c5,"Avg Delivery",f"{avg_del:.1f}d","mint","delivered only")
-    kpi(c6,"SKU Categories",f"{df['Category'].nunique()}","sky","product types")
-    sp()
-
-    st.markdown("""
-    <div class='about-section'>
+    <div class='about-section'>    
+     <div style='font-size:20px;font-weight:900;margin-bottom:18px;color:#0f172a'>
+     OmniFlow D2D Intelligence Platform</div>
+     <div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px'>  
+     <div class='card'>
+      <div style='font-size:13px;font-weight:800;color:#1e3a8a;margin-bottom:6px'>Platform Purpose</div>
+      <div style='font-size:12.8px;line-height:1.7;color:#475569'>
+      OmniFlow D2D is an AI-powered end to end intelligence analytics system that transforms historical e-commerce order data into
+      operational decisions across demand,inventory,production,logistics and decision intelligence.</div>
+     </div>
     
-    <div style='font-size:18px;font-weight:800;margin-bottom:14px'>
-    Overview 
-    </div>
+     <div class='card'>
+      <div style='font-size:13px;font-weight:800;color:#1e3a8a;margin-bottom:6px'>Business Problem</div>
+      <div style='font-size:12.8px;line-height:1.7;color:#475569'>
+       E-commerce supply chains often suffer from inaccurate demand estimation,
+       inventory imbalance, inefficient production planning and suboptimal delivery routing.
+       OmniFlow addresses these challenges through predictive analytics.</div>
+     </div>
     
-    <p style='font-size:13.5px;line-height:1.8'>
-    <b>OmniFlow D2D</b> is an AI-driven supply chain intelligence system designed
-    to transform historical e-commerce order data into operational decisions.
-    </p>
-    
-    <p style='font-size:13.5px;line-height:1.8'>
-    The platform predicts future demand, optimises inventory levels,
-    plans production capacity, and recommends logistics strategies
-    through a structured analytics pipeline.
-    </p>
-    
-    <div style='margin-top:12px;font-size:12.5px'>
-    
-    <b>Core Modules</b><br><br>
-    
-    • Demand Forecasting using Ensemble Machine Learning<br>
-    • Inventory Optimization using EOQ, Safety Stock and Reorder Point<br>
-    • Production Planning based on forecast demand<br>
-    • Logistics Optimization using carrier performance scoring<br>
-    • AI Decision Intelligence for operational insights
-    
-    </div>
-    
-    </div>
+     <div class='card'>
+      <div style='font-size:13px;font-weight:800;color:#1e3a8a;margin-bottom:6px'>Data Coverage</div>
+      <div style='font-size:12.8px;line-height:1.7;color:#475569'>
+       The system analyses multi-channel Indian e-commerce order dataincluding Amazon,Flipkart 
+       and B2B channels across multiple regions,product categories and courier partners.</div>
+      </div> 
+    </div>    
+    </div>   
     """, unsafe_allow_html=True)
-
-    sp()
-
-    sec("Key Business Metrics")
-    col_a, col_b = st.columns(2, gap="large")
-    with col_a:
-        cat=ops.groupby("Category")["Net_Revenue"].sum().sort_values(ascending=False)
-        fig=go.Figure(go.Bar(x=cat.index,y=cat.values/1e6,
-            marker=dict(color=COLORS[:len(cat)],line=dict(color="rgba(0,0,0,0)")),
-            text=[f"₹{v/1e6:.1f}M" for v in cat.values],textposition="outside",textfont=dict(color="#334155")))
-        fig.update_layout(**CD(),height=250,title=dict(text="Net Revenue by Category (₹M)",font=dict(size=11,color="#64748b")),
-            xaxis=gX(),yaxis={**gY(),"title":"₹M"})
-        st.plotly_chart(fig,use_container_width=True,key="ov_cat_rev")
-    with col_b:
-        sc=df["Order_Status"].value_counts()
-        fig2=go.Figure(go.Pie(labels=sc.index,values=sc.values,hole=.58,
-            marker=dict(colors=["#22C55E","#3B82F6","#EF4444","#F59E0B"],line=dict(color="#FFFFFF",width=3)),
-            textinfo="label+percent",textfont=dict(size=11,color="#333333")))
-        fig2.update_layout(**CD(),height=250,showlegend=False,
-            title=dict(text="Order Status Split",font=dict(size=11,color="#64748b")),
-            annotations=[dict(text="Orders",x=.5,y=.5,showarrow=False,font=dict(size=10,color="#64748b",family="DM Mono"))])
-        st.plotly_chart(fig2,use_container_width=True,key="ov_status")
-
-    sp()
-    col_c, col_d = st.columns(2, gap="large")
-    with col_c:
-        top_reg=ops.groupby("Region")["Net_Revenue"].sum().sort_values(ascending=False)
-        fig3=go.Figure(go.Bar(x=top_reg.index,y=top_reg.values/1e6,
-            marker=dict(color=[COLORS[i%len(COLORS)] for i in range(len(top_reg))],line=dict(color="rgba(0,0,0,0)")),
-            text=[f"₹{v/1e6:.1f}M" for v in top_reg.values],textposition="outside",textfont=dict(color="#334155")))
-        fig3.update_layout(**CD(),height=240,title=dict(text="Revenue by Region (₹M)",font=dict(size=11,color="#64748b")),
-            xaxis={**gX(),"tickangle":-25},yaxis={**gY(),"title":"₹M"})
-        st.plotly_chart(fig3,use_container_width=True,key="ov_region")
-    with col_d:
-        ch=ops.groupby("Sales_Channel")["Net_Revenue"].sum().sort_values(ascending=False)
-        fig4=go.Figure(go.Pie(labels=ch.index,values=ch.values,hole=.55,
-            marker=dict(colors=["#1565C0","#2E7D32","#E65100"],line=dict(color="#FFFFFF",width=3)),
-            textinfo="label+percent",textfont=dict(size=11)))
-        fig4.update_layout(**CD(),height=240,showlegend=False,
-            title=dict(text="Revenue by Sales Channel",font=dict(size=11,color="#64748b")),
-            annotations=[dict(text="Channel",x=.5,y=.5,showarrow=False,font=dict(size=10,color="#64748b",family="DM Mono"))])
-        st.plotly_chart(fig4,use_container_width=True,key="ov_channel")
-
+    
+    st.markdown(""" 
+    <div class='about-section'> 
+    <div style='font-size:18px;font-weight:900;margin-bottom:18px'>Analytics Workflow Pipeline</div> 
+    <div style='display:flex;flex-wrap:wrap;gap:12px'>
+    <div class='pipeline-box'>Demand Forecast
+    <span class='pipeline-sub'>ML models predict future orders and product demand</span>
+    </div> 
+    <div class='pipeline-box'>Inventory Optimization
+    <span class='pipeline-sub'>EOQ, Safety Stock and Reorder Point calculations</span>
+    </div> 
+    <div class='pipeline-box'>Production Planning
+    <span class='pipeline-sub'>Production quantity based on forecast and stock gap</span>
+    </div> 
+    <div class='pipeline-box'>Logistics Optimization
+    <span class='pipeline-sub'>Carrier performance scoring and route efficiency</span>
+    </div>
+    <div class='pipeline-box'>AI Decision Intelligence
+    <span class='pipeline-sub'>LLM powered insights for supply chain decisions</span>
+    </div>
+    </div>
+    </div> 
+    """, unsafe_allow_html=True)
+    
+    st.markdown(""" 
+    <div class='about-section'>
+    <div style='font-size:18px;font-weight:900;margin-bottom:18px'>Technology Stack</div>
+    <div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px'>   
+    <div class='card'>
+    <div style='font-weight:800;color:#1e3a8a'>Data Processing</div>
+    <div style='font-size:12.8px;color:#475569;margin-top:6px'>
+    Python, Pandas and NumPy are used for data cleaning,feature engineering and time series transformation.</div>
+    </div> 
+    <div class='card'>
+    <div style='font-weight:800;color:#1e3a8a'>Machine Learning</div>
+    <div style='font-size:12.8px;color:#475569;margin-top:6px'>
+    Demand forecasting uses an ensemble of Ridge Regression,Random Forest and Gradient Boosting models.</div>
+    </div> 
+    <div class='card'>
+    <div style='font-weight:800;color:#1e3a8a'>Optimization Models</div>
+    <div style='font-size:12.8px;color:#475569;margin-top:6px'>
+    Inventory optimisation uses EOQ, Safety Stock andReorder Point calculations to minimise stock risks.</div>
+    </div> 
+    <div class='card'>
+    <div style='font-weight:800;color:#1e3a8a'>Dashboard & Visualization</div>
+    <div style='font-size:12.8px;color:#475569;margin-top:6px'>
+    Interactive dashboards are built using Streamlit,with Plotly used for advanced data visualisation.</div>
+    </div> 
+    <div class='card'>
+    <div style='font-weight:800;color:#1e3a8a'>AI Decision Layer</div>
+    <div style='font-size:12.8px;color:#475569;margin-top:6px'>
+    A Large Language Model integrated through Groq APIgenerates supply chain insights and recommendations.</div>
+    </div>
+    </div>
+    </div> 
+    """, unsafe_allow_html=True)
 def page_demand():
     df=load_data(); ops=get_ops(df).copy()
     ops["YM"]=ops["Order_Date"].dt.to_period("M")
