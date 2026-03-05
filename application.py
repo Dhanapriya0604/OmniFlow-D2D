@@ -386,12 +386,12 @@ def compute_inventory(order_cost=500, hold_pct=0.20, lead_time=7, z=1.65):
         std_d=float(np.std(demands)) if len(demands)>1 else avg_d*0.25
         peak_d=float(np.max(demands))
 
-        if cat in cat_forecast and cat in cat_hist_avg and cat_hist_avg[cat]>0:
-            sku_share=avg_d/cat_hist_avg[cat]
-            fc_monthly=cat_forecast[cat]*sku_share
-            econ_d=avg_d*0.50+peak_d*0.30+fc_monthly*0.20
+        if cat in cat_forecast and cat in cat_hist_avg and cat_hist_avg[cat] > 0:
+            sku_share = avg_d / cat_hist_avg[cat]
+            fc_monthly = cat_forecast[cat] * sku_share
+            econ_d = fc_monthly
         else:
-            econ_d=avg_d*0.60+peak_d*0.40
+            econ_d = avg_d
 
         daily_d=avg_d/30.0
         ann_d=econ_d*12
@@ -463,8 +463,11 @@ def compute_production(cap_mult=1.0, buffer_pct=0.15):
             bf=boost_schedule.get(i,0.0)
             crit_boost=crit_gap*bf
             low_boost=low_gap*bf*0.5
-            net_prod=max(fc+crit_boost+low_boost,0)*cap_mult
-            prod=net_prod*(1+buffer_pct)
+            current_stock = cat_inv["Current_Stock"].sum()
+            safety_stock = cat_inv["SS"].sum()      
+            production_base = fc + safety_stock - current_stock    
+            net_prod = max(production_base, 0) * cap_mult
+            prod = net_prod * (1 + buffer_pct)
             rows.append({"Month_dt":dt,"Month":dt.strftime("%b %Y"),"Category":cat,
                 "Demand_Forecast":round(fc,0),
                 "Crit_Boost":round(crit_boost,0),
@@ -518,13 +521,7 @@ def compute_logistics(w_speed=0.40,w_cost=0.35,w_returns=0.25):
     opt["Saving_Pct"]=((opt["Current_Avg_Cost"]-opt["Min_Avg_Cost"])/opt["Current_Avg_Cost"]*100).round(1)
     avg_ship_unit=max(del_df["Shipping_Cost_INR"].sum()/del_df["Quantity"].replace(0,np.nan).sum(),1.0)
     avg_units_ord=max(del_df["Quantity"].mean(),1.0)
-    fwd_rows=[]
-    if not plan.empty:
-        for _,row in plan.iterrows():
-            fwd_rows.append({"Month_dt":row["Month_dt"],"Month":row["Month"],"Category":row["Category"],
-                "Prod_Units":int(row["Production"]),"Proj_Orders":int(round(row["Production"]/avg_units_ord)),
-                "Proj_Ship_Cost":int(round(row["Production"]*avg_ship_unit,0)),
-                "CI_Lo_Units":int(row["CI_Lo"]),"CI_Hi_Units":int(row["CI_Hi"])})
+
     return carr, best, opt, pd.DataFrame(fwd_rows)
 
 def build_context():
@@ -624,75 +621,39 @@ def page_overview():
     kpi(c6,"SKU Categories",f"{df['Category'].nunique()}","sky","product types")
     sp()
 
-    st.markdown("""<div class='about-section'>
-    <div style='font-size:16px;font-weight:800;color:#0f172a;margin-bottom:14px'>About This Platform</div>
-    <p style='color:#334155;line-height:1.9;font-size:13.5px;margin:0 0 14px'>
-    <b style='color:#0f172a'>OmniFlow</b> is a fully integrated, end-to-end supply chain intelligence platform
-    built on <b>5,010 D2D e-commerce orders</b> across India (Jan 2024 – Dec 2025), spanning
-    <b>Amazon.in, Flipkart / Shiprocket, and INCREFF B2B</b> channels.
-    </p>
-    <p style='color:#334155;line-height:1.9;font-size:13.5px;margin:0 0 14px'>
-    The platform is structured as a <b>closed-loop causal pipeline</b>:
-    demand signals feed inventory optimisation, which informs production scheduling, which drives logistics planning.
-    Every module shows both <b>historical actuals and a 6-month forward forecast</b>.
-    </p>
-    <div style='display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-top:16px'>
-      <div style='background:#f8faff;border:1px solid #c7d7fd;border-radius:10px;padding:14px'>
-        <div style='font-size:11px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px'>Dataset</div>
-        <div style='font-size:12.5px;color:#334155;line-height:1.8'>
-          • <b>5,010 orders</b> across Jan 2024 – Dec 2025<br>
-          • <b>4 categories</b>: Electronics & Mobiles, Fashion & Apparel, Home & Kitchen, Health & Personal Care<br>
-          • <b>9 regions</b> across India (Karnataka, Tamil Nadu, Delhi, Maharashtra…)<br>
-          • <b>5 courier partners</b>: BlueDart, Delhivery, DTDC, Ecom Express, XpressBees<br>
-          • <b>4 warehouses</b>: Bengaluru, Delhi, Hyderabad, Mumbai
-        </div>
-      </div>
-      <div style='background:#f8faff;border:1px solid #c7d7fd;border-radius:10px;padding:14px'>
-        <div style='font-size:11px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px'>Forecast Engine</div>
-        <div style='font-size:12.5px;color:#334155;line-height:1.8'>
-          • <span class='model-pill pill-ridge'>Ridge Regression</span> trend + Fourier seasonality<br>
-          • <span class='model-pill pill-rf'>Random Forest</span> non-linear demand patterns<br>
-          • <span class='model-pill pill-gb'>Gradient Boosting</span> boosted residual correction<br>
-          • <span class='model-pill pill-ensemble'>Ensemble</span> inverse-RMSE weighted blend<br>
-          • Walk-forward CV (3 folds) · Asymmetric log-normal 90% CI
-        </div>
-      </div>
-      <div style='background:#f8faff;border:1px solid #c7d7fd;border-radius:10px;padding:14px'>
-        <div style='font-size:11px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px'>Inventory Module</div>
-        <div style='font-size:12.5px;color:#334155;line-height:1.8'>
-          • Wilson <b>EOQ</b> with peak-blended demand (60% avg + 40% peak)<br>
-          • Full Safety Stock: <b>z·√(LT·σ_d² + D²·σ_LT²)</b><br>
-          • Reorder Point = Daily Demand × Lead Time + SS<br>
-          • <b>ABC classification</b> (Pareto: A=70%, B=90%, C=100%)<br>
-          • Stockout cost estimation for critical SKUs
-        </div>
-      </div>
-      <div style='background:#f8faff;border:1px solid #c7d7fd;border-radius:10px;padding:14px'>
-        <div style='font-size:11px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px'>Logistics Module</div>
-        <div style='font-size:12.5px;color:#334155;line-height:1.8'>
-          • Carrier scoring: <b>Speed 40% + Cost 35% + Returns 25%</b> (configurable)<br>
-          • Region × carrier delay heatmap<br>
-          • Cost saving analysis with optimal carrier recommendations<br>
-          • Production-driven forward shipment plan (6 months)<br>
-          • Warehouse inbound volume forecast
-        </div>
-      </div>
+    st.markdown("""
+    <div class='about-section'>
+    
+    <div style='font-size:18px;font-weight:800;margin-bottom:14px'>
+    Overview 
     </div>
-    </div>""", unsafe_allow_html=True)
+    
+    <p style='font-size:13.5px;line-height:1.8'>
+    <b>OmniFlow D2D</b> is an AI-driven supply chain intelligence system designed
+    to transform historical e-commerce order data into operational decisions.
+    </p>
+    
+    <p style='font-size:13.5px;line-height:1.8'>
+    The platform predicts future demand, optimises inventory levels,
+    plans production capacity, and recommends logistics strategies
+    through a structured analytics pipeline.
+    </p>
+    
+    <div style='margin-top:12px;font-size:12.5px'>
+    
+    <b>Core Modules</b><br><br>
+    
+    • Demand Forecasting using Ensemble Machine Learning<br>
+    • Inventory Optimization using EOQ, Safety Stock and Reorder Point<br>
+    • Production Planning based on forecast demand<br>
+    • Logistics Optimization using carrier performance scoring<br>
+    • AI Decision Intelligence for operational insights
+    
+    </div>
+    
+    </div>
+    """, unsafe_allow_html=True)
 
-    sec("Closed-Loop Module Pipeline")
-    st.markdown("""<div style='background:white;border:1px solid #e5e7eb;border-radius:14px;
-    padding:22px;display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:0;margin-bottom:8px'>
-      <div class='pipeline-box'>Demand Forecast<span class='pipeline-sub'>Ridge + RF + GB<br>3-Model Ensemble</span></div>
-      <div style='color:#8B5CF6;font-size:22px;padding:0 10px;font-weight:300'>→</div>
-      <div class='pipeline-box' style='border-color:#34d399'>Inventory<span class='pipeline-sub'>EOQ + SS + ROP<br>ABC Pareto</span></div>
-      <div style='color:#8B5CF6;font-size:22px;padding:0 10px;font-weight:300'>→</div>
-      <div class='pipeline-box' style='border-color:#fbbf24'>Production Plan<span class='pipeline-sub'>6-Month Targets<br>Replenishment Boost</span></div>
-      <div style='color:#8B5CF6;font-size:22px;padding:0 10px;font-weight:300'>→</div>
-      <div class='pipeline-box' style='border-color:#f87171'>Logistics Opt.<span class='pipeline-sub'>Carrier Scoring<br>Cost Saving</span></div>
-      <div style='color:#8B5CF6;font-size:22px;padding:0 10px;font-weight:300'>→</div>
-      <div class='pipeline-box' style='border-color:#a78bfa'>AI Chatbot<span class='pipeline-sub'>Groq LLaMA 3.3<br>Full Context</span></div>
-    </div>""", unsafe_allow_html=True)
     sp()
 
     sec("Key Business Metrics")
