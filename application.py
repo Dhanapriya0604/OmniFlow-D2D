@@ -1374,17 +1374,7 @@ LIVE CONTEXT:\n{ctx}"""
             for _,r in opt.sort_values("Potential_Saving",ascending=False).head(5).iterrows():
                 if r["Potential_Saving"]>0:
                     st.markdown(f"<div class='alert-item alert-warn'><b style='color:#0f172a'>{r['Region']}</b> → <b style='color:#0f172a'>{r['Optimal_Carrier']}</b><br><span style='color:#64748b;font-size:11px'>Save ₹{r['Potential_Saving']:,.0f} ({r['Saving_Pct']:.1f}%)</span></div>",unsafe_allow_html=True)
-        sp()
-        sec("Revenue Forecast — Next 3 Months (Ensemble)")
-        m_rev=ops.groupby("YM")["Net_Revenue"].sum().rename("v")
-        r_rev=ml_forecast(m_rev.values.astype(float),m_rev.index,3)
-        if r_rev is not None:
-            last=float(m_rev.iloc[-1]); rc=st.columns(3)
-            for i,(dt,fc,lo,hi) in enumerate(zip(r_rev["fut_ds"],r_rev["forecast"],r_rev["ci_lo"],r_rev["ci_hi"])):
-                chg=(fc-last)/last*100 if last>0 else 0
-                kpi(rc[i],f"{'📈' if chg>=0 else '📉'} {dt.strftime('%b %Y')}",f"₹{fc/1e6:.1f}M","mint" if chg>=0 else "coral",f"{chg:+.1f}% | CI ₹{lo/1e6:.1f}M–₹{hi/1e6:.1f}M")
-                last=fc
-
+       
 st.sidebar.markdown("""<div style='padding:16px 0 22px'>
   <div style='font-size:28px;font-weight:900;letter-spacing:-.03em;text-transform:uppercase;
        background:linear-gradient(135deg,#f5a623,#ff6b6b,#2ed8c3);
