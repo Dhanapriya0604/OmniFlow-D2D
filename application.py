@@ -734,7 +734,7 @@ def page_demand():
     df=load_data(); ops=get_ops(df).copy()
     ops["YM"]=ops["Order_Date"].dt.to_period("M")
 
-    st.markdown("<div class='page-title';text-transform:uppercase>Demand Forecasting</div>", unsafe_allow_html=True)
+    st.markdown("<div class='page-title'>Demand Forecasting</div>", unsafe_allow_html=True)
 
     sec("Ensemble Model Quality")
     m_orders=ops.groupby("YM")["Order_ID"].count().rename("v")
