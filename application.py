@@ -534,15 +534,21 @@ def call_llm(messages, system, api_key):
     except Exception as e: return f"⚠️ Error: {e}"
 
 def page_overview():
+    st.markdown("""
+    <div style='background:linear-gradient(135deg,#0f172a,#1e3a8a,#2563eb);border-radius:18px; padding:30px 32px;margin-bottom:24px;'>
+      <div style='font-size:38px;font-weight:900;color:white;letter-spacing:-.02em;text-transform:uppercase;line-height:1.1'>OmniFlow D2D</div>
+      <div style='font-size:11px;font-family:DM Mono,monospace;color:#93c5fd;letter-spacing:.14em;
+      text-transform:uppercase;margin-bottom:6px'>Predictive Logistics & AI Powered Demand-to-Delivery Intelligence</div>
+    </div>""", unsafe_allow_html=True)
     st.markdown(""" 
     <div class='about-section'> 
-    <div style='font-size:20px;font-weight:900;margin-bottom:18px;color:#0f172a'>OmniFlow D2D Intelligence Platform</div>
     <div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px'> 
     <div class='card'>
     <div style='font-size:13px;font-weight:800;color:#1e3a8a;margin-bottom:6px'>Platform Purpose</div>
     <div style='font-size:12.8px;line-height:1.7;color:#475569'>
-    OmniFlow D2D is an end to end AI-powered supply chain analytics system that transforms historical e-commerce order data into operational decisions across demand, inventory, production and logistics.
-    </div>
+    OmniFlow D2D is an end-to-end AI-powered supply chain intelligence platform that transforms historical data into actionable operational decisions. 
+    The system forecasts future demand and integrates insights across demand planning, inventory optimisation, production scheduling, 
+    and logistics operations within a unified analytics platform.</div>
     </div>  
     <div class='card'>
     <div style='font-size:13px;font-weight:800;color:#1e3a8a;margin-bottom:6px'>Business Problem</div>
@@ -685,7 +691,7 @@ def page_demand():
 def page_inventory():
     df=load_data(); ops=get_ops(df).copy()
     ops["YM"]=ops["Order_Date"].dt.to_period("M")
-    st.markdown("<div class='page-title'>Inventory Optimisation</div>", unsafe_allow_html=True)
+    st.markdown("<div class='page-title'>Inventory Optimization</div>", unsafe_allow_html=True)
 
     with st.expander("Parameters", expanded=False):
         p1,p2,p3,p4=st.columns(4)
@@ -738,8 +744,7 @@ def page_inventory():
                 x=[0, ax_max], y=[0, ax_max],
                 mode="lines", line=dict(color="rgba(100,116,139,0.25)", width=1.5, dash="dash"),
                 name="Stock = ROP", hoverinfo="skip"))
-            fig_sc.add_vrect(x0=0, x1=sv["ROP"].mean(),
-                fillcolor="rgba(239,68,68,0.04)", layer="below", line_width=0)
+            fig_sc.add_vrect(x0=0, x1=sv["ROP"].mean(),fillcolor="rgba(239,68,68,0.04)", layer="below", line_width=0)
             for status, clr in STATUS_CLR.items():
                 grp = sv[sv["Status"]==status]
                 if grp.empty: continue
@@ -789,9 +794,8 @@ def page_inventory():
         col_l, col_r = st.columns(2, gap="large")
 
         with col_l:
-            sec("EOQ vs Annual Demand — by Category")
-            banner("<b>Scatter:</b> X = avg EOQ · Y = annual demand · bubble = SKU count · "
-                   "ideal when EOQ covers 1–3 months of demand.", "sky")
+            sec("EOQ vs Annual Demand by Category")
+            
             fig_es = go.Figure()
             cat_colors = {c: COLORS[i%len(COLORS)] for i,c in enumerate(eoq_tbl["Category"])}
             for _,r in eoq_tbl.iterrows():
@@ -817,7 +821,7 @@ def page_inventory():
                 line=dict(color="#22c55e", width=1, dash="dot"),
                 name="3-mo cover", hoverinfo="skip"))
             fig_es.update_layout(**CD(), height=320,
-                xaxis={**gX(),"title":"Avg EOQ (units/order)"},yaxis={**gY(),"title":"Annual Demand (units/yr)"},showlegend=False)
+                xaxis={**gX(),"title":"Avg EOQ (units/order)"},yaxis={**gY(),"title":"Annual Demand units per year)"},showlegend=False)
             st.plotly_chart(fig_es, use_container_width=True, key="eoq_scatter")
 
         with col_r:
@@ -876,7 +880,7 @@ def page_inventory():
                     xaxis=gX(), yaxis={**gY(),"title":"₹ Stockout Risk"})
                 st.plotly_chart(fig_so, use_container_width=True, key="stockout_chart")
         sp()
-        sec("EOQ / Safety Stock / ROP by Category")
+        sec("Inventory Policy Metrics by Category")
         ci2 = inv.groupby("Category")[["EOQ","SS","ROP"]].mean().reset_index()
         fig2 = go.Figure()
         for i,(m2,lbl) in enumerate([("EOQ","EOQ"),("SS","Safety Stock"),("ROP","Reorder Point")]):
@@ -1384,9 +1388,9 @@ st.sidebar.markdown("""<div style='padding:16px 0 22px'>
 PAGES={
     "Overview":               page_overview,
     "Demand Forecasting":     page_demand,
-    "Inventory Optimisation": page_inventory,
+    "Inventory Optimization": page_inventory,
     "Production Planning":    page_production,
-    "Logistics Optimisation": page_logistics,
+    "Logistics Optimization": page_logistics,
     "Decision Chatbot":       page_chatbot,
 }
 sel=st.sidebar.radio("",list(PAGES.keys()))
