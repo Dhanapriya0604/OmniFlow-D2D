@@ -655,27 +655,27 @@ def page_overview():
     <div class='card'>
     <div style='font-weight:800;color:#1e3a8a'>Data Processing</div>
     <div style='font-size:12.8px;color:#475569;margin-top:6px'>
-    Python, Pandas and NumPy are used for data cleaning,feature engineering and time series transformation.</div>
+    Python, Pandas and NumPy are used for data cleaning, feature engineering and time series transformation.</div>
     </div> 
     <div class='card'>
     <div style='font-weight:800;color:#1e3a8a'>Machine Learning</div>
     <div style='font-size:12.8px;color:#475569;margin-top:6px'>
-    Demand forecasting uses an ensemble of Ridge Regression,Random Forest and Gradient Boosting models.</div>
+    Demand forecasting uses an ensemble of Ridge Regression, Random Forest and Gradient Boosting models.</div>
     </div> 
     <div class='card'>
     <div style='font-weight:800;color:#1e3a8a'>Optimization Models</div>
     <div style='font-size:12.8px;color:#475569;margin-top:6px'>
-    Inventory optimisation uses EOQ, Safety Stock andReorder Point calculations to minimise stock risks.</div>
+    Inventory optimisation uses EOQ, Safety Stock and Reorder Point calculations to minimise stock risks.</div>
     </div> 
     <div class='card'>
     <div style='font-weight:800;color:#1e3a8a'>Dashboard & Visualization</div>
     <div style='font-size:12.8px;color:#475569;margin-top:6px'>
-    Interactive dashboards are built using Streamlit,with Plotly used for advanced data visualisation.</div>
+    Interactive dashboards are built using Streamlit, with Plotly used for advanced data visualisation.</div>
     </div> 
     <div class='card'>
     <div style='font-weight:800;color:#1e3a8a'>AI Decision Layer</div>
     <div style='font-size:12.8px;color:#475569;margin-top:6px'>
-    A Large Language Model integrated through Groq APIgenerates supply chain insights and recommendations.</div>
+    A Large Language Model integrated through API generates supply chain insights and recommendations.</div>
     </div>
     </div>
     </div> 
