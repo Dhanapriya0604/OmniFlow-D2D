@@ -1,9 +1,5 @@
 import streamlit as st
-st.set_page_config(
-    page_title="OmniFlow D2D Intelligence", page_icon="⬡",
-    layout="wide", initial_sidebar_state="expanded"
-)
-
+st.set_page_config(page_title="OmniFlow D2D Intelligence",page_icon="⬡",layout="wide",initial_sidebar_state="expanded")
 def inject_css():
     st.markdown("""
     <style>
@@ -59,7 +55,6 @@ def inject_css():
     </style>
     """, unsafe_allow_html=True)
 inject_css()
-
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
@@ -68,36 +63,27 @@ from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_squared_error, mean_absolute_error
 import os, requests as _requests
-
 DATA_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "india_ecommerce_orders.csv")
 COLORS    = ["#1565C0","#2E7D32","#E65100","#C62828","#6A1B9A","#00695C"]
 MODEL_COLORS = {"Ridge":"#3B82F6","RandomForest":"#22C55E","GradBoost":"#F59E0B","Ensemble":"#8B5CF6"}
-
 def CD():
-    return dict(paper_bgcolor="rgba(0,0,0,0)",plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(color="#334155",family="Inter,sans-serif",size=11),
-        margin=dict(l=30,r=50,t=42,b=30))
+    return dict(paper_bgcolor="rgba(0,0,0,0)",plot_bgcolor="rgba(0,0,0,0)",font=dict(color="#334155",family="Inter,sans-serif",size=11),margin=dict(l=30,r=50,t=42,b=30))
 def gY(): return dict(showgrid=True,gridcolor="rgba(0,0,0,0.06)",zeroline=False,tickcolor="#64748b")
 def gX(): return dict(showgrid=False,zeroline=False,tickcolor="#64748b")
 def leg(): return dict(bgcolor="rgba(255,255,255,0.95)",bordercolor="#E0E0E0",borderwidth=1,font=dict(color="#334155",size=10))
-
 def kpi(col, label, value, cls="sky", sub=""):
     col.markdown(f"""<div class='metric-card'>
       <div class='metric-label'>{label}</div>
       <div class='metric-value' style='{"color:#dc2626" if cls=="coral" else "color:#1e3a8a" if cls=="sky" else "color:#059669" if cls=="mint" else "color:#d97706" if cls=="amber" else "color:#7c3aed"}'>{value}</div>
       <div class='metric-sub'>{sub}</div>
     </div>""", unsafe_allow_html=True)
-
 def sec(label, emoji=""):
     st.markdown(f"""<div class='section-title'>{emoji} {label}</div>
     <div class='section-line'></div>""", unsafe_allow_html=True)
-
 def banner(html, cls="teal"):
     st.markdown(f"<div class='info-banner banner-{cls}'>{html}</div>", unsafe_allow_html=True)
-
 def sp(n=1):
     st.markdown(f"<div style='height:{n*12}px'></div>", unsafe_allow_html=True)
-
 @st.cache_data(show_spinner="Loading data…")
 def load_data():
     df = pd.read_csv(DATA_FILE, parse_dates=["Order_Date"])
@@ -107,15 +93,12 @@ def load_data():
     df["Net_Revenue"] = np.where(df["Return_Flag"]==1, 0.0, df["Revenue_INR"])
     df["Net_Qty"]     = np.where(df["Return_Flag"]==1, 0,   df["Quantity"])
     return df
-
 @st.cache_data
 def get_ops(df):       return df[df["Order_Status"].isin(["Delivered","Shipped"])].copy()
 @st.cache_data
 def get_delivered(df): return df[df["Order_Status"]=="Delivered"].copy()
-
 def _to_ts(idx):
     return idx.to_timestamp() if hasattr(idx,"to_timestamp") else pd.DatetimeIndex(idx)
-
 def _build_features(n_hist, n_future, ds_hist, regime_idx):
     n = n_hist + n_future
     t = np.arange(n)
@@ -135,14 +118,12 @@ def _build_features(n_hist, n_future, ds_hist, regime_idx):
         (q==1).astype(float),(q==2).astype(float),(q==3).astype(float),
         np.log1p(t),
     ])
-
 def _detect_regime(vals, min_idx=6):
     best_idx,best_ratio = min_idx,1.0
     for i in range(min_idx,len(vals)-min_idx):
         r = vals[i:].mean()/(vals[:i].mean()+1e-9)
         if r>best_ratio: best_ratio=r;best_idx=i
     return best_idx
-
 def ml_forecast(vals, ds_idx, n_future=6):
     n = len(vals)
     if n < 6: return None
@@ -211,7 +192,6 @@ def ml_forecast(vals, ds_idx, n_future=6):
         rmse=rmse_e,nrmse=nrmse_e,mae=mae_e,r2=r2_e,resid_std=resid_std,
         eval_actual=yte,eval_pred=ypred_eval,eval_ds=ts_idx[-h:],
         model_metrics=model_metrics,weights={m:weights[m] for m in models})
-
 def ensemble_chart(res, chart_key, height=300, title="", show_models=True):
     fig = go.Figure()
     fig.add_vrect(x0=res["fut_ds"][0], x1=res["fut_ds"][-1],
@@ -367,7 +347,6 @@ def compute_inventory(order_cost=500, hold_pct=0.20, lead_time=7, z=1.65):
         computed_rop=max(int(daily_d*lead_time+ss), 1)
         rop=max(int(sk["dataset_rop"]), computed_rop)
         current_stock=int(sk["actual_stock"])
-
         if current_stock<=ss:
             status="🔴 Critical"
         elif current_stock<rop:
@@ -376,7 +355,6 @@ def compute_inventory(order_cost=500, hold_pct=0.20, lead_time=7, z=1.65):
             status="🟢 Overstocked"
         else:
             status="🟢 Adequate"
-
         days_stock=round(current_stock/daily_d,1) if daily_d>0 else 999
         margin_rate=0.20
         units_below_ss=max(ss-current_stock, 0)
@@ -389,7 +367,6 @@ def compute_inventory(order_cost=500, hold_pct=0.20, lead_time=7, z=1.65):
 
         prod_need=max(rop+eoq-current_stock, 0)
         weeks_cover=round(current_stock/(daily_d*7),1) if daily_d>0 else 99
-
         rows.append({"SKU_ID":sku,"Product_Name":sk["Product_Name"],"Category":cat,
             "Monthly_Avg":round(avg_d,1),"Monthly_Std":round(std_d,1),
             "Forecast_Avg":round(econ_d,1),"Forecast_Next6":fc_next6,
@@ -710,11 +687,11 @@ def page_inventory():
     ops["YM"]=ops["Order_Date"].dt.to_period("M")
     st.markdown("<div class='page-title'>Inventory Optimisation</div>", unsafe_allow_html=True)
 
-    with st.expander("⚙️ Parameters", expanded=False):
+    with st.expander("Parameters", expanded=False):
         p1,p2,p3,p4=st.columns(4)
-        order_cost=p1.number_input("Order Cost ₹",100,5000,500,50)
+        order_cost=p1.number_input("Order Cost",100,5000,500,50)
         hold_pct=p2.slider("Holding Cost %",5,40,20)/100
-        lead_time=p3.slider("Lead Time (days)",1,30,7)
+        lead_time=p3.slider("Lead Time days",1,30,7)
         svc=p4.selectbox("Service Level",["90% (z=1.28)","95% (z=1.65)","99% (z=2.33)"])
         z={"90% (z=1.28)":1.28,"95% (z=1.65)":1.65,"99% (z=2.33)":2.33}[svc]
 
@@ -737,31 +714,25 @@ def page_inventory():
     sp()
 
     tab_alerts, tab_eoq, tab_abc, tab_sim, tab_table = st.tabs([
-        "🚨 Stock Position",
-        "📊 EOQ Analysis",
-        "🏷️ ABC Classification",
-        "🔄 Depletion Simulation",
-        "📋 Full SKU Table"
+        "Stock Position",
+        "EOQ Analysis",
+        "ABC Classification",
+        "Depletion Simulation",
+        "SKU Table"
     ])
 
     with tab_alerts:
         sc1, sc2, sc3 = st.columns([2,2,1])
-        cat_f  = sc1.multiselect("Category", sorted(inv["Category"].unique()),
-                    default=sorted(inv["Category"].unique()), key="al_cat")
-        stat_f = sc2.multiselect("Status",
-                    ["🔴 Critical","🟡 Low","🟢 Adequate","🟢 Overstocked"],
-                    default=["🔴 Critical","🟡 Low","🟢 Adequate","🟢 Overstocked"], key="al_stat")
+        cat_f  = sc1.multiselect("Category", sorted(inv["Category"].unique()),default=sorted(inv["Category"].unique()), key="al_cat")
+        stat_f = sc2.multiselect("Status",["🔴 Critical","🟡 Low","🟢 Adequate","🟢 Overstocked"],default=["🔴 Critical","🟡 Low","🟢 Adequate","🟢 Overstocked"], key="al_stat")
         abc_f  = sc3.multiselect("ABC", ["A","B","C"], default=["A","B","C"], key="al_abc")
-
         sv = inv[(inv["Category"].isin(cat_f))&(inv["Status"].isin(stat_f))&(inv["ABC"].isin(abc_f))].copy()
 
         if sv.empty:
             banner("✅ No SKUs match selected filters.","mint")
         else:
-            STATUS_CLR = {"🔴 Critical":"#ef4444","🟡 Low":"#f59e0b",
-                          "🟢 Adequate":"#22c55e","🟢 Overstocked":"#06b6d4"}
+            STATUS_CLR = {"🔴 Critical":"#ef4444","🟡 Low":"#f59e0b","🟢 Adequate":"#22c55e","🟢 Overstocked":"#06b6d4"}
             fig_sc = go.Figure()
-
             ax_max = max(sv["Current_Stock"].max(), sv["ROP"].max()) * 1.1
             fig_sc.add_trace(go.Scatter(
                 x=[0, ax_max], y=[0, ax_max],
@@ -769,7 +740,6 @@ def page_inventory():
                 name="Stock = ROP", hoverinfo="skip"))
             fig_sc.add_vrect(x0=0, x1=sv["ROP"].mean(),
                 fillcolor="rgba(239,68,68,0.04)", layer="below", line_width=0)
-
             for status, clr in STATUS_CLR.items():
                 grp = sv[sv["Status"]==status]
                 if grp.empty: continue
@@ -777,9 +747,7 @@ def page_inventory():
                 fig_sc.add_trace(go.Scatter(
                     x=grp["Current_Stock"], y=grp["ROP"],
                     mode="markers",
-                    marker=dict(size=bubble_sz, color=clr, opacity=0.82,
-                                line=dict(color="#FFFFFF", width=1.5),
-                                sizemode="area", sizeref=2.*60/(40.**2), sizemin=6),
+                    marker=dict(size=bubble_sz, color=clr, opacity=0.82,line=dict(color="#FFFFFF", width=1.5), sizemode="area", sizeref=2.*60/(40.**2), sizemin=6),
                     name=status,
                     customdata=grp[["Product_Name","SKU_ID","ABC","Category",
                                     "Prod_Need","Weeks_Cover","Stockout_Cost","EOQ","SS"]].values,
@@ -796,22 +764,16 @@ def page_inventory():
                 xaxis={**gX(), "title":"Current Stock (units)"},
                 yaxis={**gY(), "title":"Reorder Point (units)"},
                 legend={**leg(), "orientation":"h","y":-0.18},
-                title=dict(text="Stock Position — bubble size = units to order · left of dash line = below ROP",
-                           font=dict(size=11, color="#64748b")))
             st.plotly_chart(fig_sc, use_container_width=True, key="scatter_stock")
 
             action = sv[sv["Prod_Need"]>0].sort_values(["Status","Prod_Need"], ascending=[True,False])
             if not action.empty:
                 sp(0.5)
                 sec("Action Queue — SKUs needing replenishment")
-                tbl = action[["SKU_ID","Product_Name","Category","ABC","Status",
-                               "Current_Stock","ROP","SS","EOQ","Prod_Need",
-                               "Weeks_Cover","Stockout_Cost"]].copy()
+                tbl = action[["SKU_ID","Product_Name","Category","ABC","Status","Current_Stock","ROP","SS","EOQ","Prod_Need","Weeks_Cover","Stockout_Cost"]].copy()
                 tbl["Weeks_Cover"] = tbl["Weeks_Cover"].round(1)
                 tbl["Stockout_Cost"] = tbl["Stockout_Cost"].apply(lambda x: f"₹{int(x):,}" if x>0 else "—")
-                tbl.columns = ["SKU","Product","Cat","ABC","Status",
-                                "Stock","ROP","SS","EOQ","📦 Order",
-                                "Wks Cover","Stockout Risk"]
+                tbl.columns = ["SKU","Product","Cat","ABC","Status","Stock","ROP","SS","EOQ","📦 Order","Wks Cover","Stockout Risk"]
                 for c in ["Stock","ROP","SS","EOQ","📦 Order"]: tbl[c]=tbl[c].astype(int)
                 st.dataframe(tbl, use_container_width=True, hide_index=True, height=300)
 
@@ -840,8 +802,7 @@ def page_inventory():
                     mode="markers+text",
                     text=[r["Category"][:10]], textposition="top center",
                     textfont=dict(size=9, color="#334155"),
-                    marker=dict(size=max(r["SKU_Count"]*5, 18), color=cat_colors[r["Category"]],
-                                opacity=0.85, line=dict(color="#fff", width=2)),
+                    marker=dict(size=max(r["SKU_Count"]*5, 18), color=cat_colors[r["Category"]],opacity=0.85, line=dict(color="#fff", width=2)),
                     name=r["Category"],
                     hovertemplate=(f"<b>{r['Category']}</b><br>"
                         f"Avg EOQ: {int(r['Avg_EOQ'])}<br>"
@@ -856,11 +817,7 @@ def page_inventory():
                 line=dict(color="#22c55e", width=1, dash="dot"),
                 name="3-mo cover", hoverinfo="skip"))
             fig_es.update_layout(**CD(), height=320,
-                xaxis={**gX(),"title":"Avg EOQ (units/order)"},
-                yaxis={**gY(),"title":"Annual Demand (units/yr)"},
-                showlegend=False,
-                title=dict(text="Red dotted = 1-mo cover  ·  Green dotted = 3-mo cover",
-                           font=dict(size=10,color="#64748b")))
+                xaxis={**gX(),"title":"Avg EOQ (units/order)"},yaxis={**gY(),"title":"Annual Demand (units/yr)"},showlegend=False)
             st.plotly_chart(fig_es, use_container_width=True, key="eoq_scatter")
 
         with col_r:
@@ -883,8 +840,7 @@ def page_inventory():
             st.plotly_chart(fig_eoq, use_container_width=True, key="eoq_cost")
 
         sp(0.5)
-        edisp = eoq_tbl[["Category","Avg_EOQ","Avg_Ann_Demand","Months_Cover",
-                          "Ann_Order_Cost","Ann_Holding_Cost","Total_Cost"]].copy()
+        edisp = eoq_tbl[["Category","Avg_EOQ","Avg_Ann_Demand","Months_Cover","Ann_Order_Cost","Ann_Holding_Cost","Total_Cost"]].copy()
         edisp["Avg_EOQ"]          = edisp["Avg_EOQ"].round(0).astype(int)
         edisp["Avg_Ann_Demand"]   = edisp["Avg_Ann_Demand"].round(0).astype(int)
         edisp["Ann_Order_Cost"]   = edisp["Ann_Order_Cost"].apply(lambda x: f"₹{int(x):,}")
@@ -1081,10 +1037,9 @@ def page_production():
     d3.columns=["Month","Category","Demand Fc","Crit Boost","Low Boost","Buffer","Production","Demand Lo","Demand Hi"]
     st.dataframe(d3.sort_values("Month"),use_container_width=True,hide_index=True)
 
-# ─── PAGE: LOGISTICS ──────────────────────────────────────────────
 def page_logistics():
     df=load_data(); ops=get_ops(df).copy(); ops["YM"]=ops["Order_Date"].dt.to_period("M"); del_df=get_delivered(df)
-    st.markdown("<div class='page-title'>Logistics Optimisation</div>", unsafe_allow_html=True)
+    st.markdown("<div class='page-title'>Logistics Optimization</div>", unsafe_allow_html=True)
     with st.expander("Carrier Scoring Weights", expanded=False):
         wc1,wc2,wc3=st.columns(3)
         w_speed=wc1.slider("Speed weight %",10,70,40)/100
@@ -1092,7 +1047,7 @@ def page_logistics():
         w_returns=wc3.slider("Returns weight %",10,70,25)/100
         tot=w_speed+w_cost+w_returns; w_speed/=tot; w_cost/=tot; w_returns/=tot
     carr,best_carr,opt,fwd_plan=compute_logistics(w_speed,w_cost,w_returns); plan=compute_production()
-    t1,t2,t3,t4,t5=st.tabs(["Carrier Scorecard","Cost Optimisation","Delay Analysis","Forward Plan","Regions"])
+    t1,t2,t3,t4,t5=st.tabs(["Carrier Scorecard","Cost Optimization","Delay Analysis","Forward Plan","Regions"])
     with t1:
         sec("Carrier Performance Scorecard")
         fig=go.Figure()
@@ -1142,7 +1097,7 @@ def page_logistics():
             best_cat.columns=["Category","Recommended Carrier","Avg Days","Avg Cost ₹","Return Rate %","Score","Planned Units"]
             st.dataframe(best_cat.sort_values("Score",ascending=False),use_container_width=True,hide_index=True)
     with t2:
-        sec("Logistics Cost Optimisation")
+        sec("Logistics Cost Optimization")
         total_curr=del_df["Shipping_Cost_INR"].sum(); total_sav=opt["Potential_Saving"].sum()
         c1,c2,c3,c4=st.columns(4)
         kpi(c1,"Current Spend",f"₹{total_curr:,.0f}","sky","all deliveries")
@@ -1169,7 +1124,7 @@ def page_logistics():
         if res:
             fig=ensemble_chart(res,chart_key="log_ord_fc",height=290)
             st.plotly_chart(fig,use_container_width=True,key="log_ord_fc")
-        sec("Optimisation Recommendation Table")
+        sec("Optimization Recommendation Table")
         od=opt.copy(); od["Current_Avg_Cost"]=od["Current_Avg_Cost"].round(1); od["Min_Avg_Cost"]=od["Min_Avg_Cost"].round(1)
         od["Potential_Saving"]=od["Potential_Saving"].astype(int)
         od=od[["Region","Optimal_Carrier","Current_Avg_Cost","Min_Avg_Cost","Potential_Saving","Saving_Pct","Orders"]]
@@ -1177,7 +1132,7 @@ def page_logistics():
         st.dataframe(od.sort_values("Saving ₹",ascending=False),use_container_width=True,hide_index=True)
     with t3:
         sec("Delay Hotspot Analysis")
-        thr=st.slider("Delay Threshold (days)",3,10,7,key="log_thr")
+        thr=st.slider("Delay Threshold days",3,10,7,key="log_thr")
         del_df2=del_df.copy(); del_df2["Delayed"]=del_df2["Delivery_Days"]>thr
         cl3,cr3=st.columns(2,gap="large")
         with cl3:
@@ -1198,7 +1153,7 @@ def page_logistics():
                 text=[f"{v}%" for v in cd["Rate"]],textposition="outside",textfont=dict(color="#334155")))
             fig_cd.update_layout(**CD(),height=290,xaxis=gX(),yaxis={**gY(),"title":"Delay %"})
             st.plotly_chart(fig_cd,use_container_width=True,key="log_delay_carrier")
-        sec("Carrier × Region Delay Heatmap")
+        sec("Carrier with Region Delay Heatmap")
         pv=del_df2.groupby(["Courier_Partner","Region"])["Delayed"].mean().unstack(fill_value=0)*100
         fig_h=go.Figure(go.Heatmap(z=pv.values,x=list(pv.columns),y=list(pv.index),
             colorscale=[[0,"#0d1829"],[0.4,"#7c4fd0"],[0.7,"#e87adb"],[1,"#EF4444"]],
@@ -1314,7 +1269,6 @@ def page_logistics():
         fig_rf.update_layout(**CD(),height=260,xaxis=gX(),yaxis=gY(),legend=leg())
         st.plotly_chart(fig_rf,use_container_width=True,key="log_reg_fc")
 
-# ─── PAGE: CHATBOT ────────────────────────────────────────────────
 def page_chatbot():
     df=load_data(); ops=get_ops(df).copy(); ops["YM"]=ops["Order_Date"].dt.to_period("M")
     st.markdown("<div class='page-title'>Decision Intelligence Chatbot</div>", unsafe_allow_html=True)
@@ -1327,16 +1281,26 @@ def page_chatbot():
                 st.markdown("<div style='font-size:10px;color:#56e0a0;font-family:DM Mono;margin-top:3px'>✅ Key looks valid</div>",unsafe_allow_html=True)
             else:
                 st.markdown("<div style='font-size:10px;color:#ff6b6b;font-family:DM Mono;margin-top:3px'>⚠️ Should start with gsk_</div>",unsafe_allow_html=True)
+    sp()
+        sec("Revenue Forecast")
+        m_rev=ops.groupby("YM")["Net_Revenue"].sum().rename("v")
+        r_rev=ml_forecast(m_rev.values.astype(float),m_rev.index,6)
+        if r_rev is not None:
+            last=float(m_rev.iloc[-1]); rc=st.columns(6)
+            for i,(dt,fc,lo,hi) in enumerate(zip(r_rev["fut_ds"],r_rev["forecast"],r_rev["ci_lo"],r_rev["ci_hi"])):
+                chg=(fc-last)/last*100 if last>0 else 0
+                kpi(rc[i],f"{'📈' if chg>=0 else '📉'} {dt.strftime('%b %Y')}",f"₹{fc/1e6:.1f}M","mint" if chg>=0 else "coral",f"{chg:+.1f}% | CI ₹{lo/1e6:.1f}M–₹{hi/1e6:.1f}M")
+                last=fc
     ctx=build_context()
     system=f"""You are OmniFlow, an expert AI supply chain analyst for an India D2D e-commerce business.
 EXPERTISE: Demand forecasting (Ridge+RF+GradBoost ensemble), Inventory (Wilson EOQ, full safety stock, ROP, ABC), Production planning, Logistics (weighted composite score), Indian e-commerce.
 RESPONSE RULES: 1. Lead with one precise data-backed insight 2. Use bullet points (▸) with exact numbers 3. 4-8 bullets per answer 4. No generic closings 5. If not in context, say so clearly
 LIVE CONTEXT:\n{ctx}"""
-    with st.expander("📋 Live Context fed to AI", expanded=False):
+    with st.expander("Live Context fed to AI", expanded=False):
         st.code(ctx,language="text")
     key_ok=bool(api_key and len(api_key.strip())>10)
     if not key_ok:
-        banner("⚠️ <b>API Key Required</b> — Enter your Groq key in the sidebar. Get a free key at <a href='https://console.groq.com' target='_blank'>console.groq.com</a>","amber")
+        banner("⚠️ <b>API Key Required</b> — Enter your key in the sidebar,"amber")
     if "chat_msgs" not in st.session_state:
         st.session_state.chat_msgs=[]
     SUGGESTIONS=["Which product will have the highest demand next month?","Which SKUs are at critical inventory risk right now?",
@@ -1421,7 +1385,6 @@ LIVE CONTEXT:\n{ctx}"""
                 kpi(rc[i],f"{'📈' if chg>=0 else '📉'} {dt.strftime('%b %Y')}",f"₹{fc/1e6:.1f}M","mint" if chg>=0 else "coral",f"{chg:+.1f}% | CI ₹{lo/1e6:.1f}M–₹{hi/1e6:.1f}M")
                 last=fc
 
-# ─── SIDEBAR + ROUTING ────────────────────────────────────────────
 st.sidebar.markdown("""<div style='padding:16px 0 22px'>
   <div style='font-size:28px;font-weight:900;letter-spacing:-.03em;text-transform:uppercase;
        background:linear-gradient(135deg,#f5a623,#ff6b6b,#2ed8c3);
