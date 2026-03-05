@@ -359,44 +359,120 @@ def render_model_quality(res):
 
 @st.cache_data
 def compute_inventory(order_cost=500, hold_pct=0.20, lead_time=7, z=1.65):
+    """
+    Inventory optimisation that:
+    1. Uses ACTUAL Current_Stock_Units from dataset (real stock snapshot per SKU)
+    2. Uses dataset Reorder_Point as the ROP baseline (already set by the business)
+    3. Computes EOQ from ML demand forecast (category-level forward demand scaled to SKU)
+    4. Computes Safety Stock from demand variability and lead time variability
+    5. Status = Actual Stock vs ROP and SS thresholds
+    """
     df=load_data(); ops=get_ops(df).copy()
     ops["YM"]=ops["Order_Date"].dt.to_period("M")
-    sku_monthly=(ops.groupby(["SKU_ID","YM"])["Net_Qty"].sum().reset_index().sort_values(["SKU_ID","YM"]))
-    sku_stats=(ops.groupby(["SKU_ID","Product_Name","Category"]).agg(
-        avg_price=("Sell_Price","mean"),total_qty=("Net_Qty","sum")).reset_index())
     del_ops=df[df["Order_Status"]=="Delivered"].copy()
+
+    # Lead time variability by category from actual delivery data
     lt_std_map=del_ops.groupby("Category")["Delivery_Days"].std().fillna(1.0).to_dict()
+
+    # Monthly demand per SKU from ops history
+    sku_monthly=(ops.groupby(["SKU_ID","YM"])["Net_Qty"].sum().reset_index().sort_values(["SKU_ID","YM"]))
+
+    # Actual stock snapshot: latest values per SKU
+    df_sorted=df.sort_values("Order_Date")
+    sku_snapshot=df_sorted.groupby("SKU_ID").agg(
+        actual_stock=("Current_Stock_Units","last"),
+        dataset_rop=("Reorder_Point","last"),        # business-set ROP from dataset
+        dataset_status=("Stock_Status","last"),
+        Product_Name=("Product_Name","first"),
+        Category=("Category","first"),
+        avg_price=("Sell_Price","mean"),
+        total_qty=("Net_Qty","sum")
+    ).reset_index()
+
+    # Category-level demand forecast (6 months forward) for forward-looking EOQ
+    cat_monthly=ops.groupby(["YM","Category"])["Net_Qty"].sum().unstack(fill_value=0)
+    cat_forecast={}
+    cat_hist_avg={}
+    for cat in cat_monthly.columns:
+        cat_hist_avg[cat]=float(cat_monthly[cat].mean())
+        res=ml_forecast(cat_monthly[cat].values.astype(float),cat_monthly.index,6)
+        if res is not None:
+            cat_forecast[cat]=float(np.mean(res["forecast"]))  # avg forecast monthly demand
+
     rows=[]
-    for _,sk in sku_stats.iterrows():
-        sku=sk["SKU_ID"]
+    for _,sk in sku_snapshot.iterrows():
+        sku=sk["SKU_ID"]; cat=sk["Category"]
         skd=sku_monthly[sku_monthly["SKU_ID"]==sku].sort_values("YM")
         demands=skd["Net_Qty"].values
-        if len(demands)<2: continue
-        avg_d=demands.mean(); std_d=demands.std() if len(demands)>1 else avg_d*0.2
-        peak_d=demands.max(); econ_d=avg_d*0.6+peak_d*0.4
-        daily_d=avg_d/30.0; ann_d=econ_d*12; uc=max(sk["avg_price"],1.0)
+        if len(demands)<1: continue
+
+        # Historical demand stats
+        avg_d=float(np.mean(demands))
+        std_d=float(np.std(demands)) if len(demands)>1 else avg_d*0.25
+        peak_d=float(np.max(demands))
+
+        # Forward-looking demand: blend historical avg with forecast-scaled estimate
+        if cat in cat_forecast and cat in cat_hist_avg and cat_hist_avg[cat]>0:
+            sku_share=avg_d/cat_hist_avg[cat]
+            fc_monthly=cat_forecast[cat]*sku_share
+            # Conservative blend: 50% historical, 30% peak, 20% forecast
+            econ_d=avg_d*0.50+peak_d*0.30+fc_monthly*0.20
+        else:
+            econ_d=avg_d*0.60+peak_d*0.40
+
+        daily_d=avg_d/30.0
+        ann_d=econ_d*12
+        uc=max(float(sk["avg_price"]),1.0)
+
+        # EOQ (Wilson formula with blended annual demand)
         eoq=max(int(np.sqrt(2*ann_d*order_cost/(uc*hold_pct))) if ann_d>0 else 10, 1)
-        daily_std=std_d/np.sqrt(30); lt_std=lt_std_map.get(sk["Category"],1.0)
-        ss=max(int(z*np.sqrt(lead_time*daily_std**2+daily_d**2*lt_std**2)),0)
-        rop=max(int(daily_d*lead_time+ss),1)
-        stock=rop+eoq; pending=0
-        for demand in demands:
-            stock=max(stock-demand+pending,0); pending=0
-            if stock<rop:
-                n_ord=max(1,int(np.ceil((rop+ss-stock)/eoq)))
-                pending=n_ord*eoq
-        current_stock=max(stock,0)
-        if current_stock<ss: status="🔴 Critical"
-        elif current_stock<rop: status="🟡 Low"
-        else: status="🟢 Adequate"
-        margin_rate=0.20; daily_margin=daily_d*uc*margin_rate
-        days_exposed=max(lead_time-(current_stock/daily_d if daily_d>0 else 0),0)
-        stockout_cost=round(daily_margin*days_exposed,0) if status=="🔴 Critical" else 0
-        rows.append({"SKU_ID":sku,"Product_Name":sk["Product_Name"],"Category":sk["Category"],
-            "Monthly_Avg":round(avg_d,1),"Monthly_Std":round(std_d,1),
-            "EOQ":eoq,"SS":ss,"ROP":rop,"Current_Stock":current_stock,"Status":status,
-            "Unit_Price":round(uc,0),"Annual_Demand":round(ann_d,0),
-            "Stockout_Cost_Day":stockout_cost,"Total_Revenue":round(sk["total_qty"]*uc,0)})
+
+        # Safety Stock: z * sqrt(LT*sigma_d^2 + D^2*sigma_LT^2) using user-set lead_time
+        daily_std=std_d/np.sqrt(30)
+        lt_std=lt_std_map.get(cat, 1.0)
+        ss=max(int(z*np.sqrt(lead_time*daily_std**2+daily_d**2*lt_std**2)), 0)
+
+        # Use dataset ROP as the primary trigger (reflects actual business policy)
+        # Augment with computed ROP if it's higher (conservative)
+        computed_rop=max(int(daily_d*lead_time+ss), 1)
+        rop=max(int(sk["dataset_rop"]), computed_rop)
+
+        # ACTUAL current stock from dataset
+        current_stock=int(sk["actual_stock"])
+
+        # Status: compare actual stock to ROP and SS thresholds
+        if current_stock<=ss:
+            status="🔴 Critical"
+        elif current_stock<rop:
+            status="🟡 Low"
+        elif current_stock>rop+2*eoq:
+            status="🟢 Overstocked"
+        else:
+            status="🟢 Adequate"
+
+        # Days of stock remaining at historical avg demand
+        days_stock=round(current_stock/daily_d, 1) if daily_d>0 else 999
+
+        # Stockout cost for critical SKUs
+        margin_rate=0.20
+        daily_margin=daily_d*uc*margin_rate
+        days_exposed=max(lead_time-(current_stock/daily_d if daily_d>0 else 0), 0)
+        stockout_cost=round(daily_margin*days_exposed, 0) if status=="🔴 Critical" else 0
+
+        rows.append({"SKU_ID":sku,"Product_Name":sk["Product_Name"],"Category":cat,
+            "Monthly_Avg":round(avg_d,1),
+            "Monthly_Std":round(std_d,1),
+            "Forecast_Avg":round(econ_d,1),
+            "EOQ":eoq,"SS":ss,"ROP":rop,
+            "Current_Stock":current_stock,
+            "Days_of_Stock":days_stock,
+            "Status":status,
+            "Dataset_Status":sk["dataset_status"],
+            "Unit_Price":round(uc,0),
+            "Annual_Demand":round(ann_d,0),
+            "Stockout_Cost_Day":stockout_cost,
+            "Total_Revenue":round(float(sk["total_qty"])*uc,0)})
+
     inv_df=pd.DataFrame(rows)
     if inv_df.empty: return inv_df
     inv_df=inv_df.sort_values("Total_Revenue",ascending=False).reset_index(drop=True)
@@ -406,6 +482,12 @@ def compute_inventory(order_cost=500, hold_pct=0.20, lead_time=7, z=1.65):
 
 @st.cache_data
 def compute_production(cap_mult=1.0, buffer_pct=0.15):
+    """
+    Production plan fed by:
+    - ML demand forecast per category (6 months forward)
+    - Inventory replenishment needs (critical/low SKUs from actual stock vs ROP)
+    - Safety buffer on top
+    """
     df=load_data(); ops=get_ops(df).copy()
     ops["YM"]=ops["Order_Date"].dt.to_period("M")
     inv=compute_inventory()
@@ -415,18 +497,32 @@ def compute_production(cap_mult=1.0, buffer_pct=0.15):
         vals=cat_monthly[cat].values.astype(float)
         res=ml_forecast(vals,ds_index)
         if res is None: continue
-        crit_total=float(inv[(inv["Category"]==cat)&(inv["Status"]=="🔴 Critical")]["Monthly_Avg"].sum())
-        low_total=float(inv[(inv["Category"]==cat)&(inv["Status"]=="🟡 Low")]["Monthly_Avg"].sum())
-        boost_schedule={0:1.0,1:0.25}
+
+        # Replenishment needed: sum of (ROP - Current_Stock) for critical/low SKUs
+        cat_inv=inv[inv["Category"]==cat]
+        crit_skus=cat_inv[cat_inv["Status"]=="🔴 Critical"]
+        low_skus=cat_inv[cat_inv["Status"]=="🟡 Low"]
+
+        # Replenishment gap = how many units below ROP per SKU (× EOQ to order)
+        crit_gap=float((crit_skus["ROP"]-crit_skus["Current_Stock"]).clip(lower=0).sum())
+        low_gap=float((low_skus["ROP"]-low_skus["Current_Stock"]).clip(lower=0).sum())
+
+        # Distribute replenishment boost: 60% in month 1, 40% in month 2
+        boost_schedule={0:0.60, 1:0.40}
         for i,(dt,fc) in enumerate(zip(res["fut_ds"],res["forecast"])):
             bf=boost_schedule.get(i,0.0)
-            crit_boost=crit_total*0.5*bf; low_boost=low_total*0.25*bf
+            crit_boost=crit_gap*bf
+            low_boost=low_gap*bf*0.5  # low priority gets half weight
             net_prod=max(fc+crit_boost+low_boost,0)*cap_mult
             prod=net_prod*(1+buffer_pct)
             rows.append({"Month_dt":dt,"Month":dt.strftime("%b %Y"),"Category":cat,
-                "Demand_Forecast":round(fc,0),"Crit_Boost":round(crit_boost,0),
-                "Low_Boost":round(low_boost,0),"Buffer":round(prod-net_prod,0),
-                "Production":round(prod,0),"CI_Lo":round(res["ci_lo"][i],0),"CI_Hi":round(res["ci_hi"][i],0)})
+                "Demand_Forecast":round(fc,0),
+                "Crit_Boost":round(crit_boost,0),
+                "Low_Boost":round(low_boost,0),
+                "Buffer":round(prod-net_prod,0),
+                "Production":round(prod,0),
+                "CI_Lo":round(res["ci_lo"][i],0),
+                "CI_Hi":round(res["ci_hi"][i],0)})
     return pd.DataFrame(rows)
 
 @st.cache_data
@@ -791,20 +887,6 @@ def page_demand():
                 "Projected ₹M":round(rp/1e6,1),"Projected Growth":f"{(rp-r25)/r25*100:+.1f}%" if r25>0 else "N/A"})
         st.dataframe(pd.DataFrame(rows).sort_values("Projected ₹M",ascending=False),use_container_width=True,hide_index=True)
 
-    sp()
-    sec("Category-Level Quantity Forecast","📦")
-    cat_qty=ops.groupby(["YM","Category"])["Net_Qty"].sum().unstack(fill_value=0)
-    tabs2=st.tabs(list(cat_qty.columns))
-    for i,(tab,cat) in enumerate(zip(tabs2,cat_qty.columns)):
-        with tab:
-            res2=ml_forecast(cat_qty[cat].values.astype(float),cat_qty.index,6)
-            if res2 is None: st.info("Insufficient data."); continue
-            fig=ensemble_chart(res2,chart_key=f"d_cat_{i}",height=290,title=cat)
-            st.plotly_chart(fig,use_container_width=True,key=f"d_cat_{i}")
-            tbl2=pd.DataFrame({"Month":[d.strftime("%b %Y") for d in res2["fut_ds"]],
-                "Ensemble":res2["forecast"].round(0).astype(int),
-                "CI Lo":res2["ci_lo"].round(0).astype(int),"CI Hi":res2["ci_hi"].round(0).astype(int)})
-            st.dataframe(tbl2,use_container_width=True,hide_index=True)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -826,21 +908,24 @@ def page_inventory():
         svc=p4.selectbox("Service Level",["90% (z=1.28)","95% (z=1.65)","99% (z=2.33)"])
         z={"90% (z=1.28)":1.28,"95% (z=1.65)":1.65,"99% (z=2.33)":2.33}[svc]
 
-    banner("Safety Stock formula: <b>z × √(LT × σ_demand² + D_avg² × σ_LT²)</b> — accounts for both demand AND lead-time variability. EOQ uses peak-blended demand (60% avg + 40% peak) to handle seasonality. Module is fed by demand forecast output.","purple")
+    banner("""<b>Data pipeline:</b> Current stock comes from the <b>actual dataset snapshot</b> (Current_Stock_Units per SKU).
+    EOQ and Safety Stock are computed using <b>ML demand forecast</b> (blended historical + category-level 6-month forward forecast per SKU share).
+    SS formula: <b>z × √(LT × σ_d² + D_avg² × σ_LT²)</b> · ROP = Daily_Demand × Lead_Time + SS · Status = Actual Stock vs computed ROP/SS.""","purple")
 
     inv=compute_inventory(order_cost,hold_pct,lead_time,z)
     if inv.empty: st.warning("No inventory data."); return
 
     n_crit=(inv["Status"]=="🔴 Critical").sum()
     n_low=(inv["Status"]=="🟡 Low").sum()
-    n_ok=(inv["Status"]=="🟢 Adequate").sum()
+    n_ok=inv["Status"].str.startswith("🟢").sum()
     total_stockout=inv["Stockout_Cost_Day"].sum()
     n_a=(inv["ABC"]=="A").sum()
+    avg_days_stock=inv["Days_of_Stock"].replace(999,np.nan).median()
     c1,c2,c3,c4,c5,c6=st.columns(6)
     kpi(c1,"Total SKUs",len(inv),"sky")
-    kpi(c2,"🔴 Critical",n_crit,"coral","immediate reorder")
-    kpi(c3,"🟡 Low",n_low,"amber","approaching ROP")
-    kpi(c4,"🟢 Adequate",n_ok,"mint","well-stocked")
+    kpi(c2,"🔴 Critical",n_crit,"coral","below safety stock")
+    kpi(c3,"🟡 Low",n_low,"amber","below ROP")
+    kpi(c4,"🟢 Adequate/Over",n_ok,"mint","above ROP")
     kpi(c5,"A-Class SKUs",n_a,"sky","top 70% revenue")
     kpi(c6,"Stockout ₹/Day",f"₹{total_stockout:,.0f}","coral","critical SKUs")
     sp()
@@ -849,7 +934,7 @@ def page_inventory():
     with cl:
         sec("Stock Status Distribution")
         sc=inv["Status"].value_counts()
-        sc_clrs={"🔴 Critical":"#EF4444","🟡 Low":"#F59E0B","🟢 Adequate":"#22C55E"}
+        sc_clrs={"🔴 Critical":"#EF4444","🟡 Low":"#F59E0B","🟢 Adequate":"#22C55E","🟢 Overstocked":"#06B6D4"}
         fig=go.Figure(go.Pie(labels=sc.index,values=sc.values,hole=.6,
             marker=dict(colors=[sc_clrs.get(s,"#888") for s in sc.index],line=dict(color="#FFFFFF",width=3)),
             textinfo="label+value",textfont=dict(size=10)))
@@ -906,8 +991,8 @@ def page_inventory():
             st.plotly_chart(fig_so,use_container_width=True,key="stockout_chart")
 
     sec("🔴 Critical SKU Alerts — Reorder Immediately")
-    crit_df=inv[inv["Status"]=="🔴 Critical"][["SKU_ID","Product_Name","Category","ABC","Current_Stock","SS","ROP","EOQ","Monthly_Avg","Unit_Price","Stockout_Cost_Day"]].copy()
-    crit_df.columns=["SKU","Product","Category","ABC","Current Stock","Safety Stock","ROP","Order Qty (EOQ)","Avg/Month","Unit Price ₹","Stockout ₹/Day"]
+    crit_df=inv[inv["Status"]=="🔴 Critical"][["SKU_ID","Product_Name","Category","ABC","Current_Stock","SS","ROP","EOQ","Monthly_Avg","Forecast_Avg","Days_of_Stock","Unit_Price","Stockout_Cost_Day"]].copy()
+    crit_df.columns=["SKU","Product","Category","ABC","Current Stock","Safety Stock","ROP","Order Qty (EOQ)","Hist Avg/Mo","Forecast Avg/Mo","Days of Stock","Unit Price ₹","Stockout ₹/Day"]
     for c in ["Current Stock","Safety Stock","ROP","Order Qty (EOQ)"]: crit_df[c]=crit_df[c].astype(int)
     st.dataframe(crit_df.sort_values("Stockout ₹/Day",ascending=False),use_container_width=True,hide_index=True)
 
@@ -928,7 +1013,7 @@ def page_inventory():
 
     sp()
     sec("Stock Depletion & Replenishment Simulation","🔁")
-    banner("Simulates future stock levels month-by-month using production-plan demand. 📦 = replenishment trigger. ROP and SS shown as reference lines.","teal")
+    banner("Starting stock = <b>actual Current_Stock_Units</b> from dataset (latest per SKU, summed by category). Demand driven by ML ensemble forecast. ROP and SS computed from forecast-blended EOQ model. 📦 = replenishment trigger.","teal")
     plan_for_inv=compute_production()
     cats=sorted(inv["Category"].unique())
     tabs2=st.tabs(cats)
@@ -993,11 +1078,11 @@ def page_inventory():
     sec("Full SKU-Level Inventory Table","🗃️")
     abc_f=st.multiselect("Filter ABC",["A","B","C"],default=["A","B","C"])
     cat_f=st.multiselect("Filter Category",sorted(df["Category"].unique()),default=sorted(df["Category"].unique()))
-    stat_f=st.multiselect("Filter Status",["🔴 Critical","🟡 Low","🟢 Adequate"],default=["🔴 Critical","🟡 Low","🟢 Adequate"])
+    stat_f=st.multiselect("Filter Status",sorted(inv["Status"].unique()),default=sorted(inv["Status"].unique()))
     disp=inv[(inv["ABC"].isin(abc_f))&(inv["Category"].isin(cat_f))&(inv["Status"].isin(stat_f))][
-        ["SKU_ID","Product_Name","Category","ABC","Monthly_Avg","Current_Stock","EOQ","SS","ROP","Unit_Price","Stockout_Cost_Day","Status"]].copy()
-    disp.columns=["SKU","Product","Category","ABC","Avg/Month","Current Stock","EOQ","Safety Stock","ROP","Price ₹","Stockout ₹/Day","Status"]
-    for c in ["Avg/Month","Current Stock","EOQ","Safety Stock","ROP"]: disp[c]=disp[c].astype(int)
+        ["SKU_ID","Product_Name","Category","ABC","Monthly_Avg","Forecast_Avg","Current_Stock","Days_of_Stock","EOQ","SS","ROP","Unit_Price","Stockout_Cost_Day","Status"]].copy()
+    disp.columns=["SKU","Product","Category","ABC","Hist Avg/Mo","Forecast Avg/Mo","Current Stock","Days of Stock","EOQ","Safety Stock","ROP","Price ₹","Stockout ₹/Day","Status"]
+    for c in ["Current Stock","EOQ","Safety Stock","ROP"]: disp[c]=disp[c].astype(int)
     st.dataframe(disp.sort_values(["ABC","Status"]),use_container_width=True,hide_index=True)
 
 
@@ -1011,7 +1096,7 @@ def page_production():
 
     st.markdown("<div class='page-title'>🏭 Production Planning</div>", unsafe_allow_html=True)
     st.markdown("<div class='page-subtitle'>Fed by Demand Forecast + Inventory Status · 6-Month Forward Plan with Replenishment Boost</div>", unsafe_allow_html=True)
-    banner("Production = Demand Forecast + Inventory Replenishment Boost (critical SKUs get 50% demand boost in month 1, 25% residual in month 2) + Safety Buffer. Capacity multiplier scales all targets.","teal")
+    banner("Production = ML Demand Forecast + Inventory Replenishment Gap (ROP − Current Stock for critical/low SKUs, distributed 60% month 1 / 40% month 2) + Safety Buffer. All values flow from the Inventory module which uses actual stock data.","teal")
 
     p1,p2=st.columns(2)
     cap=p1.slider("Capacity Multiplier",0.5,2.0,1.0,0.1)
