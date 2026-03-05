@@ -1300,7 +1300,7 @@ LIVE CONTEXT:\n{ctx}"""
         st.code(ctx,language="text")
     key_ok=bool(api_key and len(api_key.strip())>10)
     if not key_ok:
-        banner("⚠️ <b>API Key Required</b> — Enter your key in the sidebar,"amber")
+        banner("⚠️ <b>API Key Required</b> — Enter your key in the sidebar","amber")
     if "chat_msgs" not in st.session_state:
         st.session_state.chat_msgs=[]
     SUGGESTIONS=["Which product will have the highest demand next month?","Which SKUs are at critical inventory risk right now?",
