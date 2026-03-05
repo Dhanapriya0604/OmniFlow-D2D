@@ -15,8 +15,7 @@ def inject_css():
     .page-title{font-size:32px;font-weight:900;margin-bottom:4px;color:#0f172a;}
     .section-title{font-size:18px;font-weight:800;margin:24px 0 10px;color:#0f172a;}
     .section-line{height:2px;background:linear-gradient(90deg,#e5e7eb,transparent);margin-bottom:14px;}
-    .metric-card{background:linear-gradient(160deg,#eef4ff,#ffffff);padding:16px 14px;text-align:center;
-        border-radius:14px;border:1px solid #c7d7fd;box-shadow:0 4px 14px rgba(30,58,138,0.10);transition:all .22s ease;}
+    .metric-card{background:linear-gradient(160deg,#eef4ff,#ffffff);padding:20px 16px;margin-bottom:10px;min-height:92px;display:flex;flex-direction:column;justify-content:center;align-items:center;}
     .metric-card:hover{transform:translateY(-4px);box-shadow:0 12px 28px rgba(30,58,138,0.18);}
     .metric-label{font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.06em;font-family:'DM Mono',monospace;}
     .metric-value{font-size:26px;font-weight:900;color:#1e3a8a;line-height:1.2;margin-top:4px;}
@@ -26,7 +25,7 @@ def inject_css():
     .info-banner{border-radius:10px;padding:12px 14px;margin:8px 0;font-size:12.5px;line-height:1.6;}
     .banner-teal{background:#f0fdfa;border:1px solid #5eead4;}
     .banner-amber{background:#fffbeb;border:1px solid #fbbf24;}
-    .banner-coral{background:#fff1f2;border:1px solid #fb7185;}
+    .banner-coral{background:linear-gradient(135deg,#fff1f2,#ffffff);border:1px solid #fecaca;border-left:4px solid #ef4444;font-weight:600;}
     .banner-mint{background:#ecfdf5;border:1px solid #34d399;}
     .banner-sky{background:#eff6ff;border:1px solid #93c5fd;}
     .sku-alert-card{border-radius:12px;padding:12px 14px;margin-bottom:8px;border:1px solid #e5e7eb;
@@ -54,6 +53,9 @@ def inject_css():
     .stTabs [aria-selected="true"]{background:#e0e7ff;color:#1e3a8a;box-shadow:0 4px 14px rgba(30,58,138,0.18);}
     .block-container{padding-top:1.8rem;padding-bottom:2rem;}
     .prod-need-badge{display:inline-block;padding:2px 8px;border-radius:6px;font-size:10px;font-weight:700;font-family:'DM Mono',monospace;}
+    .stMultiSelect div[data-baseweb="tag"]{background:#eef2ff !important;color:#1e3a8a !important;border-radius:8px !important;border:1px solid #c7d7fd !important;font-weight:600;}
+    .stMultiSelect div[data-baseweb="tag"] svg{color:#64748b !important;}
+    .stMultiSelect{background:white;padding:6px;border-radius:10px;border:1px solid #e5e7eb;}
     </style>
     """, unsafe_allow_html=True)
 inject_css()
@@ -376,24 +378,16 @@ def compute_inventory(order_cost=500, hold_pct=0.20, lead_time=7, z=1.65):
             status="🟢 Adequate"
 
         days_stock=round(current_stock/daily_d,1) if daily_d>0 else 999
-
-        # FIXED stockout cost: cost of being in the unsafe zone below safety stock
-        # = units below safety stock * unit_price * margin (risk-adjusted opportunity cost)
         margin_rate=0.20
         units_below_ss=max(ss-current_stock, 0)
-        # If critical: we're exposed to demand spikes with no buffer
-        # Cost = (units short of SS) * price * margin  + daily margin for each day until SS replenished
         if status=="🔴 Critical" and daily_d>0:
             days_to_replenish=lead_time  # minimum time to get stock
             daily_margin=daily_d*uc*margin_rate
-            # Expected lost margin = shortage * price * margin + holding risk during lead time
             stockout_cost=round(units_below_ss*uc*margin_rate + daily_margin*min(days_to_replenish,lead_time), 0)
         else:
             stockout_cost=0
 
-        # Production need: how many units needed to reach ROP + buffer (1 EOQ)
         prod_need=max(rop+eoq-current_stock, 0)
-        # Urgency: weeks of cover
         weeks_cover=round(current_stock/(daily_d*7),1) if daily_d>0 else 99
 
         rows.append({"SKU_ID":sku,"Product_Name":sk["Product_Name"],"Category":cat,
@@ -562,7 +556,6 @@ def call_llm(messages, system, api_key):
     except _requests.exceptions.Timeout: return "⚠️ Request timed out."
     except Exception as e: return f"⚠️ Error: {e}"
 
-# ─── PAGE: OVERVIEW ───────────────────────────────────────────────
 def page_overview():
     st.markdown(""" 
     <div class='about-section'> 
@@ -712,7 +705,6 @@ def page_demand():
                 "Projected ₹M":round(rp/1e6,1),"Projected Growth":f"{(rp-r25)/r25*100:+.1f}%" if r25>0 else "N/A"})
         st.dataframe(pd.DataFrame(rows).sort_values("Projected ₹M",ascending=False),use_container_width=True,hide_index=True)
 
-# ─── PAGE: INVENTORY ──────────────────────────────────────────────
 def page_inventory():
     df=load_data(); ops=get_ops(df).copy()
     ops["YM"]=ops["Order_Date"].dt.to_period("M")
@@ -752,7 +744,6 @@ def page_inventory():
         "📋 Full SKU Table"
     ])
 
-    # ── TAB 1: SCATTER — STOCK POSITION ──────────────────────────
     with tab_alerts:
         sc1, sc2, sc3 = st.columns([2,2,1])
         cat_f  = sc1.multiselect("Category", sorted(inv["Category"].unique()),
@@ -767,19 +758,15 @@ def page_inventory():
         if sv.empty:
             banner("✅ No SKUs match selected filters.","mint")
         else:
-            # ── SCATTER: Current Stock vs ROP ──────────────────
-            # X = Current Stock  |  Y = ROP  |  size = Prod_Need  |  color = Status
             STATUS_CLR = {"🔴 Critical":"#ef4444","🟡 Low":"#f59e0b",
                           "🟢 Adequate":"#22c55e","🟢 Overstocked":"#06b6d4"}
             fig_sc = go.Figure()
 
-            # Diagonal line: x == y  →  stock exactly at ROP
             ax_max = max(sv["Current_Stock"].max(), sv["ROP"].max()) * 1.1
             fig_sc.add_trace(go.Scatter(
                 x=[0, ax_max], y=[0, ax_max],
                 mode="lines", line=dict(color="rgba(100,116,139,0.25)", width=1.5, dash="dash"),
                 name="Stock = ROP", hoverinfo="skip"))
-            # Shaded danger zone: stock < ROP
             fig_sc.add_vrect(x0=0, x1=sv["ROP"].mean(),
                 fillcolor="rgba(239,68,68,0.04)", layer="below", line_width=0)
 
@@ -813,7 +800,6 @@ def page_inventory():
                            font=dict(size=11, color="#64748b")))
             st.plotly_chart(fig_sc, use_container_width=True, key="scatter_stock")
 
-            # ── COMPACT ACTION TABLE (critical + low only) ──────
             action = sv[sv["Prod_Need"]>0].sort_values(["Status","Prod_Need"], ascending=[True,False])
             if not action.empty:
                 sp(0.5)
@@ -829,7 +815,6 @@ def page_inventory():
                 for c in ["Stock","ROP","SS","EOQ","📦 Order"]: tbl[c]=tbl[c].astype(int)
                 st.dataframe(tbl, use_container_width=True, hide_index=True, height=300)
 
-    # ── TAB 2: EOQ ANALYSIS — scatter + cost bars ─────────────────
     with tab_eoq:
         eoq_tbl = inv.groupby("Category").agg(
             Avg_EOQ=("EOQ","mean"), Avg_Ann_Demand=("Annual_Demand","mean"),
@@ -843,7 +828,7 @@ def page_inventory():
 
         with col_l:
             sec("EOQ vs Annual Demand — by Category")
-            banner("📌 <b>Scatter:</b> X = avg EOQ · Y = annual demand · bubble = SKU count · "
+            banner("<b>Scatter:</b> X = avg EOQ · Y = annual demand · bubble = SKU count · "
                    "ideal when EOQ covers 1–3 months of demand.", "sky")
             fig_es = go.Figure()
             cat_colors = {c: COLORS[i%len(COLORS)] for i,c in enumerate(eoq_tbl["Category"])}
@@ -863,7 +848,6 @@ def page_inventory():
                         f"Ann Demand: {int(r['Avg_Ann_Demand'])}<br>"
                         f"Covers: {mc:.1f} months  {flag}<br>"
                         f"SKUs: {int(r['SKU_Count'])}<extra></extra>")))
-            # 1-month and 3-month cover reference lines (y = 12x and y = 4x)
             x_ref = np.linspace(0, eoq_tbl["Avg_EOQ"].max()*1.15, 50)
             fig_es.add_trace(go.Scatter(x=x_ref, y=x_ref*12, mode="lines",
                 line=dict(color="#ef4444", width=1, dash="dot"),
@@ -898,7 +882,6 @@ def page_inventory():
                 yaxis={**gY(),"title":"₹/Year"}, legend=leg())
             st.plotly_chart(fig_eoq, use_container_width=True, key="eoq_cost")
 
-        # Compact summary table
         sp(0.5)
         edisp = eoq_tbl[["Category","Avg_EOQ","Avg_Ann_Demand","Months_Cover",
                           "Ann_Order_Cost","Ann_Holding_Cost","Total_Cost"]].copy()
@@ -910,7 +893,6 @@ def page_inventory():
         edisp.columns = ["Category","Avg EOQ","Ann Demand","Months Cover","Order Cost/Yr","Holding Cost/Yr","Total/Yr"]
         st.dataframe(edisp, use_container_width=True, hide_index=True)
 
-    # ── TAB 3: ABC CLASSIFICATION ────────────────────────────────
     with tab_abc:
         al, ar = st.columns(2, gap="large")
         with al:
@@ -948,7 +930,6 @@ def page_inventory():
             xaxis={**gX(),"tickangle":-10}, yaxis=gY(), legend=leg())
         st.plotly_chart(fig2, use_container_width=True, key="inv_eoq_bar")
 
-    # ── TAB 4: DEPLETION SIMULATION ──────────────────────────────
     with tab_sim:
         sec("Stock Depletion & Replenishment Simulation")
         cat_qty=ops.groupby(["YM","Category"])["Net_Qty"].sum().unstack(fill_value=0)
@@ -999,7 +980,6 @@ def page_inventory():
                 fig.update_layout(**CD(),height=320,xaxis={**gX(),"title":"Month"},
                     yaxis={**gY(),"title":"Category Stock (units)"},legend={**leg(),"orientation":"h","y":-0.28},
                     title=dict(text=f"{cat} · Start: {total_stock:,} units · Avg forecast: ~{int(np.mean(sim_demand)):,} units/mo",font=dict(color="#64748b",size=11)))
-                st.plotly_chart(fig,use_container_width=True,key=f"sim_{cat}")
                 ka,kb,kc,kd,ke=st.columns(5)
                 kpi(ka,"Starting Stock",f"{total_stock:,}","mint","category total")
                 kpi(kb,"ROP (category)",f"{total_rop:,}","sky","sum of SKU ROPs")
@@ -1011,8 +991,8 @@ def page_inventory():
                 if n_crit_cat>0: banner(f"🔴 <b>{n_crit_cat} Critical SKUs</b> in {cat} — immediate replenishment required.","coral")
                 elif n_low_cat>0: banner(f"🟡 <b>{n_low_cat} SKUs</b> approaching ROP — place orders this week.","amber")
                 else: banner(f"✅ All {cat} SKUs adequate.","mint")
-
-    # ── TAB 5: FULL TABLE ────────────────────────────────────────
+                st.plotly_chart(fig,use_container_width=True,key=f"sim_{cat}")
+                
     with tab_table:
         sec("SKU-Level Inventory Table")
         tf1,tf2,tf3=st.columns(3)
@@ -1029,7 +1009,6 @@ def page_inventory():
         for c in ["Current Stock","EOQ","Safety Stock","ROP","Units to Order"]: disp[c]=disp[c].astype(int)
         st.dataframe(disp.sort_values(["ABC","Status"]),use_container_width=True,hide_index=True)
 
-# ─── PAGE: PRODUCTION ─────────────────────────────────────────────
 def page_production():
     df=load_data(); ops=get_ops(df).copy()
     ops["YM"]=ops["Order_Date"].dt.to_period("M")
