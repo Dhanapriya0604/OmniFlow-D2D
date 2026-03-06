@@ -438,9 +438,13 @@ def compute_production(cap_mult=1.0, buffer_pct=0.15):
             bf           = boost_schedule.get(i, 0.0)
             crit_boost   = crit_gap*bf
             low_boost    = low_gap*bf*0.5
-            production_base = max(cat_inv["Prod_Need"].sum(), 0)
-            monthly_prod = production_base / len(fc_arr)  
-            prod = monthly_prod * cap_mult * (1 + buffer_pct)
+            current_stock = cat_inv["Current_Stock"].sum()
+            forecast_total = sum(fc_arr)
+            buffer_units = forecast_total * buffer_pct
+            production_required = max(forecast_total + buffer_units - current_stock, 0)         
+            demand_share = fc / forecast_total if forecast_total > 0 else 1/len(fc_arr)
+            
+            prod = production_required * demand_share * cap_mult
                         
             rows.append({
                 "Month_dt": dt,
@@ -829,7 +833,8 @@ def page_inventory():
     
     n_crit=(inv["Status"]=="🔴 Critical").sum()
     n_low=(inv["Status"]=="🟡 Low").sum()
-    total_prod_need=inv["Prod_Need"].sum()
+    plan = compute_production()
+    total_prod_need = plan["Production"].sum()
 
     c1,c2,c3,c4=st.columns(4)
 
