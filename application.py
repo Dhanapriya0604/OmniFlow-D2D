@@ -992,7 +992,7 @@ def build_context() -> str:
         f"Reorder NOW: {crit_prods} | Stockout Risk: ₹{total_stockout:,.0f}\n"
         f"[PRODUCTION] {prod_str} | Peak: {peak_mo}\n"
         f"[LOGISTICS] {carr_str}\n"
-        f"Best per Region: {', '.join([f'{r[chr(82)]}→{r[chr(67)+chr(111)+chr(117)+chr(114)+chr(105)+chr(101)+chr(114)+chr(95)+chr(80)+chr(97)+chr(114)+chr(116)+chr(110)+chr(101)+chr(114)]}' for _,r in best_carr.iterrows()])}\n"
+        f"Best per Region: {', '.join([f"{r['Region']}→{r['Courier_Partner']}" for _,r in best_carr.iterrows()])}\n"
         f"Savings: ₹{saving_total:,.0f} | {saving_str}\n"
         f"Forward Plan: {fwd_str if fwd_str else 'N/A'}\n"
         f"CATEGORIES: {cat_str} | TOP REGIONS: {reg_str} | TOP PRODUCTS: {sku_str}"
