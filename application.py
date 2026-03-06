@@ -1252,16 +1252,22 @@ def page_inventory() -> None:
         st.warning("No inventory data.")
         return
 
-    n_crit          = (inv["Status"] == "🔴 Critical").sum()
-    n_low           = (inv["Status"] == "🟡 Low").sum()
-    plan            = compute_production()
-    total_prod_need = plan["Production"].sum()
+    n_crit     = (inv["Status"] == "🔴 Critical").sum()
+    n_low      = (inv["Status"] == "🟡 Low").sum()
+    sku_plan_inv    = build_sku_production_plan()
+    total_prod_need = int(sku_plan_inv["Prod_Need"].sum()) if not sku_plan_inv.empty else 0
 
     c1, c2, c3, c4 = st.columns(4)
-    kpi(c1, "Total SKUs",      len(inv),                  "sky")
-    kpi(c2, "🔴 Critical SKUs", n_crit,                   "coral", "below safety stock")
-    kpi(c3, "🟡 Low Stock",     n_low,                    "amber", "below reorder point")
-    kpi(c4, "Units to Produce", f"{total_prod_need:,}",   "mint",  "production needed")
+    kpi(c1, "Total SKUs",       len(inv),               "sky",   "active SKUs")
+    kpi(c2, "🔴 Critical SKUs", n_crit,                 "coral", "below safety stock")
+    kpi(c3, "🟡 Low Stock",     n_low,                  "amber", "below reorder point")
+    kpi(c4, "Units to Restock", f"{total_prod_need:,}", "mint",  "stock gap · all SKUs")
+    banner(
+        "ℹ️ <b>Critical / Low counts</b> reflect the parameter settings above. "
+        "<b>Units to Restock</b> is the total stock gap (ROP + EOQ − current stock) across all SKUs — "
+        "this matches the <i>Gap Units</i> figure on the Production Planning page.",
+        "sky",
+    )
     sp()
 
     tab_alerts, tab_eoq, tab_table = st.tabs(["Stock Position", "EOQ Analysis", "SKU Table"])
@@ -1441,7 +1447,6 @@ def page_production() -> None:
     buf = p2.slider("Safety Buffer %", 5, 40, 15) / 100
 
     plan = compute_production(cap, buf)
-    inv  = compute_inventory()
     if plan.empty:
         st.warning("Insufficient data.")
         return
@@ -1550,18 +1555,25 @@ def page_production() -> None:
 
     n_urgent  = (sku_plan["Urgency"] == "🔴 Urgent").sum()
     n_high    = (sku_plan["Urgency"] == "🟠 High").sum()
-    total_units = int(sku_plan["Prod_Need"].sum())
-    total_ship  = sku_plan["Est_Ship_Cost"].sum()
+    total_units   = int(sku_plan["Prod_Need"].sum())
+    total_ship    = sku_plan["Est_Ship_Cost"].sum()
     stockout_risk = sku_plan["Stockout_Cost"].sum()
 
     k1, k2, k3, k4, k5, k6 = st.columns(6)
-    kpi(k1, "SKUs to Produce",  len(sku_plan),          "sky",   "need replenishment")
-    kpi(k2, "🔴 Urgent",        n_urgent,                "coral", "critical — act today")
-    kpi(k3, "🟠 High",          n_high,                  "amber", "≤14 days stock left")
-    kpi(k4, "Total Units",      f"{total_units:,}",      "sky",   "across all SKUs")
-    kpi(k5, "Est. Ship Cost",   f"₹{total_ship:,.0f}",  "amber", "to target warehouses")
-    kpi(k6, "Stockout Risk",    f"₹{stockout_risk:,.0f}","coral", "if not produced")
-    sp()
+    kpi(k1, "SKUs Needing Stock",  len(sku_plan),          "sky",   "Prod_Need > 0")
+    kpi(k2, "🔴 Urgent",           n_urgent,                "coral", "stock ≤ safety stock")
+    kpi(k3, "🟠 High",             n_high,                  "amber", "≤14 days stock left")
+    kpi(k4, "Gap Units Total",     f"{total_units:,}",      "sky",   "ROP+EOQ−Stock")
+    kpi(k5, "Est. Ship Cost",      f"₹{total_ship:,.0f}",  "amber", "to target warehouses")
+    kpi(k6, "Stockout Risk",       f"₹{stockout_risk:,.0f}","coral", "if not restocked")
+    sp(0.5)
+    banner(
+        f"<b>ℹ️ Note on unit counts:</b> "
+        f"<b>Gap Units ({total_units:,})</b> = immediate stock gap (ROP + EOQ − current stock) — restock <i>now</i>. &nbsp;|&nbsp; "
+        f"<b>Forecast Production ({plan['Production'].sum():,.0f})</b> = 6-month forward production target based on demand forecast + buffer — shown above in the planning charts.",
+        "sky",
+    )
+    sp(0.5)
 
     pt1, pt2, pt3 = st.tabs(["Production Queue", "Warehouse Routing", "Visual Analysis"])
 
