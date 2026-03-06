@@ -431,19 +431,17 @@ def compute_production(cap_mult=1.0, buffer_pct=0.15):
         crit_gap      = float((crit_skus["ROP"]-crit_skus["Current_Stock"]).clip(lower=0).sum())
         low_gap       = float((low_skus["ROP"] -low_skus["Current_Stock"]).clip(lower=0).sum())
         boost_schedule= {0:0.60, 1:0.40}
-        current_stock = cat_inv["Current_Stock"].sum() if not cat_inv.empty else 0
         safety_stock  = cat_inv["SS"].sum()
-
+        current_stock = cat_inv["Current_Stock"].sum()
+        forecast_total = sum(fc_arr)
+        buffer_units = forecast_total * buffer_pct
+        production_required = max(forecast_total + buffer_units - current_stock, 0)
         for i,(dt,fc) in enumerate(zip(fut_ds, fc_arr)):
             bf           = boost_schedule.get(i, 0.0)
             crit_boost   = crit_gap*bf
             low_boost    = low_gap*bf*0.5
-            current_stock = cat_inv["Current_Stock"].sum()
-            forecast_total = sum(fc_arr)
-            buffer_units = forecast_total * buffer_pct
-            production_required = max(forecast_total + buffer_units - current_stock, 0)         
-            demand_share = fc / forecast_total if forecast_total > 0 else 1/len(fc_arr)
-            
+             
+            demand_share = fc / forecast_total if forecast_total > 0 else 1/len(fc_arr)    
             prod = production_required * demand_share * cap_mult
                         
             rows.append({
@@ -458,7 +456,10 @@ def compute_production(cap_mult=1.0, buffer_pct=0.15):
                 "CI_Lo": round(ci_lo[i],0),
                 "CI_Hi": round(ci_hi[i],0),
             })
+ 
+    st.write("Current Stock:", current_stock)
     return pd.DataFrame(rows)
+    
 @st.cache_data
 def build_sku_production_plan():
     df        = load_data()
