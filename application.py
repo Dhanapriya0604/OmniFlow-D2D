@@ -646,6 +646,33 @@ def compute_inventory(
     rop          = np.maximum(sku_snapshot["dataset_rop"].astype(int), computed_rop)
     current_stock = sku_snapshot["actual_stock"].astype(int)
 
+    # ── 6-month forecast demand per SKU (scalar sum of the monthly list) ──────
+    demand_6m = sku_snapshot["fc_next6"].apply(
+        lambda lst: int(round(sum(lst))) if isinstance(lst, list) else int(round(float(lst) * N_FUTURE_MONTHS))
+    )
+
+    # ── Demand-driven production need ────────────────────────────────────────
+    # How much to produce = forecast demand for next 6 months
+    #                     + safety stock buffer
+    #                     - stock already on hand
+    # This directly answers: "given what customers will want, and what we have,
+    # what do we still need to make?"
+    demand_driven_need = np.maximum(demand_6m.values + ss - current_stock, 0)
+
+    # Classic replenishment floor (ensures we never under-order when stock is
+    # critically low relative to ROP, even if forecast demand looks modest)
+    replenishment_need = np.maximum(rop + eoq - current_stock, 0)
+
+    # Final: take the greater of demand-driven or classic replenishment
+    prod_need = np.maximum(demand_driven_need, replenishment_need)
+
+    # % of 6-month demand already covered by current stock
+    demand_cover_pct = np.where(
+        demand_6m > 0,
+        np.minimum(current_stock / demand_6m.values * 100, 100).round(1),
+        100.0,
+    )
+
     status = np.where(
         current_stock <= ss, "🔴 Critical",
         np.where(current_stock < rop, "🟡 Low", "🟢 Adequate"),
@@ -660,29 +687,30 @@ def compute_inventory(
         np.round(units_below * uc * MARGIN_RATE + daily_margin * lead_time, 0),
         0.0,
     )
-    prod_need = np.maximum(rop + eoq - current_stock, 0)
 
     inv_df = pd.DataFrame({
-        "SKU_ID":        sku_snapshot["SKU_ID"],
-        "Product_Name":  sku_snapshot["Product_Name"],
-        "Category":      sku_snapshot["Category"],
-        "Monthly_Avg":   sku_snapshot["hist_avg"].round(1),
-        "Monthly_Std":   sku_snapshot["hist_std"].round(1),
-        "Forecast_Avg":  sku_snapshot["avg_d"].round(1),
-        "Forecast_Next6":sku_snapshot["fc_next6"],
-        "EOQ":           eoq,
-        "SS":            ss,
-        "ROP":           rop,
-        "Current_Stock": current_stock,
-        "Days_of_Stock": days_stock,
-        "Weeks_Cover":   weeks_cover,
-        "Status":        status,
-        "Dataset_Status":sku_snapshot["dataset_status"],
-        "Unit_Price":    uc.round(0),
-        "Annual_Demand": ann_d.round(0),
-        "Stockout_Cost": stockout_cost,
-        "Prod_Need":     prod_need,
-        "Total_Revenue": (sku_snapshot["total_qty"] * uc).round(0),
+        "SKU_ID":          sku_snapshot["SKU_ID"],
+        "Product_Name":    sku_snapshot["Product_Name"],
+        "Category":        sku_snapshot["Category"],
+        "Monthly_Avg":     sku_snapshot["hist_avg"].round(1),
+        "Monthly_Std":     sku_snapshot["hist_std"].round(1),
+        "Forecast_Avg":    sku_snapshot["avg_d"].round(1),
+        "Forecast_Next6":  sku_snapshot["fc_next6"],
+        "Demand_6M":       demand_6m,            # ← total units forecast for next 6 months
+        "Demand_Cover_Pct":demand_cover_pct,     # ← % of that demand already in stock
+        "EOQ":             eoq,
+        "SS":              ss,
+        "ROP":             rop,
+        "Current_Stock":   current_stock,
+        "Days_of_Stock":   days_stock,
+        "Weeks_Cover":     weeks_cover,
+        "Status":          status,
+        "Dataset_Status":  sku_snapshot["dataset_status"],
+        "Unit_Price":      uc.round(0),
+        "Annual_Demand":   ann_d.round(0),
+        "Stockout_Cost":   stockout_cost,
+        "Prod_Need":       prod_need,             # ← demand-driven (≥ replenishment floor)
+        "Total_Revenue":   (sku_snapshot["total_qty"] * uc).round(0),
     })
     inv_df = inv_df[inv_df["Monthly_Avg"] > 0].reset_index(drop=True)
 
@@ -804,7 +832,8 @@ def build_sku_production_plan() -> pd.DataFrame:
 
     return needs[[
         "SKU_ID", "Product_Name", "Category", "ABC", "Urgency", "Prod_Need",
-        "Current_Stock", "Days_Left", "Stockout_Cost", "Target_Warehouse", "WH_Share_Pct",
+        "Current_Stock", "Demand_6M", "Demand_Cover_Pct", "Days_Left",
+        "Stockout_Cost", "Target_Warehouse", "WH_Share_Pct",
         "Est_Ship_Cost", "Ready_By", "Ship_By", "Status",
     ]]
 
@@ -1262,20 +1291,22 @@ def page_inventory() -> None:
 
     n_crit          = (inv["Status"] == "🔴 Critical").sum()
     n_low           = (inv["Status"] == "🟡 Low").sum()
-    # BUG 1 FIX: derive total_prod_need directly from inv (user params),
-    # so the KPI always equals the sum of "Units to Produce" in the Action Queue table.
+    # Demand-driven: total_prod_need reflects forecast demand - current stock
     total_prod_need = int(inv["Prod_Need"].sum())
+    total_demand_6m = int(inv["Demand_6M"].sum())
 
-    c1, c2, c3, c4 = st.columns(4)
-    kpi(c1, "Total SKUs",       len(inv),               "sky",   "active SKUs")
-    kpi(c2, "🔴 Critical SKUs", n_crit,                 "coral", "below safety stock")
-    kpi(c3, "🟡 Low Stock",     n_low,                  "amber", "below reorder point")
-    kpi(c4, "Units to Restock", f"{total_prod_need:,}", "mint",  "= sum of Units to Produce below")
+    c1, c2, c3, c4, c5 = st.columns(5)
+    kpi(c1, "Total SKUs",          len(inv),                  "sky",   "active SKUs")
+    kpi(c2, "🔴 Critical SKUs",    n_crit,                    "coral", "below safety stock")
+    kpi(c3, "🟡 Low Stock",        n_low,                     "amber", "below reorder point")
+    kpi(c4, "6M Forecast Demand",  f"{total_demand_6m:,}",    "sky",   "units customers will order")
+    kpi(c5, "Units to Produce",    f"{total_prod_need:,}",    "mint",  "demand − current stock")
     banner(
-        "ℹ️ All four metrics above reflect the <b>parameter settings</b> (order cost, holding %, "
-        "lead time, service level) chosen above. "
-        "<b>Units to Restock</b> = Σ (ROP + EOQ − Stock) for every SKU shown in the Action Queue — "
-        "the number will match the column total in the table below.",
+        "ℹ️ All metrics reflect the <b>parameter settings</b> above. "
+        "<b>6M Forecast Demand</b> = ML ensemble forecast for next 6 months per SKU summed across all SKUs. "
+        "<b>Units to Produce</b> = max(Forecast Demand + Safety Stock − Current Stock,  ROP + EOQ − Stock) "
+        "— the demand-driven production need after deducting stock already on hand. "
+        "This equals the <i>Gap Units</i> figure on the Production Planning page.",
         "sky",
     )
     sp()
@@ -1327,13 +1358,15 @@ def page_inventory() -> None:
                         line=dict(color="#FFFFFF", width=1.5),
                         sizemode="area", sizeref=2.0 * 60 / (40.0 ** 2), sizemin=6,
                     ),
-                    customdata=grp[["Product_Name", "SKU_ID", "Prod_Need"]].values,
+                    customdata=grp[["Product_Name", "SKU_ID", "Prod_Need", "Demand_6M", "Demand_Cover_Pct"]].values,
                     hovertemplate=(
                         "<b>%{customdata[0]}</b><br>"
                         "SKU: %{customdata[1]}<br>"
                         "Stock: %{x}<br>"
                         "ROP: %{y}<br>"
-                        "Produce: %{customdata[2]} units"
+                        "6M Demand: %{customdata[3]:,} units<br>"
+                        "Stock Covers: %{customdata[4]:.0f}% of demand<br>"
+                        "Produce: <b>%{customdata[2]} units</b>"
                     ),
                 ))
 
@@ -1349,11 +1382,25 @@ def page_inventory() -> None:
             if not action.empty:
                 sp(0.5)
                 sec("Action Queue — SKUs needing replenishment")
-                tbl = action[["SKU_ID", "Product_Name", "Category", "Status", "Current_Stock", "ROP", "Prod_Need"]].copy()
-                tbl.columns = ["SKU", "Product", "Category", "Status", "Stock", "ROP", "Units to Produce"]
-                for c in ["Stock", "ROP", "Units to Produce"]:
+                tbl = action[[
+                    "SKU_ID", "Product_Name", "Category", "Status",
+                    "Current_Stock", "Demand_6M", "Demand_Cover_Pct", "ROP", "Prod_Need",
+                ]].copy()
+                tbl.columns = [
+                    "SKU", "Product", "Category", "Status",
+                    "Stock", "6M Demand", "Stock Covers %", "ROP", "Units to Produce",
+                ]
+                for c in ["Stock", "6M Demand", "ROP", "Units to Produce"]:
                     tbl[c] = tbl[c].astype(int)
+                tbl["Stock Covers %"] = tbl["Stock Covers %"].apply(lambda x: f"{x:.0f}%")
                 st.dataframe(tbl, use_container_width=True, hide_index=True, height=300)
+                banner(
+                    "ℹ️ <b>6M Demand</b> = ML forecast of units customers will order in the next 6 months. "
+                    "<b>Stock Covers %</b> = Current Stock ÷ 6M Demand × 100 — how much of forecast demand is already on hand. "
+                    "<b>Units to Produce</b> = max(6M Demand + Safety Stock − Stock, ROP + EOQ − Stock) — "
+                    "demand-driven need after subtracting existing inventory.",
+                    "teal",
+                )
 
     with tab_eoq:
         eoq_tbl = inv.groupby("Category").agg(
@@ -1436,10 +1483,19 @@ def page_inventory() -> None:
 
     with tab_table:
         sec("SKU-Level Inventory Table")
-        disp = inv[["SKU_ID", "Product_Name", "Category", "Current_Stock", "ROP", "EOQ", "Prod_Need", "Status"]].copy()
-        disp.columns = ["SKU", "Product", "Category", "Stock", "ROP", "EOQ", "Units to Produce", "Status"]
-        for c in ["Stock", "ROP", "EOQ", "Units to Produce"]:
+        disp = inv[[
+            "SKU_ID", "Product_Name", "Category",
+            "Current_Stock", "Demand_6M", "Demand_Cover_Pct",
+            "ROP", "EOQ", "SS", "Prod_Need", "Status",
+        ]].copy()
+        disp.columns = [
+            "SKU", "Product", "Category",
+            "Stock", "6M Demand", "Stock Covers %",
+            "ROP", "EOQ", "Safety Stock", "Units to Produce", "Status",
+        ]
+        for c in ["Stock", "6M Demand", "ROP", "EOQ", "Safety Stock", "Units to Produce"]:
             disp[c] = disp[c].astype(int)
+        disp["Stock Covers %"] = disp["Stock Covers %"].apply(lambda x: f"{x:.0f}%")
         st.dataframe(
             disp.sort_values(["Status", "Units to Produce"], ascending=[True, False]),
             use_container_width=True, hide_index=True,
@@ -1654,10 +1710,14 @@ def page_production() -> None:
                         </div>
                         <div style='font-size:18px'>{r["Urgency"].split()[0]}</div>
                       </div>
-                      <div style='display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:12px'>
+                      <div style='display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-top:12px'>
                         <div style='text-align:center;background:white;border-radius:8px;padding:8px 4px'>
                           <div style='font-size:9px;color:#94a3b8;text-transform:uppercase;font-family:DM Mono'>Stock Left</div>
                           <div style='font-size:20px;font-weight:900;color:{days_color}'>{int(r["Days_Left"]) if r["Days_Left"] < 999 else "∞"}d</div>
+                        </div>
+                        <div style='text-align:center;background:white;border-radius:8px;padding:8px 4px'>
+                          <div style='font-size:9px;color:#94a3b8;text-transform:uppercase;font-family:DM Mono'>6M Demand</div>
+                          <div style='font-size:18px;font-weight:900;color:#475569'>{int(r["Demand_6M"]):,}</div>
                         </div>
                         <div style='text-align:center;background:white;border-radius:8px;padding:8px 4px'>
                           <div style='font-size:9px;color:#94a3b8;text-transform:uppercase;font-family:DM Mono'>Produce</div>
@@ -1667,6 +1727,11 @@ def page_production() -> None:
                           <div style='font-size:9px;color:#94a3b8;text-transform:uppercase;font-family:DM Mono'>Ship To</div>
                           <div style='font-size:11px;font-weight:700;color:#059669;margin-top:2px'>{r["Target_Warehouse"]}</div>
                         </div>
+                      </div>
+                      <div style='margin-top:8px;background:#f0fdf4;border-radius:6px;padding:5px 10px;
+                           font-size:10px;color:#475569;font-family:DM Mono'>
+                        📦 Stock covers <b style="color:{'#dc2626' if r['Demand_Cover_Pct']<30 else '#d97706' if r['Demand_Cover_Pct']<70 else '#059669'}">{r["Demand_Cover_Pct"]:.0f}%</b> of 6-month demand
+                        &nbsp;·&nbsp; Produce {int(r["Prod_Need"]):,} = Demand({int(r["Demand_6M"]):,}) + SafetyStock − Stock({int(r["Current_Stock"])})
                       </div>
                       <div style='display:flex;justify-content:space-between;margin-top:10px;
                            font-size:10px;color:#64748b;font-family:DM Mono'>
@@ -1683,13 +1748,16 @@ def page_production() -> None:
                 margin:14px 0 8px'>Scheduled Production</div>""", unsafe_allow_html=True)
             tbl = other_rows[[
                 "SKU_ID", "Product_Name", "Category", "ABC", "Urgency",
-                "Current_Stock", "Days_Left", "Prod_Need", "Target_Warehouse", "Ready_By", "Est_Ship_Cost",
+                "Current_Stock", "Demand_6M", "Demand_Cover_Pct",
+                "Days_Left", "Prod_Need", "Target_Warehouse", "Ready_By", "Est_Ship_Cost",
             ]].copy()
-            tbl["Days_Left"]     = tbl["Days_Left"].apply(lambda x: f"{int(x)}d" if x < 999 else "∞")
-            tbl["Est_Ship_Cost"] = tbl["Est_Ship_Cost"].apply(lambda x: f"₹{int(x):,}")
-            tbl["Ready_By"]      = tbl["Ready_By"].dt.strftime("%d %b %Y")
+            tbl["Days_Left"]       = tbl["Days_Left"].apply(lambda x: f"{int(x)}d" if x < 999 else "∞")
+            tbl["Est_Ship_Cost"]   = tbl["Est_Ship_Cost"].apply(lambda x: f"₹{int(x):,}")
+            tbl["Ready_By"]        = tbl["Ready_By"].dt.strftime("%d %b %Y")
+            tbl["Demand_Cover_Pct"]= tbl["Demand_Cover_Pct"].apply(lambda x: f"{x:.0f}%")
             tbl.columns = ["SKU", "Product", "Category", "ABC", "Urgency",
-                           "Stock", "Days Left", "Produce", "Warehouse", "Ready By", "Ship Cost"]
+                           "Stock", "6M Demand", "Stock Covers %",
+                           "Days Left", "Produce", "Warehouse", "Ready By", "Ship Cost"]
             st.dataframe(tbl, use_container_width=True, hide_index=True)
 
     with pt2:
