@@ -453,7 +453,7 @@ def compute_production(cap_mult=1.0, buffer_pct=0.15):
                 "Demand_Forecast": round(fc,0),
                 "Crit_Boost": round(crit_boost,0),
                 "Low_Boost": round(low_boost,0),
-                "Buffer": round(prod - production_base,0),
+                "Buffer": round(buffer_units * demand_share,0),
                 "Production": round(prod,0),
                 "CI_Lo": round(ci_lo[i],0),
                 "CI_Hi": round(ci_hi[i],0),
