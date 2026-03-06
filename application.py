@@ -398,6 +398,7 @@ def compute_inventory(order_cost=500, hold_pct=0.20, lead_time=7, z=1.65):
     cum_pct=inv_df["Total_Revenue"].cumsum()/inv_df["Total_Revenue"].sum()*100
     inv_df["ABC"]=np.where(cum_pct<=70,"A",np.where(cum_pct<=90,"B","C"))
     return inv_df
+
 @st.cache_data
 def compute_production(cap_mult=1.0, buffer_pct=0.15):
     df=load_data(); ops=get_ops(df).copy()
@@ -438,9 +439,9 @@ def compute_production(cap_mult=1.0, buffer_pct=0.15):
             crit_boost   = crit_gap*bf
             low_boost    = low_gap*bf*0.5
             production_base = max(cat_inv["Prod_Need"].sum(), 0)
-
-            prod = production_base * cap_mult * (1 + buffer_pct)
-            
+            monthly_prod = production_base / len(fc_arr)  
+            prod = monthly_prod * cap_mult * (1 + buffer_pct)
+                        
             rows.append({
                 "Month_dt": dt,
                 "Month": dt.strftime("%b %Y"),
