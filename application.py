@@ -313,7 +313,6 @@ def compute_inventory(order_cost=500, hold_pct=0.20, lead_time=7, z=1.65):
         total_qty=("Net_Qty","sum")
     ).reset_index()
 
-    # ── ONE ml_forecast per category — shared source of truth for all modules ──
     cat_monthly=ops.groupby(["YM","Category"])["Net_Qty"].sum().unstack(fill_value=0)
     cat_forecast={}; cat_hist_avg={}
     for cat in cat_monthly.columns:
@@ -365,7 +364,6 @@ def compute_inventory(order_cost=500, hold_pct=0.20, lead_time=7, z=1.65):
 
         if current_stock<=ss:        status="🔴 Critical"
         elif current_stock<rop:      status="🟡 Low"
-        elif current_stock>rop+2*eoq:status="🟢 Overstocked"
         else:                        status="🟢 Adequate"
 
         days_stock    = round(current_stock/daily_d,1) if daily_d>0 else 999
@@ -381,9 +379,9 @@ def compute_inventory(order_cost=500, hold_pct=0.20, lead_time=7, z=1.65):
         weeks_cover = round(current_stock/(daily_d*7),1) if daily_d>0 else 99
         rows.append({
             "SKU_ID":sku,"Product_Name":sk["Product_Name"],"Category":cat,
-            "Monthly_Avg":round(hist_avg,1),       # historical avg kept for reference
+            "Monthly_Avg":round(hist_avg,1),       
             "Monthly_Std":round(std_d,1),
-            "Forecast_Avg":round(avg_d,1),         # = forecast mean (was hist mean)
+            "Forecast_Avg":round(avg_d,1),      
             "Forecast_Next6":fc_next6,
             "EOQ":eoq,"SS":ss,"ROP":rop,
             "Current_Stock":current_stock,
@@ -439,7 +437,7 @@ def compute_production(cap_mult=1.0, buffer_pct=0.15):
             bf           = boost_schedule.get(i, 0.0)
             crit_boost   = crit_gap*bf
             low_boost    = low_gap*bf*0.5
-            production_base = max(fc + safety_stock - current_stock, 0)
+            production_base = max(cat_inv["Prod_Need"].sum(), 0)
 
             prod = production_base * cap_mult * (1 + buffer_pct)
             
@@ -481,10 +479,14 @@ def build_sku_production_plan():
     )
 
     needs = inv[inv["Prod_Need"] > 0].copy()
+    abc_weight = {"A":3, "B":2, "C":1}
+    needs["ABC_Priority"] = needs["ABC"].map(abc_weight)
     needs["Daily_Demand"] = (needs["Monthly_Avg"] / 30).clip(lower=0.01)
     needs["Days_Left"]    = (needs["Current_Stock"] / needs["Daily_Demand"]).round(1)
     needs["Days_Left"]    = needs["Days_Left"].clip(upper=999)
-
+    needs["Priority_Score"] = (
+        needs["ABC_Priority"] * 3 + needs["Stockout_Cost"] / 1000 + (needs["ROP"] - needs["Current_Stock"]).clip(lower=0)
+    )
     def urgency(row):
         if row["Status"] == "🔴 Critical":
             return "🔴 Urgent"
@@ -510,16 +512,11 @@ def build_sku_production_plan():
 
     urgency_order = {"🔴 Urgent": 0, "🟠 High": 1, "🟡 Medium": 2, "🟢 Normal": 3}
     needs["_urg_order"] = needs["Urgency"].map(urgency_order)
-    needs = needs.sort_values(["_urg_order", "Prod_Need"], ascending=[True, False]).reset_index(drop=True)
+    needs = needs.sort_values(["Priority_Score","Days_Left"],ascending=[False,True]).reset_index(drop=True)
 
-    return needs[
-    [
-    "SKU_ID","Product_Name","Category","ABC","Urgency",
-    "Current_Stock","ROP","SS","EOQ","Prod_Need",
-    "Daily_Demand","Days_Left","Monthly_Avg","Forecast_Avg",
-    "Unit_Price","Stockout_Cost",
-    "Target_Warehouse","WH_Share_Pct","Est_Ship_Cost",
-    "Ready_By","Ship_By","Status"
+    return needs[[
+      "SKU_ID","Product_Name","Category","ABC","Urgency","Prod_Need","Days_Left","Stockout_Cost",
+      "Target_Warehouse","WH_Share_Pct","Est_Ship_Cost","Ready_By","Ship_By","Status"
     ]]
 
 @st.cache_data
@@ -566,26 +563,23 @@ def compute_logistics(w_speed=0.40,w_cost=0.35,w_returns=0.25):
     opt["Potential_Saving"]=((opt["Current_Avg_Cost"]-opt["Min_Avg_Cost"])*opt["Orders"]).round(0)
     opt["Saving_Pct"]=((opt["Current_Avg_Cost"]-opt["Min_Avg_Cost"])/opt["Current_Avg_Cost"]*100).round(1)
 
-    # ── Shipping unit cost from history (best available estimate) ───────────
     avg_ship_unit = max(del_df["Shipping_Cost_INR"].sum() /
                         max(del_df["Quantity"].replace(0,np.nan).sum(), 1), 1.0)
 
-    # ── avg units per order: ratio from history, applied to forecast volume ──
     hist_units  = max(del_df["Quantity"].sum(), 1)
     hist_orders = max(len(del_df), 1)
     avg_units_ord = max(hist_units/hist_orders, 1.0)   # units-per-order ratio
 
-    # ── Forward shipment plan driven by DEMAND FORECAST (not production qty) ─
     fwd_rows=[]
     if not plan.empty:
         for _,row in plan.iterrows():
-            fc_units = row["Demand_Forecast"]           # ← demand forecast is the base
+            fc_units = row["Demand_Forecast"]        
             fwd_rows.append({
                 "Month_dt":      row["Month_dt"],
                 "Month":         row["Month"],
                 "Category":      row["Category"],
                 "Prod_Units":    int(row["Production"]),
-                "Demand_Units":  int(fc_units),          # NEW: forecast demand column
+                "Demand_Units":  int(fc_units),         
                 "Proj_Orders":   int(round(fc_units/avg_units_ord)),
                 "Proj_Ship_Cost":int(round(fc_units*avg_ship_unit,0)),
                 "CI_Lo_Units":   int(row["CI_Lo"]),
@@ -849,7 +843,7 @@ def page_inventory():
     with tab_alerts:
         sc1, sc2, sc3 = st.columns([2,2,1])
         cat_f  = sc1.multiselect("Category", sorted(inv["Category"].unique()),default=sorted(inv["Category"].unique()), key="al_cat")
-        stat_f = sc2.multiselect("Status",["🔴 Critical","🟡 Low","🟢 Adequate","🟢 Overstocked"],default=["🔴 Critical","🟡 Low","🟢 Adequate","🟢 Overstocked"], key="al_stat")
+        stat_f = sc2.multiselect("Status",["🔴 Critical","🟡 Low","🟢 Adequate"],default=["🔴 Critical","🟡 Low","🟢 Adequate"], key="al_stat")
         abc_f  = sc3.multiselect("ABC", ["A","B","C"], default=["A","B","C"], key="al_abc")
         sv = inv[(inv["Category"].isin(cat_f))&(inv["Status"].isin(stat_f))&(inv["ABC"].isin(abc_f))].copy()
 
@@ -991,7 +985,7 @@ def page_production():
     if plan.empty: st.warning("Insufficient data."); return
     agg=plan.groupby("Month_dt")[["Production","Demand_Forecast","Crit_Boost","Low_Boost"]].sum().reset_index()
     c1,c2,c3,c4=st.columns(4)
-    kpi(c1,"Total Production",f"{plan['Production'].sum():,.0f}","amber","units · 6 months")
+    kpi(c1,"Production Required",f"{plan['Production'].sum():,.0f}","amber","units · 6 months")
     kpi(c2,"Total Demand Fc",f"{plan['Demand_Forecast'].sum():,.0f}","sky","forecast units")
     kpi(c3,"Avg / Month",f"{agg['Production'].mean():,.0f}","sky","units/month")
     peak=agg.loc[agg["Production"].idxmax(),"Month_dt"]
@@ -1008,8 +1002,6 @@ def page_production():
             line=dict(color="#8B5CF6",width=1.5,dash="dot"),opacity=0.6))
     fig.add_trace(go.Bar(x=agg["Month_dt"],y=agg["Production"],name="Production Target",
         marker=dict(color="#8B5CF6",opacity=0.85,line=dict(color="rgba(0,0,0,0)"))))
-    #fig.add_trace(go.Bar(x=agg["Month_dt"],y=agg["Crit_Boost"]+agg["Low_Boost"],name="Inv. Replenishment Boost",
-        #marker=dict(color="rgba(239,68,68,0.7)",line=dict(color="rgba(0,0,0,0)"))))
     fig.add_trace(go.Scatter(x=agg["Month_dt"],y=agg["Demand_Forecast"],name="Ensemble Demand Forecast",
         mode="lines+markers",line=dict(color="#F59E0B",width=2.5),
         marker=dict(size=8,color="#F59E0B",line=dict(color="#FFFFFF",width=2))))
@@ -1053,16 +1045,9 @@ def page_production():
     st.dataframe(d3.sort_values("Month"),use_container_width=True,hide_index=True)
     sp()
     st.markdown("""
-    <div style='background:linear-gradient(135deg,#0f172a,#1e3a8a);
-         border-radius:16px;padding:22px 28px;margin-bottom:22px'>
-      <div style='font-size:22px;font-weight:900;color:white;letter-spacing:-.02em'>
+      <div style='font-size:22px;font-weight:900;color:black;letter-spacing:-.02em'>
         SKU Production Intelligence
-      </div>
-      <div style='font-size:12px;color:#93c5fd;font-family:DM Mono,monospace;margin-top:4px'>
-        Which SKUs need production · Days of stock remaining · Target warehouse routing
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
+      </div>""", unsafe_allow_html=True)
     
     sku_plan = build_sku_production_plan()
     
@@ -1100,25 +1085,20 @@ def page_production():
                 "Category", sorted(sku_plan["Category"].unique()),
                 default=sorted(sku_plan["Category"].unique()), key="pq_cat"
             )
-            abc_pf = pf3.multiselect(
-                "ABC", ["A","B","C"], default=["A","B","C"], key="pq_abc"
-            )
-    
+            abc_pf = pf3.multiselect("ABC", ["A","B","C"], default=["A","B","C"], key="pq_abc")
             filt = sku_plan[
                 sku_plan["Urgency"].isin(urg_f) &
                 sku_plan["Category"].isin(cat_pf) &
                 sku_plan["ABC"].isin(abc_pf)
             ]
-    
             urgent_rows = filt[filt["Urgency"].isin(["🔴 Urgent","🟠 High"])]
             other_rows  = filt[filt["Urgency"].isin(["🟡 Medium","🟢 Normal"])]
     
             if not urgent_rows.empty:
                 st.markdown("""<div style='font-size:11px;font-weight:700;color:#dc2626;
                     letter-spacing:.08em;text-transform:uppercase;font-family:DM Mono;
-                    margin:12px 0 8px'>⚡ Immediate Action Required</div>""",
+                    margin:12px 0 8px'>Immediate Action Required</div>""",
                     unsafe_allow_html=True)
-    
                 cols_per_row = 2
                 rows_data = [
                     urgent_rows.iloc[i:i+cols_per_row]
@@ -1183,12 +1163,11 @@ def page_production():
                 tbl["Est_Ship_Cost"] = tbl["Est_Ship_Cost"].apply(lambda x: f"₹{int(x):,}")
                 tbl["Ready_By"]      = tbl["Ready_By"].dt.strftime("%d %b %Y")
                 tbl.columns = ["SKU","Product","Category","ABC","Urgency",
-                               "Stock","Days Left","Produce","→ Warehouse","Ready By","Ship Cost"]
+                               "Stock","Days Left","Produce","Warehouse","Ready By","Ship Cost"]
                 st.dataframe(tbl, use_container_width=True, hide_index=True)
     
         with pt2:
             sec("Warehouse Stock Needs & Routing Plan")
-    
             wh_agg = (
                 sku_plan.groupby("Target_Warehouse")
                 .agg(
@@ -1200,8 +1179,7 @@ def page_production():
                     Categories=("Category", lambda x: ", ".join(sorted(x.unique()))),
                     Avg_Days_Left=("Days_Left", lambda x: x[x < 999].mean()),
                 )
-                .reset_index()
-                .sort_values("Urgent_SKUs", ascending=False)
+                .reset_index().sort_values("Urgent_SKUs", ascending=False)
             )
     
             wh_cols = st.columns(min(len(wh_agg), 4), gap="medium")
@@ -1241,8 +1219,6 @@ def page_production():
     
             sp()
             sec("Detailed Shipment Routing Plan")
-    
-            # Full routing table
             routing_tbl = sku_plan[[
                 "Target_Warehouse","SKU_ID","Product_Name","Category","ABC","Urgency",
                 "Prod_Need","Days_Left","Ready_By","Ship_By","Est_Ship_Cost","WH_Share_Pct"
@@ -1257,12 +1233,10 @@ def page_production():
                 "Units","Days Left","Ready By","Ship By","Ship Cost","WH Traffic %"
             ]
             st.dataframe(
-                routing_tbl.sort_values(["Warehouse","Urgency"]),
-                use_container_width=True, hide_index=True, height=380
+                routing_tbl.sort_values(["Warehouse","Urgency"]),use_container_width=True, hide_index=True, height=380
             )
     
             sp(0.5)
-            # Download hint
             banner("<b>Routing logic:</b> Each SKU is assigned to the warehouse that historically handles the highest share of its product category — ensuring stock lands where demand is highest.", "sky")
     
         with pt3:
@@ -1270,7 +1244,6 @@ def page_production():
             va1, va2 = st.columns(2, gap="large")
     
             with va1:
-                # Urgency donut
                 urg_counts = sku_plan["Urgency"].value_counts().reset_index()
                 urg_counts.columns = ["Urgency", "Count"]
                 urg_color_map = {
@@ -1280,15 +1253,12 @@ def page_production():
                     "🟢 Normal": "#22c55e"
                 }
                 fig_d = go.Figure(go.Pie(
-                    labels=urg_counts["Urgency"],
-                    values=urg_counts["Count"],
-                    hole=0.55,
+                    labels=urg_counts["Urgency"],values=urg_counts["Count"],hole=0.55,
                     marker=dict(
                         colors=[urg_color_map.get(u, "#888") for u in urg_counts["Urgency"]],
                         line=dict(color="#ffffff", width=2)
                     ),
-                    textinfo="label+value",
-                    textfont=dict(size=11)
+                    textinfo="label+value", textfont=dict(size=11)
                 ))
                 fig_d.update_layout(
                     **CD(), height=260,
@@ -1298,7 +1268,6 @@ def page_production():
                 st.plotly_chart(fig_d, use_container_width=True, key="pq_donut")
     
             with va2:
-                # Units needed by category, coloured by urgency
                 cat_units = sku_plan.groupby(["Category","Urgency"])["Prod_Need"].sum().reset_index()
                 fig_bu = go.Figure()
                 for urg, clr in urg_color_map.items():
@@ -1321,8 +1290,6 @@ def page_production():
     
             sp()
             sec("Days of Stock Remaining — All SKUs Needing Production")
-    
-            # Horizontal bar — days left per SKU (top 20 most urgent)
             top20 = sku_plan.head(20).copy()
             top20["Label"] = top20["Product_Name"].str[:22] + " [" + top20["SKU_ID"] + "]"
             top20["Bar_Color"] = top20["Days_Left"].apply(
@@ -1357,7 +1324,7 @@ def page_production():
                 **CD(), height=max(300, len(top20_s) * 22),
                 xaxis={**gX(), "title": "Days of Stock Remaining", "range": [0, 70]},
                 yaxis=dict(showgrid=False, color="#64748b", automargin=True),
-                title=dict(text="Top 20 Most Urgent SKUs — Days of Stock Left (capped at 60d)", font=dict(size=11, color="#64748b"))
+                title=dict(text="Top 20 Most Urgent SKUs — Days of Stock Left", font=dict(size=11, color="#64748b"))
             )
             st.plotly_chart(fig_hl, use_container_width=True, key="pq_days_bar")
     
