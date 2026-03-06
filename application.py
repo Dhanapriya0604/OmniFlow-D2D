@@ -804,7 +804,7 @@ def build_sku_production_plan() -> pd.DataFrame:
 
     return needs[[
         "SKU_ID", "Product_Name", "Category", "ABC", "Urgency", "Prod_Need",
-        "Days_Left", "Stockout_Cost", "Target_Warehouse", "WH_Share_Pct",
+        "Current_Stock", "Days_Left", "Stockout_Cost", "Target_Warehouse", "WH_Share_Pct",
         "Est_Ship_Cost", "Ready_By", "Ship_By", "Status",
     ]]
 
