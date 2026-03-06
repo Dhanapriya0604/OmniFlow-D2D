@@ -341,7 +341,6 @@ def compute_inventory(order_cost=500, hold_pct=0.20, lead_time=7, z=1.65):
         hist_std = float(np.std(demands)) if len(demands)>1 else hist_avg*0.25
         peak_d   = float(np.max(demands))
 
-        # ── avg_d is NOW forecast-based (not historical mean) ──────────────
         if cat in cat_forecast and cat in cat_hist_avg and cat_hist_avg[cat]>0:
             sku_share        = hist_avg / cat_hist_avg[cat]
             fc_monthly_mean  = cat_forecast[cat]["mean"] * sku_share
@@ -837,7 +836,23 @@ def page_inventory():
 
     inv=compute_inventory(order_cost,hold_pct,lead_time,z)
     if inv.empty: st.warning("No inventory data."); return
-
+    prod_df = inv[inv["Prod_Need"] > 0] 
+    total_skus_to_produce = prod_df["SKU_ID"].nunique()
+    total_units_to_produce = prod_df["Prod_Need"].sum()
+    
+    st.markdown("Production Requirement Summary")
+    
+    c1, c2 = st.columns(2)
+    kpi(c1,"SKUs Needing Production",total_skus_to_produce,"coral","below ROP")
+    kpi(c2,"Total Units to Produce",f"{int(total_units_to_produce):,}","amber","to reach ROP + EOQ")
+    cat_prod = (prod_df.groupby("Category")
+        .agg(SKUs=("SKU_ID","count"),Units_To_Produce=("Prod_Need","sum"))
+        .reset_index().sort_values("Units_To_Produce",ascending=False)
+    )
+    
+    st.markdown("Category Production Requirement")
+    st.dataframe(cat_prod,use_container_width=True,hide_index=True)
+    
     n_crit=(inv["Status"]=="🔴 Critical").sum()
     n_low=(inv["Status"]=="🟡 Low").sum()
     n_ok=inv["Status"].str.startswith("🟢").sum()
