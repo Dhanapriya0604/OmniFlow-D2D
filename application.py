@@ -406,7 +406,6 @@ def compute_production(cap_mult=1.0, buffer_pct=0.15):
     ops["YM"]=ops["Order_Date"].dt.to_period("M")
     inv=compute_inventory()
 
-    # ── Reuse the same ml_forecast call (same model, same data) as inventory ──
     cat_monthly=ops.groupby(["YM","Category"])["Net_Qty"].sum().unstack(fill_value=0)
     cat_forecast={}
     for cat in cat_monthly.columns:
@@ -433,7 +432,7 @@ def compute_production(cap_mult=1.0, buffer_pct=0.15):
         crit_gap      = float((crit_skus["ROP"]-crit_skus["Current_Stock"]).clip(lower=0).sum())
         low_gap       = float((low_skus["ROP"] -low_skus["Current_Stock"]).clip(lower=0).sum())
         boost_schedule= {0:0.60, 1:0.40}
-        current_stock = cat_inv["Current_Stock"].sum()
+        current_stock = cat_inv["Current_Stock"].sum() if not cat_inv.empty else 0
         safety_stock  = cat_inv["SS"].sum()
 
         for i,(dt,fc) in enumerate(zip(fut_ds, fc_arr)):
@@ -513,13 +512,14 @@ def build_sku_production_plan():
     needs["_urg_order"] = needs["Urgency"].map(urgency_order)
     needs = needs.sort_values(["_urg_order", "Prod_Need"], ascending=[True, False]).reset_index(drop=True)
 
-    return needs[[
-      "SKU_ID","Product_Name","Category","Urgency",
-      "Current_Stock","ROP","SS","EOQ","Prod_Need",
-      "Daily_Demand","Days_Left","Monthly_Avg","Forecast_Avg",
-      "Unit_Price","Stockout_Cost",
-      "Target_Warehouse","WH_Share_Pct","Est_Ship_Cost",
-      "Ready_By","Ship_By","Status"
+    return needs[
+    [
+    "SKU_ID","Product_Name","Category","ABC","Urgency",
+    "Current_Stock","ROP","SS","EOQ","Prod_Need",
+    "Daily_Demand","Days_Left","Monthly_Avg","Forecast_Avg",
+    "Unit_Price","Stockout_Cost",
+    "Target_Warehouse","WH_Share_Pct","Est_Ship_Cost",
+    "Ready_By","Ship_By","Status"
     ]]
 
 @st.cache_data
