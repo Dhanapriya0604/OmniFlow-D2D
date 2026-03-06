@@ -441,16 +441,20 @@ def compute_production(cap_mult=1.0, buffer_pct=0.15):
             crit_boost   = crit_gap*bf
             low_boost    = low_gap*bf*0.5
             production_base = max(fc + safety_stock - current_stock, 0)
+
             prod = production_base * cap_mult * (1 + buffer_pct)
+            
             rows.append({
-                "Month_dt":dt,"Month":dt.strftime("%b %Y"),"Category":cat,
-                "Demand_Forecast":round(fc,0),       # demand forecast (truth)
-                "Crit_Boost":round(crit_boost,0),
-                "Low_Boost":round(low_boost,0),
-                "Buffer":round(prod-net_prod,0),
-                "Production":round(prod,0),          # = demand + gap + buffer
-                "CI_Lo":round(ci_lo[i],0),
-                "CI_Hi":round(ci_hi[i],0),
+                "Month_dt": dt,
+                "Month": dt.strftime("%b %Y"),
+                "Category": cat,
+                "Demand_Forecast": round(fc,0),
+                "Crit_Boost": round(crit_boost,0),
+                "Low_Boost": round(low_boost,0),
+                "Buffer": round(prod - production_base,0),
+                "Production": round(prod,0),
+                "CI_Lo": round(ci_lo[i],0),
+                "CI_Hi": round(ci_hi[i],0),
             })
     return pd.DataFrame(rows)
 @st.cache_data
@@ -1253,7 +1257,7 @@ def page_production():
                 "Units","Days Left","Ready By","Ship By","Ship Cost","WH Traffic %"
             ]
             st.dataframe(
-                routing_tbl.sort_values(["→ Warehouse","Urgency"]),
+                routing_tbl.sort_values(["Warehouse","Urgency"]),
                 use_container_width=True, hide_index=True, height=380
             )
     
@@ -1339,7 +1343,7 @@ def page_production():
                     "<b>%{y}</b><br>"
                     "Days left: %{x:.0f}d<br>"
                     "Category: %{customdata[0]}<br>"
-                    "→ Warehouse: %{customdata[1]}<br>"
+                    "Warehouse: %{customdata[1]}<br>"
                     "Urgency: %{customdata[2]}<extra></extra>"
                 )
             ))
