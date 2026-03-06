@@ -300,7 +300,8 @@ def compute_inventory(order_cost=500, hold_pct=0.20, lead_time=7, z=1.65):
     ops["YM"]=ops["Order_Date"].dt.to_period("M")
     del_ops=df[df["Order_Status"]=="Delivered"].copy()
     lt_std_map=del_ops.groupby("Category")["Delivery_Days"].std().fillna(1.0).to_dict()
-    sku_monthly=(ops.groupby(["SKU_ID","YM"])["Net_Qty"].sum().reset_index().sort_values(["SKU_ID","YM"]))
+    sku_monthly=(ops.groupby(["SKU_ID","YM"])["Net_Qty"].sum()
+                   .reset_index().sort_values(["SKU_ID","YM"]))
 
     df_sorted=df.sort_values("Order_Date")
     sku_snapshot=df_sorted.groupby("SKU_ID").agg(
@@ -313,13 +314,21 @@ def compute_inventory(order_cost=500, hold_pct=0.20, lead_time=7, z=1.65):
         total_qty=("Net_Qty","sum")
     ).reset_index()
 
+    # ── ONE ml_forecast per category — shared source of truth for all modules ──
     cat_monthly=ops.groupby(["YM","Category"])["Net_Qty"].sum().unstack(fill_value=0)
     cat_forecast={}; cat_hist_avg={}
     for cat in cat_monthly.columns:
         cat_hist_avg[cat]=float(cat_monthly[cat].mean())
         res=ml_forecast(cat_monthly[cat].values.astype(float),cat_monthly.index,6)
         if res is not None:
-            cat_forecast[cat]={"mean":float(np.mean(res["forecast"])),"monthly":res["forecast"].tolist()}
+            cat_forecast[cat]={
+                "mean":      float(np.mean(res["forecast"])),
+                "monthly":   res["forecast"].tolist(),
+                "ci_lo":     res["ci_lo"].tolist(),
+                "ci_hi":     res["ci_hi"].tolist(),
+                "fut_ds":    res["fut_ds"],
+                "resid_std": res["resid_std"],
+            }
 
     rows=[]
     for _,sk in sku_snapshot.iterrows():
@@ -327,56 +336,65 @@ def compute_inventory(order_cost=500, hold_pct=0.20, lead_time=7, z=1.65):
         skd=sku_monthly[sku_monthly["SKU_ID"]==sku].sort_values("YM")
         demands=skd["Net_Qty"].values
         if len(demands)<1: continue
-        avg_d=float(np.mean(demands)); std_d=float(np.std(demands)) if len(demands)>1 else avg_d*0.25
-        peak_d=float(np.max(demands))
 
+        hist_avg = float(np.mean(demands))
+        hist_std = float(np.std(demands)) if len(demands)>1 else hist_avg*0.25
+        peak_d   = float(np.max(demands))
+
+        # ── avg_d is NOW forecast-based (not historical mean) ──────────────
         if cat in cat_forecast and cat in cat_hist_avg and cat_hist_avg[cat]>0:
-            sku_share=avg_d/cat_hist_avg[cat]
-            fc_monthly=cat_forecast[cat]["mean"]*sku_share
-            fc_next6=[v*sku_share for v in cat_forecast[cat]["monthly"]]
-            econ_d=avg_d*0.50+peak_d*0.30+fc_monthly*0.20
+            sku_share        = hist_avg / cat_hist_avg[cat]
+            fc_monthly_mean  = cat_forecast[cat]["mean"] * sku_share
+            fc_next6         = [v*sku_share for v in cat_forecast[cat]["monthly"]]
+            avg_d            = fc_monthly_mean                   # CHANGED: was hist_avg
+            econ_d           = fc_monthly_mean*0.70 + peak_d*0.30
         else:
-            fc_next6=[avg_d]*6
-            econ_d=avg_d*0.60+peak_d*0.40
+            fc_next6 = [hist_avg]*6
+            avg_d    = hist_avg
+            econ_d   = hist_avg*0.60 + peak_d*0.40
 
-        daily_d=avg_d/30.0
-        ann_d=econ_d*12
-        uc=max(float(sk["avg_price"]),1.0)
-        eoq=max(int(np.sqrt(2*ann_d*order_cost/(uc*hold_pct))) if ann_d>0 else 10, 1)
-        daily_std=std_d/np.sqrt(30); lt_std=lt_std_map.get(cat,1.0)
-        ss=max(int(z*np.sqrt(lead_time*daily_std**2+daily_d**2*lt_std**2)), 0)
-        computed_rop=max(int(daily_d*lead_time+ss), 1)
-        rop=max(int(sk["dataset_rop"]), computed_rop)
-        current_stock=int(sk["actual_stock"])
-        if current_stock<=ss:
-            status="🔴 Critical"
-        elif current_stock<rop:
-            status="🟡 Low"
-        elif current_stock>rop+2*eoq:
-            status="🟢 Overstocked"
-        else:
-            status="🟢 Adequate"
-        days_stock=round(current_stock/daily_d,1) if daily_d>0 else 999
-        margin_rate=0.20
-        units_below_ss=max(ss-current_stock, 0)
+        std_d    = hist_std
+        daily_d  = avg_d/30.0
+        ann_d    = econ_d*12
+        uc       = max(float(sk["avg_price"]),1.0)
+        eoq      = max(int(np.sqrt(2*ann_d*order_cost/(uc*hold_pct))) if ann_d>0 else 10, 1)
+        daily_std= std_d/np.sqrt(30)
+        lt_std   = lt_std_map.get(cat,1.0)
+        ss       = max(int(z*np.sqrt(lead_time*daily_std**2+daily_d**2*lt_std**2)), 0)
+        computed_rop = max(int(daily_d*lead_time+ss), 1)
+        rop      = max(int(sk["dataset_rop"]), computed_rop)
+        current_stock = int(sk["actual_stock"])
+
+        if current_stock<=ss:        status="🔴 Critical"
+        elif current_stock<rop:      status="🟡 Low"
+        elif current_stock>rop+2*eoq:status="🟢 Overstocked"
+        else:                        status="🟢 Adequate"
+
+        days_stock    = round(current_stock/daily_d,1) if daily_d>0 else 999
+        margin_rate   = 0.20
+        units_below_ss= max(ss-current_stock, 0)
         if status=="🔴 Critical" and daily_d>0:
-            days_to_replenish=lead_time  # minimum time to get stock
-            daily_margin=daily_d*uc*margin_rate
-            stockout_cost=round(units_below_ss*uc*margin_rate + daily_margin*min(days_to_replenish,lead_time), 0)
+            daily_margin  = daily_d*uc*margin_rate
+            stockout_cost = round(units_below_ss*uc*margin_rate+daily_margin*lead_time, 0)
         else:
-            stockout_cost=0
+            stockout_cost = 0
 
-        prod_need=max(rop+eoq-current_stock, 0)
-        weeks_cover=round(current_stock/(daily_d*7),1) if daily_d>0 else 99
-        rows.append({"SKU_ID":sku,"Product_Name":sk["Product_Name"],"Category":cat,
-            "Monthly_Avg":round(avg_d,1),"Monthly_Std":round(std_d,1),
-            "Forecast_Avg":round(econ_d,1),"Forecast_Next6":fc_next6,
+        prod_need   = max(rop+eoq-current_stock, 0)
+        weeks_cover = round(current_stock/(daily_d*7),1) if daily_d>0 else 99
+        rows.append({
+            "SKU_ID":sku,"Product_Name":sk["Product_Name"],"Category":cat,
+            "Monthly_Avg":round(hist_avg,1),       # historical avg kept for reference
+            "Monthly_Std":round(std_d,1),
+            "Forecast_Avg":round(avg_d,1),         # = forecast mean (was hist mean)
+            "Forecast_Next6":fc_next6,
             "EOQ":eoq,"SS":ss,"ROP":rop,
-            "Current_Stock":current_stock,"Days_of_Stock":days_stock,"Weeks_Cover":weeks_cover,
+            "Current_Stock":current_stock,
+            "Days_of_Stock":days_stock,"Weeks_Cover":weeks_cover,
             "Status":status,"Dataset_Status":sk["dataset_status"],
             "Unit_Price":round(uc,0),"Annual_Demand":round(ann_d,0),
             "Stockout_Cost":stockout_cost,"Prod_Need":prod_need,
-            "Total_Revenue":round(float(sk["total_qty"])*uc,0)})
+            "Total_Revenue":round(float(sk["total_qty"])*uc,0),
+        })
 
     inv_df=pd.DataFrame(rows)
     if inv_df.empty: return inv_df
@@ -384,35 +402,60 @@ def compute_inventory(order_cost=500, hold_pct=0.20, lead_time=7, z=1.65):
     cum_pct=inv_df["Total_Revenue"].cumsum()/inv_df["Total_Revenue"].sum()*100
     inv_df["ABC"]=np.where(cum_pct<=70,"A",np.where(cum_pct<=90,"B","C"))
     return inv_df
-
 @st.cache_data
 def compute_production(cap_mult=1.0, buffer_pct=0.15):
     df=load_data(); ops=get_ops(df).copy()
     ops["YM"]=ops["Order_Date"].dt.to_period("M")
     inv=compute_inventory()
+
+    # ── Reuse the same ml_forecast call (same model, same data) as inventory ──
     cat_monthly=ops.groupby(["YM","Category"])["Net_Qty"].sum().unstack(fill_value=0)
-    ds_index=cat_monthly.index; rows=[]
+    cat_forecast={}
     for cat in cat_monthly.columns:
-        vals=cat_monthly[cat].values.astype(float)
-        res=ml_forecast(vals,ds_index)
-        if res is None: continue
-        cat_inv=inv[inv["Category"]==cat]
-        crit_skus=cat_inv[cat_inv["Status"]=="🔴 Critical"]
-        low_skus=cat_inv[cat_inv["Status"]=="🟡 Low"]
-        crit_gap=float((crit_skus["ROP"]-crit_skus["Current_Stock"]).clip(lower=0).sum())
-        low_gap=float((low_skus["ROP"]-low_skus["Current_Stock"]).clip(lower=0).sum())
-        boost_schedule={0:0.60, 1:0.40}
-        current_stock=cat_inv["Current_Stock"].sum(); safety_stock=cat_inv["SS"].sum()
-        for i,(dt,fc) in enumerate(zip(res["fut_ds"],res["forecast"])):
-            bf=boost_schedule.get(i,0.0)
-            crit_boost=crit_gap*bf; low_boost=low_gap*bf*0.5
-            production_base=fc+safety_stock-current_stock
-            net_prod=max(production_base,0)*cap_mult
-            prod=net_prod*(1+buffer_pct)
-            rows.append({"Month_dt":dt,"Month":dt.strftime("%b %Y"),"Category":cat,
-                "Demand_Forecast":round(fc,0),"Crit_Boost":round(crit_boost,0),
-                "Low_Boost":round(low_boost,0),"Buffer":round(prod-net_prod,0),
-                "Production":round(prod,0),"CI_Lo":round(res["ci_lo"][i],0),"CI_Hi":round(res["ci_hi"][i],0)})
+        res=ml_forecast(cat_monthly[cat].values.astype(float),cat_monthly.index,6)
+        if res is not None:
+            cat_forecast[cat]={
+                "forecast": res["forecast"],
+                "ci_lo":    res["ci_lo"],
+                "ci_hi":    res["ci_hi"],
+                "fut_ds":   res["fut_ds"],
+            }
+
+    rows=[]
+    for cat in cat_monthly.columns:
+        if cat not in cat_forecast: continue
+        fc_arr  = cat_forecast[cat]["forecast"]   # same forecast as inventory uses
+        ci_lo   = cat_forecast[cat]["ci_lo"]
+        ci_hi   = cat_forecast[cat]["ci_hi"]
+        fut_ds  = cat_forecast[cat]["fut_ds"]
+
+        cat_inv       = inv[inv["Category"]==cat]
+        crit_skus     = cat_inv[cat_inv["Status"]=="🔴 Critical"]
+        low_skus      = cat_inv[cat_inv["Status"]=="🟡 Low"]
+        crit_gap      = float((crit_skus["ROP"]-crit_skus["Current_Stock"]).clip(lower=0).sum())
+        low_gap       = float((low_skus["ROP"] -low_skus["Current_Stock"]).clip(lower=0).sum())
+        boost_schedule= {0:0.60, 1:0.40}
+        current_stock = cat_inv["Current_Stock"].sum()
+        safety_stock  = cat_inv["SS"].sum()
+
+        for i,(dt,fc) in enumerate(zip(fut_ds, fc_arr)):
+            bf           = boost_schedule.get(i, 0.0)
+            crit_boost   = crit_gap*bf
+            low_boost    = low_gap*bf*0.5
+            # fc here IS the demand forecast — production is fc + stock gap + buffer
+            production_base = fc + safety_stock - current_stock
+            net_prod     = max(production_base, 0)*cap_mult
+            prod         = net_prod*(1+buffer_pct)
+            rows.append({
+                "Month_dt":dt,"Month":dt.strftime("%b %Y"),"Category":cat,
+                "Demand_Forecast":round(fc,0),       # demand forecast (truth)
+                "Crit_Boost":round(crit_boost,0),
+                "Low_Boost":round(low_boost,0),
+                "Buffer":round(prod-net_prod,0),
+                "Production":round(prod,0),          # = demand + gap + buffer
+                "CI_Lo":round(ci_lo[i],0),
+                "CI_Hi":round(ci_hi[i],0),
+            })
     return pd.DataFrame(rows)
 @st.cache_data
 def build_sku_production_plan():
@@ -488,13 +531,16 @@ def build_sku_production_plan():
 @st.cache_data
 def compute_logistics(w_speed=0.40,w_cost=0.35,w_returns=0.25):
     df=load_data(); del_df=get_delivered(df); plan=compute_production()
+
     carrier_returns=df.groupby("Courier_Partner")["Return_Flag"].mean().reset_index()
     carrier_returns.columns=["Courier_Partner","Return_Rate"]
     region_carrier_returns=df.groupby(["Region","Courier_Partner"])["Return_Flag"].mean().reset_index()
     region_carrier_returns.columns=["Region","Courier_Partner","Return_Rate"]
+
     carr=del_df.groupby("Courier_Partner").agg(
         Orders=("Order_ID","count"),Avg_Days=("Delivery_Days","mean"),
-        Avg_Cost=("Shipping_Cost_INR","mean"),Total_Cost=("Shipping_Cost_INR","sum")).reset_index()
+        Avg_Cost=("Shipping_Cost_INR","mean"),Total_Cost=("Shipping_Cost_INR","sum")
+    ).reset_index()
     carr=carr.merge(carrier_returns,on="Courier_Partner",how="left")
     carr["Return_Rate"]=carr["Return_Rate"].fillna(0)
     for col,wt in [("Avg_Days",w_speed),("Avg_Cost",w_cost),("Return_Rate",w_returns)]:
@@ -502,6 +548,7 @@ def compute_logistics(w_speed=0.40,w_cost=0.35,w_returns=0.25):
         carr[f"Norm_{col}"]=1-(carr[col]-mn)/(mx-mn+1e-9)
     carr["Perf_Score"]=(w_speed*carr["Norm_Avg_Days"]+w_cost*carr["Norm_Avg_Cost"]+w_returns*carr["Norm_Return_Rate"]).round(3)
     carr["Delay_Index"]=(carr["Avg_Days"]/carr["Avg_Days"].min()).round(2)
+
     region_carr=(del_df.groupby(["Region","Courier_Partner"]).agg(
         Avg_Days=("Delivery_Days","mean"),Avg_Cost=("Shipping_Cost_INR","mean"),
         Orders=("Order_ID","count")).reset_index())
@@ -513,6 +560,7 @@ def compute_logistics(w_speed=0.40,w_cost=0.35,w_returns=0.25):
     region_carr["Score"]=w_speed*region_carr["Norm_Avg_Days"]+w_cost*region_carr["Norm_Avg_Cost"]+w_returns*region_carr["Norm_Return_Rate"]
     best=(region_carr.sort_values("Score",ascending=False).groupby("Region").first().reset_index()
           [["Region","Courier_Partner","Avg_Days","Avg_Cost","Score"]])
+
     cheapest=(del_df.groupby(["Region","Courier_Partner"])
               .agg(avg_cost=("Shipping_Cost_INR","mean"),orders=("Order_ID","count"))
               .reset_index().sort_values("avg_cost").groupby("Region").first().reset_index()
@@ -523,17 +571,32 @@ def compute_logistics(w_speed=0.40,w_cost=0.35,w_returns=0.25):
     opt=region_costs.merge(cheapest[["Region","Optimal_Carrier","Min_Avg_Cost"]],on="Region")
     opt["Potential_Saving"]=((opt["Current_Avg_Cost"]-opt["Min_Avg_Cost"])*opt["Orders"]).round(0)
     opt["Saving_Pct"]=((opt["Current_Avg_Cost"]-opt["Min_Avg_Cost"])/opt["Current_Avg_Cost"]*100).round(1)
-    avg_ship_unit=max(del_df["Shipping_Cost_INR"].sum()/del_df["Quantity"].replace(0,np.nan).sum(),1.0)
-    avg_units_ord=max(del_df["Quantity"].mean(),1.0)
-    # Build forward shipment plan from production plan
+
+    # ── Shipping unit cost from history (best available estimate) ───────────
+    avg_ship_unit = max(del_df["Shipping_Cost_INR"].sum() /
+                        max(del_df["Quantity"].replace(0,np.nan).sum(), 1), 1.0)
+
+    # ── avg units per order: ratio from history, applied to forecast volume ──
+    hist_units  = max(del_df["Quantity"].sum(), 1)
+    hist_orders = max(len(del_df), 1)
+    avg_units_ord = max(hist_units/hist_orders, 1.0)   # units-per-order ratio
+
+    # ── Forward shipment plan driven by DEMAND FORECAST (not production qty) ─
     fwd_rows=[]
     if not plan.empty:
         for _,row in plan.iterrows():
-            fwd_rows.append({"Month_dt":row["Month_dt"],"Month":row["Month"],"Category":row["Category"],
-                "Prod_Units":int(row["Production"]),
-                "Proj_Orders":int(round(row["Production"]/avg_units_ord)),
-                "Proj_Ship_Cost":int(round(row["Production"]*avg_ship_unit,0)),
-                "CI_Lo_Units":int(row["CI_Lo"]),"CI_Hi_Units":int(row["CI_Hi"])})
+            fc_units = row["Demand_Forecast"]           # ← demand forecast is the base
+            fwd_rows.append({
+                "Month_dt":      row["Month_dt"],
+                "Month":         row["Month"],
+                "Category":      row["Category"],
+                "Prod_Units":    int(row["Production"]),
+                "Demand_Units":  int(fc_units),          # NEW: forecast demand column
+                "Proj_Orders":   int(round(fc_units/avg_units_ord)),
+                "Proj_Ship_Cost":int(round(fc_units*avg_ship_unit,0)),
+                "CI_Lo_Units":   int(row["CI_Lo"]),
+                "CI_Hi_Units":   int(row["CI_Hi"]),
+            })
     return carr, best, opt, pd.DataFrame(fwd_rows)
 
 def build_context():
