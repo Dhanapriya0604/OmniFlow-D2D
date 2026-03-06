@@ -1208,27 +1208,35 @@ def page_demand() -> None:
     sec("YoY Revenue Growth by Category")
     yr_rev     = ops.groupby(["Year", "Category"])["Net_Revenue"].sum().unstack(fill_value=0)
     cat_monthly = ops.groupby(["YM", "Category"])["Net_Revenue"].sum().unstack(fill_value=0)
+    # BUG 8 FIX: use N_FUTURE_MONTHS (6) consistently — same as all other forecasts.
+    # Sum all 6 forecast months as the "projected next period" revenue.
     proj_next: dict[str, float] = {}
     for cat in cat_monthly.columns:
-        r = ml_forecast(cat_monthly[cat].values.astype(float), cat_monthly.index, 12)
+        r = ml_forecast(cat_monthly[cat].values.astype(float), cat_monthly.index, N_FUTURE_MONTHS)
         if r:
-            proj_next[cat] = sum(v for d, v in zip(r["fut_ds"], r["forecast"]) if d.year == r["fut_ds"][0].year)
+            proj_next[cat] = float(r["forecast"].sum())   # sum of next 6 months
 
     if 2024 in yr_rev.index and 2025 in yr_rev.index:
         rows = []
         for cat in yr_rev.columns:
             r24 = yr_rev.loc[2024, cat]; r25 = yr_rev.loc[2025, cat]; rp = proj_next.get(cat, 0)
             rows.append({
-                "Category":       cat,
-                "2024 ₹M":        round(r24 / 1e6, 1),
-                "2025 ₹M":        round(r25 / 1e6, 1),
-                "YoY 24→25":      f"{(r25-r24)/r24*100:+.1f}%" if r24 > 0 else "N/A",
-                "Projected ₹M":   round(rp  / 1e6, 1),
-                "Projected Growth": f"{(rp-r25)/r25*100:+.1f}%" if r25 > 0 else "N/A",
+                "Category":              cat,
+                "2024 ₹M":               round(r24 / 1e6, 1),
+                "2025 ₹M":               round(r25 / 1e6, 1),
+                "YoY 24→25":             f"{(r25-r24)/r24*100:+.1f}%" if r24 > 0 else "N/A",
+                f"Next {N_FUTURE_MONTHS}M Proj ₹M": round(rp / 1e6, 1),
+                "Projected Growth":      f"{(rp-r25)/r25*100:+.1f}%" if r25 > 0 else "N/A",
             })
         st.dataframe(
-            pd.DataFrame(rows).sort_values("Projected ₹M", ascending=False),
+            pd.DataFrame(rows).sort_values(f"Next {N_FUTURE_MONTHS}M Proj ₹M", ascending=False),
             use_container_width=True, hide_index=True,
+        )
+        banner(
+            f"ℹ️ <b>Projected column</b> = ensemble forecast summed over the next "
+            f"<b>{N_FUTURE_MONTHS} months</b> — same horizon used in all other forecast charts. "
+            f"'Projected Growth' compares this 6-month sum against the full 2025 annual revenue.",
+            "sky",
         )
 
 
@@ -1252,20 +1260,22 @@ def page_inventory() -> None:
         st.warning("No inventory data.")
         return
 
-    n_crit     = (inv["Status"] == "🔴 Critical").sum()
-    n_low      = (inv["Status"] == "🟡 Low").sum()
-    sku_plan_inv    = build_sku_production_plan()
-    total_prod_need = int(sku_plan_inv["Prod_Need"].sum()) if not sku_plan_inv.empty else 0
+    n_crit          = (inv["Status"] == "🔴 Critical").sum()
+    n_low           = (inv["Status"] == "🟡 Low").sum()
+    # BUG 1 FIX: derive total_prod_need directly from inv (user params),
+    # so the KPI always equals the sum of "Units to Produce" in the Action Queue table.
+    total_prod_need = int(inv["Prod_Need"].sum())
 
     c1, c2, c3, c4 = st.columns(4)
     kpi(c1, "Total SKUs",       len(inv),               "sky",   "active SKUs")
     kpi(c2, "🔴 Critical SKUs", n_crit,                 "coral", "below safety stock")
     kpi(c3, "🟡 Low Stock",     n_low,                  "amber", "below reorder point")
-    kpi(c4, "Units to Restock", f"{total_prod_need:,}", "mint",  "stock gap · all SKUs")
+    kpi(c4, "Units to Restock", f"{total_prod_need:,}", "mint",  "= sum of Units to Produce below")
     banner(
-        "ℹ️ <b>Critical / Low counts</b> reflect the parameter settings above. "
-        "<b>Units to Restock</b> is the total stock gap (ROP + EOQ − current stock) across all SKUs — "
-        "this matches the <i>Gap Units</i> figure on the Production Planning page.",
+        "ℹ️ All four metrics above reflect the <b>parameter settings</b> (order cost, holding %, "
+        "lead time, service level) chosen above. "
+        "<b>Units to Restock</b> = Σ (ROP + EOQ − Stock) for every SKU shown in the Action Queue — "
+        "the number will match the column total in the table below.",
         "sky",
     )
     sp()
@@ -1453,11 +1463,20 @@ def page_production() -> None:
 
     agg = plan.groupby("Month_dt")[["Production", "Demand_Forecast", "Crit_Boost", "Low_Boost"]].sum().reset_index()
     c1, c2, c3, c4 = st.columns(4)
-    kpi(c1, "Production Required", f"{plan['Production'].sum():,.0f}", "amber", "units · 6 months")
-    kpi(c2, "Total Demand Fc",     f"{plan['Demand_Forecast'].sum():,.0f}", "sky",   "forecast units")
-    kpi(c3, "Avg / Month",         f"{agg['Production'].mean():,.0f}",      "sky",   "units/month")
+    kpi(c1, "Production Required", f"{plan['Production'].sum():,.0f}", "amber", "incl. buffer + urgency boosts")
+    kpi(c2, "Total Demand Fc",     f"{plan['Demand_Forecast'].sum():,.0f}", "sky",   "raw forecast units · 6 mo")
+    kpi(c3, "Avg / Month",         f"{agg['Production'].mean():,.0f}",      "sky",   "units/month · all categories")
     peak = agg.loc[agg["Production"].idxmax(), "Month_dt"]
-    kpi(c4, "Peak Month", peak.strftime("%b %Y"), "amber", "highest volume")
+    kpi(c4, "Peak Month", peak.strftime("%b %Y"), "amber", "highest production volume")
+    banner(
+        f"<b>ℹ️ Production Required ({plan['Production'].sum():,.0f})</b> = "
+        f"Demand Forecast ({plan['Demand_Forecast'].sum():,.0f}) "
+        f"+ Safety Buffer ({plan['Buffer'].sum():,.0f}) "
+        f"+ Critical Boost ({plan['Crit_Boost'].sum():,.0f}) "
+        f"+ Low Boost ({plan['Low_Boost'].sum():,.0f}) × Capacity Multiplier ({cap:.1f}). "
+        f"The chart bars and schedule table below both use this same Production figure.",
+        "sky",
+    )
     sp()
 
     sec("Production Target vs Ensemble Demand Forecast")
@@ -1543,6 +1562,17 @@ def page_production() -> None:
     d3    = d2[["Month", "Category", "Demand_Forecast", "Crit_Boost", "Low_Boost", "Buffer", "Production", "CI_Lo", "CI_Hi"]].copy()
     d3.columns = ["Month", "Category", "Demand Fc", "Crit Boost", "Low Boost", "Buffer", "Production", "Demand Lo", "Demand Hi"]
     st.dataframe(d3.sort_values("Month"), use_container_width=True, hide_index=True)
+    # BUG 5 FIX: show filtered subtotal so user can reconcile with the KPI above
+    if cat_f != "All":
+        filtered_prod  = int(d2["Production"].sum())
+        filtered_demand = int(d2["Demand_Forecast"].sum())
+        banner(
+            f"<b>Filtered subtotal — {cat_f}:</b> &nbsp;"
+            f"Production = <b>{filtered_prod:,} units</b> &nbsp;|&nbsp; "
+            f"Demand Forecast = <b>{filtered_demand:,} units</b> &nbsp;|&nbsp; "
+            f"Overall (all categories) Production Required = <b>{int(plan['Production'].sum()):,} units</b>",
+            "sky",
+        )
     sp()
 
     st.markdown("<div style='font-size:22px;font-weight:900;color:black;letter-spacing:-.02em'>SKU Production Intelligence</div>",
@@ -1552,28 +1582,6 @@ def page_production() -> None:
     if sku_plan.empty:
         banner("✅ All SKUs are adequately stocked — no production orders needed.", "mint")
         return
-
-    n_urgent  = (sku_plan["Urgency"] == "🔴 Urgent").sum()
-    n_high    = (sku_plan["Urgency"] == "🟠 High").sum()
-    total_units   = int(sku_plan["Prod_Need"].sum())
-    total_ship    = sku_plan["Est_Ship_Cost"].sum()
-    stockout_risk = sku_plan["Stockout_Cost"].sum()
-
-    k1, k2, k3, k4, k5, k6 = st.columns(6)
-    kpi(k1, "SKUs Needing Stock",  len(sku_plan),          "sky",   "Prod_Need > 0")
-    kpi(k2, "🔴 Urgent",           n_urgent,                "coral", "stock ≤ safety stock")
-    kpi(k3, "🟠 High",             n_high,                  "amber", "≤14 days stock left")
-    kpi(k4, "Gap Units Total",     f"{total_units:,}",      "sky",   "ROP+EOQ−Stock")
-    kpi(k5, "Est. Ship Cost",      f"₹{total_ship:,.0f}",  "amber", "to target warehouses")
-    kpi(k6, "Stockout Risk",       f"₹{stockout_risk:,.0f}","coral", "if not restocked")
-    sp(0.5)
-    banner(
-        f"<b>ℹ️ Note on unit counts:</b> "
-        f"<b>Gap Units ({total_units:,})</b> = immediate stock gap (ROP + EOQ − current stock) — restock <i>now</i>. &nbsp;|&nbsp; "
-        f"<b>Forecast Production ({plan['Production'].sum():,.0f})</b> = 6-month forward production target based on demand forecast + buffer — shown above in the planning charts.",
-        "sky",
-    )
-    sp(0.5)
 
     pt1, pt2, pt3 = st.tabs(["Production Queue", "Warehouse Routing", "Visual Analysis"])
 
@@ -1591,6 +1599,31 @@ def page_production() -> None:
             & sku_plan["Category"].isin(cat_pf)
             & sku_plan["ABC"].isin(abc_pf)
         ]
+
+        # BUG 4 FIX: compute all 6 KPIs from filt (post-filter) so they always
+        # match the counts/totals actually visible in the cards and table below.
+        n_urgent      = (filt["Urgency"] == "🔴 Urgent").sum()
+        n_high        = (filt["Urgency"] == "🟠 High").sum()
+        total_units   = int(filt["Prod_Need"].sum())
+        total_ship    = filt["Est_Ship_Cost"].sum()
+        stockout_risk = filt["Stockout_Cost"].sum()
+
+        k1, k2, k3, k4, k5, k6 = st.columns(6)
+        kpi(k1, "SKUs in View",       len(filt),               "sky",   "after filters")
+        kpi(k2, "🔴 Urgent",           n_urgent,                "coral", "stock ≤ safety stock")
+        kpi(k3, "🟠 High",             n_high,                  "amber", "≤14 days stock left")
+        kpi(k4, "Gap Units (Filtered)",f"{total_units:,}",      "sky",   "ROP+EOQ−Stock")
+        kpi(k5, "Est. Ship Cost",      f"₹{total_ship:,.0f}",  "amber", "to target warehouses")
+        kpi(k6, "Stockout Risk",       f"₹{stockout_risk:,.0f}","coral", "if not restocked")
+        sp(0.5)
+        banner(
+            f"<b>ℹ️ All metrics above match the filtered view below.</b> "
+            f"<b>Gap Units ({total_units:,})</b> = Σ (ROP + EOQ − Stock) for the {len(filt)} SKUs currently shown. &nbsp;|&nbsp; "
+            f"<b>Overall Forecast Production ({plan['Production'].sum():,.0f})</b> = 6-month forward target — in planning charts above.",
+            "sky",
+        )
+        sp(0.5)
+
         urgent_rows = filt[filt["Urgency"].isin(["🔴 Urgent", "🟠 High"])]
         other_rows  = filt[filt["Urgency"].isin(["🟡 Medium", "🟢 Normal"])]
 
@@ -1932,15 +1965,33 @@ def page_logistics() -> None:
         kpi(c4, "Saving %",        f"{total_sav / total_curr * 100:.1f}%",        "mint", "of total spend")
         sp()
 
-        sec("Region-Level Cost Comparison")
+        sec("Region-Level Cost Comparison — Avg Cost per Shipment")
         fig_cost = go.Figure()
-        fig_cost.add_trace(go.Bar(name="Current Avg ₹", x=opt["Region"], y=opt["Current_Avg_Cost"],
-                                  marker=dict(color="#EF4444", line=dict(color="rgba(0,0,0,0)"))))
-        fig_cost.add_trace(go.Bar(name="Optimal Avg ₹", x=opt["Region"], y=opt["Min_Avg_Cost"],
-                                  marker=dict(color="#22C55E", line=dict(color="rgba(0,0,0,0)"))))
-        fig_cost.update_layout(**CD(), height=270, barmode="group",
-                               xaxis={**gX(), "tickangle": -25}, yaxis=gY(), legend=leg())
+        fig_cost.add_trace(go.Bar(name="Current Avg ₹/shipment", x=opt["Region"], y=opt["Current_Avg_Cost"],
+                                  marker=dict(color="#EF4444", line=dict(color="rgba(0,0,0,0)")),
+                                  text=[f"₹{v:.0f}" for v in opt["Current_Avg_Cost"]],
+                                  textposition="outside", textfont=dict(color="#334155")))
+        fig_cost.add_trace(go.Bar(name="Optimal Avg ₹/shipment", x=opt["Region"], y=opt["Min_Avg_Cost"],
+                                  marker=dict(color="#22C55E", line=dict(color="rgba(0,0,0,0)")),
+                                  text=[f"₹{v:.0f}" for v in opt["Min_Avg_Cost"]],
+                                  textposition="outside", textfont=dict(color="#334155")))
+        fig_cost.update_layout(
+            **CD(), height=270, barmode="group",
+            xaxis={**gX(), "tickangle": -25},
+            yaxis={**gY(), "title": "Avg Cost per Shipment (₹)"},
+            legend=leg(),
+            title=dict(
+                text="Per-shipment avg cost · The KPIs above show TOTAL spend across all deliveries",
+                font=dict(size=10, color="#64748b")
+            ),
+        )
         st.plotly_chart(fig_cost, use_container_width=True, key="log_cost")
+        banner(
+            f"<b>ℹ️ KPI vs Chart units:</b> The four KPIs above show <b>total ₹ spend</b> across all "
+            f"{opt['Orders'].sum():,} delivered orders. The bar chart shows <b>average ₹ per shipment</b> "
+            f"by region — multiply avg by order count to reconcile with the KPI totals.",
+            "sky",
+        )
 
         sec("Savings by Region")
         s_s = opt.sort_values("Potential_Saving", ascending=False)
@@ -2056,18 +2107,38 @@ def page_logistics() -> None:
             fig_fwd = go.Figure()
             x_ci = list(fwd_agg["Month_dt"]) + list(fwd_agg["Month_dt"])[::-1]
             y_ci = list(fwd_agg["CI_Hi"])     + list(fwd_agg["CI_Lo"])[::-1]
-            fig_fwd.add_trace(go.Scatter(x=x_ci, y=y_ci, fill="toself",
-                                         fillcolor="rgba(59,130,246,0.08)",
-                                         line=dict(color="rgba(0,0,0,0)"), name="Demand CI"))
-            fig_fwd.add_trace(go.Bar(
-                x=fwd_agg["Month_dt"], y=fwd_agg["Total_Units"], name="Planned Shipment Units",
-                marker=dict(color="#3B82F6", opacity=0.85, line=dict(color="rgba(0,0,0,0)")),
-                hovertemplate="<b>%{x|%b %Y}</b><br>Units: %{y:,}<extra></extra>",
+            fig_fwd.add_trace(go.Scatter(
+                x=x_ci, y=y_ci, fill="toself",
+                fillcolor="rgba(59,130,246,0.08)",
+                line=dict(color="rgba(0,0,0,0)"),
+                name="Demand Forecast 90% CI",
+                hoverinfo="skip",
             ))
-            fig_fwd.update_layout(**CD(), height=260, barmode="overlay", xaxis=gX(),
-                                  yaxis={**gY(), "title": "Planned Units"},
-                                  legend={**leg(), "orientation": "h", "y": -0.28})
+            fig_fwd.add_trace(go.Bar(
+                x=fwd_agg["Month_dt"], y=fwd_agg["Total_Units"],
+                name="Planned Production Units (→ Shipment)",
+                marker=dict(color="#3B82F6", opacity=0.85, line=dict(color="rgba(0,0,0,0)")),
+                hovertemplate="<b>%{x|%b %Y}</b><br>Planned Units: %{y:,}<extra></extra>",
+            ))
+            fig_fwd.add_annotation(
+                x=fwd_agg["Month_dt"].iloc[0], y=fwd_agg["CI_Hi"].max(),
+                text="Shaded band = Demand forecast 90% CI<br>Bars = Production plan units",
+                showarrow=False, xanchor="left", yanchor="top",
+                font=dict(color="#64748b", size=9),
+                bgcolor="rgba(255,255,255,0.85)", bordercolor="#e5e7eb", borderwidth=1, borderpad=4,
+            )
+            fig_fwd.update_layout(
+                **CD(), height=260, barmode="overlay", xaxis=gX(),
+                yaxis={**gY(), "title": "Units (Production plan & Demand CI)"},
+                legend={**leg(), "orientation": "h", "y": -0.28},
+            )
             st.plotly_chart(fig_fwd, use_container_width=True, key="fwd_units")
+            banner(
+                "<b>ℹ️ Chart note:</b> Bars = planned <b>production units</b> (= '6M Planned Units' KPI above). "
+                "Shaded band = <b>demand forecast 90% confidence interval</b> — shows demand uncertainty range. "
+                "When bars sit within the CI band, production is aligned with forecast demand.",
+                "sky",
+            )
 
             fig_cost2 = go.Figure(go.Scatter(
                 x=fwd_agg["Month_dt"], y=fwd_agg["Total_Ship_Cost"],
