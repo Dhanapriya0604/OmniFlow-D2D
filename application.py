@@ -1049,117 +1049,176 @@ def build_context() -> str:
     plan = compute_production()
     carr, best_carr, opt, fwd_plan = compute_logistics()
 
-    n_crit       = (inv["Status"] == "🔴 Critical").sum()
-    n_low        = (inv["Status"] == "🟡 Low").sum()
-    crit_prods   = ", ".join(inv[inv["Status"] == "🔴 Critical"]["Product_Name"].head(5).tolist())
-    total_stockout = inv["Stockout_Cost"].sum()
-    abc_str      = ", ".join([f"{k}:{v} SKUs" for k, v in sorted(inv["ABC"].value_counts().to_dict().items())])
-
-    prod_sum = plan.groupby("Category")["Production"].sum().to_dict() if not plan.empty else {}
-    prod_str = ", ".join([f"{k}:{v:.0f}u" for k, v in prod_sum.items()])
-    peak_mo  = plan.groupby("Month_dt")["Production"].sum().idxmax().strftime("%b %Y") if not plan.empty else "N/A"
-
-    carr_str     = "; ".join([
-        f"{r['Courier_Partner']}: {r['Orders']}ord, {r['Avg_Days']:.1f}d, ₹{r['Avg_Cost']:.0f}/ship, score:{r['Perf_Score']:.3f}"
-        for _, r in carr.iterrows()
-    ])
-    saving_total = opt["Potential_Saving"].sum()
-    saving_str   = "; ".join([
-        f"{r['Region']}: save ₹{r['Potential_Saving']:,.0f} with {r['Optimal_Carrier']}"
-        for _, r in opt.iterrows() if r["Potential_Saving"] > 0
-    ])
-
-    fwd_str = ""
-    if not fwd_plan.empty:
-        fwd_agg = fwd_plan.groupby("Month").agg(Units=("Prod_Units", "sum"), Cost=("Proj_Ship_Cost", "sum")).reset_index()
-        fwd_str = "; ".join([f"{r['Month']}:{r['Units']:.0f}u/₹{r['Cost']:,.0f}" for _, r in fwd_agg.iterrows()])
-
+    # ── MODULE 1: DEMAND ─────────────────────────────────────────────────────
     cat_rev  = ops.groupby("Category")["Net_Revenue"].sum().sort_values(ascending=False)
     cat_str  = ", ".join([f"{k}:₹{v/1e6:.1f}M" for k, v in cat_rev.items()])
     top_reg  = ops.groupby("Region")["Net_Revenue"].sum().sort_values(ascending=False).head(5)
     reg_str  = ", ".join([f"{k}:₹{v/1e6:.1f}M" for k, v in top_reg.items()])
     top_sku  = ops.groupby("Product_Name")["Net_Revenue"].sum().sort_values(ascending=False).head(8)
     sku_str  = ", ".join(top_sku.index.tolist())
+    ch_rev   = ops.groupby("Sales_Channel")["Net_Revenue"].sum().sort_values(ascending=False)
+    ch_str   = ", ".join([f"{k}:₹{v/1e6:.1f}M" for k, v in ch_rev.items()])
+
+    # Month-over-month demand trend
+    m_qty_vals = ops.groupby("YM")["Net_Qty"].sum()
+    last_qty   = int(m_qty_vals.iloc[-1]) if len(m_qty_vals) else 0
+    prev_qty   = int(m_qty_vals.iloc[-2]) if len(m_qty_vals) > 1 else last_qty
+    mom_pct    = round((last_qty - prev_qty) / max(prev_qty, 1) * 100, 1)
+
+    # Category-level demand growth (last 3m vs prior 3m)
+    all_months = sorted(ops["YM"].unique())
+    cat_growth_str = "N/A"
+    if len(all_months) >= 6:
+        recent3 = all_months[-3:]; prior3 = all_months[-6:-3]
+        cg = ops[ops["YM"].isin(recent3)].groupby("Category")["Net_Qty"].sum()
+        pg = ops[ops["YM"].isin(prior3)].groupby("Category")["Net_Qty"].sum()
+        cat_growth = ((cg - pg) / pg.clip(lower=1) * 100).round(1)
+        cat_growth_str = ", ".join([f"{k}:{v:+.0f}%" for k, v in cat_growth.items()])
 
     if r_ord:
         mm = r_ord.get("model_metrics", {}); ens = mm.get("Ensemble", {})
-        ridge = mm.get("Ridge", {}); rf = mm.get("RandomForest", {}); gb = mm.get("GradBoost", {})
         metric_str = (
-            f"Ensemble R²:{ens.get('r2',0):.2f} NRMSE:{ens.get('nrmse',0)*100:.1f}% | "
-            f"Ridge R²:{ridge.get('r2',0):.2f} | RF R²:{rf.get('r2',0):.2f} | GB R²:{gb.get('r2',0):.2f}"
+            f"Ensemble R²:{ens.get('r2',0):.2f} NRMSE:{ens.get('nrmse',0)*100:.1f}%"
         )
     else:
-        metric_str = ""
+        metric_str = "N/A"
 
-    # ── Enriched signals ──────────────────────────────────────────────────────
-    del_df  = df[df["Order_Status"] == "Delivered"].copy()
-    del_df["Order_Date"] = pd.to_datetime(del_df["Order_Date"])
+    # ── MODULE 2: INVENTORY ───────────────────────────────────────────────────
+    n_crit       = (inv["Status"] == "🔴 Critical").sum()
+    n_low        = (inv["Status"] == "🟡 Low").sum()
+    n_adequate   = (inv["Status"] == "🟢 Adequate").sum()
+    crit_skus    = inv[inv["Status"] == "🔴 Critical"][["Product_Name","Category","Current_Stock","Safety_Stock","ROP","Days_of_Stock","Prod_Need"]]
+    low_skus     = inv[inv["Status"] == "🟡 Low"][["Product_Name","Category","Current_Stock","ROP","Days_of_Stock","Prod_Need"]].head(5)
+    total_stockout = inv["Stockout_Cost"].sum()
+    abc_str      = ", ".join([f"{k}:{v} SKUs" for k, v in sorted(inv["ABC"].value_counts().to_dict().items())])
+    sc_cat       = inv.groupby("Category")["Stockout_Cost"].sum().sort_values(ascending=False)
+    sc_cat_str   = ", ".join([f"{k}:₹{v:,.0f}" for k, v in sc_cat.items()])
+    ret_cat      = df.groupby("Category")["Return_Flag"].mean().mul(100).round(1).to_dict()
+    ret_cat_str  = ", ".join([f"{k}:{v:.1f}%" for k, v in ret_cat.items()])
+    ret_rate_pct = df[df["Order_Status"] == "Returned"].shape[0] / len(df) * 100
 
-    # On-time & delay
-    on_time_pct  = (del_df["Delivery_Days"] <= 3).mean() * 100
-    delay_rc     = del_df.copy(); delay_rc["Delayed"] = delay_rc["Delivery_Days"] > DEFAULT_LEAD_TIME
-    worst_region = delay_rc.groupby("Region")["Delayed"].mean().idxmax()
-    worst_carrier= delay_rc.groupby("Courier_Partner")["Delayed"].mean().idxmax()
-    best_carrier = delay_rc.groupby("Courier_Partner")["Delayed"].mean().idxmin()
+    # Build per-SKU critical detail string
+    crit_detail = "; ".join([
+        f"{r['Product_Name']}(stock:{r['Current_Stock']},SS:{r['Safety_Stock']},ROP:{r['ROP']},days:{r['Days_of_Stock']:.0f},need:{int(r['Prod_Need'])})"
+        for _, r in crit_skus.iterrows()
+    ])
+    low_detail = "; ".join([
+        f"{r['Product_Name']}(stock:{r['Current_Stock']},ROP:{r['ROP']},days:{r['Days_of_Stock']:.0f},need:{int(r['Prod_Need'])})"
+        for _, r in low_skus.iterrows()
+    ])
 
-    # Return rate by category
-    ret_cat = df.groupby("Category")["Return_Flag"].mean().mul(100).round(1).to_dict()
-    ret_cat_str = ", ".join([f"{k}:{v:.1f}%" for k, v in ret_cat.items()])
+    # Days-of-stock distribution
+    d_bins = {"<14d": (inv["Days_of_Stock"]<14).sum(), "14-30d": ((inv["Days_of_Stock"]>=14)&(inv["Days_of_Stock"]<30)).sum(),
+              "30-60d": ((inv["Days_of_Stock"]>=30)&(inv["Days_of_Stock"]<60)).sum(), ">60d": (inv["Days_of_Stock"]>=60).sum()}
+    days_dist_str = ", ".join([f"{k}:{v} SKUs" for k,v in d_bins.items()])
 
-    # Sales channel revenue
-    ch_rev = ops.groupby("Sales_Channel")["Net_Revenue"].sum().sort_values(ascending=False)
-    ch_str = ", ".join([f"{k}:₹{v/1e6:.1f}M" for k, v in ch_rev.items()])
+    # ── MODULE 3: PRODUCTION ──────────────────────────────────────────────────
+    prod_sum  = plan.groupby("Category")["Production"].sum().to_dict() if not plan.empty else {}
+    prod_str  = ", ".join([f"{k}:{v:.0f}u" for k, v in prod_sum.items()])
+    peak_mo   = plan.groupby("Month_dt")["Production"].sum().idxmax().strftime("%b %Y") if not plan.empty else "N/A"
+    total_prod = int(plan["Production"].sum()) if not plan.empty else 0
 
-    # SKU-level urgency from sku_plan
     try:
         sku_plan     = build_sku_production_plan()
         n_urgent_sku = (sku_plan["Urgency"] == "🔴 Urgent").sum()
         n_high_sku   = (sku_plan["Urgency"] == "🟠 High").sum()
-        avg_days_urgent = sku_plan[sku_plan["Urgency"] == "🔴 Urgent"]["Days_Left"].mean()
-        urgent_skus  = ", ".join(sku_plan[sku_plan["Urgency"] == "🔴 Urgent"]["Product_Name"].head(3).tolist())
+        avg_days_u   = sku_plan[sku_plan["Urgency"] == "🔴 Urgent"]["Days_Left"].mean()
+        urgent_detail= "; ".join([
+            f"{r['Product_Name']}(urgency:{r['Urgency']},days:{r['Days_Left']:.0f},need:{int(r['Prod_Need'])}u,wh:{r['Target_Warehouse']})"
+            for _, r in sku_plan[sku_plan["Urgency"].isin(["🔴 Urgent","🟠 High"])].head(6).iterrows()
+        ])
         wh_routing   = sku_plan.groupby("Target_Warehouse").agg(
             SKUs=("SKU_ID","count"), Units=("Prod_Need","sum")).reset_index()
         wh_str = "; ".join([f"{r['Target_Warehouse']}:{int(r['SKUs'])} SKUs/{int(r['Units'])} units"
                             for _, r in wh_routing.iterrows()])
     except Exception:
-        n_urgent_sku = n_high_sku = 0; avg_days_urgent = 0
-        urgent_skus = "N/A"; wh_str = "N/A"
+        n_urgent_sku=n_high_sku=0; avg_days_u=0; urgent_detail="N/A"; wh_str="N/A"
 
-    # Stockout cost by category
-    sc_cat = inv.groupby("Category")["Stockout_Cost"].sum().sort_values(ascending=False)
-    sc_cat_str = ", ".join([f"{k}:₹{v:,.0f}" for k, v in sc_cat.items()])
+    fwd_str = ""
+    if not fwd_plan.empty:
+        fwd_agg = fwd_plan.groupby("Month").agg(Units=("Prod_Units","sum"), Cost=("Proj_Ship_Cost","sum")).reset_index()
+        fwd_str = "; ".join([f"{r['Month']}:{r['Units']:.0f}u/₹{r['Cost']:,.0f}" for _, r in fwd_agg.iterrows()])
 
-    # Demand coverage summary
-    low_cover = inv[inv["Demand_Cover_Pct"] < 30]
-    n_low_cover = len(low_cover)
-    low_cover_str = ", ".join(low_cover.sort_values("Demand_Cover_Pct").head(3)["Product_Name"].tolist())
+    # ── MODULE 4: LOGISTICS ───────────────────────────────────────────────────
+    del_df       = df[df["Order_Status"] == "Delivered"].copy()
+    del_df["Order_Date"] = pd.to_datetime(del_df["Order_Date"])
+    on_time_pct  = (del_df["Delivery_Days"] <= 3).mean() * 100
+    delay_rc     = del_df.copy(); delay_rc["Delayed"] = delay_rc["Delivery_Days"] > DEFAULT_LEAD_TIME
+    worst_region = delay_rc.groupby("Region")["Delayed"].mean().idxmax()
+    worst_carrier= delay_rc.groupby("Courier_Partner")["Delayed"].mean().idxmax()
+    best_carrier = delay_rc.groupby("Courier_Partner")["Delayed"].mean().idxmin()
+    carrier_detail = "; ".join([
+        f"{r['Courier_Partner']}(orders:{r['Orders']},avg_days:{r['Avg_Days']:.1f},avg_cost:₹{r['Avg_Cost']:.0f},score:{r['Perf_Score']:.3f})"
+        for _, r in carr.iterrows()
+    ])
+    saving_total = opt["Potential_Saving"].sum()
+    saving_detail= "; ".join([
+        f"{r['Region']}:switch to {r['Optimal_Carrier']} save ₹{r['Potential_Saving']:,.0f}({r['Saving_Pct']:.1f}%)"
+        for _, r in opt.iterrows() if r["Potential_Saving"] > 0
+    ])
+    best_per_region = ", ".join([f"{r['Region']}→{r['Courier_Partner']}" for _,r in best_carr.iterrows()])
 
-    ret_rate_pct = df[df["Order_Status"] == "Returned"].shape[0] / len(df) * 100
+    # Region-level order volume
+    reg_vol = ops.groupby("Region")["Order_ID"].count().sort_values(ascending=False)
+    reg_vol_str = ", ".join([f"{k}:{v}" for k,v in reg_vol.items()])
+
+    # ── CROSS-MODULE LINKAGES ─────────────────────────────────────────────────
+    # Which critical SKUs are also top-revenue? (high impact)
+    top_rev_skus = set(top_sku.index.tolist())
+    crit_high_impact = inv[
+        (inv["Status"] == "🔴 Critical") &
+        (inv["Product_Name"].isin(top_rev_skus))
+    ]["Product_Name"].tolist()
+
+    # Production need by warehouse → links to logistics routing
+    total_gap_units = int(inv["Prod_Need"].sum())
 
     return (
-        f"=== OmniFlow D2D Intelligence ===\n"
-        f"DATASET: {len(df):,} orders | {len(ops):,} active | Jan 2024–Dec 2025 | India D2D e-commerce\n"
-        f"SUMMARY: Net Revenue ₹{ops['Net_Revenue'].sum()/1e7:.2f}Cr | Return Rate {ret_rate_pct:.1f}% | Avg Delivery {ops['Delivery_Days'].mean():.1f}d | On-Time(≤3d) {on_time_pct:.1f}%\n"
-        f"CHANNELS: {ch_str}\n"
-        f"[DEMAND FORECAST] {metric_str}\n"
-        f"Order Forecast: {fc_str(r_ord, lambda v: f'{v:.0f}')}\n"
-        f"Qty Forecast: {fc_str(r_qty, lambda v: f'{v:.0f}u')}\n"
-        f"Revenue Forecast: {fc_str(r_rev, lambda v: f'₹{v/1e6:.1f}M')}\n"
-        f"[INVENTORY] Critical:{n_crit} Low:{n_low} | ABC:{abc_str}\n"
-        f"Reorder NOW: {crit_prods} | Stockout Risk Total: ₹{total_stockout:,.0f}\n"
-        f"Stockout Risk by Category: {sc_cat_str}\n"
-        f"Low Demand Coverage (<30%): {n_low_cover} SKUs — {low_cover_str}\n"
+        f"=== OmniFlow D2D Supply Chain Intelligence ===\n"
+        f"DATASET: {len(df):,} orders | {len(ops):,} fulfilled | Jan 2024–Dec 2025 | India D2D e-commerce\n"
+        f"OVERALL: Revenue ₹{ops['Net_Revenue'].sum()/1e7:.2f}Cr | Return Rate {ret_rate_pct:.1f}% | "
+        f"Avg Delivery {ops['Delivery_Days'].mean():.1f}d | On-Time(≤3d) {on_time_pct:.1f}%\n"
+        f"\n--- MODULE 1: DEMAND FORECASTING ---\n"
+        f"Forecast Model: {metric_str}\n"
+        f"Order Forecast (next 6M): {fc_str(r_ord, lambda v: f'{v:.0f}')}\n"
+        f"Qty Forecast (next 6M): {fc_str(r_qty, lambda v: f'{v:.0f}u')}\n"
+        f"Revenue Forecast (next 6M): {fc_str(r_rev, lambda v: f'₹{v/1e6:.1f}M')}\n"
+        f"Last month demand: {last_qty:,} units ({mom_pct:+.1f}% vs prior month)\n"
+        f"Category demand growth (last 3M vs prior 3M): {cat_growth_str}\n"
+        f"Revenue by Category: {cat_str}\n"
+        f"Revenue by Channel: {ch_str}\n"
+        f"Top Revenue Regions: {reg_str}\n"
+        f"Order Volume by Region: {reg_vol_str}\n"
+        f"Top 8 Revenue SKUs: {sku_str}\n"
+        f"\n--- MODULE 2: INVENTORY OPTIMIZATION ---\n"
+        f"Status: {n_crit} Critical | {n_low} Low | {n_adequate} Adequate | ABC: {abc_str}\n"
+        f"Days-of-Stock Distribution: {days_dist_str}\n"
+        f"CRITICAL SKUs (reorder NOW): {crit_detail}\n"
+        f"LOW STOCK SKUs (reorder soon): {low_detail}\n"
+        f"Total Stockout Risk: ₹{total_stockout:,.0f} | By Category: {sc_cat_str}\n"
         f"Return Rate by Category: {ret_cat_str}\n"
-        f"[PRODUCTION & ROUTING] {prod_str} | Peak: {peak_mo}\n"
-        f"Urgent SKUs: {n_urgent_sku} 🔴 / {n_high_sku} 🟠 High | Avg days left (urgent): {avg_days_urgent:.1f}d\n"
-        f"Top Urgent: {urgent_skus}\n"
+        f"High-impact critical SKUs (also top revenue): {', '.join(crit_high_impact) if crit_high_impact else 'None'}\n"
+        f"\n--- MODULE 3: PRODUCTION PLANNING ---\n"
+        f"Total Units to Produce: {total_gap_units:,} across {(inv['Prod_Need']>0).sum()} SKUs\n"
+        f"Production by Category: {prod_str} | Peak Month: {peak_mo}\n"
+        f"Urgent SKUs: {n_urgent_sku} 🔴Urgent / {n_high_sku} 🟠High | Avg days left (urgent): {avg_days_u:.1f}d\n"
+        f"Urgent/High SKU Detail: {urgent_detail}\n"
         f"Warehouse Routing: {wh_str}\n"
-        f"[LOGISTICS] {carr_str}\n"
-        f"On-Time Rate: {on_time_pct:.1f}% | Worst Delay Region: {worst_region} | Worst Carrier: {worst_carrier} | Best Carrier: {best_carrier}\n"
-        f"Best per Region: {', '.join([r['Region'] + chr(8594) + r['Courier_Partner'] for _,r in best_carr.iterrows()])}\n"
-        f"Savings: ₹{saving_total:,.0f} | {saving_str}\n"
-        f"Forward Plan: {fwd_str if fwd_str else 'N/A'}\n"
-        f"CATEGORIES: {cat_str} | TOP REGIONS: {reg_str} | TOP PRODUCTS: {sku_str}"
+        f"Forward Shipment Plan (6M): {fwd_str if fwd_str else 'N/A'}\n"
+        f"\n--- MODULE 4: LOGISTICS OPTIMIZATION ---\n"
+        f"Carrier Performance: {carrier_detail}\n"
+        f"On-Time Rate: {on_time_pct:.1f}% | Worst Delay Region: {worst_region} | "
+        f"Worst Carrier: {worst_carrier} | Best Carrier: {best_carrier}\n"
+        f"Best Carrier per Region: {best_per_region}\n"
+        f"Savings Opportunity: ₹{saving_total:,.0f} total | {saving_detail}\n"
+        f"\n--- CROSS-MODULE INSIGHTS ---\n"
+        f"Demand growth → inventory pressure: Last month demand {mom_pct:+.1f}% above prior month; "
+        f"{n_crit} SKUs already at safety stock floor\n"
+        f"Inventory → production urgency: {total_gap_units:,} units must be produced; "
+        f"{n_urgent_sku} SKUs have <14 days before stockout\n"
+        f"Production → logistics: {wh_str}; use best-performing carriers per region to hit ship dates\n"
+        f"Logistics → revenue: {worst_region} has highest delay rate; {worst_carrier} slowest carrier; "
+        f"switching saves ₹{saving_total:,.0f}\n"
     )
 
 
@@ -2548,19 +2607,29 @@ def page_chatbot() -> None:
     # ── Context & system prompt ───────────────────────────────────────────────
     ctx    = build_context()[:CONTEXT_CHARS]
     system = (
-        "You are OmniFlow, an expert AI supply chain analyst for an India D2D e-commerce business.\n"
-        "MODULES: Demand Forecasting (Ridge+RF+GradBoost ensemble), Inventory (Wilson EOQ, Safety Stock, ROP, ABC-XYZ), "
-        "Production Planning (demand-driven, urgency-boosted), "
-        "Logistics (weighted carrier scoring, delay heatmap, cost optimisation), Warehouse Routing.\n"
-        "RESPONSE RULES:\n"
-        "1. Always ground answers in numbers from LIVE CONTEXT\n"
-        "2. Lead with the single most critical actionable insight\n"
-        "3. Use bullet points (▸) with exact figures — SKU names, ₹ values, day counts\n"
-        "4. 4–8 bullets per answer. Never pad with generic advice\n"
-        "5. Cross-reference modules where relevant (e.g. demand forecast → inventory need → production → carrier)\n"
-        "6. If asked about something not in context, say 'Not available in current context'\n"
-        "7. For logistics questions always cite specific carrier names and regions\n"
-        "8. For inventory questions always cite SKU names and exact stock vs ROP numbers\n"
+        "You are OmniFlow, an expert AI supply chain analyst for an India D2D e-commerce business.\n\n"
+        "YOU HAVE ACCESS TO 4 LIVE MODULES:\n"
+        "1. DEMAND FORECASTING — ML ensemble (Ridge+RF+GradBoost) forecasting orders, qty, revenue for next 6 months by category/region/channel\n"
+        "2. INVENTORY OPTIMIZATION — EOQ, Safety Stock, ROP, ABC classification, stockout risk, days-of-stock per SKU\n"
+        "3. PRODUCTION PLANNING — demand-driven production schedule, urgency tiers, warehouse routing, forward shipment plan\n"
+        "4. LOGISTICS OPTIMIZATION — carrier performance scoring, delay analysis by region/carrier, cost savings opportunities\n\n"
+        "CROSS-MODULE REASONING (MANDATORY):\n"
+        "- Every answer must trace the full supply chain chain: Demand forecast → Inventory gap → Production need → Logistics routing\n"
+        "- When asked about inventory: always connect to what the demand forecast says about future pressure\n"
+        "- When asked about production: always connect to which warehouses will receive stock and which carriers to use\n"
+        "- When asked about logistics: always connect to which SKUs are being shipped and from which warehouses\n"
+        "- When asked about demand: always connect to inventory and production implications\n\n"
+        "RESPONSE FORMAT:\n"
+        "1. Lead with one sentence: the single most important cross-module insight\n"
+        "2. Use ▸ bullet points with exact numbers from LIVE CONTEXT (SKU names, ₹ values, day counts, unit counts)\n"
+        "3. 5–8 bullets covering multiple modules — never answer from only one module\n"
+        "4. End with one concrete recommended action with specific numbers\n"
+        "5. Never give generic advice — every point must cite data from context\n"
+        "6. If something is not in context, say 'Not available in current data'\n\n"
+        "EXAMPLE CROSS-MODULE ANSWER PATTERN:\n"
+        "'Demand for Electronics is growing +X% but 3 SKUs are already at safety stock — "
+        "production must start within Y days or ₹Z revenue is at risk.'\n"
+        "Then bullets: inventory status → demand forecast → production need → warehouse → carrier recommendation\n\n"
         f"LIVE CONTEXT:\n{ctx}"
     )
 
@@ -2576,14 +2645,14 @@ def page_chatbot() -> None:
 
     # ── Suggested queries — 8, covering all 5 modules ────────────────────────
     SUGGESTIONS = [
-        ("📉", "Which SKUs will stock out within 14 days?"),
-        ("📈", "Which category has the highest demand growth forecast?"),
-        ("🏭", "What is my production plan for the next 6 months?"),
-        ("🚚", "Which carrier-region combinations cause the most delays?"),
-        ("💰", "How much stockout risk do I face if I don't restock now?"),
-        ("🏪", "Which warehouse needs the most urgent inbound shipment?"),
-        ("💡", "How can I save the most on shipping costs?"),
-        ("🔄", "What demand surge should I plan production for next month?"),
+        ("🔴", "Which SKUs will stock out first and what should I produce immediately?"),
+        ("📈", "How does the demand forecast affect my inventory and production plan?"),
+        ("🏭", "Give me a full production and logistics action plan for this month"),
+        ("🚚", "Which carrier should I use for each region given current delay data?"),
+        ("💰", "What is my total revenue at risk if I don't act on inventory today?"),
+        ("🏪", "Which warehouse is most overloaded and how should I rebalance routing?"),
+        ("🔗", "Walk me through the full supply chain status — demand to delivery"),
+        ("📊", "What are the top 3 decisions I should make today across all modules?"),
     ]
 
     if not st.session_state.chat_msgs:
