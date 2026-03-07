@@ -1273,12 +1273,7 @@ def page_overview() -> None:
            text-transform:uppercase;line-height:1.1'>OmniFlow D2D</div>
       <div style='font-size:11px;font-family:DM Mono,monospace;color:#93c5fd;letter-spacing:.14em;
            text-transform:uppercase;margin-top:6px;margin-bottom:4px'>
-        AI-Powered Demand-to-Delivery Supply Chain Intelligence · India E-Commerce
-      </div>
-      <div style='font-size:12px;color:#bfdbfe;margin-top:6px;line-height:1.6'>
-        Transforms 2 years of Indian e-commerce order data into actionable decisions across
-        demand forecasting, inventory optimisation, production planning, logistics routing,
-        and AI-assisted decision making — all in one unified platform.
+        Predictive Logistics & AI Powered Demand to Delivery Optimization
       </div>
     </div>""", unsafe_allow_html=True)
 
