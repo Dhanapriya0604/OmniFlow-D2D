@@ -1694,7 +1694,7 @@ def page_production() -> None:
         )
     sp()
 
-    st.markdown("<div style='font-size:22px;font-weight:900;color:black;letter-spacing:-.02em'>SKU Production Intelligence</div>",
+    st.markdown("<div style='font-size:22px;font-weight:900;color:black;letter-spacing:-.02em'>Fulfillment & Routing Plan</div>",
                 unsafe_allow_html=True)
     sku_plan = build_sku_production_plan()
 
@@ -1702,128 +1702,30 @@ def page_production() -> None:
         banner("✅ All SKUs are adequately stocked — no production orders needed.", "mint")
         return
 
-    pt1, pt2, pt3 = st.tabs(["Production Queue", "Warehouse Routing", "Visual Analysis"])
+    # Summary KPIs (unfiltered totals for the routing plan context)
+    n_urgent      = (sku_plan["Urgency"] == "🔴 Urgent").sum()
+    n_high        = (sku_plan["Urgency"] == "🟠 High").sum()
+    total_units   = int(sku_plan["Prod_Need"].sum())
+    total_ship    = sku_plan["Est_Ship_Cost"].sum()
+    stockout_risk = sku_plan["Stockout_Cost"].sum()
 
-    with pt1:
-        sec("Production Queue — SKUs ordered by urgency")
-        pf1, pf2, pf3 = st.columns(3)
-        urg_f  = pf1.multiselect("Urgency",
-                                  ["🔴 Urgent", "🟠 High", "🟡 Medium", "🟢 Normal"],
-                                  default=["🔴 Urgent", "🟠 High", "🟡 Medium", "🟢 Normal"], key="pq_urg")
-        cat_pf = pf2.multiselect("Category", sorted(sku_plan["Category"].unique()),
-                                  default=sorted(sku_plan["Category"].unique()), key="pq_cat")
-        abc_pf = pf3.multiselect("ABC", ["A", "B", "C"], default=["A", "B", "C"], key="pq_abc")
-        filt   = sku_plan[
-            sku_plan["Urgency"].isin(urg_f)
-            & sku_plan["Category"].isin(cat_pf)
-            & sku_plan["ABC"].isin(abc_pf)
-        ]
+    k1, k2, k3, k4, k5, k6 = st.columns(6)
+    kpi(k1, "SKUs Needing Stock",  len(sku_plan),           "sky",   "Prod_Need > 0")
+    kpi(k2, "🔴 Urgent",           n_urgent,                "coral", "stock ≤ safety stock")
+    kpi(k3, "🟠 High",             n_high,                  "amber", "≤14 days stock left")
+    kpi(k4, "Gap Units Total",     f"{total_units:,}",      "sky",   "demand-driven prod need")
+    kpi(k5, "Est. Ship Cost",      f"₹{total_ship:,.0f}",  "amber", "to target warehouses")
+    kpi(k6, "Stockout Risk",       f"₹{stockout_risk:,.0f}","coral", "if not restocked")
+    sp(0.5)
+    banner(
+        "ℹ️ Production Queue removed — SKU-level replenishment details are in "
+        "<b>Inventory → Stock Position → Action Queue</b>. "
+        "This section focuses on <b>where</b> to ship and <b>when</b> it needs to leave.",
+        "sky",
+    )
+    sp(0.5)
 
-        # BUG 4 FIX: compute all 6 KPIs from filt (post-filter) so they always
-        # match the counts/totals actually visible in the cards and table below.
-        n_urgent      = (filt["Urgency"] == "🔴 Urgent").sum()
-        n_high        = (filt["Urgency"] == "🟠 High").sum()
-        total_units   = int(filt["Prod_Need"].sum())
-        total_ship    = filt["Est_Ship_Cost"].sum()
-        stockout_risk = filt["Stockout_Cost"].sum()
-
-        k1, k2, k3, k4, k5, k6 = st.columns(6)
-        kpi(k1, "SKUs in View",       len(filt),               "sky",   "after filters")
-        kpi(k2, "🔴 Urgent",           n_urgent,                "coral", "stock ≤ safety stock")
-        kpi(k3, "🟠 High",             n_high,                  "amber", "≤14 days stock left")
-        kpi(k4, "Gap Units (Filtered)",f"{total_units:,}",      "sky",   "ROP+EOQ−Stock")
-        kpi(k5, "Est. Ship Cost",      f"₹{total_ship:,.0f}",  "amber", "to target warehouses")
-        kpi(k6, "Stockout Risk",       f"₹{stockout_risk:,.0f}","coral", "if not restocked")
-        sp(0.5)
-        banner(
-            f"<b>ℹ️ All metrics above match the filtered view below.</b> "
-            f"<b>Gap Units ({total_units:,})</b> = Σ max(6M Demand + SS − Stock, ROP + EOQ − Stock) "
-            f"for the {len(filt)} SKUs shown — already demand-driven and stock-deducted. &nbsp;|&nbsp; "
-            f"<b>Overall Production Plan ({int(plan['Production'].sum()):,})</b> = Gap Units distributed "
-            f"across 6 months by demand shape × cap multiplier — in planning charts above.",
-            "sky",
-        )
-        sp(0.5)
-
-        urgent_rows = filt[filt["Urgency"].isin(["🔴 Urgent", "🟠 High"])]
-        other_rows  = filt[filt["Urgency"].isin(["🟡 Medium", "🟢 Normal"])]
-
-        if not urgent_rows.empty:
-            st.markdown("""<div style='font-size:11px;font-weight:700;color:#dc2626;
-                letter-spacing:.08em;text-transform:uppercase;font-family:DM Mono;
-                margin:12px 0 8px'>Immediate Action Required</div>""", unsafe_allow_html=True)
-            cols_per_row = 2
-            rows_data    = [urgent_rows.iloc[i:i + cols_per_row] for i in range(0, len(urgent_rows), cols_per_row)]
-            for row_df in rows_data:
-                cols = st.columns(cols_per_row, gap="medium")
-                for col, (_, r) in zip(cols, row_df.iterrows()):
-                    days_color = "#ef4444" if r["Days_Left"] <= 7 else "#f59e0b"
-                    urg_bg     = "#fef2f2" if r["Urgency"] == "🔴 Urgent" else "#fff7ed"
-                    urg_border = "#ef4444" if r["Urgency"] == "🔴 Urgent" else "#f59e0b"
-                    col.markdown(f"""
-                    <div style='background:{urg_bg};border:1px solid {urg_border};
-                         border-left:4px solid {urg_border};border-radius:12px;
-                         padding:14px 16px;margin-bottom:10px'>
-                      <div style='display:flex;justify-content:space-between;align-items:flex-start'>
-                        <div>
-                          <div style='font-size:13px;font-weight:800;color:#0f172a'>
-                            {r["Product_Name"][:32]}{'…' if len(r["Product_Name"]) > 32 else ''}
-                          </div>
-                          <div style='font-size:10px;color:#64748b;font-family:DM Mono;margin-top:2px'>
-                            {r["SKU_ID"]} · {r["Category"]} · ABC-{r["ABC"]}
-                          </div>
-                        </div>
-                        <div style='font-size:18px'>{r["Urgency"].split()[0]}</div>
-                      </div>
-                      <div style='display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-top:12px'>
-                        <div style='text-align:center;background:white;border-radius:8px;padding:8px 4px'>
-                          <div style='font-size:9px;color:#94a3b8;text-transform:uppercase;font-family:DM Mono'>Stock Left</div>
-                          <div style='font-size:20px;font-weight:900;color:{days_color}'>{int(r["Days_Left"]) if r["Days_Left"] < 999 else "∞"}d</div>
-                        </div>
-                        <div style='text-align:center;background:white;border-radius:8px;padding:8px 4px'>
-                          <div style='font-size:9px;color:#94a3b8;text-transform:uppercase;font-family:DM Mono'>6M Demand</div>
-                          <div style='font-size:18px;font-weight:900;color:#475569'>{int(r["Demand_6M"]):,}</div>
-                        </div>
-                        <div style='text-align:center;background:white;border-radius:8px;padding:8px 4px'>
-                          <div style='font-size:9px;color:#94a3b8;text-transform:uppercase;font-family:DM Mono'>Produce</div>
-                          <div style='font-size:20px;font-weight:900;color:#1e3a8a'>{int(r["Prod_Need"]):,}</div>
-                        </div>
-                        <div style='text-align:center;background:white;border-radius:8px;padding:8px 4px'>
-                          <div style='font-size:9px;color:#94a3b8;text-transform:uppercase;font-family:DM Mono'>Ship To</div>
-                          <div style='font-size:11px;font-weight:700;color:#059669;margin-top:2px'>{r["Target_Warehouse"]}</div>
-                        </div>
-                      </div>
-                      <div style='margin-top:8px;background:#f0fdf4;border-radius:6px;padding:5px 10px;
-                           font-size:10px;color:#475569;font-family:DM Mono'>
-                        📦 Stock covers <b style="color:{'#dc2626' if r['Demand_Cover_Pct']<30 else '#d97706' if r['Demand_Cover_Pct']<70 else '#059669'}">{r["Demand_Cover_Pct"]:.0f}%</b> of 6-month demand
-                        &nbsp;·&nbsp; Produce {int(r["Prod_Need"]):,} = Demand({int(r["Demand_6M"]):,}) + SafetyStock − Stock({int(r["Current_Stock"])})
-                      </div>
-                      <div style='display:flex;justify-content:space-between;margin-top:10px;
-                           font-size:10px;color:#64748b;font-family:DM Mono'>
-                        <span>Ready: {r["Ready_By"].strftime("%d %b")}</span>
-                        <span>Ship by: {r["Ship_By"].strftime("%d %b")}</span>
-                        <span>Est. ₹{int(r["Est_Ship_Cost"]):,}</span>
-                      </div>
-                      {"<div style='margin-top:8px;font-size:10px;background:#fee2e2;border-radius:6px;padding:4px 8px;color:#dc2626;font-weight:600'>⚠️ Stockout risk: ₹" + f"{int(r['Stockout_Cost']):,}" + "</div>" if r["Stockout_Cost"] > 0 else ""}
-                    </div>""", unsafe_allow_html=True)
-
-        if not other_rows.empty:
-            st.markdown("""<div style='font-size:11px;font-weight:700;color:#475569;
-                letter-spacing:.08em;text-transform:uppercase;font-family:DM Mono;
-                margin:14px 0 8px'>Scheduled Production</div>""", unsafe_allow_html=True)
-            tbl = other_rows[[
-                "SKU_ID", "Product_Name", "Category", "ABC", "Urgency",
-                "Current_Stock", "Demand_6M", "Demand_Cover_Pct",
-                "Days_Left", "Prod_Need", "Target_Warehouse", "Ready_By", "Est_Ship_Cost",
-            ]].copy()
-            tbl["Days_Left"]       = tbl["Days_Left"].apply(lambda x: f"{int(x)}d" if x < 999 else "∞")
-            tbl["Est_Ship_Cost"]   = tbl["Est_Ship_Cost"].apply(lambda x: f"₹{int(x):,}")
-            tbl["Ready_By"]        = tbl["Ready_By"].dt.strftime("%d %b %Y")
-            tbl["Demand_Cover_Pct"]= tbl["Demand_Cover_Pct"].apply(lambda x: f"{x:.0f}%")
-            tbl.columns = ["SKU", "Product", "Category", "ABC", "Urgency",
-                           "Stock", "6M Demand", "Stock Covers %",
-                           "Days Left", "Produce", "Warehouse", "Ready By", "Ship Cost"]
-            st.dataframe(tbl, use_container_width=True, hide_index=True)
+    pt2, pt3 = st.tabs(["Warehouse Routing", "Visual Analysis"])
 
     with pt2:
         sec("Warehouse Stock Needs & Routing Plan")
