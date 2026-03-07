@@ -1045,11 +1045,7 @@ def build_context() -> str:
             return "N/A"
         return "; ".join([f"{d.strftime('%b%Y')}:{fmt(v)}" for d, v in zip(r["fut_ds"], r["forecast"])])
 
-    inv  = compute_inventory()
-    plan = compute_production()
-    carr, best_carr, opt, fwd_plan = compute_logistics()
-
-    n_crit       = (inv["Status"] == "🔴 Critical").sum()
+    inv  = compute_inventory(DEFAULT_ORDER_COST, DEFAULT_HOLD_PCT, DEFAULT_LEAD_TIME, DEFAULT_SERVICE_Z)
     n_low        = (inv["Status"] == "🟡 Low").sum()
     crit_prods   = ", ".join(inv[inv["Status"] == "🔴 Critical"]["Product_Name"].head(5).tolist())
     total_stockout = inv["Stockout_Cost"].sum()
@@ -2478,7 +2474,12 @@ def page_chatbot() -> None:
                             unsafe_allow_html=True)
 
     # ── Cross-module snapshot cards ───────────────────────────────────────────
-    inv  = compute_inventory()
+    # Use same parameters as page_inventory so counts are consistent
+    _order_cost = DEFAULT_ORDER_COST
+    _hold_pct   = DEFAULT_HOLD_PCT
+    _lead_time  = DEFAULT_LEAD_TIME
+    _z          = DEFAULT_SERVICE_Z
+    inv  = compute_inventory(_order_cost, _hold_pct, _lead_time, _z)
     plan = compute_production()
     carr, best_carr, opt, fwd_plan = compute_logistics()
 
