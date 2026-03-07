@@ -1046,6 +1046,10 @@ def build_context() -> str:
         return "; ".join([f"{d.strftime('%b%Y')}:{fmt(v)}" for d, v in zip(r["fut_ds"], r["forecast"])])
 
     inv  = compute_inventory(DEFAULT_ORDER_COST, DEFAULT_HOLD_PCT, DEFAULT_LEAD_TIME, DEFAULT_SERVICE_Z)
+    plan = compute_production()
+    carr, best_carr, opt, fwd_plan = compute_logistics()
+
+    n_crit       = (inv["Status"] == "🔴 Critical").sum()
     n_low        = (inv["Status"] == "🟡 Low").sum()
     crit_prods   = ", ".join(inv[inv["Status"] == "🔴 Critical"]["Product_Name"].head(5).tolist())
     total_stockout = inv["Stockout_Cost"].sum()
