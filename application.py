@@ -1965,6 +1965,21 @@ def page_logistics() -> None:
 
     st.markdown("<div class='page-title'>Logistics Optimization</div>", unsafe_allow_html=True)
 
+    # ── Top-level KPIs ────────────────────────────────────────────────────────
+    total_spend  = del_df["Shipping_Cost_INR"].sum()
+    avg_days     = del_df["Delivery_Days"].mean()
+    on_time_pct  = (del_df["Delivery_Days"] <= 3).mean() * 100
+    avg_cost_ord = del_df["Shipping_Cost_INR"].mean()
+    ret_rate     = df["Return_Flag"].mean() * 100
+
+    k1, k2, k3, k4, k5 = st.columns(5)
+    kpi(k1, "Total Shipping Spend", f"₹{total_spend:,.0f}",  "sky",   "all delivered orders")
+    kpi(k2, "Avg Delivery Days",    f"{avg_days:.1f}d",       "mint",  "across all carriers")
+    kpi(k3, "On-Time Rate",         f"{on_time_pct:.1f}%",   "mint",  "delivered ≤ 3 days")
+    kpi(k4, "Avg Cost / Order",     f"₹{avg_cost_ord:.0f}",  "sky",   "per shipment")
+    kpi(k5, "Return Rate",          f"{ret_rate:.1f}%",       "coral", "of all orders")
+    sp(0.5)
+
     with st.expander("Carrier Scoring Weights", expanded=False):
         wc1, wc2, wc3 = st.columns(3)
         w_speed   = wc1.slider("Speed weight %",   10, 70, int(DEFAULT_W_SPEED   * 100)) / 100
@@ -1976,10 +1991,11 @@ def page_logistics() -> None:
     carr, best_carr, opt, fwd_plan = compute_logistics(w_speed, w_cost, w_returns)
     plan = compute_production()
 
-    t1, t2, t3, t4, t5 = st.tabs(["Carrier Scorecard", "Cost Optimization", "Delay Analysis", "Forward Plan", "Regions"])
+    t1, t2, t3 = st.tabs(["Carrier Performance", "Cost & Delay", "Forward Plan"])
 
+    # ── TAB 1: Carrier Performance ────────────────────────────────────────────
     with t1:
-        sec("Carrier Performance Scorecard")
+        sec("Speed vs Cost — Carrier Scorecard")
         fig = go.Figure()
         for i, (_, r) in enumerate(carr.iterrows()):
             fig.add_trace(go.Scatter(
@@ -1989,169 +2005,156 @@ def page_logistics() -> None:
                 text=[r["Courier_Partner"]], textposition="top center",
                 name=r["Courier_Partner"],
                 hovertemplate=(
-                    f"<b>{r['Courier_Partner']}</b><br>Orders:{r['Orders']}<br>"
-                    f"Days:{r['Avg_Days']:.1f}<br>Cost:₹{r['Avg_Cost']:.0f}<br>"
-                    f"Score:{r['Perf_Score']:.3f}<extra></extra>"
+                    f"<b>{r['Courier_Partner']}</b><br>Orders: {r['Orders']}<br>"
+                    f"Avg Days: {r['Avg_Days']:.1f}<br>Avg Cost: ₹{r['Avg_Cost']:.0f}<br>"
+                    f"Score: {r['Perf_Score']:.3f}<extra></extra>"
                 ),
             ))
-        fig.update_layout(**CD(), height=300, showlegend=False,
-                          xaxis={**gX(), "title": "Avg Delivery Days"},
-                          yaxis={**gY(), "title": "Avg Shipping Cost ₹"})
+        fig.update_layout(**CD(), height=270, showlegend=False,
+                          xaxis={**gX(), "title": "Avg Delivery Days  ← faster"},
+                          yaxis={**gY(), "title": "Avg Shipping Cost ₹  ↓ cheaper"})
         st.plotly_chart(fig, use_container_width=True, key="log_bubble")
+        banner("📌 <b>Bottom-left = best.</b> Bubble size = order volume. Score weights adjustable above.", "sky")
+        sp(0.5)
 
-        d2 = carr[["Courier_Partner", "Orders", "Avg_Days", "Avg_Cost", "Return_Rate", "Delay_Index", "Perf_Score"]].copy()
-        d2["Avg_Days"]    = d2["Avg_Days"].round(1)
-        d2["Avg_Cost"]    = d2["Avg_Cost"].round(1)
-        d2["Return_Rate"] = (d2["Return_Rate"] * 100).round(1).astype(str) + "%"
-        d2["Perf_Score"]  = d2["Perf_Score"].round(3)
-        d2.columns = ["Carrier", "Orders", "Avg Days", "Avg Cost ₹", "Return Rate", "Delay Index", "Perf Score"]
-        st.dataframe(d2.sort_values("Perf Score", ascending=False), use_container_width=True, hide_index=True)
-        sp()
+        ta1, ta2 = st.columns(2, gap="large")
+        with ta1:
+            sec("Carrier Metrics Table")
+            d2 = carr[["Courier_Partner", "Orders", "Avg_Days", "Avg_Cost", "Return_Rate", "Perf_Score"]].copy()
+            d2["Avg_Days"]    = d2["Avg_Days"].round(1)
+            d2["Avg_Cost"]    = d2["Avg_Cost"].round(1)
+            d2["Return_Rate"] = (d2["Return_Rate"] * 100).round(1).astype(str) + "%"
+            d2["Perf_Score"]  = d2["Perf_Score"].round(3)
+            d2.columns = ["Carrier", "Orders", "Avg Days", "Avg Cost ₹", "Return Rate", "Score"]
+            st.dataframe(d2.sort_values("Score", ascending=False), use_container_width=True, hide_index=True)
 
-        sec("Carrier Order Volume")
-        cm = del_df.groupby([del_df["Order_Date"].dt.to_period("M"), "Courier_Partner"])["Order_ID"].count().unstack(fill_value=0)
-        fig_c = go.Figure()
-        for i, c in enumerate(cm.columns):
-            clr = COLORS[i % len(COLORS)]
-            r   = ml_forecast(cm[c].values.astype(float), cm.index, N_FUTURE_MONTHS)
-            if r is None:
-                fig_c.add_trace(go.Scatter(x=cm.index.to_timestamp(), y=cm[c], name=c, line=dict(color=clr, width=2)))
-                continue
-            x_ci = list(r["fut_ds"]) + list(r["fut_ds"])[::-1]
-            y_ci = list(r["ci_hi"])  + list(r["ci_lo"])[::-1]
-            ri, gi, bi = int(clr[1:3], 16), int(clr[3:5], 16), int(clr[5:7], 16)
-            fig_c.add_trace(go.Scatter(x=x_ci, y=y_ci, fill="toself",
-                                       fillcolor=f"rgba({ri},{gi},{bi},0.07)",
-                                       line=dict(color="rgba(0,0,0,0)"), showlegend=False))
-            fig_c.add_trace(go.Scatter(x=r["hist_ds"], y=r["hist_y"], name=c, line=dict(color=clr, width=2.2)))
-            fig_c.add_trace(go.Scatter(x=r["fut_ds"], y=r["forecast"], name=f"{c} (fcst)",
-                                       line=dict(color=clr, width=2.2, dash="dot"),
-                                       mode="lines+markers",
-                                       marker=dict(size=6, line=dict(color="#FFFFFF", width=1.5)),
-                                       showlegend=False))
-        fig_c.update_layout(**CD(), height=290, xaxis=gX(), yaxis={**gY(), "title": "Orders"}, legend=leg())
-        st.plotly_chart(fig_c, use_container_width=True, key="log_carr_fc")
+        with ta2:
+            sec("Best Carrier per Category")
+            if not plan.empty:
+                cat_carr = del_df.groupby(["Category", "Courier_Partner"]).agg(
+                    Avg_Days=("Delivery_Days", "mean"),
+                    Avg_Cost=("Shipping_Cost_INR", "mean"),
+                ).reset_index()
+                cat_carr_ret = df.groupby(["Category", "Courier_Partner"])["Return_Flag"].mean().reset_index()
+                cat_carr_ret.columns = ["Category", "Courier_Partner", "Return_Rate"]
+                cat_carr = cat_carr.merge(cat_carr_ret, on=["Category", "Courier_Partner"], how="left")
+                cat_carr["Return_Rate"] = cat_carr["Return_Rate"].fillna(0)
+                for col_c in ["Avg_Days", "Avg_Cost", "Return_Rate"]:
+                    mn_c = cat_carr[col_c].min(); mx_c = cat_carr[col_c].max()
+                    cat_carr[f"N_{col_c}"] = 1 - (cat_carr[col_c] - mn_c) / (mx_c - mn_c + 1e-9)
+                cat_carr["Score"] = (
+                    w_speed * cat_carr["N_Avg_Days"]
+                    + w_cost * cat_carr["N_Avg_Cost"]
+                    + w_returns * cat_carr["N_Return_Rate"]
+                )
+                best_cat = cat_carr.sort_values("Score", ascending=False).groupby("Category").first().reset_index()
+                prod_by_cat = plan.groupby("Category")["Production"].sum().reset_index()
+                best_cat = best_cat.merge(prod_by_cat.rename(columns={"Production": "Planned Units"}), on="Category", how="left")
+                best_cat["Avg_Days"]      = best_cat["Avg_Days"].round(1)
+                best_cat["Avg_Cost"]      = best_cat["Avg_Cost"].round(1)
+                best_cat["Score"]         = best_cat["Score"].round(3)
+                best_cat["Planned Units"] = best_cat["Planned Units"].fillna(0).astype(int)
+                best_cat = best_cat[["Category", "Courier_Partner", "Avg_Days", "Avg_Cost", "Score", "Planned Units"]]
+                best_cat.columns = ["Category", "Best Carrier", "Avg Days", "Avg Cost ₹", "Score", "Planned Units"]
+                st.dataframe(best_cat.sort_values("Score", ascending=False), use_container_width=True, hide_index=True)
+            else:
+                st.info("Production plan not available.")
 
-        if not plan.empty:
-            sec("Recommended Carrier per Category")
-            cat_carr = del_df.groupby(["Category", "Courier_Partner"]).agg(
-                Avg_Days=("Delivery_Days", "mean"),
-                Avg_Cost=("Shipping_Cost_INR", "mean"),
-            ).reset_index()
-            cat_carr_ret = df.groupby(["Category", "Courier_Partner"])["Return_Flag"].mean().reset_index()
-            cat_carr_ret.columns = ["Category", "Courier_Partner", "Return_Rate"]
-            cat_carr = cat_carr.merge(cat_carr_ret, on=["Category", "Courier_Partner"], how="left")
-            cat_carr["Return_Rate"] = cat_carr["Return_Rate"].fillna(0)
+        sp(0.5)
+        sec("Carrier × Region Delay Heatmap")
+        thr_h    = st.slider("Delay threshold (days)", 3, 10, DEFAULT_LEAD_TIME, key="log_thr_h")
+        del_df2  = del_df.copy()
+        del_df2["Delayed"] = del_df2["Delivery_Days"] > thr_h
+        pv = del_df2.groupby(["Courier_Partner", "Region"])["Delayed"].mean().unstack(fill_value=0) * 100
+        fig_h = go.Figure(go.Heatmap(
+            z=pv.values, x=list(pv.columns), y=list(pv.index),
+            colorscale=[[0, "#0d1829"], [0.4, "#7c4fd0"], [0.7, "#e87adb"], [1, "#EF4444"]],
+            text=np.round(pv.values, 1), texttemplate="%{text}%", textfont=dict(size=10),
+            colorbar=dict(tickfont=dict(color="#8a9dc0", size=10)),
+        ))
+        fig_h.update_layout(**CD(), height=260,
+                            xaxis=dict(showgrid=False, tickangle=-25, color="#64748b"),
+                            yaxis=dict(showgrid=False, color="#64748b"),
+                            title=dict(text=f"% orders delayed beyond {thr_h}d · carrier × region",
+                                       font=dict(size=11, color="#64748b")))
+        st.plotly_chart(fig_h, use_container_width=True, key="log_heat")
 
-            for col_c in ["Avg_Days", "Avg_Cost", "Return_Rate"]:
-                mn_c = cat_carr[col_c].min(); mx_c = cat_carr[col_c].max()
-                cat_carr[f"N_{col_c}"] = 1 - (cat_carr[col_c] - mn_c) / (mx_c - mn_c + 1e-9)
-            cat_carr["Score"] = (
-                w_speed   * cat_carr["N_Avg_Days"]
-                + w_cost  * cat_carr["N_Avg_Cost"]
-                + w_returns * cat_carr["N_Return_Rate"]
-            )
-            best_cat    = cat_carr.sort_values("Score", ascending=False).groupby("Category").first().reset_index()
-            prod_by_cat = plan.groupby("Category")["Production"].sum().reset_index()
-            best_cat    = best_cat.merge(prod_by_cat.rename(columns={"Production": "Planned Units 6M"}), on="Category", how="left")
-            best_cat["Avg_Days"]          = best_cat["Avg_Days"].round(1)
-            best_cat["Avg_Cost"]          = best_cat["Avg_Cost"].round(1)
-            best_cat["Return_Rate"]       = (best_cat["Return_Rate"] * 100).round(1)
-            best_cat["Score"]             = best_cat["Score"].round(3)
-            best_cat["Planned Units 6M"]  = best_cat["Planned Units 6M"].fillna(0).astype(int)
-            best_cat = best_cat[["Category", "Courier_Partner", "Avg_Days", "Avg_Cost", "Return_Rate", "Score", "Planned Units 6M"]]
-            best_cat.columns = ["Category", "Recommended Carrier", "Avg Days", "Avg Cost ₹", "Return Rate %", "Score", "Planned Units"]
-            st.dataframe(best_cat.sort_values("Score", ascending=False), use_container_width=True, hide_index=True)
-
+    # ── TAB 2: Cost & Delay ───────────────────────────────────────────────────
     with t2:
-        sec("Logistics Cost Optimization")
         total_curr = del_df["Shipping_Cost_INR"].sum()
         total_sav  = opt["Potential_Saving"].sum()
         c1, c2, c3, c4 = st.columns(4)
-        kpi(c1, "Current Spend",   f"₹{total_curr:,.0f}",                        "sky",  "all deliveries")
-        kpi(c2, "Optimised Spend", f"₹{total_curr - total_sav:,.0f}",             "mint", "best carriers")
-        kpi(c3, "Total Saving",    f"₹{total_sav:,.0f}",                          "mint", "carrier switch")
-        kpi(c4, "Saving %",        f"{total_sav / total_curr * 100:.1f}%",        "mint", "of total spend")
-        sp()
+        kpi(c1, "Current Spend",    f"₹{total_curr:,.0f}",              "sky",  "all deliveries")
+        kpi(c2, "Optimised Spend",  f"₹{total_curr - total_sav:,.0f}",  "mint", "with best carriers")
+        kpi(c3, "Potential Saving", f"₹{total_sav:,.0f}",               "mint", "by switching carrier")
+        kpi(c4, "Saving %",         f"{total_sav/total_curr*100:.1f}%", "mint", "of total spend")
+        sp(0.5)
 
-        sec("Region-Level Cost Comparison — Avg Cost per Shipment")
-        fig_cost = go.Figure()
-        fig_cost.add_trace(go.Bar(name="Current Avg ₹/shipment", x=opt["Region"], y=opt["Current_Avg_Cost"],
-                                  marker=dict(color="#EF4444", line=dict(color="rgba(0,0,0,0)")),
-                                  text=[f"₹{v:.0f}" for v in opt["Current_Avg_Cost"]],
-                                  textposition="outside", textfont=dict(color="#334155")))
-        fig_cost.add_trace(go.Bar(name="Optimal Avg ₹/shipment", x=opt["Region"], y=opt["Min_Avg_Cost"],
-                                  marker=dict(color="#22C55E", line=dict(color="rgba(0,0,0,0)")),
-                                  text=[f"₹{v:.0f}" for v in opt["Min_Avg_Cost"]],
-                                  textposition="outside", textfont=dict(color="#334155")))
-        fig_cost.update_layout(
-            **CD(), height=270, barmode="group",
-            xaxis={**gX(), "tickangle": -25},
-            yaxis={**gY(), "title": "Avg Cost per Shipment (₹)"},
-            legend=leg(),
-            title=dict(
-                text="Per-shipment avg cost · The KPIs above show TOTAL spend across all deliveries",
-                font=dict(size=10, color="#64748b")
-            ),
-        )
-        st.plotly_chart(fig_cost, use_container_width=True, key="log_cost")
-        banner(
-            f"<b>ℹ️ KPI vs Chart units:</b> The four KPIs above show <b>total ₹ spend</b> across all "
-            f"{opt['Orders'].sum():,} delivered orders. The bar chart shows <b>average ₹ per shipment</b> "
-            f"by region — multiply avg by order count to reconcile with the KPI totals.",
-            "sky",
-        )
+        tb1, tb2 = st.columns(2, gap="large")
+        with tb1:
+            sec("Region Cost — Current vs Optimal")
+            fig_cost = go.Figure()
+            fig_cost.add_trace(go.Bar(
+                name="Current ₹/order", x=opt["Region"], y=opt["Current_Avg_Cost"],
+                marker=dict(color="#EF4444", line=dict(color="rgba(0,0,0,0)")),
+                text=[f"₹{v:.0f}" for v in opt["Current_Avg_Cost"]],
+                textposition="outside", textfont=dict(color="#334155"),
+            ))
+            fig_cost.add_trace(go.Bar(
+                name="Optimal ₹/order", x=opt["Region"], y=opt["Min_Avg_Cost"],
+                marker=dict(color="#22C55E", line=dict(color="rgba(0,0,0,0)")),
+                text=[f"₹{v:.0f}" for v in opt["Min_Avg_Cost"]],
+                textposition="outside", textfont=dict(color="#334155"),
+            ))
+            fig_cost.update_layout(
+                **CD(), height=270, barmode="group",
+                xaxis={**gX(), "tickangle": -30},
+                yaxis={**gY(), "title": "Avg Cost per Order ₹"},
+                legend={**leg(), "orientation": "h", "y": -0.3},
+            )
+            st.plotly_chart(fig_cost, use_container_width=True, key="log_cost")
 
-        sec("Savings by Region")
-        s_s = opt.sort_values("Potential_Saving", ascending=False)
-        fig_sav = go.Figure(go.Bar(
-            x=s_s["Region"], y=s_s["Potential_Saving"],
-            marker=dict(color="#F59E0B", line=dict(color="rgba(0,0,0,0)")),
-            text=[f"₹{v:,.0f}" for v in s_s["Potential_Saving"]],
-            textposition="outside", textfont=dict(color="#334155"),
-        ))
-        fig_sav.update_layout(**CD(), height=240, xaxis={**gX(), "tickangle": -25}, yaxis=gY())
-        st.plotly_chart(fig_sav, use_container_width=True, key="log_saving")
-        sp()
-
-        sec("Optimization Recommendation Table")
-        od = opt.copy()
-        od["Current_Avg_Cost"]  = od["Current_Avg_Cost"].round(1)
-        od["Min_Avg_Cost"]      = od["Min_Avg_Cost"].round(1)
-        od["Potential_Saving"]  = od["Potential_Saving"].astype(int)
-        od = od[["Region", "Optimal_Carrier", "Current_Avg_Cost", "Min_Avg_Cost", "Potential_Saving", "Saving_Pct", "Orders"]]
-        od.columns = ["Region", "Switch To", "Current Avg ₹", "Optimal Avg ₹", "Saving ₹", "Saving %", "Orders"]
-        st.dataframe(od.sort_values("Saving ₹", ascending=False), use_container_width=True, hide_index=True)
-
-    with t3:
-        sec("Delay Hotspot Analysis")
-        thr    = st.slider("Delay Threshold days", 3, 10, DEFAULT_LEAD_TIME, key="log_thr")
-        del_df2 = del_df.copy()
-        del_df2["Delayed"] = del_df2["Delivery_Days"] > thr
-
-        cl3, cr3 = st.columns(2, gap="large")
-        with cl3:
+        with tb2:
             sec("Delay Rate by Region")
-            rd   = del_df2.groupby("Region").agg(T=("Order_ID", "count"), D=("Delayed", "sum")).reset_index()
+            thr      = st.slider("Delay threshold (days)", 3, 10, DEFAULT_LEAD_TIME, key="log_thr")
+            del_df3  = del_df.copy()
+            del_df3["Delayed"] = del_df3["Delivery_Days"] > thr
+            rd  = del_df3.groupby("Region").agg(T=("Order_ID", "count"), D=("Delayed", "sum")).reset_index()
             rd["Rate"] = (rd["D"] / rd["T"] * 100).round(1)
             rd_s = rd.sort_values("Rate", ascending=True)
             fig_r = go.Figure(go.Bar(
                 x=rd_s["Rate"], y=rd_s["Region"], orientation="h",
                 marker=dict(
-                    color=[f"rgba(255,107,107,{min(v/60+0.25,0.9):.2f})" for v in rd_s["Rate"]],
+                    color=[f"rgba(239,68,68,{min(v/50+0.2,0.9):.2f})" for v in rd_s["Rate"]],
                     line=dict(color="rgba(0,0,0,0)"),
                 ),
                 text=[f"{v}%" for v in rd_s["Rate"]], textposition="outside",
                 textfont=dict(color="#334155"),
             ))
-            fig_r.update_layout(**CD(), height=290,
-                                xaxis={**gX(), "title": "Delay %"},
+            fig_r.update_layout(**CD(), height=270,
+                                xaxis={**gX(), "title": "Delay Rate %"},
                                 yaxis=dict(showgrid=False, color="#64748b"))
             st.plotly_chart(fig_r, use_container_width=True, key="log_delay_region")
 
-        with cr3:
+        sp(0.5)
+        tb3, tb4 = st.columns(2, gap="large")
+        with tb3:
+            sec("Potential Savings by Region")
+            s_s = opt.sort_values("Potential_Saving", ascending=False)
+            fig_sav = go.Figure(go.Bar(
+                x=s_s["Region"], y=s_s["Potential_Saving"],
+                marker=dict(color="#F59E0B", line=dict(color="rgba(0,0,0,0)")),
+                text=[f"₹{v:,.0f}" for v in s_s["Potential_Saving"]],
+                textposition="outside", textfont=dict(color="#334155"),
+            ))
+            fig_sav.update_layout(**CD(), height=240,
+                                  xaxis={**gX(), "tickangle": -25},
+                                  yaxis={**gY(), "title": "Saving ₹"})
+            st.plotly_chart(fig_sav, use_container_width=True, key="log_saving")
+
+        with tb4:
             sec("Delay Rate by Carrier")
-            cd   = del_df2.groupby("Courier_Partner").agg(T=("Order_ID", "count"), D=("Delayed", "sum")).reset_index()
+            cd  = del_df3.groupby("Courier_Partner").agg(T=("Order_ID", "count"), D=("Delayed", "sum")).reset_index()
             cd["Rate"] = (cd["D"] / cd["T"] * 100).round(1)
             fig_cd = go.Figure(go.Bar(
                 x=cd["Courier_Partner"], y=cd["Rate"],
@@ -2162,141 +2165,102 @@ def page_logistics() -> None:
                 text=[f"{v}%" for v in cd["Rate"]], textposition="outside",
                 textfont=dict(color="#334155"),
             ))
-            fig_cd.update_layout(**CD(), height=290, xaxis=gX(), yaxis={**gY(), "title": "Delay %"})
+            fig_cd.update_layout(**CD(), height=240, xaxis=gX(), yaxis={**gY(), "title": "Delay Rate %"})
             st.plotly_chart(fig_cd, use_container_width=True, key="log_delay_carrier")
 
-        sec("Carrier with Region Delay Heatmap")
-        pv = del_df2.groupby(["Courier_Partner", "Region"])["Delayed"].mean().unstack(fill_value=0) * 100
-        fig_h = go.Figure(go.Heatmap(
-            z=pv.values, x=list(pv.columns), y=list(pv.index),
-            colorscale=[[0, "#0d1829"], [0.4, "#7c4fd0"], [0.7, "#e87adb"], [1, "#EF4444"]],
-            text=np.round(pv.values, 1), texttemplate="%{text}%", textfont=dict(size=10),
-            colorbar=dict(tickfont=dict(color="#8a9dc0", size=10)),
-        ))
-        fig_h.update_layout(**CD(), height=255,
-                            xaxis=dict(showgrid=False, tickangle=-25, color="#64748b"),
-                            yaxis=dict(showgrid=False, color="#64748b"))
-        st.plotly_chart(fig_h, use_container_width=True, key="log_heat")
+        sp(0.5)
+        sec("Carrier Switch Recommendations")
+        od = opt[["Region", "Optimal_Carrier", "Current_Avg_Cost", "Min_Avg_Cost", "Potential_Saving", "Saving_Pct", "Orders"]].copy()
+        od["Current_Avg_Cost"] = od["Current_Avg_Cost"].round(1)
+        od["Min_Avg_Cost"]     = od["Min_Avg_Cost"].round(1)
+        od["Potential_Saving"] = od["Potential_Saving"].astype(int)
+        od.columns = ["Region", "Switch To", "Current Avg ₹", "Optimal Avg ₹", "Saving ₹", "Saving %", "Orders"]
+        st.dataframe(od.sort_values("Saving ₹", ascending=False), use_container_width=True, hide_index=True)
 
-        sec("Avg Delivery Days Forecast")
-        delay_m = del_df.groupby(del_df["Order_Date"].dt.to_period("M"))["Delivery_Days"].mean().rename("v")
-        r_del   = ml_forecast(delay_m.values.astype(float), delay_m.index, N_FUTURE_MONTHS)
-        if r_del:
-            fig_d = ensemble_chart(r_del, chart_key="delay_fc", height=260)
-            st.plotly_chart(fig_d, use_container_width=True, key="delay_fc")
-
-    with t4:
-        sec("Production-Driven Forward Shipment Plan")
-        if not fwd_plan.empty:
+    # ── TAB 3: Forward Plan ───────────────────────────────────────────────────
+    with t3:
+        if fwd_plan.empty:
+            st.info("No forward plan available — production plan has no actionable SKUs.")
+        else:
             fwd_agg = (
                 fwd_plan.groupby("Month_dt")
                 .agg(
-                    Month          = ("Month",         "first"),
-                    Total_Units    = ("Prod_Units",     "sum"),
-                    Total_Orders   = ("Proj_Orders",    "sum"),
-                    Total_Ship_Cost= ("Proj_Ship_Cost", "sum"),
-                    CI_Lo          = ("CI_Lo_Units",    "sum"),
-                    CI_Hi          = ("CI_Hi_Units",    "sum"),
+                    Month           = ("Month",         "first"),
+                    Total_Units     = ("Prod_Units",     "sum"),
+                    Total_Orders    = ("Proj_Orders",    "sum"),
+                    Total_Ship_Cost = ("Proj_Ship_Cost", "sum"),
+                    CI_Lo           = ("CI_Lo_Units",    "sum"),
+                    CI_Hi           = ("CI_Hi_Units",    "sum"),
                 )
                 .reset_index().sort_values("Month_dt")
             )
-            fa1, fa2, fa3 = st.columns(3)
-            kpi(fa1, "6M Planned Units", f"{fwd_agg['Total_Units'].sum():,}",        "sky",   "from production plan")
-            kpi(fa2, "6M Est. Orders",   f"{fwd_agg['Total_Orders'].sum():,}",       "sky",   "projected shipments")
-            kpi(fa3, "6M Ship Cost",     f"₹{fwd_agg['Total_Ship_Cost'].sum():,.0f}","amber", "at current avg rate")
-            sp()
+            fc1, fc2, fc3 = st.columns(3)
+            kpi(fc1, "6M Planned Units", f"{fwd_agg['Total_Units'].sum():,}",         "sky",   "from production plan")
+            kpi(fc2, "6M Est. Orders",   f"{fwd_agg['Total_Orders'].sum():,}",        "sky",   "projected shipments")
+            kpi(fc3, "6M Ship Cost",     f"₹{fwd_agg['Total_Ship_Cost'].sum():,.0f}", "amber", "at current avg rate")
+            sp(0.5)
 
-            fig_fwd = go.Figure()
-            x_ci = list(fwd_agg["Month_dt"]) + list(fwd_agg["Month_dt"])[::-1]
-            y_ci = list(fwd_agg["CI_Hi"])     + list(fwd_agg["CI_Lo"])[::-1]
-            fig_fwd.add_trace(go.Scatter(
-                x=x_ci, y=y_ci, fill="toself",
-                fillcolor="rgba(59,130,246,0.08)",
-                line=dict(color="rgba(0,0,0,0)"),
-                name="Demand Forecast 90% CI",
-                hoverinfo="skip",
-            ))
-            fig_fwd.add_trace(go.Bar(
-                x=fwd_agg["Month_dt"], y=fwd_agg["Total_Units"],
-                name="Planned Production Units (→ Shipment)",
-                marker=dict(color="#3B82F6", opacity=0.85, line=dict(color="rgba(0,0,0,0)")),
-                hovertemplate="<b>%{x|%b %Y}</b><br>Planned Units: %{y:,}<extra></extra>",
-            ))
-            fig_fwd.add_annotation(
-                x=fwd_agg["Month_dt"].iloc[0], y=fwd_agg["CI_Hi"].max(),
-                text="Shaded band = Demand forecast 90% CI<br>Bars = Production plan units",
-                showarrow=False, xanchor="left", yanchor="top",
-                font=dict(color="#64748b", size=9),
-                bgcolor="rgba(255,255,255,0.85)", bordercolor="#e5e7eb", borderwidth=1, borderpad=4,
-            )
-            fig_fwd.update_layout(
-                **CD(), height=260, barmode="overlay", xaxis=gX(),
-                yaxis={**gY(), "title": "Units (Production plan & Demand CI)"},
-                legend={**leg(), "orientation": "h", "y": -0.28},
-            )
-            st.plotly_chart(fig_fwd, use_container_width=True, key="fwd_units")
-            banner(
-                "<b>ℹ️ Chart note:</b> Bars = planned <b>production units</b> (= '6M Planned Units' KPI above). "
-                "Shaded band = <b>demand forecast 90% confidence interval</b> — shows demand uncertainty range. "
-                "When bars sit within the CI band, production is aligned with forecast demand.",
-                "sky",
-            )
+            tc1, tc2 = st.columns([3, 2], gap="large")
+            with tc1:
+                sec("Production → Shipment Plan")
+                fig_fwd = go.Figure()
+                x_ci = list(fwd_agg["Month_dt"]) + list(fwd_agg["Month_dt"])[::-1]
+                y_ci = list(fwd_agg["CI_Hi"])     + list(fwd_agg["CI_Lo"])[::-1]
+                fig_fwd.add_trace(go.Scatter(
+                    x=x_ci, y=y_ci, fill="toself",
+                    fillcolor="rgba(59,130,246,0.08)",
+                    line=dict(color="rgba(0,0,0,0)"), name="Demand 90% CI", hoverinfo="skip",
+                ))
+                fig_fwd.add_trace(go.Bar(
+                    x=fwd_agg["Month_dt"], y=fwd_agg["Total_Units"],
+                    name="Planned Units",
+                    marker=dict(color="#3B82F6", opacity=0.85, line=dict(color="rgba(0,0,0,0)")),
+                    hovertemplate="<b>%{x|%b %Y}</b><br>Units: %{y:,}<extra></extra>",
+                ))
+                fig_fwd.update_layout(
+                    **CD(), height=260, barmode="overlay", xaxis=gX(),
+                    yaxis={**gY(), "title": "Units"},
+                    legend={**leg(), "orientation": "h", "y": -0.28},
+                )
+                st.plotly_chart(fig_fwd, use_container_width=True, key="fwd_units")
+                banner(
+                    "Bars = production units entering shipment pipeline. "
+                    "Shaded band = demand forecast 90% CI — bars inside band = aligned with demand.",
+                    "sky",
+                )
 
-            fig_cost2 = go.Figure(go.Scatter(
-                x=fwd_agg["Month_dt"], y=fwd_agg["Total_Ship_Cost"],
-                mode="lines+markers", line=dict(color="#8B5CF6", width=2.5),
-                marker=dict(size=8, color="#8B5CF6", line=dict(color="#FFFFFF", width=2)),
-                fill="tozeroy", fillcolor="rgba(139,92,246,0.07)", name="Projected Cost",
-            ))
-            fig_cost2.update_layout(**CD(), height=220, xaxis=gX(), yaxis={**gY(), "title": "₹ Shipping Cost"})
-            st.plotly_chart(fig_cost2, use_container_width=True, key="fwd_cost")
+            with tc2:
+                sec("Category Breakdown")
+                cat_fwd = (
+                    fwd_plan.groupby("Category")
+                    .agg(Units=("Prod_Units", "sum"), Orders=("Proj_Orders", "sum"), Cost=("Proj_Ship_Cost", "sum"))
+                    .reset_index().sort_values("Units", ascending=False)
+                )
+                cat_fwd.columns = ["Category", "Units", "Est. Orders", "Ship Cost ₹"]
+                st.dataframe(cat_fwd, use_container_width=True, hide_index=True)
+                sp(0.5)
+                sec("Projected Shipping Cost")
+                fig_cost2 = go.Figure(go.Scatter(
+                    x=fwd_agg["Month_dt"], y=fwd_agg["Total_Ship_Cost"],
+                    mode="lines+markers", line=dict(color="#8B5CF6", width=2.5),
+                    marker=dict(size=8, color="#8B5CF6", line=dict(color="#FFFFFF", width=2)),
+                    fill="tozeroy", fillcolor="rgba(139,92,246,0.07)",
+                ))
+                fig_cost2.update_layout(**CD(), height=180, xaxis=gX(), yaxis={**gY(), "title": "₹"})
+                st.plotly_chart(fig_cost2, use_container_width=True, key="fwd_cost")
 
-            sec("Category Breakdown")
-            cat_fwd = (
-                fwd_plan.groupby("Category")
-                .agg(Units=("Prod_Units", "sum"), Orders=("Proj_Orders", "sum"), Ship_Cost=("Proj_Ship_Cost", "sum"))
-                .reset_index().sort_values("Units", ascending=False)
-            )
-            cat_fwd.columns = ["Category", "Planned Units", "Est. Orders", "Proj. Ship Cost ₹"]
-            st.dataframe(cat_fwd, use_container_width=True, hide_index=True)
-
-        sec("Warehouse Shipment Volume")
-        wm = del_df.groupby([del_df["Order_Date"].dt.to_period("M"), "Warehouse"])["Quantity"].sum().unstack(fill_value=0)
-        fig_wh = go.Figure()
-        for i, wh in enumerate(wm.columns):
-            clr = COLORS[i % len(COLORS)]
-            r   = ml_forecast(wm[wh].values.astype(float), wm.index, N_FUTURE_MONTHS)
-            if r is None:
-                fig_wh.add_trace(go.Bar(x=wm.index.to_timestamp(), y=wm[wh], name=wh,
-                                        marker=dict(color=clr, line=dict(color="rgba(0,0,0,0)"))))
-                continue
-            fig_wh.add_trace(go.Bar(x=r["hist_ds"], y=r["hist_y"], name=wh,
-                                    marker=dict(color=clr, opacity=0.85, line=dict(color="rgba(0,0,0,0)"))))
-            fig_wh.add_trace(go.Scatter(
-                x=r["fut_ds"], y=r["forecast"], name=f"{wh} (fcst)",
-                mode="lines+markers", line=dict(color=clr, width=2.5, dash="dot"),
-                marker=dict(size=7, line=dict(color="#FFFFFF", width=2)), showlegend=False,
-            ))
-        fig_wh.update_layout(**CD(), height=290, barmode="stack", xaxis=gX(), yaxis=gY(), legend=leg())
-        st.plotly_chart(fig_wh, use_container_width=True, key="wh_vol")
-
-        if not fwd_plan.empty:
-            sec("Production-Driven Inbound Plan per Warehouse")
+            sp(0.5)
+            sec("Inbound Plan per Warehouse")
             wh_share = (del_df.groupby("Warehouse")["Quantity"].sum() / del_df["Quantity"].sum()).to_dict()
             inb_rows = [
-                {
-                    "Month":          row["Month"],
-                    "Month_dt":       row["Month_dt"],
-                    "Warehouse":      wh,
-                    "Inbound_Units":  round(row["Prod_Units"] * sh),
-                    "Proj_Ship_Cost": round(row["Proj_Ship_Cost"] * sh),
-                }
-                for _, row in fwd_plan.iterrows()
-                for wh, sh in wh_share.items()
+                {"Month": row["Month"], "Month_dt": row["Month_dt"],
+                 "Warehouse": wh, "Inbound_Units": round(row["Prod_Units"] * sh),
+                 "Proj_Ship_Cost": round(row["Proj_Ship_Cost"] * sh)}
+                for _, row in fwd_plan.iterrows() for wh, sh in wh_share.items()
             ]
-            inb     = pd.DataFrame(inb_rows)
             inb_agg = (
-                inb.groupby(["Month_dt", "Month", "Warehouse"])
+                pd.DataFrame(inb_rows)
+                .groupby(["Month_dt", "Month", "Warehouse"])
                 .agg(Inbound_Units=("Inbound_Units", "sum"), Proj_Ship_Cost=("Proj_Ship_Cost", "sum"))
                 .reset_index().sort_values(["Month_dt", "Warehouse"])
             )
@@ -2307,72 +2271,13 @@ def page_logistics() -> None:
                     x=wdf["Month"], y=wdf["Inbound_Units"], name=wh,
                     marker=dict(color=COLORS[i % len(COLORS)], line=dict(color="rgba(0,0,0,0)")),
                 ))
-            fig_inb.update_layout(**CD(), height=260, barmode="group",
+            fig_inb.update_layout(**CD(), height=250, barmode="group",
                                   xaxis={**gX(), "tickangle": -25},
                                   yaxis={**gY(), "title": "Planned Inbound Units"}, legend=leg())
             st.plotly_chart(fig_inb, use_container_width=True, key="wh_inbound")
-
             disp_inb = inb_agg[["Month", "Warehouse", "Inbound_Units", "Proj_Ship_Cost"]].copy()
-            disp_inb.columns = ["Month", "Warehouse", "Planned Inbound Units", "Proj. Ship Cost ₹"]
+            disp_inb.columns = ["Month", "Warehouse", "Planned Units", "Proj. Ship Cost ₹"]
             st.dataframe(disp_inb, use_container_width=True, hide_index=True)
-
-    with t5:
-        sec("Region Performance Overview")
-        rs_del = del_df.groupby("Region").agg(
-            Orders  = ("Order_ID",          "count"),
-            Revenue = ("Net_Revenue",        "sum"),
-            Qty     = ("Quantity",           "sum"),
-            Avg_Del = ("Delivery_Days",      "mean"),
-        ).reset_index()
-        rs_ret = df.groupby("Region")["Return_Flag"].mean().reset_index()
-        rs_ret.columns = ["Region", "Returns"]
-        rs = rs_del.merge(rs_ret, on="Region", how="left")
-        rs["Returns_Pct"] = (rs["Returns"] * 100).round(1)
-
-        met     = st.selectbox("Metric", ["Revenue", "Orders", "Qty", "Avg_Del", "Return Rate (%)"])
-        met_col = {"Revenue": "Revenue", "Orders": "Orders", "Qty": "Qty",
-                   "Avg_Del": "Avg_Del", "Return Rate (%)": "Returns_Pct"}[met]
-        met_lbl = {"Revenue": "Revenue ₹", "Orders": "Orders", "Qty": "Units",
-                   "Avg_Del": "Avg Delivery Days", "Return Rate (%)": "Return Rate %"}[met]
-        y = rs[met_col]
-        fig_r = go.Figure(go.Bar(
-            x=rs["Region"], y=y,
-            marker=dict(color=[COLORS[i % len(COLORS)] for i in range(len(rs))],
-                        line=dict(color="rgba(0,0,0,0)")),
-            text=[f"{v:.1f}%" if met == "Return Rate (%)" else f"{v:,.0f}" for v in y],
-            textposition="outside", textfont=dict(color="#334155"),
-        ))
-        fig_r.update_layout(**CD(), height=280, xaxis={**gX(), "tickangle": -25},
-                            yaxis={**gY(), "title": met_lbl})
-        st.plotly_chart(fig_r, use_container_width=True, key="log_region")
-
-        sec("Best Carrier per Region")
-        bc = best_carr[["Region", "Courier_Partner", "Avg_Days", "Avg_Cost", "Score"]].copy()
-        bc["Avg_Days"] = bc["Avg_Days"].round(1)
-        bc["Avg_Cost"] = bc["Avg_Cost"].round(1)
-        bc["Score"]    = bc["Score"].round(3)
-        bc.columns = ["Region", "Best Carrier", "Avg Days", "Avg Cost ₹", "Score (0–1)"]
-        st.dataframe(bc.sort_values("Score (0–1)", ascending=False), use_container_width=True, hide_index=True)
-
-        sec("Region Revenue Forecast")
-        top_reg = del_df["Region"].value_counts().head(5).index.tolist()
-        fig_rf  = go.Figure()
-        for i, reg in enumerate(top_reg):
-            s = del_df[del_df["Region"] == reg].groupby(
-                del_df["Order_Date"].dt.to_period("M"))["Net_Revenue"].sum().rename("v")
-            r = ml_forecast(s.values.astype(float), s.index, N_FUTURE_MONTHS)
-            if r is None:
-                continue
-            clr = COLORS[i % len(COLORS)]
-            fig_rf.add_trace(go.Scatter(x=r["hist_ds"], y=r["hist_y"], name=reg,
-                                        line=dict(color=clr, width=1.5), opacity=0.6, showlegend=False))
-            fig_rf.add_trace(go.Scatter(
-                x=r["fut_ds"], y=r["forecast"], name=reg,
-                mode="lines+markers", line=dict(color=clr, width=2.5, dash="dot"),
-                marker=dict(size=8, line=dict(color="#FFFFFF", width=2)),
-            ))
-        fig_rf.update_layout(**CD(), height=260, xaxis=gX(), yaxis=gY(), legend=leg())
-        st.plotly_chart(fig_rf, use_container_width=True, key="log_reg_fc")
 
 
 def page_chatbot() -> None:
