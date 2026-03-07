@@ -2114,13 +2114,6 @@ def page_logistics() -> None:
         st.plotly_chart(fig_sav, use_container_width=True, key="log_saving")
         sp()
 
-        sec("Logistics Order Forecast")
-        series = del_df.groupby(del_df["Order_Date"].dt.to_period("M"))["Order_ID"].count()
-        res    = ml_forecast(series.values.astype(float), series.index, N_FUTURE_MONTHS)
-        if res:
-            fig = ensemble_chart(res, chart_key="log_ord_fc", height=290)
-            st.plotly_chart(fig, use_container_width=True, key="log_ord_fc")
-
         sec("Optimization Recommendation Table")
         od = opt.copy()
         od["Current_Avg_Cost"]  = od["Current_Avg_Cost"].round(1)
@@ -2353,32 +2346,13 @@ def page_logistics() -> None:
                             yaxis={**gY(), "title": met_lbl})
         st.plotly_chart(fig_r, use_container_width=True, key="log_region")
 
-        cl5, cr5 = st.columns(2, gap="large")
-        with cl5:
-            sec("Best Carrier per Region")
-            bc = best_carr[["Region", "Courier_Partner", "Avg_Days", "Avg_Cost", "Score"]].copy()
-            bc["Avg_Days"] = bc["Avg_Days"].round(1)
-            bc["Avg_Cost"] = bc["Avg_Cost"].round(1)
-            bc["Score"]    = bc["Score"].round(3)
-            bc.columns = ["Region", "Best Carrier", "Avg Days", "Avg Cost ₹", "Score (0–1)"]
-            st.dataframe(bc.sort_values("Score (0–1)", ascending=False), use_container_width=True, hide_index=True)
-
-        with cr5:
-            sec("Region Return Rate Ranking")
-            rr = df.groupby("Region")["Return_Flag"].mean().sort_values(ascending=False) * 100
-            fig_ret = go.Figure(go.Bar(
-                x=rr.values, y=rr.index, orientation="h",
-                marker=dict(
-                    color=["#EF4444" if v > 12 else "#F59E0B" if v > 8 else "#22C55E" for v in rr.values],
-                    line=dict(color="rgba(0,0,0,0)"),
-                ),
-                text=[f"{v:.1f}%" for v in rr.values],
-                textposition="outside", textfont=dict(color="#334155"),
-            ))
-            fig_ret.update_layout(**CD(), height=270,
-                                  xaxis={**gX(), "title": "Return Rate %"},
-                                  yaxis=dict(showgrid=False, color="#64748b"))
-            st.plotly_chart(fig_ret, use_container_width=True, key="log_ret_rank")
+        sec("Best Carrier per Region")
+        bc = best_carr[["Region", "Courier_Partner", "Avg_Days", "Avg_Cost", "Score"]].copy()
+        bc["Avg_Days"] = bc["Avg_Days"].round(1)
+        bc["Avg_Cost"] = bc["Avg_Cost"].round(1)
+        bc["Score"]    = bc["Score"].round(3)
+        bc.columns = ["Region", "Best Carrier", "Avg Days", "Avg Cost ₹", "Score (0–1)"]
+        st.dataframe(bc.sort_values("Score (0–1)", ascending=False), use_container_width=True, hide_index=True)
 
         sec("Region Revenue Forecast")
         top_reg = del_df["Region"].value_counts().head(5).index.tolist()
