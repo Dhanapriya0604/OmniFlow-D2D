@@ -2556,21 +2556,36 @@ def page_chatbot() -> None:
 
     # Inventory
     n_crit        = (inv["Status"] == "🔴 Critical").sum()
+    n_low         = (inv["Status"] == "🟡 Low").sum()
     stockout_risk = inv["Stockout_Cost"].sum()
     prod_need     = int(inv["Prod_Need"].sum())
+
+    # Days until first stockout among critical SKUs
+    crit_inv = inv[inv["Status"] == "🔴 Critical"]
+    if len(crit_inv):
+        min_days = int(crit_inv["Days_of_Stock"].clip(upper=999).min())
+        import datetime as _dt2
+        stockout_date = (_dt2.date.today() + _dt2.timedelta(days=min_days)).strftime("%d %b %Y")
+        crit_timing = f"first stockout in ~{min_days}d ({stockout_date})"
+    else:
+        crit_timing = "no critical SKUs"
 
     # Production urgency
     try:
         sku_plan    = build_sku_production_plan()
         n_urgent_s  = (sku_plan["Urgency"] == "🔴 Urgent").sum()
         peak_mo_str = plan.groupby("Month_dt")["Production"].sum().idxmax().strftime("%b %Y") if not plan.empty else "—"
+        # Earliest month where production is needed
+        first_prod_mo = plan["Month_dt"].min().strftime("%b %Y") if not plan.empty else "—"
     except Exception:
         n_urgent_s  = 0
         peak_mo_str = "—"
+        first_prod_mo = "—"
 
     # Logistics
     on_time     = (del_df["Delivery_Days"] <= 3).mean() * 100
     sav_total   = opt["Potential_Saving"].sum()
+    avg_delay   = del_df["Delivery_Days"].mean()
 
     sp(0.5)
     sec("Platform Snapshot — All Modules")
@@ -2592,16 +2607,17 @@ def page_chatbot() -> None:
 
     snap_card(col_d, "📈", "Demand Forecast",
               f"₹{next_rev/1e6:.1f}M", f"{rev_chg:+.1f}% vs last month",
-              f"{rev_mo} forecast", "#2563eb")
+              f"forecast for {rev_mo}", "#2563eb")
     snap_card(col_i, "📦", "Inventory Risk",
-              str(n_crit), "critical SKUs below safety stock",
-              f"₹{stockout_risk:,.0f} stockout exposure", "#ef4444")
+              str(n_crit), f"critical · {n_low} low stock SKUs",
+              crit_timing, "#ef4444")
     snap_card(col_p, "🏭", "Production Need",
-              f"{prod_need:,}", f"units to produce · {n_urgent_s} urgent SKUs",
-              f"Peak month: {peak_mo_str}", "#d97706")
+              f"{prod_need:,}", f"units · {n_urgent_s} urgent · starts {first_prod_mo}",
+              f"peak demand: {peak_mo_str}", "#d97706")
     snap_card(col_l, "🚚", "Logistics",
-              f"{on_time:.0f}%", "on-time delivery rate",
+              f"{on_time:.0f}%", f"on-time · avg {avg_delay:.1f}d delivery",
               f"₹{sav_total:,.0f} saving available", "#059669")
+
     sp(0.5)
 
     # ── Context & system prompt ───────────────────────────────────────────────
