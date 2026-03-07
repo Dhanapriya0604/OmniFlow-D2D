@@ -1083,25 +1083,80 @@ def build_context() -> str:
 
     if r_ord:
         mm = r_ord.get("model_metrics", {}); ens = mm.get("Ensemble", {})
-        metric_str = f"Ensemble RMSE:{ens.get('rmse',0):.1f}, NRMSE:{ens.get('nrmse',0)*100:.1f}%, R²:{ens.get('r2',0):.2f}"
+        ridge = mm.get("Ridge", {}); rf = mm.get("RandomForest", {}); gb = mm.get("GradBoost", {})
+        metric_str = (
+            f"Ensemble R²:{ens.get('r2',0):.2f} NRMSE:{ens.get('nrmse',0)*100:.1f}% | "
+            f"Ridge R²:{ridge.get('r2',0):.2f} | RF R²:{rf.get('r2',0):.2f} | GB R²:{gb.get('r2',0):.2f}"
+        )
     else:
         metric_str = ""
+
+    # ── Enriched signals ──────────────────────────────────────────────────────
+    del_df  = df[df["Order_Status"] == "Delivered"].copy()
+    del_df["Order_Date"] = pd.to_datetime(del_df["Order_Date"])
+
+    # On-time & delay
+    on_time_pct  = (del_df["Delivery_Days"] <= 3).mean() * 100
+    delay_rc     = del_df.copy(); delay_rc["Delayed"] = delay_rc["Delivery_Days"] > DEFAULT_LEAD_TIME
+    worst_region = delay_rc.groupby("Region")["Delayed"].mean().idxmax()
+    worst_carrier= delay_rc.groupby("Courier_Partner")["Delayed"].mean().idxmax()
+    best_carrier = delay_rc.groupby("Courier_Partner")["Delayed"].mean().idxmin()
+
+    # Return rate by category
+    ret_cat = df.groupby("Category")["Return_Flag"].mean().mul(100).round(1).to_dict()
+    ret_cat_str = ", ".join([f"{k}:{v:.1f}%" for k, v in ret_cat.items()])
+
+    # Sales channel revenue
+    ch_rev = ops.groupby("Sales_Channel")["Net_Revenue"].sum().sort_values(ascending=False)
+    ch_str = ", ".join([f"{k}:₹{v/1e6:.1f}M" for k, v in ch_rev.items()])
+
+    # SKU-level urgency from sku_plan
+    try:
+        sku_plan     = build_sku_production_plan()
+        n_urgent_sku = (sku_plan["Urgency"] == "🔴 Urgent").sum()
+        n_high_sku   = (sku_plan["Urgency"] == "🟠 High").sum()
+        avg_days_urgent = sku_plan[sku_plan["Urgency"] == "🔴 Urgent"]["Days_Left"].mean()
+        urgent_skus  = ", ".join(sku_plan[sku_plan["Urgency"] == "🔴 Urgent"]["Product_Name"].head(3).tolist())
+        wh_routing   = sku_plan.groupby("Target_Warehouse").agg(
+            SKUs=("SKU_ID","count"), Units=("Prod_Need","sum")).reset_index()
+        wh_str = "; ".join([f"{r['Target_Warehouse']}:{int(r['SKUs'])} SKUs/{int(r['Units'])} units"
+                            for _, r in wh_routing.iterrows()])
+    except Exception:
+        n_urgent_sku = n_high_sku = 0; avg_days_urgent = 0
+        urgent_skus = "N/A"; wh_str = "N/A"
+
+    # Stockout cost by category
+    sc_cat = inv.groupby("Category")["Stockout_Cost"].sum().sort_values(ascending=False)
+    sc_cat_str = ", ".join([f"{k}:₹{v:,.0f}" for k, v in sc_cat.items()])
+
+    # Demand coverage summary
+    low_cover = inv[inv["Demand_Cover_Pct"] < 30]
+    n_low_cover = len(low_cover)
+    low_cover_str = ", ".join(low_cover.sort_values("Demand_Cover_Pct").head(3)["Product_Name"].tolist())
 
     ret_rate_pct = df[df["Order_Status"] == "Returned"].shape[0] / len(df) * 100
 
     return (
         f"=== OmniFlow D2D Intelligence ===\n"
-        f"DATASET: {len(df):,} total orders | {len(ops):,} active (Delivered+Shipped) | Jan 2024–Dec 2025 | India D2D\n"
-        f"SUMMARY: Net Revenue ₹{ops['Net_Revenue'].sum()/1e7:.2f}Cr | Return Rate {ret_rate_pct:.1f}% | Avg Delivery {ops['Delivery_Days'].mean():.1f}d\n"
+        f"DATASET: {len(df):,} orders | {len(ops):,} active | Jan 2024–Dec 2025 | India D2D e-commerce\n"
+        f"SUMMARY: Net Revenue ₹{ops['Net_Revenue'].sum()/1e7:.2f}Cr | Return Rate {ret_rate_pct:.1f}% | Avg Delivery {ops['Delivery_Days'].mean():.1f}d | On-Time(≤3d) {on_time_pct:.1f}%\n"
+        f"CHANNELS: {ch_str}\n"
         f"[DEMAND FORECAST] {metric_str}\n"
         f"Order Forecast: {fc_str(r_ord, lambda v: f'{v:.0f}')}\n"
         f"Qty Forecast: {fc_str(r_qty, lambda v: f'{v:.0f}u')}\n"
         f"Revenue Forecast: {fc_str(r_rev, lambda v: f'₹{v/1e6:.1f}M')}\n"
         f"[INVENTORY] Critical:{n_crit} Low:{n_low} | ABC:{abc_str}\n"
-        f"Reorder NOW: {crit_prods} | Stockout Risk: ₹{total_stockout:,.0f}\n"
-        f"[PRODUCTION] {prod_str} | Peak: {peak_mo}\n"
+        f"Reorder NOW: {crit_prods} | Stockout Risk Total: ₹{total_stockout:,.0f}\n"
+        f"Stockout Risk by Category: {sc_cat_str}\n"
+        f"Low Demand Coverage (<30%): {n_low_cover} SKUs — {low_cover_str}\n"
+        f"Return Rate by Category: {ret_cat_str}\n"
+        f"[PRODUCTION & ROUTING] {prod_str} | Peak: {peak_mo}\n"
+        f"Urgent SKUs: {n_urgent_sku} 🔴 / {n_high_sku} 🟠 High | Avg days left (urgent): {avg_days_urgent:.1f}d\n"
+        f"Top Urgent: {urgent_skus}\n"
+        f"Warehouse Routing: {wh_str}\n"
         f"[LOGISTICS] {carr_str}\n"
-        f"Best per Region: {', '.join([f"{r['Region']}→{r['Courier_Partner']}" for _,r in best_carr.iterrows()])}\n"
+        f"On-Time Rate: {on_time_pct:.1f}% | Worst Delay Region: {worst_region} | Worst Carrier: {worst_carrier} | Best Carrier: {best_carrier}\n"
+        f"Best per Region: {', '.join([r['Region'] + chr(8594) + r['Courier_Partner'] for _,r in best_carr.iterrows()])}\n"
         f"Savings: ₹{saving_total:,.0f} | {saving_str}\n"
         f"Forward Plan: {fwd_str if fwd_str else 'N/A'}\n"
         f"CATEGORIES: {cat_str} | TOP REGIONS: {reg_str} | TOP PRODUCTS: {sku_str}"
@@ -2284,8 +2339,9 @@ def page_chatbot() -> None:
     df  = load_data()
     ops = get_ops(df).copy()
     ops["YM"] = ops["Order_Date"].dt.to_period("M")
+    del_df = get_delivered(df)
 
-    st.markdown("<div class='page-title'>Decision Intelligence Chatbot</div>", unsafe_allow_html=True)
+    st.markdown("<div class='page-title'>Decision Intelligence</div>", unsafe_allow_html=True)
 
     with st.sidebar:
         st.markdown("""<div style='margin-top:14px;border-top:1px solid rgba(255,255,255,0.08);
@@ -2302,28 +2358,86 @@ def page_chatbot() -> None:
             else:
                 st.markdown("<div style='font-size:10px;color:#ff6b6b;font-family:DM Mono;margin-top:3px'>⚠️ Should start with gsk_</div>",
                             unsafe_allow_html=True)
-    sp()
 
-    sec("Revenue Forecast")
-    m_rev = ops.groupby("YM")["Net_Revenue"].sum().rename("v")
-    r_rev = ml_forecast(m_rev.values.astype(float), m_rev.index, N_FUTURE_MONTHS)
-    if r_rev is not None:
-        last = float(m_rev.iloc[-1])
-        rc   = st.columns(N_FUTURE_MONTHS)
-        for i, (dt, fc, lo, hi) in enumerate(zip(r_rev["fut_ds"], r_rev["forecast"], r_rev["ci_lo"], r_rev["ci_hi"])):
-            chg = (fc - last) / last * 100 if last > 0 else 0
-            kpi(rc[i], f"{'📈' if chg >= 0 else '📉'} {dt.strftime('%b %Y')}",
-                f"₹{fc/1e6:.1f}M", "mint" if chg >= 0 else "coral",
-                f"{chg:+.1f}% | CI ₹{lo/1e6:.1f}M–₹{hi/1e6:.1f}M")
-            last = fc
+    # ── Cross-module snapshot cards ───────────────────────────────────────────
+    inv  = compute_inventory()
+    plan = compute_production()
+    carr, best_carr, opt, fwd_plan = compute_logistics()
 
+    # Demand: next-month revenue forecast
+    m_rev    = ops.groupby("YM")["Net_Revenue"].sum().rename("v")
+    r_rev    = ml_forecast(m_rev.values.astype(float), m_rev.index, N_FUTURE_MONTHS)
+    next_rev = float(r_rev["forecast"][0]) if r_rev else 0
+    last_rev = float(m_rev.iloc[-1]) if len(m_rev) else 1
+    rev_chg  = (next_rev - last_rev) / last_rev * 100 if last_rev > 0 else 0
+    rev_mo   = r_rev["fut_ds"][0].strftime("%b %Y") if r_rev else "—"
+
+    # Inventory
+    n_crit        = (inv["Status"] == "🔴 Critical").sum()
+    stockout_risk = inv["Stockout_Cost"].sum()
+    prod_need     = int(inv["Prod_Need"].sum())
+
+    # Production urgency
+    try:
+        sku_plan    = build_sku_production_plan()
+        n_urgent_s  = (sku_plan["Urgency"] == "🔴 Urgent").sum()
+        peak_mo_str = plan.groupby("Month_dt")["Production"].sum().idxmax().strftime("%b %Y") if not plan.empty else "—"
+    except Exception:
+        n_urgent_s  = 0
+        peak_mo_str = "—"
+
+    # Logistics
+    on_time     = (del_df["Delivery_Days"] <= 3).mean() * 100
+    sav_total   = opt["Potential_Saving"].sum()
+
+    sp(0.5)
+    sec("Platform Snapshot — All Modules")
+    col_d, col_i, col_p, col_l = st.columns(4, gap="medium")
+
+    def snap_card(col, icon, title, metric, sub, detail, color):
+        col.markdown(
+            f"""<div style='background:white;border-radius:14px;border:1px solid #e5e7eb;
+                 padding:18px 16px;box-shadow:0 2px 12px rgba(0,0,0,0.06)'>
+              <div style='font-size:22px;margin-bottom:4px'>{icon}</div>
+              <div style='font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;
+                   letter-spacing:.08em;font-family:DM Mono'>{title}</div>
+              <div style='font-size:26px;font-weight:900;color:{color};margin:4px 0'>{metric}</div>
+              <div style='font-size:11px;color:#334155;font-weight:600'>{sub}</div>
+              <div style='font-size:10px;color:#94a3b8;margin-top:3px'>{detail}</div>
+            </div>""",
+            unsafe_allow_html=True,
+        )
+
+    snap_card(col_d, "📈", "Demand Forecast",
+              f"₹{next_rev/1e6:.1f}M", f"{rev_chg:+.1f}% vs last month",
+              f"{rev_mo} forecast", "#2563eb")
+    snap_card(col_i, "📦", "Inventory Risk",
+              str(n_crit), "critical SKUs below safety stock",
+              f"₹{stockout_risk:,.0f} stockout exposure", "#ef4444")
+    snap_card(col_p, "🏭", "Production Need",
+              f"{prod_need:,}", f"units to produce · {n_urgent_s} urgent SKUs",
+              f"Peak month: {peak_mo_str}", "#d97706")
+    snap_card(col_l, "🚚", "Logistics",
+              f"{on_time:.0f}%", "on-time delivery rate",
+              f"₹{sav_total:,.0f} saving available", "#059669")
+    sp(0.5)
+
+    # ── Context & system prompt ───────────────────────────────────────────────
     ctx    = build_context()[:CONTEXT_CHARS]
     system = (
         "You are OmniFlow, an expert AI supply chain analyst for an India D2D e-commerce business.\n"
-        "EXPERTISE: Demand forecasting (Ridge+RF+GradBoost ensemble), Inventory (Wilson EOQ, full safety stock, ROP, ABC), "
-        "Production planning, Logistics (weighted composite score), Indian e-commerce.\n"
-        "RESPONSE RULES: 1. Lead with one precise data-backed insight 2. Use bullet points (▸) with exact numbers "
-        "3. 4-8 bullets per answer 4. No generic closings 5. If not in context, say so clearly\n"
+        "MODULES: Demand Forecasting (Ridge+RF+GradBoost ensemble), Inventory (Wilson EOQ, Safety Stock, ROP, ABC-XYZ), "
+        "Production Planning (demand-driven, urgency-boosted), "
+        "Logistics (weighted carrier scoring, delay heatmap, cost optimisation), Warehouse Routing.\n"
+        "RESPONSE RULES:\n"
+        "1. Always ground answers in numbers from LIVE CONTEXT\n"
+        "2. Lead with the single most critical actionable insight\n"
+        "3. Use bullet points (▸) with exact figures — SKU names, ₹ values, day counts\n"
+        "4. 4–8 bullets per answer. Never pad with generic advice\n"
+        "5. Cross-reference modules where relevant (e.g. demand forecast → inventory need → production → carrier)\n"
+        "6. If asked about something not in context, say 'Not available in current context'\n"
+        "7. For logistics questions always cite specific carrier names and regions\n"
+        "8. For inventory questions always cite SKU names and exact stock vs ROP numbers\n"
         f"LIVE CONTEXT:\n{ctx}"
     )
 
@@ -2332,26 +2446,29 @@ def page_chatbot() -> None:
 
     key_ok = bool(api_key and len(api_key.strip()) > 10)
     if not key_ok:
-        banner("⚠️ <b>API Key Required</b> — Enter your key in the sidebar", "amber")
+        banner("⚠️ <b>API Key Required</b> — Enter your Groq API key in the sidebar to enable AI responses", "amber")
 
     if "chat_msgs" not in st.session_state:
         st.session_state.chat_msgs = []
 
+    # ── Suggested queries — 8, covering all 5 modules ────────────────────────
     SUGGESTIONS = [
-        "Which product will have the highest demand next month?",
-        "Which SKUs are at critical inventory risk right now?",
-        "How should I adjust production targets for next quarter?",
-        "Which courier should I use to minimize logistics cost?",
-        "What are the top revenue generating products?",
-        "How can I reduce shipping costs across regions?",
+        ("📉", "Which SKUs will stock out within 14 days?"),
+        ("📈", "Which category has the highest demand growth forecast?"),
+        ("🏭", "What is my production plan for the next 6 months?"),
+        ("🚚", "Which carrier-region combinations cause the most delays?"),
+        ("💰", "How much stockout risk do I face if I don't restock now?"),
+        ("🏪", "Which warehouse needs the most urgent inbound shipment?"),
+        ("💡", "How can I save the most on shipping costs?"),
+        ("🔄", "What demand surge should I plan production for next month?"),
     ]
 
     if not st.session_state.chat_msgs:
         sec("Quick Queries — click any to get started")
         cols = st.columns(4)
-        for i, s in enumerate(SUGGESTIONS):
+        for i, (icon, s) in enumerate(SUGGESTIONS):
             with cols[i % 4]:
-                if st.button(s, key=f"sug_{i}", use_container_width=True):
+                if st.button(f"{icon} {s}", key=f"sug_{i}", use_container_width=True):
                     if not key_ok:
                         st.warning("⚠️ Enter your API key first.")
                     else:
@@ -2361,6 +2478,7 @@ def page_chatbot() -> None:
                         st.session_state.chat_msgs.append({"role": "assistant", "content": reply})
                         st.rerun()
 
+    # ── Chat history ──────────────────────────────────────────────────────────
     for msg in st.session_state.chat_msgs:
         role, content = msg["role"], msg["content"]
         if role == "user":
@@ -2389,12 +2507,13 @@ def page_chatbot() -> None:
                 unsafe_allow_html=True,
             )
 
+    # ── Input bar ─────────────────────────────────────────────────────────────
     sp()
     ci, cb, cc = st.columns([5, 1, 1])
     with ci:
         user_in = st.text_input(
             "Ask anything…", key="user_input",
-            placeholder="e.g. Which model had the best accuracy on the hold-out period?",
+            placeholder="e.g. Which SKUs need urgent restocking before peak month?",
             label_visibility="collapsed",
         )
     with cb:
@@ -2412,37 +2531,57 @@ def page_chatbot() -> None:
             st.session_state.chat_msgs = []
             st.rerun()
 
+    # ── Live Decision Alerts (shown when no chat yet) ─────────────────────────
     if not st.session_state.chat_msgs:
         sp()
         sec("Live Decision Alerts")
-        al1, al2 = st.columns(2, gap="large")
+        al1, al2, al3 = st.columns(3, gap="medium")
+
         with al1:
             st.markdown("""<div style='font-size:11px;font-weight:700;color:#EF4444;letter-spacing:.06em;
                 text-transform:uppercase;font-family:DM Mono;margin-bottom:8px'>🔴 Critical SKUs — Reorder NOW</div>""",
                 unsafe_allow_html=True)
-            inv = compute_inventory()
-            for _, r in inv[inv["Status"] == "🔴 Critical"][
+            crit = inv[inv["Status"] == "🔴 Critical"][
                 ["Product_Name", "Category", "Current_Stock", "ROP", "Prod_Need"]
-            ].head(5).iterrows():
+            ].head(5)
+            for _, r in crit.iterrows():
                 st.markdown(
                     f"<div class='alert-item alert-critical'>"
                     f"<b style='color:#0f172a'>{r['Product_Name']}</b> "
                     f"<span style='color:#64748b;font-size:11px'>[{r['Category']}]</span><br>"
                     f"<span style='color:#64748b;font-size:11px'>Stock: {r['Current_Stock']} · "
-                    f"ROP: {r['ROP']} · Order: <b style=\"color:#dc2626\">{int(r['Prod_Need'])} units</b></span></div>",
+                    f"ROP: {r['ROP']} · Need: <b style=\"color:#dc2626\">{int(r['Prod_Need'])} units</b></span></div>",
                     unsafe_allow_html=True,
                 )
+
         with al2:
             st.markdown("""<div style='font-size:11px;font-weight:700;color:#d97706;letter-spacing:.06em;
-                text-transform:uppercase;font-family:DM Mono;margin-bottom:8px'>💰 Cost Saving Opportunities</div>""",
+                text-transform:uppercase;font-family:DM Mono;margin-bottom:8px'>🏭 Most Urgent Production</div>""",
                 unsafe_allow_html=True)
-            _, _, opt, _ = compute_logistics()
+            try:
+                urgent_df = sku_plan[sku_plan["Urgency"].isin(["🔴 Urgent", "🟠 High"])].head(5)
+                for _, r in urgent_df.iterrows():
+                    days_str = f"{int(r['Days_Left'])}d left" if r["Days_Left"] < 999 else "∞"
+                    st.markdown(
+                        f"<div class='alert-item alert-warn'>"
+                        f"<b style='color:#0f172a'>{r['Product_Name']}</b><br>"
+                        f"<span style='color:#64748b;font-size:11px'>{r['Urgency']} · {days_str} · "
+                        f"<b style=\"color:#d97706\">{int(r['Prod_Need'])} units</b> → {r['Target_Warehouse']}</span></div>",
+                        unsafe_allow_html=True,
+                    )
+            except Exception:
+                st.info("No urgent production items.")
+
+        with al3:
+            st.markdown("""<div style='font-size:11px;font-weight:700;color:#059669;letter-spacing:.06em;
+                text-transform:uppercase;font-family:DM Mono;margin-bottom:8px'>💰 Logistics Savings</div>""",
+                unsafe_allow_html=True)
             for _, r in opt.sort_values("Potential_Saving", ascending=False).head(5).iterrows():
                 if r["Potential_Saving"] > 0:
                     st.markdown(
-                        f"<div class='alert-item alert-warn'>"
+                        f"<div class='alert-item' style='border-left:3px solid #059669;background:#f0fdf4'>"
                         f"<b style='color:#0f172a'>{r['Region']}</b> → "
-                        f"<b style='color:#0f172a'>{r['Optimal_Carrier']}</b><br>"
+                        f"<b style='color:#059669'>{r['Optimal_Carrier']}</b><br>"
                         f"<span style='color:#64748b;font-size:11px'>Save ₹{r['Potential_Saving']:,.0f} ({r['Saving_Pct']:.1f}%)</span></div>",
                         unsafe_allow_html=True,
                     )
