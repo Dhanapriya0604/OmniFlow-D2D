@@ -1727,157 +1727,216 @@ def page_inventory() -> None:
     with tab_cov:
         inv_c = inv.copy()
 
-        # Raw (unclipped) coverage for accurate gap analysis
-        inv_c["Cover_Raw"] = np.where(
-            inv_c["Demand_6M"] > 0,
-            inv_c["Current_Stock"] / inv_c["Demand_6M"] * 100,
-            100.0,
-        ).round(1)
-        inv_c["Stock_Gap"] = np.maximum(inv_c["Demand_6M"] - inv_c["Current_Stock"], 0).astype(int)
-
-        # Two meaningful bands matching the actual data (all SKUs are under 60%)
-        inv_c["Coverage_Band"] = inv_c["Cover_Raw"].apply(
-            lambda x: "🔴 <30% — Critical" if x < 30 else "🟡 30–60% — Low"
+        # ── Coverage must be based on ACTUAL recent demand, not ML forecast ──
+        # inv["Demand_6M"] = ML ensemble forecast for next 6 months, which
+        # extrapolates recent growth (~2.3× all-time avg) and inflates the
+        # denominator — making every SKU look critically under-covered.
+        # For coverage we use the last 6 months of ACTUAL delivered+shipped qty
+        # per SKU as the denominator: this reflects what really shipped recently
+        # and gives a fair "how many months of real stock do I have?" answer.
+        # Demand_6M (ML) is still shown in the gap/production columns.
+        _ops_cov  = get_ops(df).copy()
+        _ops_cov["YM"] = _ops_cov["Order_Date"].dt.to_period("M")
+        _last6 = sorted(_ops_cov["YM"].unique())[-6:]
+        _recent = (
+            _ops_cov[_ops_cov["YM"].isin(_last6)]
+            .groupby("SKU_ID")["Net_Qty"].sum()
+            .reset_index()
+            .rename(columns={"Net_Qty": "Recent_6M_Actual"})
         )
+        inv_c = inv_c.merge(_recent, on="SKU_ID", how="left")
+        inv_c["Recent_6M_Actual"] = inv_c["Recent_6M_Actual"].fillna(
+            inv_c["Monthly_Avg"] * 6
+        ).clip(lower=1)
 
-        n_crit_cov  = (inv_c["Cover_Raw"] < 30).sum()
-        n_low_cov   = ((inv_c["Cover_Raw"] >= 30) & (inv_c["Cover_Raw"] < 60)).sum()
-        avg_cover   = inv_c["Cover_Raw"].mean()
-        total_gap   = int(inv_c["Stock_Gap"].sum())
+        # Coverage % = stock ÷ last-6M actual demand × 100 (unclipped)
+        inv_c["Cover_Raw"] = (
+            inv_c["Current_Stock"] / inv_c["Recent_6M_Actual"] * 100
+        ).round(1)
+
+        # Stock Gap uses ML Demand_6M (production planning figure)
+        inv_c["Stock_Gap"] = np.maximum(
+            inv_c["Demand_6M"] - inv_c["Current_Stock"], 0
+        ).astype(int)
+
+        # Coverage bands based on actual-demand coverage
+        def _band(x):
+            if x < 30:  return "🔴 Critical"
+            if x < 60:  return "🟡 Low"
+            if x <= 100: return "🟢 Adequate"
+            return "🔵 Overstocked"
+
+        inv_c["Coverage_Band"] = inv_c["Cover_Raw"].apply(_band)
+
+        n_crit_cov    = (inv_c["Cover_Raw"] < 30).sum()
+        n_low_cov     = ((inv_c["Cover_Raw"] >= 30) & (inv_c["Cover_Raw"] < 60)).sum()
+        n_ok_cov      = (inv_c["Cover_Raw"] >= 60).sum()
+        avg_cover     = inv_c["Cover_Raw"].mean()
+        total_gap     = int(inv_c["Stock_Gap"].sum())
+        total_skus    = len(inv_c)
 
         # ── KPIs ─────────────────────────────────────────────────────────────
-        k1, k2, k3, k4 = st.columns(4)
-        kpi(k1, "🔴 Critical (<30%)",  f"{n_crit_cov} SKUs",     "coral", "stock < 30% of 6M demand")
-        kpi(k2, "🟡 Low (30–60%)",     f"{n_low_cov} SKUs",      "amber", "stock 30–60% of 6M demand")
-        kpi(k3, "Avg Coverage",         f"{avg_cover:.1f}%",      "sky",   "portfolio average")
-        kpi(k4, "Total Stock Gap",      f"{total_gap:,} units",   "coral", "units short across all SKUs")
+        k1, k2, k3, k4, k5 = st.columns(5)
+        kpi(k1, "🔴 Critical (<30%)",  f"{n_crit_cov} SKUs",  "coral", "stock < 30% of recent 6M")
+        kpi(k2, "🟡 Low (30–60%)",     f"{n_low_cov} SKUs",   "amber", "stock 30–60% of recent 6M")
+        kpi(k3, "🟢 Adequate (≥60%)",  f"{n_ok_cov} SKUs",    "mint",  "stock ≥ 60% of recent 6M")
+        kpi(k4, "Avg Coverage",         f"{avg_cover:.1f}%",   "sky",   "based on last 6M actuals")
+        kpi(k5, "Total Stock Gap",      f"{total_gap:,} units","coral", "ML forecast − current stock")
         sp(0.5)
         banner(
-            "ℹ️ <b>Stock Coverage %</b> = Current Stock ÷ 6-Month Forecast Demand × 100. "
-            "Every SKU in this dataset is currently below 60% coverage — meaning no SKU has "
-            "enough stock to meet even half its projected 6-month demand without restocking. "
-            "<b>Stock Gap</b> = Demand_6M − Current Stock — the shortfall that production must fill.",
-            "amber",
+            "ℹ️ <b>Coverage %</b> = Current Stock ÷ <b>Last 6 Months Actual Demand</b> × 100. "
+            "Using actual recent sales (not ML forecast) gives a fair picture of how many months "
+            "of real stock you hold. <b>Stock Gap</b> = ML Forecast Demand − Current Stock — "
+            "the forward shortfall that production must fill to meet projected growth.",
+            "sky",
         )
         sp(0.5)
 
-        # ── Row 1: Coverage % bar (all SKUs sorted) + Category gap bar ───────
+        # ── Row 1: Coverage bar (all SKUs) + Category gap bar ────────────────
         rc1, rc2 = st.columns(2, gap="large")
+
+        BAND_COLORS = {
+            "🔴 Critical":    "#ef4444",
+            "🟡 Low":         "#f59e0b",
+            "🟢 Adequate":    "#22c55e",
+            "🔵 Overstocked": "#3b82f6",
+        }
 
         with rc1:
             sec("Stock Coverage % — All SKUs (sorted worst → best)")
             inv_sorted = inv_c.sort_values("Cover_Raw", ascending=True).copy()
-            inv_sorted["Label"] = inv_sorted["Product_Name"].str[:20] + " [" + inv_sorted["SKU_ID"] + "]"
-            inv_sorted["Bar_Color"] = inv_sorted["Cover_Raw"].apply(
-                lambda x: "#ef4444" if x < 30 else "#f59e0b"
+            inv_sorted["Label"] = (
+                inv_sorted["Product_Name"].str[:20] + " [" + inv_sorted["SKU_ID"] + "]"
             )
+            inv_sorted["Bar_Color"] = inv_sorted["Coverage_Band"].map(BAND_COLORS)
+            display_max = max(inv_sorted["Cover_Raw"].max() * 1.15, 70)
             fig_cov = go.Figure(go.Bar(
-                x=inv_sorted["Cover_Raw"],
+                x=inv_sorted["Cover_Raw"].clip(upper=display_max),
                 y=inv_sorted["Label"],
                 orientation="h",
-                marker=dict(color=inv_sorted["Bar_Color"].tolist(), line=dict(color="rgba(0,0,0,0)")),
+                marker=dict(color=inv_sorted["Bar_Color"].tolist(),
+                            line=dict(color="rgba(0,0,0,0)")),
                 text=[f"{v:.0f}%" for v in inv_sorted["Cover_Raw"]],
                 textposition="outside",
                 textfont=dict(color="#334155", size=8),
-                customdata=inv_sorted[["Category", "Current_Stock", "Demand_6M", "Stock_Gap", "Status"]].values,
+                customdata=inv_sorted[[
+                    "Category", "Current_Stock", "Recent_6M_Actual",
+                    "Demand_6M", "Stock_Gap", "Status"
+                ]].values,
                 hovertemplate=(
                     "<b>%{y}</b><br>"
-                    "Coverage: %{x:.1f}%<br>"
+                    "Coverage: %{x:.1f}% of last-6M actual demand<br>"
                     "Category: %{customdata[0]}<br>"
-                    "Stock: %{customdata[1]} · 6M Demand: %{customdata[2]}<br>"
-                    "Gap: <b>%{customdata[3]} units short</b><br>"
-                    "Status: %{customdata[4]}<extra></extra>"
+                    "Stock: %{customdata[1]} · Last-6M Actual: %{customdata[2]:.0f}<br>"
+                    "ML 6M Forecast: %{customdata[3]} · Gap: <b>%{customdata[4]} units</b><br>"
+                    "Status: %{customdata[5]}<extra></extra>"
                 ),
             ))
-            fig_cov.add_vline(x=30, line_dash="dash", line_color="#ef4444", line_width=1.5,
-                              annotation_text=" 30%", annotation_font=dict(color="#ef4444", size=9))
-            fig_cov.add_vline(x=60, line_dash="dash", line_color="#f59e0b", line_width=1.5,
-                              annotation_text=" 60% target", annotation_font=dict(color="#f59e0b", size=9))
+            for xv, clr, lbl in [
+                (30,  "#ef4444", " 30%"),
+                (60,  "#f59e0b", " 60% target"),
+                (100, "#22c55e", " 100%"),
+            ]:
+                fig_cov.add_vline(
+                    x=xv, line_dash="dash", line_color=clr, line_width=1.5,
+                    annotation_text=lbl, annotation_font=dict(color=clr, size=9),
+                )
             fig_cov.update_layout(
-                **CD(), height=max(360, len(inv_sorted) * 16),
-                xaxis={**gX(), "title": "Coverage % of 6M Forecast Demand", "range": [0, 75]},
-                yaxis=dict(showgrid=False, color="#64748b", automargin=True, tickfont=dict(size=8)),
+                **CD(), height=max(380, len(inv_sorted) * 16),
+                xaxis={**gX(), "title": "Stock as % of Last-6M Actual Demand",
+                       "range": [0, display_max * 1.1]},
+                yaxis=dict(showgrid=False, color="#64748b", automargin=True,
+                           tickfont=dict(size=8)),
             )
             st.plotly_chart(fig_cov, use_container_width=True, key="cov_ranked")
 
         with rc2:
-            sec("Stock Gap by Category — Units Short vs 6M Demand")
+            sec("Coverage Band Distribution")
+            band_df = inv_c["Coverage_Band"].value_counts().reset_index()
+            band_df.columns = ["Band", "Count"]
+            fig_pie = go.Figure(go.Pie(
+                labels=band_df["Band"], values=band_df["Count"], hole=0.55,
+                marker=dict(
+                    colors=[BAND_COLORS.get(b, "#888") for b in band_df["Band"]],
+                    line=dict(color="#ffffff", width=2),
+                ),
+                textinfo="label+value", textfont=dict(size=11), sort=False,
+            ))
+            fig_pie.add_annotation(
+                text=f"<b>{total_skus}</b><br><span style='font-size:10px'>SKUs</span>",
+                x=0.5, y=0.5, showarrow=False, font=dict(size=16, color="#0f172a"),
+            )
+            fig_pie.update_layout(**CD(), height=220, showlegend=False)
+            st.plotly_chart(fig_pie, use_container_width=True, key="cov_pie")
+
+            sp(0.5)
+            sec("Stock Gap by Category (ML Forecast Shortfall)")
             cat_gap = inv_c.groupby("Category").agg(
-                Total_Stock=("Current_Stock", "sum"),
-                Total_Demand_6M=("Demand_6M", "sum"),
-                Total_Gap=("Stock_Gap", "sum"),
-                Avg_Cover=("Cover_Raw", "mean"),
-                SKUs=("SKU_ID", "count"),
+                Total_Stock      = ("Current_Stock",    "sum"),
+                Total_Demand_6M  = ("Demand_6M",        "sum"),
+                Total_Gap        = ("Stock_Gap",        "sum"),
+                Avg_Cover        = ("Cover_Raw",        "mean"),
+                SKUs             = ("SKU_ID",           "count"),
             ).reset_index().sort_values("Total_Gap", ascending=False)
 
             fig_gap = go.Figure()
             fig_gap.add_trace(go.Bar(
-                name="Current Stock",
-                x=cat_gap["Category"], y=cat_gap["Total_Stock"],
+                name="Current Stock", x=cat_gap["Category"], y=cat_gap["Total_Stock"],
                 marker=dict(color="#3b82f6", line=dict(color="rgba(0,0,0,0)")),
-                text=[f"{v}" for v in cat_gap["Total_Stock"]],
+                text=cat_gap["Total_Stock"].astype(int),
                 textposition="inside", textfont=dict(color="white", size=10),
             ))
             fig_gap.add_trace(go.Bar(
-                name="Gap (shortfall)",
-                x=cat_gap["Category"], y=cat_gap["Total_Gap"],
+                name="ML Gap", x=cat_gap["Category"], y=cat_gap["Total_Gap"],
                 marker=dict(color="#ef4444", opacity=0.85, line=dict(color="rgba(0,0,0,0)")),
-                text=[f"{v}" for v in cat_gap["Total_Gap"]],
+                text=cat_gap["Total_Gap"].astype(int),
                 textposition="inside", textfont=dict(color="white", size=10),
             ))
-            fig_gap.add_trace(go.Scatter(
-                x=cat_gap["Category"], y=cat_gap["Total_Demand_6M"],
-                mode="markers+text", name="6M Demand",
-                marker=dict(size=12, color="#f59e0b", symbol="diamond",
-                            line=dict(color="#fff", width=2)),
-                text=[f"{v}" for v in cat_gap["Total_Demand_6M"]],
-                textposition="top center", textfont=dict(size=9, color="#d97706"),
-            ))
             fig_gap.update_layout(
-                **CD(), height=280, barmode="stack",
+                **CD(), height=220, barmode="stack",
                 xaxis={**gX(), "tickangle": -10},
                 yaxis={**gY(), "title": "Units"},
-                legend={**leg(), "orientation": "h", "y": -0.32},
-                title=dict(text="Blue = stocked · Red = gap to fill · ◆ = 6M demand target",
+                legend={**leg(), "orientation": "h", "y": -0.35},
+                title=dict(text="Blue = current stock · Red = ML forecast gap",
                            font=dict(size=10, color="#64748b")),
             )
             st.plotly_chart(fig_gap, use_container_width=True, key="cov_gap_bar")
 
-            sp(0.5)
-            sec("Category Summary")
-            cat_disp = cat_gap[["Category", "SKUs", "Total_Stock", "Total_Demand_6M",
-                                "Total_Gap", "Avg_Cover"]].copy()
-            cat_disp["Avg_Cover"] = cat_disp["Avg_Cover"].apply(lambda x: f"{x:.1f}%")
-            cat_disp.columns = ["Category", "SKUs", "Stock", "6M Demand", "Gap (units)", "Avg Cover %"]
-            st.dataframe(cat_disp, use_container_width=True, hide_index=True)
-
         sp(0.5)
 
-        # ── Row 2: Days of stock + coverage table ─────────────────────────────
-        sec("Days of Stock Remaining vs Coverage % — Full SKU View")
+        # ── Row 2: Full SKU table ─────────────────────────────────────────────
+        sec("Full SKU Coverage Table")
         inv_full = inv_c.sort_values("Cover_Raw").copy()
-        inv_full["Days_of_Stock"] = inv_full["Days_of_Stock"].apply(
+        inv_full["Days_of_Stock_fmt"] = inv_full["Days_of_Stock"].apply(
             lambda x: f"{int(x)}d" if x < 999 else "∞"
         )
-        inv_full["Cover_Pct_Str"] = inv_full["Cover_Raw"].apply(lambda x: f"{x:.1f}%")
-        inv_full["Stock_Gap_str"] = inv_full["Stock_Gap"].apply(lambda x: f"{int(x):,}")
+        inv_full["Cover_Pct_Str"]  = inv_full["Cover_Raw"].apply(lambda x: f"{x:.1f}%")
+        inv_full["Recent_6M_fmt"]  = inv_full["Recent_6M_Actual"].apply(lambda x: f"{int(x)}")
+        inv_full["Stock_Gap_str"]  = inv_full["Stock_Gap"].apply(lambda x: f"{int(x):,}")
         disp_full = inv_full[[
             "SKU_ID", "Product_Name", "Category", "ABC", "Status",
-            "Current_Stock", "Demand_6M", "Cover_Pct_Str",
-            "Stock_Gap_str", "Days_of_Stock", "Prod_Need",
+            "Current_Stock", "Recent_6M_fmt", "Cover_Pct_Str",
+            "Demand_6M", "Stock_Gap_str", "Days_of_Stock_fmt", "Prod_Need",
         ]].copy()
         disp_full.columns = [
             "SKU", "Product", "Category", "ABC", "Status",
-            "Stock", "6M Demand", "Coverage %",
-            "Gap (units)", "Days Left", "Units to Produce",
+            "Stock", "Last-6M Actual", "Coverage %",
+            "ML 6M Forecast", "Gap (units)", "Days Left", "Units to Produce",
         ]
-        st.dataframe(disp_full, use_container_width=True, hide_index=True, height=380)
+        disp_full["Stock"]          = disp_full["Stock"].astype(int)
+        disp_full["ML 6M Forecast"] = disp_full["ML 6M Forecast"].astype(int)
+        disp_full["Units to Produce"] = disp_full["Units to Produce"].astype(int)
+        st.dataframe(disp_full, use_container_width=True, hide_index=True, height=400)
+
+        n_below30 = (inv_c["Cover_Raw"] < 30).sum()
         banner(
-            f"<b>Every SKU is below 60% coverage.</b> "
-            f"{n_crit_cov} SKUs are below 30% — they cover less than a third of forecast demand. "
-            f"Total shortfall across all {len(inv_c)} SKUs: <b>{total_gap:,} units</b>. "
-            "Go to <b>Production Planning</b> to see the month-by-month schedule to close this gap.",
-            "coral",
+            f"<b>Coverage % uses last-6M actual demand as the denominator</b> — "
+            f"giving a realistic view of stock on hand vs recent run-rate. "
+            f"<b>{n_below30} SKUs</b> are below 30% coverage. "
+            f"<b>ML 6M Forecast</b> is higher (reflects demand growth trend) and drives "
+            f"the Gap and Units to Produce columns. "
+            "Go to <b>Production Planning</b> for the month-by-month production schedule.",
+            "sky",
         )
 
 
