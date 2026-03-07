@@ -1,7 +1,9 @@
+# ── Standard library ──────────────────────────────────────────────────────────
 import os
 import re as _re
 import datetime as _dt
 
+# ── Third-party ────────────────────────────────────────────────────────────────
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
@@ -13,6 +15,9 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
+# ══════════════════════════════════════════════════════════════════════════════
+# PAGE CONFIG  (must be the first Streamlit call)
+# ══════════════════════════════════════════════════════════════════════════════
 st.set_page_config(
     page_title="OmniFlow D2D Intelligence",
     page_icon="⬡",
@@ -20,6 +25,9 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+# ══════════════════════════════════════════════════════════════════════════════
+# GLOBAL CONSTANTS  (replace all inline magic numbers)
+# ══════════════════════════════════════════════════════════════════════════════
 DATA_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "india_ecommerce_orders.csv")
 
 COLORS = ["#1565C0", "#2E7D32", "#E65100", "#C62828", "#6A1B9A", "#00695C"]
@@ -30,6 +38,7 @@ MODEL_COLORS = {
     "Ensemble": "#8B5CF6",
 }
 
+# Inventory defaults
 DEFAULT_ORDER_COST = 500
 DEFAULT_HOLD_PCT   = 0.20
 DEFAULT_LEAD_TIME  = 7          # days
@@ -37,6 +46,7 @@ DEFAULT_SERVICE_Z  = 1.65       # 95 % service level
 LEAD_DAYS_PROD     = 7          # SKU production lead days
 SHIP_DAYS_AFTER    = 2          # ship-by = ready_by + this many days
 
+# Forecasting
 N_FUTURE_MONTHS    = 6
 MIN_HISTORY_MONTHS = 6
 N_ESTIMATORS_RF    = 100
@@ -50,20 +60,26 @@ RIDGE_ALPHA        = 1.0
 CI_Z               = 1.645      # 90 % CI
 MIN_REGIME_IDX     = 6
 
+# Inventory / production
 MARGIN_RATE        = 0.20
 DEMAND_PEAK_WEIGHT = 0.30       # weight on peak demand for economic order demand
 BOOST_SCHEDULE     = {0: 0.60, 1: 0.40}
 
+# Logistics
 DEFAULT_W_SPEED   = 0.40
 DEFAULT_W_COST    = 0.35
 DEFAULT_W_RETURNS = 0.25
 
+# LLM
 LLM_MODEL      = "llama-3.3-70b-versatile"
 LLM_MAX_TOKENS = 1800
 LLM_TEMP       = 0.4
 LLM_TIMEOUT    = 50
 CONTEXT_CHARS  = 2500
 
+# ══════════════════════════════════════════════════════════════════════════════
+# CSS INJECTION
+# ══════════════════════════════════════════════════════════════════════════════
 def inject_css() -> None:
     st.markdown("""
     <style>
@@ -117,6 +133,10 @@ def inject_css() -> None:
     </style>
     """, unsafe_allow_html=True)
 
+
+# ══════════════════════════════════════════════════════════════════════════════
+# UI HELPERS
+# ══════════════════════════════════════════════════════════════════════════════
 def CD() -> dict:
     return dict(
         paper_bgcolor="rgba(0,0,0,0)",
@@ -169,6 +189,10 @@ def banner(html: str, cls: str = "teal") -> None:
 def sp(n: float = 1) -> None:
     st.markdown(f"<div style='height:{n * 12}px'></div>", unsafe_allow_html=True)
 
+
+# ══════════════════════════════════════════════════════════════════════════════
+# DATA LOADING
+# ══════════════════════════════════════════════════════════════════════════════
 @st.cache_data(show_spinner="Loading data…")
 def load_data() -> pd.DataFrame:
     df = pd.read_csv(DATA_FILE, parse_dates=["Order_Date"])
@@ -187,10 +211,16 @@ def get_ops(df: pd.DataFrame) -> pd.DataFrame:
 def get_delivered(df: pd.DataFrame) -> pd.DataFrame:
     return df[df["Order_Status"] == "Delivered"].copy()
 
+
+# ══════════════════════════════════════════════════════════════════════════════
+# ML FORECASTING  — shared helpers
+# ══════════════════════════════════════════════════════════════════════════════
 def _to_ts(idx) -> pd.DatetimeIndex:
     return idx.to_timestamp() if hasattr(idx, "to_timestamp") else pd.DatetimeIndex(idx)
 
+
 def _make_models() -> dict:
+    """Single source of truth for model hyperparameters."""
     return {
         "Ridge": Ridge(alpha=RIDGE_ALPHA),
         "RandomForest": RandomForestRegressor(
@@ -207,6 +237,7 @@ def _make_models() -> dict:
             random_state=42,
         ),
     }
+
 
 def _build_features(n_hist: int, n_future: int, ds_hist, regime_idx: int) -> np.ndarray:
     n  = n_hist + n_future
@@ -230,6 +261,7 @@ def _build_features(n_hist: int, n_future: int, ds_hist, regime_idx: int) -> np.
         np.log1p(t),
     ])
 
+
 def _detect_regime(vals: np.ndarray, min_idx: int = MIN_REGIME_IDX) -> int:
     best_idx, best_ratio = min_idx, 1.0
     for i in range(min_idx, len(vals) - min_idx):
@@ -238,6 +270,7 @@ def _detect_regime(vals: np.ndarray, min_idx: int = MIN_REGIME_IDX) -> int:
             best_ratio = r
             best_idx   = i
     return best_idx
+
 
 def ml_forecast(vals: np.ndarray, ds_idx, n_future: int = N_FUTURE_MONTHS) -> dict | None:
     n = len(vals)
@@ -248,6 +281,8 @@ def ml_forecast(vals: np.ndarray, ds_idx, n_future: int = N_FUTURE_MONTHS) -> di
     X_all  = _build_features(n, n_future, ds_idx, regime_idx)
     X_hist = X_all[:n]
     X_fut  = X_all[n:]
+
+    # ── Cross-validation (walk-forward) ──────────────────────────────────────
     n_folds   = min(3, n // 6)
     fold_size = 2
     fold_rmses: dict[str, list] = {m: [] for m in _make_models()}
@@ -266,6 +301,7 @@ def ml_forecast(vals: np.ndarray, ds_idx, n_future: int = N_FUTURE_MONTHS) -> di
             ep = np.maximum(pipe.predict(Xte), 0)
             fold_rmses[mname].append(np.sqrt(mean_squared_error(yte, ep)))
 
+    # ── Model weights (inverse-RMSE) ─────────────────────────────────────────
     model_rmses: dict[str, float] = {}
     model_metrics: dict[str, dict] = {}
     mean_vals = np.mean(vals)
@@ -281,6 +317,7 @@ def ml_forecast(vals: np.ndarray, ds_idx, n_future: int = N_FUTURE_MONTHS) -> di
     tot      = sum(inv_rmse.values())
     weights  = {m: v / tot for m, v in inv_rmse.items()}
 
+    # ── Hold-out evaluation ───────────────────────────────────────────────────
     h  = 4
     Xtr_h, ytr_h = X_hist[:-h], vals[:-h]
     Xte_h, yte_h = X_hist[-h:], vals[-h:]
@@ -292,6 +329,8 @@ def ml_forecast(vals: np.ndarray, ds_idx, n_future: int = N_FUTURE_MONTHS) -> di
         eval_preds[mname] = np.maximum(pipe.predict(Xte_h), 0)
 
     ypred_eval = sum(weights[m] * eval_preds[m] for m in _make_models())
+
+    # ── Final fit + forecast ──────────────────────────────────────────────────
     fitted_pm:   dict[str, np.ndarray] = {}
     forecast_pm: dict[str, np.ndarray] = {}
 
@@ -303,6 +342,7 @@ def ml_forecast(vals: np.ndarray, ds_idx, n_future: int = N_FUTURE_MONTHS) -> di
 
     ens_fitted   = sum(weights[m] * fitted_pm[m]   for m in _make_models())
     ens_forecast = sum(weights[m] * forecast_pm[m] for m in _make_models())
+
     residuals  = vals - ens_fitted
     resid_std  = residuals.std()
     ss_res     = np.sum(residuals ** 2)
@@ -316,6 +356,7 @@ def ml_forecast(vals: np.ndarray, ds_idx, n_future: int = N_FUTURE_MONTHS) -> di
     ts_idx   = _to_ts(ds_idx)
     last_dt  = ts_idx[-1]
     fut_dates = pd.date_range(last_dt + pd.offsets.MonthBegin(1), periods=n_future, freq="MS")
+
     log_std = np.log1p(resid_std / (mean_vals + 1e-9))
     steps   = np.arange(1, n_future + 1)
     ci_lo   = np.maximum(ens_forecast * np.exp(-CI_Z * log_std * np.sqrt(steps)), 0)
@@ -330,11 +371,19 @@ def ml_forecast(vals: np.ndarray, ds_idx, n_future: int = N_FUTURE_MONTHS) -> di
         model_metrics=model_metrics, weights={m: weights[m] for m in _make_models()},
     )
 
+
+# ── Shared category-level forecasts (avoids double-running ml_forecast) ───────
 @st.cache_data
 def compute_category_forecasts(n_future: int = N_FUTURE_MONTHS) -> dict:
+    """
+    Run ml_forecast once per category and cache the results.
+    Both compute_inventory() and compute_production() consume this cache
+    instead of independently re-running the ML pipeline.
+    """
     df  = load_data()
     ops = get_ops(df).copy()
     ops["YM"] = ops["Order_Date"].dt.to_period("M")
+
     cat_monthly = ops.groupby(["YM", "Category"])["Net_Qty"].sum().unstack(fill_value=0)
     results: dict[str, dict] = {}
 
@@ -352,6 +401,10 @@ def compute_category_forecasts(n_future: int = N_FUTURE_MONTHS) -> dict:
             }
     return results
 
+
+# ══════════════════════════════════════════════════════════════════════════════
+# CHART HELPERS
+# ══════════════════════════════════════════════════════════════════════════════
 def ensemble_chart(res: dict, chart_key: str, height: int = 300, title: str = "", show_models: bool = True) -> go.Figure:
     fig = go.Figure()
     fig.add_vrect(
@@ -423,6 +476,7 @@ def ensemble_chart(res: dict, chart_key: str, height: int = 300, title: str = ""
     )
     return fig
 
+
 def model_grade(nrmse: float, r2: float) -> tuple:
     acc = max(0.0, round((1 - nrmse) * 100, 1))
     if   nrmse < 0.10 and r2 >= 0.95: g, l, icon = "A+", "Excellent", "✅"
@@ -432,6 +486,7 @@ def model_grade(nrmse: float, r2: float) -> tuple:
     elif nrmse < 0.35 and r2 >= 0.60: g, l, icon = "C",  "Weak",      "⚠️"
     else:                              g, l, icon = "D",  "Poor",      "🔴"
     return g, l, icon, acc
+
 
 def render_model_quality(res: dict) -> None:
     g, l, icon, acc = model_grade(res["nrmse"], res["r2"])
@@ -501,6 +556,10 @@ def render_model_quality(res: dict) -> None:
     )
     sp(0.5)
 
+
+# ══════════════════════════════════════════════════════════════════════════════
+# INVENTORY OPTIMIZATION
+# ══════════════════════════════════════════════════════════════════════════════
 @st.cache_data
 def compute_inventory(
     order_cost: float = DEFAULT_ORDER_COST,
@@ -512,7 +571,7 @@ def compute_inventory(
     ops         = get_ops(df).copy()
     ops["YM"]   = ops["Order_Date"].dt.to_period("M")
     del_ops     = df[df["Order_Status"] == "Delivered"].copy()
-    cat_fcs     = compute_category_forecasts()           
+    cat_fcs     = compute_category_forecasts()           # shared cache — no duplicate ML
 
     lt_std_map  = del_ops.groupby("Category")["Delivery_Days"].std().fillna(1.0).to_dict()
     sku_monthly = (
@@ -533,6 +592,8 @@ def compute_inventory(
         total_qty      = ("Net_Qty",             "sum"),
     ).reset_index()
 
+    # ── Vectorised SKU-level calculations ─────────────────────────────────────
+    # Aggregate per-SKU demand stats in one pass
     sku_stats = (
         sku_monthly.groupby("SKU_ID")["Net_Qty"]
         .agg(hist_avg="mean", hist_std="std", peak_d="max")
@@ -540,6 +601,7 @@ def compute_inventory(
     )
     sku_stats["hist_std"] = sku_stats["hist_std"].fillna(sku_stats["hist_avg"] * 0.25)
 
+    # Category-level historical averages (for share calculation)
     cat_hist_avg: dict[str, float] = {
         cat: info["hist_avg"] for cat, info in cat_fcs.items()
     }
@@ -549,6 +611,7 @@ def compute_inventory(
     sku_snapshot["hist_std"]  = sku_snapshot["hist_std"].fillna(0)
     sku_snapshot["peak_d"]    = sku_snapshot["peak_d"].fillna(0)
 
+    # Forecast-based demand for each SKU (vectorised via apply over categories)
     def _sku_forecast(row):
         cat = row["Category"]
         h_avg = row["hist_avg"]
@@ -566,6 +629,7 @@ def compute_inventory(
     demand_cols.columns = ["avg_d", "fc_next6", "econ_d"]
     sku_snapshot = pd.concat([sku_snapshot, demand_cols], axis=1)
 
+    # Vectorised EOQ, safety stock, ROP
     uc        = sku_snapshot["avg_price"].clip(lower=1.0)
     ann_d     = sku_snapshot["econ_d"] * 12
     eoq       = np.maximum(
@@ -582,13 +646,27 @@ def compute_inventory(
     rop          = np.maximum(sku_snapshot["dataset_rop"].astype(int), computed_rop)
     current_stock = sku_snapshot["actual_stock"].astype(int)
 
+    # ── 6-month forecast demand per SKU (scalar sum of the monthly list) ──────
     demand_6m = sku_snapshot["fc_next6"].apply(
         lambda lst: int(round(sum(lst))) if isinstance(lst, list) else int(round(float(lst) * N_FUTURE_MONTHS))
     )
+
+    # ── Demand-driven production need ────────────────────────────────────────
+    # How much to produce = forecast demand for next 6 months
+    #                     + safety stock buffer
+    #                     - stock already on hand
+    # This directly answers: "given what customers will want, and what we have,
+    # what do we still need to make?"
     demand_driven_need = np.maximum(demand_6m.values + ss - current_stock, 0)
+
+    # Classic replenishment floor (ensures we never under-order when stock is
+    # critically low relative to ROP, even if forecast demand looks modest)
     replenishment_need = np.maximum(rop + eoq - current_stock, 0)
+
+    # Final: take the greater of demand-driven or classic replenishment
     prod_need = np.maximum(demand_driven_need, replenishment_need)
 
+    # % of 6-month demand already covered by current stock
     demand_cover_pct = np.where(
         demand_6m > 0,
         np.minimum(current_stock / demand_6m.values * 100, 100).round(1),
@@ -644,10 +722,28 @@ def compute_inventory(
     inv_df["ABC"] = np.where(cum_pct <= 70, "A", np.where(cum_pct <= 90, "B", "C"))
     return inv_df
 
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PRODUCTION PLANNING
+# ══════════════════════════════════════════════════════════════════════════════
 @st.cache_data
-def compute_production(cap_mult: float = 1.0, buffer_pct: float = 0.15) -> pd.DataFrame:
+def compute_production(cap_mult: float = 1.0) -> pd.DataFrame:
+    """
+    Production plan driven entirely by inventory Prod_Need.
+
+    For each category:
+      - prod_need_cat  = inv["Prod_Need"].sum()
+           = Σ max(Demand_6M + SS − stock,  ROP + EOQ − stock)
+           Already accounts for forecast demand AND existing stock.
+      - Distribute prod_need_cat across 6 months proportionally to
+        the category demand forecast (shape only — not magnitude).
+      - Apply cap_mult for capacity scaling.
+      - Urgency acceleration: front-load Month 1 & 2 with the stock gap
+        of Critical/Low SKUs (Crit_Boost / Low_Boost) without adding
+        extra volume — these shift production earlier, not higher total.
+    """
     inv     = compute_inventory()
-    cat_fcs = compute_category_forecasts()          
+    cat_fcs = compute_category_forecasts()
 
     rows = []
     for cat, fc_info in cat_fcs.items():
@@ -655,37 +751,61 @@ def compute_production(cap_mult: float = 1.0, buffer_pct: float = 0.15) -> pd.Da
         ci_lo  = np.array(fc_info["ci_lo"])
         ci_hi  = np.array(fc_info["ci_hi"])
         fut_ds = fc_info["fut_ds"]
-        cat_inv       = inv[inv["Category"] == cat]
-        crit_skus     = cat_inv[cat_inv["Status"] == "🔴 Critical"]
-        low_skus      = cat_inv[cat_inv["Status"] == "🟡 Low"]
-        crit_gap      = float((crit_skus["ROP"] - crit_skus["Current_Stock"]).clip(lower=0).sum())
-        low_gap       = float((low_skus["ROP"]  - low_skus["Current_Stock"]).clip(lower=0).sum())
-        current_stock = cat_inv["Current_Stock"].sum() if not cat_inv.empty else 0
-        forecast_total    = float(fc_arr.sum())
-        buffer_units      = forecast_total * buffer_pct
-        production_required = max(forecast_total + buffer_units - current_stock, 0)
+
+        cat_inv = inv[inv["Category"] == cat]
+        if cat_inv.empty:
+            continue
+
+        # ── Inventory-driven production total ────────────────────────────────
+        # Prod_Need already = max(Demand_6M + SS − stock, ROP + EOQ − stock)
+        # so it IS demand-adjusted and stock-deducted — no extra buffer needed.
+        prod_need_cat = float(cat_inv["Prod_Need"].sum())
+
+        # Urgency gaps for front-loading (acceleration, not extra volume)
+        crit_skus = cat_inv[cat_inv["Status"] == "🔴 Critical"]
+        low_skus  = cat_inv[cat_inv["Status"] == "🟡 Low"]
+        crit_gap  = float((crit_skus["ROP"] - crit_skus["Current_Stock"]).clip(lower=0).sum())
+        low_gap   = float((low_skus["ROP"]  - low_skus["Current_Stock"]).clip(lower=0).sum())
+
+        # Current stock remaining (for display context)
+        current_stock_cat = float(cat_inv["Current_Stock"].sum())
+        demand_6m_cat     = float(cat_inv["Demand_6M"].sum())
+
+        forecast_total = float(fc_arr.sum())
 
         for i, (dt, fc) in enumerate(zip(fut_ds, fc_arr)):
-            bf           = BOOST_SCHEDULE.get(i, 0.0)
-            crit_boost   = crit_gap * bf
-            low_boost    = low_gap  * bf * 0.5
+            # Monthly share: how much of total production falls in this month
+            # Use forecast shape (proportional distribution)
             demand_share = fc / forecast_total if forecast_total > 0 else 1.0 / len(fc_arr)
-            prod         = production_required * demand_share * cap_mult
+
+            # Base production for this month = inventory-driven total × monthly share × capacity
+            prod = prod_need_cat * demand_share * cap_mult
+
+            # Urgency boost: accelerate filling critical/low gaps in Month 1 & 2
+            bf         = BOOST_SCHEDULE.get(i, 0.0)
+            crit_boost = crit_gap * bf
+            low_boost  = low_gap  * bf * 0.5
 
             rows.append({
-                "Month_dt":       dt,
-                "Month":          dt.strftime("%b %Y"),
-                "Category":       cat,
-                "Demand_Forecast":round(fc,    0),
-                "Crit_Boost":     round(crit_boost, 0),
-                "Low_Boost":      round(low_boost,  0),
-                "Buffer":         round(buffer_units * demand_share, 0),
-                "Production":     round(prod,  0),
-                "CI_Lo":          round(ci_lo[i], 0),
-                "CI_Hi":          round(ci_hi[i], 0),
+                "Month_dt":        dt,
+                "Month":           dt.strftime("%b %Y"),
+                "Category":        cat,
+                "Demand_Forecast": round(fc, 0),
+                "Current_Stock":   round(current_stock_cat, 0),
+                "Demand_6M_Cat":   round(demand_6m_cat, 0),
+                "Prod_Need_Cat":   round(prod_need_cat, 0),
+                "Crit_Boost":      round(crit_boost, 0),
+                "Low_Boost":       round(low_boost, 0),
+                "Production":      round(prod, 0),
+                "CI_Lo":           round(ci_lo[i], 0),
+                "CI_Hi":           round(ci_hi[i], 0),
             })
     return pd.DataFrame(rows)
 
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SKU PRODUCTION PLAN
+# ══════════════════════════════════════════════════════════════════════════════
 @st.cache_data
 def build_sku_production_plan() -> pd.DataFrame:
     df     = load_data()
@@ -700,12 +820,14 @@ def build_sku_production_plan() -> pd.DataFrame:
         .reset_index()[["Category", "Warehouse", "wh_share"]]
         .rename(columns={"Warehouse": "Target_Warehouse", "wh_share": "WH_Share_Pct"})
     )
+
     avg_ship = (
         del_df.groupby(["Category", "Warehouse"])
         .agg(avg_cost=("Shipping_Cost_INR", "mean"))
         .reset_index()
         .rename(columns={"Warehouse": "Target_Warehouse"})
     )
+
     needs = inv[inv["Prod_Need"] > 0].copy()
     abc_weight = {"A": 3, "B": 2, "C": 1}
     needs["ABC_Priority"] = needs["ABC"].map(abc_weight)
@@ -727,9 +849,11 @@ def build_sku_production_plan() -> pd.DataFrame:
     today             = _dt.date.today()
     needs["Ready_By"] = pd.to_datetime(today) + pd.Timedelta(days=LEAD_DAYS_PROD)
     needs["Ship_By"]  = needs["Ready_By"] + pd.Timedelta(days=SHIP_DAYS_AFTER)
+
     needs = needs.merge(best_wh, on="Category", how="left")
     needs["Target_Warehouse"] = needs["Target_Warehouse"].fillna("Central WH")
     needs["WH_Share_Pct"]     = (needs["WH_Share_Pct"].fillna(1.0) * 100).round(1)
+
     needs = needs.merge(avg_ship, on=["Category", "Target_Warehouse"], how="left")
     needs["avg_cost"]      = needs["avg_cost"].fillna(del_df["Shipping_Cost_INR"].mean())
     needs["Est_Ship_Cost"] = (needs["Prod_Need"] * needs["avg_cost"]).round(0)
@@ -745,6 +869,10 @@ def build_sku_production_plan() -> pd.DataFrame:
         "Est_Ship_Cost", "Ready_By", "Ship_By", "Status",
     ]]
 
+
+# ══════════════════════════════════════════════════════════════════════════════
+# LOGISTICS OPTIMIZATION
+# ══════════════════════════════════════════════════════════════════════════════
 @st.cache_data
 def compute_logistics(
     w_speed:   float = DEFAULT_W_SPEED,
@@ -759,6 +887,7 @@ def compute_logistics(
     carrier_returns.columns = ["Courier_Partner", "Return_Rate"]
     region_carrier_returns  = df.groupby(["Region", "Courier_Partner"])["Return_Flag"].mean().reset_index()
     region_carrier_returns.columns = ["Region", "Courier_Partner", "Return_Rate"]
+
     carr = del_df.groupby("Courier_Partner").agg(
         Orders    = ("Order_ID",          "count"),
         Avg_Days  = ("Delivery_Days",     "mean"),
@@ -844,14 +973,21 @@ def compute_logistics(
             })
     return carr, best, opt, pd.DataFrame(fwd_rows)
 
+
+# ══════════════════════════════════════════════════════════════════════════════
+# CHATBOT CONTEXT
+# ══════════════════════════════════════════════════════════════════════════════
 @st.cache_data
 def build_context() -> str:
+    """Cached so it is not rebuilt on every chatbot page render."""
     df  = load_data()
     ops = get_ops(df).copy()
     ops["YM"] = ops["Order_Date"].dt.to_period("M")
+
     m_orders = ops.groupby("YM")["Order_ID"].count().rename("v")
     m_qty    = ops.groupby("YM")["Net_Qty"].sum().rename("v")
     m_rev    = ops.groupby("YM")["Net_Revenue"].sum().rename("v")
+
     r_ord = ml_forecast(m_orders.values.astype(float), m_orders.index, N_FUTURE_MONTHS)
     r_rev = ml_forecast(m_rev.values.astype(float),    m_rev.index,    N_FUTURE_MONTHS)
     r_qty = ml_forecast(m_qty.values.astype(float),    m_qty.index,    N_FUTURE_MONTHS)
@@ -864,11 +1000,13 @@ def build_context() -> str:
     inv  = compute_inventory()
     plan = compute_production()
     carr, best_carr, opt, fwd_plan = compute_logistics()
+
     n_crit       = (inv["Status"] == "🔴 Critical").sum()
     n_low        = (inv["Status"] == "🟡 Low").sum()
     crit_prods   = ", ".join(inv[inv["Status"] == "🔴 Critical"]["Product_Name"].head(5).tolist())
     total_stockout = inv["Stockout_Cost"].sum()
     abc_str      = ", ".join([f"{k}:{v} SKUs" for k, v in sorted(inv["ABC"].value_counts().to_dict().items())])
+
     prod_sum = plan.groupby("Category")["Production"].sum().to_dict() if not plan.empty else {}
     prod_str = ", ".join([f"{k}:{v:.0f}u" for k, v in prod_sum.items()])
     peak_mo  = plan.groupby("Month_dt")["Production"].sum().idxmax().strftime("%b %Y") if not plan.empty else "N/A"
@@ -921,6 +1059,10 @@ def build_context() -> str:
         f"CATEGORIES: {cat_str} | TOP REGIONS: {reg_str} | TOP PRODUCTS: {sku_str}"
     )
 
+
+# ══════════════════════════════════════════════════════════════════════════════
+# LLM CALL
+# ══════════════════════════════════════════════════════════════════════════════
 def call_llm(messages: list, system: str, api_key: str) -> str:
     hdrs = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
     body = {
@@ -943,10 +1085,15 @@ def call_llm(messages: list, system: str, api_key: str) -> str:
     except Exception as e:
         return f"⚠️ Error: {e}"
 
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PAGE FUNCTIONS
+# ══════════════════════════════════════════════════════════════════════════════
 def page_overview() -> None:
     st.markdown("""
-    <div style='page-title'>
-      <div style='font-size:38px;font-weight:900;color:black;letter-spacing:-.02em;
+    <div style='background:linear-gradient(135deg,#0f172a,#1e3a8a,#2563eb);border-radius:18px;
+         padding:30px 32px;margin-bottom:24px;'>
+      <div style='font-size:38px;font-weight:900;color:white;letter-spacing:-.02em;
            text-transform:uppercase;line-height:1.1'>OmniFlow D2D</div>
       <div style='font-size:11px;font-family:DM Mono,monospace;color:#93c5fd;letter-spacing:.14em;
            text-transform:uppercase;margin-bottom:6px'>
@@ -1023,6 +1170,7 @@ def page_overview() -> None:
     </div>
     </div>""", unsafe_allow_html=True)
 
+
 def page_demand() -> None:
     df  = load_data()
     ops = get_ops(df).copy()
@@ -1030,6 +1178,7 @@ def page_demand() -> None:
 
     st.markdown("<div class='page-title'>Demand Forecasting</div>", unsafe_allow_html=True)
     sec("Ensemble Model Quality")
+
     m_orders = ops.groupby("YM")["Order_ID"].count().rename("v")
     res_ov   = ml_forecast(m_orders.values.astype(float), m_orders.index, N_FUTURE_MONTHS)
     if res_ov:
@@ -1120,7 +1269,8 @@ def page_demand() -> None:
     sec("YoY Revenue Growth by Category")
     yr_rev     = ops.groupby(["Year", "Category"])["Net_Revenue"].sum().unstack(fill_value=0)
     cat_monthly = ops.groupby(["YM", "Category"])["Net_Revenue"].sum().unstack(fill_value=0)
-  
+    # BUG 8 FIX: use N_FUTURE_MONTHS (6) consistently — same as all other forecasts.
+    # Sum all 6 forecast months as the "projected next period" revenue.
     proj_next: dict[str, float] = {}
     for cat in cat_monthly.columns:
         r = ml_forecast(cat_monthly[cat].values.astype(float), cat_monthly.index, N_FUTURE_MONTHS)
@@ -1143,7 +1293,14 @@ def page_demand() -> None:
             pd.DataFrame(rows).sort_values(f"Next {N_FUTURE_MONTHS}M Proj ₹M", ascending=False),
             use_container_width=True, hide_index=True,
         )
-        
+        banner(
+            f"ℹ️ <b>Projected column</b> = ensemble forecast summed over the next "
+            f"<b>{N_FUTURE_MONTHS} months</b> — same horizon used in all other forecast charts. "
+            f"'Projected Growth' compares this 6-month sum against the full 2025 annual revenue.",
+            "sky",
+        )
+
+
 def page_inventory() -> None:
     df  = load_data()
     ops = get_ops(df).copy()
@@ -1166,6 +1323,7 @@ def page_inventory() -> None:
 
     n_crit          = (inv["Status"] == "🔴 Critical").sum()
     n_low           = (inv["Status"] == "🟡 Low").sum()
+    # Demand-driven: total_prod_need reflects forecast demand - current stock
     total_prod_need = int(inv["Prod_Need"].sum())
     total_demand_6m = int(inv["Demand_6M"].sum())
 
@@ -1175,6 +1333,14 @@ def page_inventory() -> None:
     kpi(c3, "🟡 Low Stock",        n_low,                     "amber", "below reorder point")
     kpi(c4, "6M Forecast Demand",  f"{total_demand_6m:,}",    "sky",   "units customers will order")
     kpi(c5, "Units to Produce",    f"{total_prod_need:,}",    "mint",  "demand − current stock")
+    banner(
+        "ℹ️ All metrics reflect the <b>parameter settings</b> above. "
+        "<b>6M Forecast Demand</b> = ML ensemble forecast for next 6 months per SKU summed across all SKUs. "
+        "<b>Units to Produce</b> = max(Forecast Demand + Safety Stock − Current Stock,  ROP + EOQ − Stock) "
+        "— the demand-driven production need after deducting stock already on hand. "
+        "This equals the <i>Gap Units</i> figure on the Production Planning page.",
+        "sky",
+    )
     sp()
 
     tab_alerts, tab_eoq, tab_table = st.tabs(["Stock Position", "EOQ Analysis", "SKU Table"])
@@ -1260,6 +1426,13 @@ def page_inventory() -> None:
                     tbl[c] = tbl[c].astype(int)
                 tbl["Stock Covers %"] = tbl["Stock Covers %"].apply(lambda x: f"{x:.0f}%")
                 st.dataframe(tbl, use_container_width=True, hide_index=True, height=300)
+                banner(
+                    "ℹ️ <b>6M Demand</b> = ML forecast of units customers will order in the next 6 months. "
+                    "<b>Stock Covers %</b> = Current Stock ÷ 6M Demand × 100 — how much of forecast demand is already on hand. "
+                    "<b>Units to Produce</b> = max(6M Demand + Safety Stock − Stock, ROP + EOQ − Stock) — "
+                    "demand-driven need after subtracting existing inventory.",
+                    "teal",
+                )
 
     with tab_eoq:
         eoq_tbl = inv.groupby("Category").agg(
@@ -1360,6 +1533,7 @@ def page_inventory() -> None:
             use_container_width=True, hide_index=True,
         )
 
+
 def page_production() -> None:
     df  = load_data()
     ops = get_ops(df).copy()
@@ -1367,21 +1541,47 @@ def page_production() -> None:
 
     st.markdown("<div class='page-title'>Production Planning</div>", unsafe_allow_html=True)
     p1, p2 = st.columns(2)
-    cap = p1.slider("Capacity Multiplier", 0.5, 2.0, 1.0, 0.1)
-    buf = p2.slider("Safety Buffer %", 5, 40, 15) / 100
+    cap = p1.slider("Capacity Multiplier", 0.5, 2.0, 1.0, 0.1,
+                    help="Scale total production up/down. 1.0 = 100% of inventory-driven need.")
+    p2.markdown(
+        "<div style='padding:14px 0 0;font-size:12px;color:#475569'>"
+        "ℹ️ <b>No buffer slider</b> — the safety buffer is now baked into each SKU's "
+        "Safety Stock (SS), which is already deducted inside Inventory Prod_Need.</div>",
+        unsafe_allow_html=True,
+    )
 
-    plan = compute_production(cap, buf)
+    plan = compute_production(cap)
     if plan.empty:
         st.warning("Insufficient data.")
         return
 
     agg = plan.groupby("Month_dt")[["Production", "Demand_Forecast", "Crit_Boost", "Low_Boost"]].sum().reset_index()
-    c1, c2, c3, c4 = st.columns(4)
-    kpi(c1, "Production Required", f"{plan['Production'].sum():,.0f}", "amber", "incl. buffer + urgency boosts")
-    kpi(c2, "Total Demand Fc",     f"{plan['Demand_Forecast'].sum():,.0f}", "sky",   "raw forecast units · 6 mo")
-    kpi(c3, "Avg / Month",         f"{agg['Production'].mean():,.0f}",      "sky",   "units/month · all categories")
+
+    # Inventory-level totals for the KPI banner
+    inv_for_kpi = compute_inventory()
+    total_prod_need_inv = int(inv_for_kpi["Prod_Need"].sum())
+    total_demand_6m_inv = int(inv_for_kpi["Demand_6M"].sum())
+    total_stock_inv     = int(inv_for_kpi["Current_Stock"].sum())
+
+    c1, c2, c3, c4, c5 = st.columns(5)
+    kpi(c1, "Production Required",  f"{plan['Production'].sum():,.0f}", "amber", "inventory-driven · 6 months")
+    kpi(c2, "6M Forecast Demand",   f"{total_demand_6m_inv:,}",        "sky",   "what customers will order")
+    kpi(c3, "Current Stock Total",  f"{total_stock_inv:,}",            "sky",   "across all SKUs")
+    kpi(c4, "Stock Gap (Prod Need)",f"{total_prod_need_inv:,}",        "coral", "demand + SS − stock")
     peak = agg.loc[agg["Production"].idxmax(), "Month_dt"]
-    kpi(c4, "Peak Month", peak.strftime("%b %Y"), "amber", "highest production volume")
+    kpi(c5, "Peak Month", peak.strftime("%b %Y"), "amber", "highest production volume")
+    banner(
+        f"<b>ℹ️ How production is calculated:</b> &nbsp;"
+        f"6M Demand (<b>{total_demand_6m_inv:,}</b>) "
+        f"− Current Stock (<b>{total_stock_inv:,}</b>) "
+        f"+ Safety Stock buffer "
+        f"= Stock Gap / Prod Need (<b>{total_prod_need_inv:,}</b> units). &nbsp;"
+        f"This is distributed across 6 months proportional to the demand forecast shape, "
+        f"then scaled by Capacity Multiplier ({cap:.1f}×) "
+        f"→ Production Required = <b>{int(plan['Production'].sum()):,} units</b>. "
+        f"Critical/Low SKU gaps are front-loaded into Month 1–2 via urgency boosts.",
+        "sky",
+    )
     sp()
 
     sec("Production Target vs Ensemble Demand Forecast")
@@ -1464,18 +1664,32 @@ def page_production() -> None:
     sec("Production Schedule")
     cat_f = st.selectbox("Filter Category", ["All"] + list(plan["Category"].unique()))
     d2    = plan if cat_f == "All" else plan[plan["Category"] == cat_f]
-    d3    = d2[["Month", "Category", "Demand_Forecast", "Crit_Boost", "Low_Boost", "Buffer", "Production", "CI_Lo", "CI_Hi"]].copy()
-    d3.columns = ["Month", "Category", "Demand Fc", "Crit Boost", "Low Boost", "Buffer", "Production", "Demand Lo", "Demand Hi"]
+    d3    = d2[[
+        "Month", "Category",
+        "Current_Stock", "Demand_6M_Cat", "Prod_Need_Cat",
+        "Demand_Forecast", "Crit_Boost", "Low_Boost",
+        "Production", "CI_Lo", "CI_Hi",
+    ]].copy()
+    d3.columns = [
+        "Month", "Category",
+        "Cat Stock", "6M Demand", "Inv Prod Need",
+        "Demand Fc", "Crit Boost", "Low Boost",
+        "Production", "Demand Lo", "Demand Hi",
+    ]
+    # Cat Stock, 6M Demand, Inv Prod Need are same for all months in a category — show first row only
+    # (production schedule is monthly, but the inventory snapshot is a point-in-time figure)
     st.dataframe(d3.sort_values("Month"), use_container_width=True, hide_index=True)
     # BUG 5 FIX: show filtered subtotal so user can reconcile with the KPI above
     if cat_f != "All":
-        filtered_prod  = int(d2["Production"].sum())
+        filtered_prod   = int(d2["Production"].sum())
         filtered_demand = int(d2["Demand_Forecast"].sum())
+        filtered_need   = int(d2["Prod_Need_Cat"].iloc[0]) if not d2.empty else 0
         banner(
             f"<b>Filtered subtotal — {cat_f}:</b> &nbsp;"
-            f"Production = <b>{filtered_prod:,} units</b> &nbsp;|&nbsp; "
+            f"Inv Prod Need = <b>{filtered_need:,} units</b> &nbsp;|&nbsp; "
+            f"Production (6 mo) = <b>{filtered_prod:,} units</b> &nbsp;|&nbsp; "
             f"Demand Forecast = <b>{filtered_demand:,} units</b> &nbsp;|&nbsp; "
-            f"Overall (all categories) Production Required = <b>{int(plan['Production'].sum()):,} units</b>",
+            f"Overall (all categories) = <b>{int(plan['Production'].sum()):,} units</b>",
             "sky",
         )
     sp()
@@ -1505,6 +1719,8 @@ def page_production() -> None:
             & sku_plan["ABC"].isin(abc_pf)
         ]
 
+        # BUG 4 FIX: compute all 6 KPIs from filt (post-filter) so they always
+        # match the counts/totals actually visible in the cards and table below.
         n_urgent      = (filt["Urgency"] == "🔴 Urgent").sum()
         n_high        = (filt["Urgency"] == "🟠 High").sum()
         total_units   = int(filt["Prod_Need"].sum())
@@ -1518,6 +1734,15 @@ def page_production() -> None:
         kpi(k4, "Gap Units (Filtered)",f"{total_units:,}",      "sky",   "ROP+EOQ−Stock")
         kpi(k5, "Est. Ship Cost",      f"₹{total_ship:,.0f}",  "amber", "to target warehouses")
         kpi(k6, "Stockout Risk",       f"₹{stockout_risk:,.0f}","coral", "if not restocked")
+        sp(0.5)
+        banner(
+            f"<b>ℹ️ All metrics above match the filtered view below.</b> "
+            f"<b>Gap Units ({total_units:,})</b> = Σ max(6M Demand + SS − Stock, ROP + EOQ − Stock) "
+            f"for the {len(filt)} SKUs shown — already demand-driven and stock-deducted. &nbsp;|&nbsp; "
+            f"<b>Overall Production Plan ({int(plan['Production'].sum()):,})</b> = Gap Units distributed "
+            f"across 6 months by demand shape × cap multiplier — in planning charts above.",
+            "sky",
+        )
         sp(0.5)
 
         urgent_rows = filt[filt["Urgency"].isin(["🔴 Urgent", "🟠 High"])]
@@ -1663,6 +1888,7 @@ def page_production() -> None:
         st.dataframe(routing_tbl.sort_values(["Warehouse", "Urgency"]),
                      use_container_width=True, hide_index=True, height=380)
         sp(0.5)
+        banner("<b>Routing logic:</b> Each SKU is assigned to the warehouse that historically handles the highest share of its product category — ensuring stock lands where demand is highest.", "sky")
 
     with pt3:
         sec("Production Urgency Distribution")
@@ -1893,6 +2119,12 @@ def page_logistics() -> None:
             ),
         )
         st.plotly_chart(fig_cost, use_container_width=True, key="log_cost")
+        banner(
+            f"<b>ℹ️ KPI vs Chart units:</b> The four KPIs above show <b>total ₹ spend</b> across all "
+            f"{opt['Orders'].sum():,} delivered orders. The bar chart shows <b>average ₹ per shipment</b> "
+            f"by region — multiply avg by order count to reconcile with the KPI totals.",
+            "sky",
+        )
 
         sec("Savings by Region")
         s_s = opt.sort_values("Potential_Saving", ascending=False)
@@ -2034,6 +2266,12 @@ def page_logistics() -> None:
                 legend={**leg(), "orientation": "h", "y": -0.28},
             )
             st.plotly_chart(fig_fwd, use_container_width=True, key="fwd_units")
+            banner(
+                "<b>ℹ️ Chart note:</b> Bars = planned <b>production units</b> (= '6M Planned Units' KPI above). "
+                "Shaded band = <b>demand forecast 90% confidence interval</b> — shows demand uncertainty range. "
+                "When bars sit within the CI band, production is aligned with forecast demand.",
+                "sky",
+            )
 
             fig_cost2 = go.Figure(go.Scatter(
                 x=fwd_agg["Month_dt"], y=fwd_agg["Total_Ship_Cost"],
@@ -2185,6 +2423,7 @@ def page_logistics() -> None:
             ))
         fig_rf.update_layout(**CD(), height=260, xaxis=gX(), yaxis=gY(), legend=leg())
         st.plotly_chart(fig_rf, use_container_width=True, key="log_reg_fc")
+
 
 def page_chatbot() -> None:
     df  = load_data()
@@ -2353,6 +2592,10 @@ def page_chatbot() -> None:
                         unsafe_allow_html=True,
                     )
 
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SIDEBAR & NAVIGATION
+# ══════════════════════════════════════════════════════════════════════════════
 def main() -> None:
     inject_css()
 
@@ -2372,6 +2615,7 @@ def main() -> None:
     }
     sel = st.sidebar.radio("Navigation", list(PAGES.keys()))
     PAGES[sel]()
+
 
 if __name__ == "__main__":
     main()
