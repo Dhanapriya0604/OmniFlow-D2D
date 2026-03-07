@@ -1775,19 +1775,27 @@ def page_inventory() -> None:
         total_gap     = int(inv_c["Stock_Gap"].sum())
         total_skus    = len(inv_c)
 
-        # ── KPIs ─────────────────────────────────────────────────────────────
+        # Days-of-stock bands — same thresholds as build_sku_production_plan urgency
+        # so numbers are consistent with the top KPIs and production page
+        n_days_crit  = (inv_c["Days_of_Stock"] < 14).sum()     # ≤14d → matches 🔴/🟠 urgency
+        n_days_low   = ((inv_c["Days_of_Stock"] >= 14) & (inv_c["Days_of_Stock"] < 30)).sum()
+        n_days_ok    = (inv_c["Days_of_Stock"] >= 30).sum()
+        avg_cover    = inv_c["Cover_Raw"].mean()
+        total_gap    = int(inv_c["Stock_Gap"].sum())
+        total_skus   = len(inv_c)
+
+        # ── KPIs — days-based (consistent with top Status KPIs) ──────────────
         k1, k2, k3, k4, k5 = st.columns(5)
-        kpi(k1, "🔴 Critical (<30%)",  f"{n_crit_cov} SKUs",  "coral", "stock < 30% of recent 6M")
-        kpi(k2, "🟡 Low (30–60%)",     f"{n_low_cov} SKUs",   "amber", "stock 30–60% of recent 6M")
-        kpi(k3, "🟢 Adequate (≥60%)",  f"{n_ok_cov} SKUs",    "mint",  "stock ≥ 60% of recent 6M")
-        kpi(k4, "Avg Coverage",         f"{avg_cover:.1f}%",   "sky",   "based on last 6M actuals")
-        kpi(k5, "Total Stock Gap",      f"{total_gap:,} units","coral", "ML forecast − current stock")
+        kpi(k1, "⚡ Urgent (<14 days)",   f"{n_days_crit} SKUs",  "coral", "stock runs out < 14 days")
+        kpi(k2, "⚠️ Low (14–30 days)",    f"{n_days_low} SKUs",   "amber", "14–30 days of stock left")
+        kpi(k3, "✅ OK (≥30 days)",        f"{n_days_ok} SKUs",    "mint",  "≥30 days of stock left")
+        kpi(k4, "Avg Coverage",            f"{avg_cover:.1f}%",    "sky",   "stock vs last-6M actual")
+        kpi(k5, "Total Stock Gap",         f"{total_gap:,} units", "coral", "ML forecast − current stock")
         sp(0.5)
         banner(
-            "ℹ️ <b>Coverage %</b> = Current Stock ÷ <b>Last 6 Months Actual Demand</b> × 100. "
-            "Using actual recent sales (not ML forecast) gives a fair picture of how many months "
-            "of real stock you hold. <b>Stock Gap</b> = ML Forecast Demand − Current Stock — "
-            "the forward shortfall that production must fill to meet projected growth.",
+            "ℹ️ <b>Urgency bands above use Days of Stock</b> — consistent with the Status KPIs at the top of this page. "
+            "<b>Coverage %</b> = Current Stock ÷ Last 6 Months Actual Demand × 100 — a percentage view of the same data. "
+            "<b>Stock Gap</b> = ML Forecast Demand − Current Stock — the forward shortfall that production must fill.",
             "sky",
         )
         sp(0.5)
@@ -1808,7 +1816,10 @@ def page_inventory() -> None:
             inv_sorted["Label"] = (
                 inv_sorted["Product_Name"].str[:20] + " [" + inv_sorted["SKU_ID"] + "]"
             )
-            inv_sorted["Bar_Color"] = inv_sorted["Coverage_Band"].map(BAND_COLORS)
+            # Colour by days-of-stock to match top KPIs, not by coverage band
+            inv_sorted["Bar_Color"] = inv_sorted["Days_of_Stock"].apply(
+                lambda x: "#ef4444" if x < 14 else "#f59e0b" if x < 30 else "#22c55e"
+            )
             display_max = max(inv_sorted["Cover_Raw"].max() * 1.15, 70)
             fig_cov = go.Figure(go.Bar(
                 x=inv_sorted["Cover_Raw"].clip(upper=display_max),
@@ -1928,17 +1939,15 @@ def page_inventory() -> None:
         disp_full["Units to Produce"] = disp_full["Units to Produce"].astype(int)
         st.dataframe(disp_full, use_container_width=True, hide_index=True, height=400)
 
-        n_below30 = (inv_c["Cover_Raw"] < 30).sum()
+        n_urgent_days = (inv_c["Days_of_Stock"] < 14).sum()
         banner(
-            f"<b>Coverage % uses last-6M actual demand as the denominator</b> — "
-            f"giving a realistic view of stock on hand vs recent run-rate. "
-            f"<b>{n_below30} SKUs</b> are below 30% coverage. "
-            f"<b>ML 6M Forecast</b> is higher (reflects demand growth trend) and drives "
+            f"<b>Coverage % uses last-6M actual demand</b> — a percentage view of stock on hand vs recent run-rate. "
+            f"<b>{n_urgent_days} SKUs</b> have fewer than 14 days of stock left (matches the Urgent count above). "
+            f"<b>ML 6M Forecast</b> is higher than recent actuals (reflects demand growth trend) and drives "
             f"the Gap and Units to Produce columns. "
             "Go to <b>Production Planning</b> for the month-by-month production schedule.",
             "sky",
         )
-
 
 
 def page_production() -> None:
