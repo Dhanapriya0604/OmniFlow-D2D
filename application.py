@@ -1614,18 +1614,29 @@ def page_inventory() -> None:
     total_prod_need = int(inv["Prod_Need"].sum())
     total_demand_6m = int(inv["Demand_6M"].sum())
 
+    # Avg days of stock left for critical and low SKUs
+    crit_days = inv[inv["Status"] == "🔴 Critical"]["Days_of_Stock"]
+    crit_days = crit_days[crit_days < 999]
+    avg_crit_days = f"{crit_days.mean():.0f}d avg" if len(crit_days) > 0 else "—"
+
+    low_days  = inv[inv["Status"] == "🟡 Low"]["Days_of_Stock"]
+    low_days  = low_days[low_days < 999]
+    avg_low_days = f"{low_days.mean():.0f}d avg" if len(low_days) > 0 else "—"
+
     c1, c2, c3, c4, c5 = st.columns(5)
     kpi(c1, "Total SKUs",          len(inv),                  "sky",   "active SKUs")
-    kpi(c2, "🔴 Critical SKUs",    n_crit,                    "coral", "below safety stock")
-    kpi(c3, "🟡 Low Stock",        n_low,                     "amber", "below reorder point")
+    kpi(c2, "🔴 Critical SKUs",    n_crit,                    "coral", f"stock ≤ safety stock · {avg_crit_days}")
+    kpi(c3, "🟡 Low Stock",        n_low,                     "amber", f"stock < reorder point · {avg_low_days}")
     kpi(c4, "6M Forecast Demand",  f"{total_demand_6m:,}",    "sky",   "units customers will order")
     kpi(c5, "Units to Produce",    f"{total_prod_need:,}",    "mint",  "demand − current stock")
     banner(
         "ℹ️ All metrics reflect the <b>parameter settings</b> above. "
+        "<b>🔴 Critical</b> = stock has already fallen below the Safety Stock buffer "
+        "(Z×√(lead_time×σ²)) — these SKUs need replenishment <b>now</b>, before the next "
+        "order can arrive (default 7-day lead time). "
+        "<b>🟡 Low</b> = stock is above safety stock but below the Reorder Point — order soon. "
         "<b>6M Forecast Demand</b> = ML ensemble forecast for next 6 months per SKU summed across all SKUs. "
-        "<b>Units to Produce</b> = max(Forecast Demand + Safety Stock − Current Stock,  ROP + EOQ − Stock) "
-        "— the demand-driven production need after deducting stock already on hand. "
-        "This equals the <i>Gap Units</i> figure on the Production Planning page.",
+        "<b>Units to Produce</b> = max(Forecast Demand + Safety Stock − Current Stock, ROP + EOQ − Stock).",
         "sky",
     )
     sp()
