@@ -1924,8 +1924,9 @@ def page_production() -> None:
             st.plotly_chart(fig_bu, use_container_width=True, key="pq_cat_bar")
 
         sp()
-        sec("Days of Stock Remaining — All SKUs Needing Production")
-        top20 = sku_plan.head(20).copy()
+        sec("Days of Stock Remaining — Most Critical SKUs")
+        # Sort by Days_Left ascending so the most time-critical SKUs appear first
+        top20 = sku_plan.sort_values("Days_Left", ascending=True).head(20).copy()
         top20["Label"]     = top20["Product_Name"].str[:22] + " [" + top20["SKU_ID"] + "]"
         top20["Bar_Color"] = top20["Days_Left"].apply(
             lambda x: "#ef4444" if x <= 7 else "#f97316" if x <= 14 else "#eab308" if x <= 30 else "#22c55e"
@@ -1954,36 +1955,6 @@ def page_production() -> None:
                              title=dict(text="Top 20 Most Urgent SKUs — Days of Stock Left",
                                         font=dict(size=11, color="#64748b")))
         st.plotly_chart(fig_hl, use_container_width=True, key="pq_days_bar")
-
-        sp()
-        sec("Warehouse Load — Units Inbound")
-        wh_load = (
-            sku_plan.groupby("Target_Warehouse")
-            .agg(Units=("Prod_Need", "sum"), SKUs=("SKU_ID", "count"))
-            .reset_index()
-            .sort_values("Units", ascending=False)
-        )
-        wh_load["Share_Pct"] = (wh_load["Units"] / wh_load["Units"].sum() * 100).round(1)
-        wh_colors_vis = ["#1e3a8a", "#2563eb", "#3b82f6", "#60a5fa", "#93c5fd",
-                         "#059669", "#10b981", "#34d399"][:len(wh_load)]
-        fig_wl = go.Figure(go.Bar(
-            x=wh_load["Target_Warehouse"], y=wh_load["Units"],
-            marker=dict(color=wh_colors_vis, line=dict(color="rgba(0,0,0,0)")),
-            text=[f"{int(v):,} u · {s:.0f}%" for v, s in zip(wh_load["Units"], wh_load["Share_Pct"])],
-            textposition="outside", textfont=dict(color="#334155"),
-            customdata=wh_load[["SKUs", "Share_Pct"]].values,
-            hovertemplate="<b>%{x}</b><br>Units: %{y:,}<br>SKUs: %{customdata[0]}<br>Share: %{customdata[1]:.1f}%<extra></extra>",
-        ))
-        fig_wl.update_layout(
-            **CD(), height=260,
-            xaxis={**gX(), "tickangle": -15},
-            yaxis={**gY(), "title": "Units to Receive"},
-            title=dict(
-                text=f"Planned Inbound Units per Warehouse — {len(wh_load)} warehouse(s) · SKU-level routing",
-                font=dict(size=11, color="#64748b"),
-            ),
-        )
-        st.plotly_chart(fig_wl, use_container_width=True, key="pq_wh_load")
 
 
 def page_logistics() -> None:
