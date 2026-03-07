@@ -2657,34 +2657,33 @@ def page_chatbot() -> None:
 
         with al1:
             st.markdown("""<div style='font-size:11px;font-weight:700;color:#EF4444;letter-spacing:.06em;
-                text-transform:uppercase;font-family:DM Mono;margin-bottom:8px'>🔴 Critical SKUs — Reorder NOW</div>""",
+                text-transform:uppercase;font-family:DM Mono;margin-bottom:8px'>🔴 Critical SKUs</div>""",
                 unsafe_allow_html=True)
             crit = inv[inv["Status"] == "🔴 Critical"][
-                ["Product_Name", "Category", "Current_Stock", "ROP", "Prod_Need"]
-            ].head(5)
+                ["Product_Name", "Current_Stock", "ROP", "Prod_Need"]
+            ].head(3)
             for _, r in crit.iterrows():
                 st.markdown(
-                    f"<div class='alert-item alert-critical'>"
-                    f"<b style='color:#0f172a'>{r['Product_Name']}</b> "
-                    f"<span style='color:#64748b;font-size:11px'>[{r['Category']}]</span><br>"
-                    f"<span style='color:#64748b;font-size:11px'>Stock: {r['Current_Stock']} · "
-                    f"ROP: {r['ROP']} · Need: <b style=\"color:#dc2626\">{int(r['Prod_Need'])} units</b></span></div>",
+                    f"<div class='alert-item alert-critical' style='padding:7px 10px'>"
+                    f"<b style='color:#0f172a;font-size:12px'>{r['Product_Name']}</b> "
+                    f"<span style='color:#64748b;font-size:11px'>· Stock {r['Current_Stock']} · "
+                    f"Need <b style=\"color:#dc2626\">{int(r['Prod_Need'])}</b></span></div>",
                     unsafe_allow_html=True,
                 )
 
         with al2:
             st.markdown("""<div style='font-size:11px;font-weight:700;color:#d97706;letter-spacing:.06em;
-                text-transform:uppercase;font-family:DM Mono;margin-bottom:8px'>🏭 Most Urgent Production</div>""",
+                text-transform:uppercase;font-family:DM Mono;margin-bottom:8px'>🏭 Urgent Production</div>""",
                 unsafe_allow_html=True)
             try:
-                urgent_df = sku_plan[sku_plan["Urgency"].isin(["🔴 Urgent", "🟠 High"])].head(5)
+                urgent_df = sku_plan[sku_plan["Urgency"].isin(["🔴 Urgent", "🟠 High"])].head(3)
                 for _, r in urgent_df.iterrows():
-                    days_str = f"{int(r['Days_Left'])}d left" if r["Days_Left"] < 999 else "∞"
+                    days_str = f"{int(r['Days_Left'])}d" if r["Days_Left"] < 999 else "∞"
                     st.markdown(
-                        f"<div class='alert-item alert-warn'>"
-                        f"<b style='color:#0f172a'>{r['Product_Name']}</b><br>"
-                        f"<span style='color:#64748b;font-size:11px'>{r['Urgency']} · {days_str} · "
-                        f"<b style=\"color:#d97706\">{int(r['Prod_Need'])} units</b> → {r['Target_Warehouse']}</span></div>",
+                        f"<div class='alert-item alert-warn' style='padding:7px 10px'>"
+                        f"<b style='color:#0f172a;font-size:12px'>{r['Product_Name']}</b> "
+                        f"<span style='color:#64748b;font-size:11px'>· {days_str} · "
+                        f"<b style=\"color:#d97706\">{int(r['Prod_Need'])} units</b></span></div>",
                         unsafe_allow_html=True,
                     )
             except Exception:
@@ -2694,13 +2693,13 @@ def page_chatbot() -> None:
             st.markdown("""<div style='font-size:11px;font-weight:700;color:#059669;letter-spacing:.06em;
                 text-transform:uppercase;font-family:DM Mono;margin-bottom:8px'>💰 Logistics Savings</div>""",
                 unsafe_allow_html=True)
-            for _, r in opt.sort_values("Potential_Saving", ascending=False).head(5).iterrows():
+            for _, r in opt.sort_values("Potential_Saving", ascending=False).head(3).iterrows():
                 if r["Potential_Saving"] > 0:
                     st.markdown(
-                        f"<div class='alert-item' style='border-left:3px solid #059669;background:#f0fdf4'>"
-                        f"<b style='color:#0f172a'>{r['Region']}</b> → "
-                        f"<b style='color:#059669'>{r['Optimal_Carrier']}</b><br>"
-                        f"<span style='color:#64748b;font-size:11px'>Save ₹{r['Potential_Saving']:,.0f} ({r['Saving_Pct']:.1f}%)</span></div>",
+                        f"<div class='alert-item' style='border-left:3px solid #059669;background:#f0fdf4;padding:7px 10px'>"
+                        f"<b style='color:#0f172a;font-size:12px'>{r['Region']}</b> → "
+                        f"<b style='color:#059669'>{r['Optimal_Carrier']}</b> "
+                        f"<span style='color:#64748b;font-size:11px'>· Save ₹{r['Potential_Saving']:,.0f} ({r['Saving_Pct']:.1f}%)</span></div>",
                         unsafe_allow_html=True,
                     )
 
