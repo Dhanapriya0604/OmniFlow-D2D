@@ -1669,9 +1669,14 @@ def page_inventory() -> None:
 
     n_crit          = (inv["Status"] == "🔴 Critical").sum()
     n_low           = (inv["Status"] == "🟡 Low").sum()
-    # Demand-driven: total_prod_need reflects forecast demand - current stock
     total_prod_need = int(inv["Prod_Need"].sum())
     total_demand_6m = int(inv["Demand_6M"].sum())
+
+    # Compute the actual 6-month forecast window label
+    ops_ym   = ops["YM"].max()
+    fc_start = (ops_ym + 1).to_timestamp().strftime("%b %Y")
+    fc_end   = (ops_ym + N_FUTURE_MONTHS).to_timestamp().strftime("%b %Y")
+    fc_range = f"{fc_start} – {fc_end}"
 
     # Avg days of stock left for critical and low SKUs
     crit_days = inv[inv["Status"] == "🔴 Critical"]["Days_of_Stock"]
@@ -1686,16 +1691,16 @@ def page_inventory() -> None:
     kpi(c1, "Total SKUs",          len(inv),                  "sky",   "active SKUs")
     kpi(c2, "🔴 Critical SKUs",    n_crit,                    "coral", f"stock ≤ safety stock · {avg_crit_days}")
     kpi(c3, "🟡 Low Stock",        n_low,                     "amber", f"stock < reorder point · {avg_low_days}")
-    kpi(c4, "6M Forecast Demand",  f"{total_demand_6m:,}",    "sky",   "units customers will order")
-    kpi(c5, "Units to Produce",    f"{total_prod_need:,}",    "mint",  "demand − current stock")
+    kpi(c4, "6M Forecast Demand",  f"{total_demand_6m:,}",    "sky",   f"units · {fc_range}")
+    kpi(c5, "Units to Produce",    f"{total_prod_need:,}",    "mint",  f"to meet demand by {fc_end}")
     banner(
-        "ℹ️ All metrics reflect the <b>parameter settings</b> above. "
-        "<b>🔴 Critical</b> = stock has already fallen below the Safety Stock buffer "
-        "(Z×√(lead_time×σ²)) — these SKUs need replenishment <b>now</b>, before the next "
-        "order can arrive (default 7-day lead time). "
-        "<b>🟡 Low</b> = stock is above safety stock but below the Reorder Point — order soon. "
-        "<b>6M Forecast Demand</b> = ML ensemble forecast for next 6 months per SKU summed across all SKUs. "
-        "<b>Units to Produce</b> = max(Forecast Demand + Safety Stock − Current Stock, ROP + EOQ − Stock).",
+        f"ℹ️ All metrics reflect the <b>parameter settings</b> above. "
+        f"<b>🔴 Critical</b> = stock has already fallen below the Safety Stock buffer "
+        f"(Z×√(lead_time×σ²)) — these SKUs need replenishment <b>now</b>, before the next "
+        f"order can arrive (default 7-day lead time). "
+        f"<b>🟡 Low</b> = stock is above safety stock but below the Reorder Point — order soon. "
+        f"<b>6M Forecast Demand</b> = ML ensemble forecast for <b>{fc_range}</b> ({N_FUTURE_MONTHS} months) summed across all SKUs. "
+        f"<b>Units to Produce</b> = max(Forecast Demand + Safety Stock − Current Stock, ROP + EOQ − Stock).",
         "sky",
     )
     sp()
