@@ -1193,82 +1193,243 @@ def call_llm(messages: list, system: str, api_key: str) -> str:
 # PAGE FUNCTIONS
 # ══════════════════════════════════════════════════════════════════════════════
 def page_overview() -> None:
+    df  = load_data()
+    ops = get_ops(df).copy()
+    del_df = get_delivered(df)
+
+    # ── Live data stats ───────────────────────────────────────────────────────
+    total_orders  = len(df)
+    total_rev     = ops["Net_Revenue"].sum()
+    avg_ov        = ops["Net_Revenue"].mean()
+    ret_rate      = df["Return_Flag"].mean() * 100
+    on_time       = (del_df["Delivery_Days"] <= 3).mean() * 100
+    avg_days      = del_df["Delivery_Days"].mean()
+    n_skus        = df["SKU_ID"].nunique()
+    n_regions     = df["Region"].nunique()
+
     st.markdown("""
     <div style='background:linear-gradient(135deg,#0f172a,#1e3a8a,#2563eb);border-radius:18px;
          padding:30px 32px;margin-bottom:24px;'>
       <div style='font-size:38px;font-weight:900;color:white;letter-spacing:-.02em;
            text-transform:uppercase;line-height:1.1'>OmniFlow D2D</div>
       <div style='font-size:11px;font-family:DM Mono,monospace;color:#93c5fd;letter-spacing:.14em;
-           text-transform:uppercase;margin-bottom:6px'>
-        Predictive Logistics & AI Powered Demand-to-Delivery Intelligence
+           text-transform:uppercase;margin-top:6px;margin-bottom:4px'>
+        AI-Powered Demand-to-Delivery Supply Chain Intelligence · India E-Commerce
+      </div>
+      <div style='font-size:12px;color:#bfdbfe;margin-top:6px;line-height:1.6'>
+        Transforms 2 years of Indian e-commerce order data into actionable decisions across
+        demand forecasting, inventory optimisation, production planning, logistics routing,
+        and AI-assisted decision making — all in one unified platform.
       </div>
     </div>""", unsafe_allow_html=True)
 
-    st.markdown("""
-    <div class='about-section'>
-    <div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px'>
-    <div class='card'>
-      <div style='font-size:13px;font-weight:800;color:#1e3a8a;margin-bottom:6px'>Platform Purpose</div>
-      <div style='font-size:12.8px;line-height:1.7;color:#475569'>
-        OmniFlow D2D is an end-to-end AI-powered supply chain intelligence platform that transforms
-        historical data into actionable operational decisions. The system forecasts future demand and
-        integrates insights across demand planning, inventory optimisation, production scheduling,
-        and logistics operations within a unified analytics platform.
-      </div>
-    </div>
-    <div class='card'>
-      <div style='font-size:13px;font-weight:800;color:#1e3a8a;margin-bottom:6px'>Business Problem</div>
-      <div style='font-size:12.8px;line-height:1.7;color:#475569'>
-        E-commerce supply chains often suffer from inaccurate demand estimation, inventory imbalance,
-        inefficient production planning and suboptimal delivery routing. OmniFlow addresses these
-        challenges through predictive analytics.
-      </div>
-    </div>
-    <div class='card'>
-      <div style='font-size:13px;font-weight:800;color:#1e3a8a;margin-bottom:6px'>Data Coverage</div>
-      <div style='font-size:12.8px;line-height:1.7;color:#475569'>
-        The system analyses multi-channel Indian e-commerce order data including Amazon, Flipkart
-        and B2B channels across multiple regions, product categories and courier partners.
-      </div>
-    </div>
-    </div>
-    </div>""", unsafe_allow_html=True)
+    # ── Live dataset KPIs ─────────────────────────────────────────────────────
+    sec("Dataset at a Glance")
+    k1, k2, k3, k4, k5, k6 = st.columns(6)
+    kpi(k1, "Total Orders",       f"{total_orders:,}",       "sky",   "Jan 2024 – Dec 2025")
+    kpi(k2, "Net Revenue",        f"₹{total_rev/1e7:.2f}Cr", "mint",  "delivered + shipped")
+    kpi(k3, "Avg Order Value",    f"₹{avg_ov:,.0f}",         "sky",   "per active order")
+    kpi(k4, "Return Rate",        f"{ret_rate:.1f}%",         "coral", f"{df['Return_Flag'].sum()} orders")
+    kpi(k5, "On-Time Delivery",   f"{on_time:.1f}%",          "mint",  "delivered ≤ 3 days")
+    kpi(k6, "Unique SKUs",        str(n_skus),                "sky",   "across 4 categories")
+    sp(0.5)
 
+    # ── Dataset scope ─────────────────────────────────────────────────────────
     st.markdown("""
     <div class='about-section'>
-    <div style='font-size:18px;font-weight:900;margin-bottom:18px'>Analytics Workflow Pipeline</div>
-    <div style='display:flex;flex-wrap:wrap;gap:12px'>
-      <div class='pipeline-box'>Demand Forecast<span class='pipeline-sub'>ML models predict future orders and product demand</span></div>
-      <div class='pipeline-box'>Inventory Optimization<span class='pipeline-sub'>EOQ, Safety Stock and Reorder Point calculations</span></div>
-      <div class='pipeline-box'>Production Planning<span class='pipeline-sub'>Production quantity based on forecast and stock gap</span></div>
-      <div class='pipeline-box'>Logistics Optimization<span class='pipeline-sub'>Carrier performance scoring and route efficiency</span></div>
-      <div class='pipeline-box'>AI Decision Intelligence<span class='pipeline-sub'>LLM powered insights for supply chain decisions</span></div>
-    </div>
-    </div>""", unsafe_allow_html=True)
-
-    st.markdown("""
-    <div class='about-section'>
-    <div style='font-size:18px;font-weight:900;margin-bottom:18px'>Technology Stack</div>
+    <div style='font-size:16px;font-weight:900;margin-bottom:14px'>Dataset Scope</div>
     <div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px'>
       <div class='card'>
-        <div style='font-weight:800;color:#1e3a8a'>Data Processing</div>
-        <div style='font-size:12.8px;color:#475569;margin-top:6px'>Python, Pandas and NumPy for data cleaning, feature engineering and time series transformation.</div>
+        <div style='font-size:12px;font-weight:800;color:#1e3a8a;margin-bottom:8px'>📦 Orders & Revenue</div>
+        <div style='font-size:12px;line-height:1.8;color:#475569'>
+          <b>5,010 orders</b> · Jan 2024 – Dec 2025<br>
+          73.9% Delivered · 12.3% Shipped<br>
+          9.3% Returned · 4.5% Cancelled<br>
+          Avg order value: <b>₹8,159</b>
+        </div>
       </div>
       <div class='card'>
-        <div style='font-weight:800;color:#1e3a8a'>Machine Learning</div>
-        <div style='font-size:12.8px;color:#475569;margin-top:6px'>Demand forecasting uses an ensemble of Ridge Regression, Random Forest and Gradient Boosting models.</div>
+        <div style='font-size:12px;font-weight:800;color:#1e3a8a;margin-bottom:8px'>🛍️ Sales Channels</div>
+        <div style='font-size:12px;line-height:1.8;color:#475569'>
+          <b>Amazon.in</b> — 2,099 orders (41.9%)<br>
+          <b>Shiprocket</b> — 1,761 orders (35.1%)<br>
+          <b>INCREFF B2B</b> — 1,150 orders (23.0%)<br>
+          Multi-channel D2C + B2B mix
+        </div>
       </div>
       <div class='card'>
-        <div style='font-weight:800;color:#1e3a8a'>Optimization Models</div>
-        <div style='font-size:12.8px;color:#475569;margin-top:6px'>Inventory optimisation uses EOQ, Safety Stock and Reorder Point calculations to minimise stock risks.</div>
+        <div style='font-size:12px;font-weight:800;color:#1e3a8a;margin-bottom:8px'>📍 Geography</div>
+        <div style='font-size:12px;line-height:1.8;color:#475569'>
+          <b>9 Indian regions:</b><br>
+          Maharashtra · Delhi · Uttar Pradesh<br>
+          Karnataka · Gujarat · Tamil Nadu<br>
+          Telangana · West Bengal · Rajasthan
+        </div>
       </div>
       <div class='card'>
-        <div style='font-weight:800;color:#1e3a8a'>Dashboard & Visualization</div>
-        <div style='font-size:12.8px;color:#475569;margin-top:6px'>Interactive dashboards built using Streamlit, with Plotly for advanced data visualisation.</div>
+        <div style='font-size:12px;font-weight:800;color:#1e3a8a;margin-bottom:8px'>🏭 Operations</div>
+        <div style='font-size:12px;line-height:1.8;color:#475569'>
+          <b>4 Warehouses:</b> Delhi · Mumbai · Bengaluru · Hyderabad<br>
+          <b>5 Carriers:</b> BlueDart · Delhivery · DTDC · Ecom Express · XpressBees<br>
+          Avg delivery: <b>2.2 days</b>
+        </div>
       </div>
       <div class='card'>
-        <div style='font-weight:800;color:#1e3a8a'>AI Decision Layer</div>
-        <div style='font-size:12.8px;color:#475569;margin-top:6px'>A Large Language Model integrated through API generates supply chain insights and recommendations.</div>
+        <div style='font-size:12px;font-weight:800;color:#1e3a8a;margin-bottom:8px'>🏷️ Products</div>
+        <div style='font-size:12px;line-height:1.8;color:#475569'>
+          <b>50 SKUs</b> across 4 categories:<br>
+          Electronics & Mobiles (dominant)<br>
+          Fashion & Apparel · Home & Kitchen<br>
+          Health & Personal Care
+        </div>
+      </div>
+    </div>
+    </div>""", unsafe_allow_html=True)
+
+    # ── Analytics pipeline with WHAT each module decides ─────────────────────
+    st.markdown("""
+    <div class='about-section'>
+    <div style='font-size:16px;font-weight:900;margin-bottom:6px'>Analytics Pipeline — What Each Module Decides</div>
+    <div style='font-size:12px;color:#64748b;margin-bottom:14px'>
+      Modules are chained: demand forecast drives inventory, inventory drives production, production drives logistics routing.
+    </div>
+    <div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px'>
+      <div class='card' style='border-top:3px solid #3b82f6'>
+        <div style='font-size:11px;font-weight:800;color:#3b82f6;letter-spacing:.06em;text-transform:uppercase'>1 · Demand Forecasting</div>
+        <div style='font-size:11px;font-weight:700;color:#0f172a;margin:6px 0 4px'><i>How much will sell?</i></div>
+        <div style='font-size:11.5px;color:#475569;line-height:1.7'>
+          Ridge + Random Forest + Gradient Boosting <b>ensemble</b> forecasts orders, quantity and revenue
+          for the next 6 months — by overall, category, region and sales channel. Outputs a 90% confidence interval.
+        </div>
+      </div>
+      <div class='card' style='border-top:3px solid #f59e0b'>
+        <div style='font-size:11px;font-weight:800;color:#f59e0b;letter-spacing:.06em;text-transform:uppercase'>2 · Inventory Optimisation</div>
+        <div style='font-size:11px;font-weight:700;color:#0f172a;margin:6px 0 4px'><i>Which SKUs need restocking?</i></div>
+        <div style='font-size:11.5px;color:#475569;line-height:1.7'>
+          Wilson EOQ formula computes optimal order batch. Safety stock protects against demand variance.
+          ROP triggers reorder. SKUs are ABC-classified (A=top 80% revenue). Status = 🔴 Critical / 🟡 Low / 🟢 OK.
+        </div>
+      </div>
+      <div class='card' style='border-top:3px solid #8b5cf6'>
+        <div style='font-size:11px;font-weight:800;color:#8b5cf6;letter-spacing:.06em;text-transform:uppercase'>3 · Production Planning</div>
+        <div style='font-size:11px;font-weight:700;color:#0f172a;margin:6px 0 4px'><i>How many units to make, when?</i></div>
+        <div style='font-size:11.5px;color:#475569;line-height:1.7'>
+          Monthly production targets derived from Prod_Need (= Forecast − Stock + Safety Stock).
+          Critical/Low SKUs get urgency boosts into Month 1–2. SKUs are routed to warehouses
+          proportional to each category's historical delivery share.
+        </div>
+      </div>
+      <div class='card' style='border-top:3px solid #059669'>
+        <div style='font-size:11px;font-weight:800;color:#059669;letter-spacing:.06em;text-transform:uppercase'>4 · Logistics Optimisation</div>
+        <div style='font-size:11px;font-weight:700;color:#0f172a;margin:6px 0 4px'><i>Which carrier, at what cost?</i></div>
+        <div style='font-size:11.5px;color:#475569;line-height:1.7'>
+          Carrier composite score = weighted(speed + cost + return rate). Identifies cheapest carrier
+          per region, delay hotspots by carrier × region, and projects forward shipping cost
+          based on the production plan.
+        </div>
+      </div>
+      <div class='card' style='border-top:3px solid #ef4444'>
+        <div style='font-size:11px;font-weight:800;color:#ef4444;letter-spacing:.06em;text-transform:uppercase'>5 · AI Decision Intelligence</div>
+        <div style='font-size:11px;font-weight:700;color:#0f172a;margin:6px 0 4px'><i>What action should I take?</i></div>
+        <div style='font-size:11.5px;color:#475569;line-height:1.7'>
+          LLM (Llama 3.3-70B via Groq) is fed a live context snapshot from all 4 modules and answers
+          natural language questions with specific SKU names, ₹ figures and day counts.
+          Requires a free Groq API key.
+        </div>
+      </div>
+    </div>
+    </div>""", unsafe_allow_html=True)
+
+    # ── Key formulas ──────────────────────────────────────────────────────────
+    st.markdown("""
+    <div class='about-section'>
+    <div style='font-size:16px;font-weight:900;margin-bottom:14px'>Key Formulas Used</div>
+    <div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px'>
+      <div class='card'>
+        <div style='font-size:12px;font-weight:800;color:#1e3a8a;margin-bottom:6px'>Wilson EOQ</div>
+        <div style='font-family:DM Mono,monospace;font-size:11.5px;color:#0f172a;background:#f8fafc;padding:8px;border-radius:6px;margin-bottom:6px'>
+          EOQ = √( 2 × D × S / (P × h) )
+        </div>
+        <div style='font-size:11.5px;color:#475569'>D = annual demand · S = order cost (₹500 default) · P = unit price · h = holding % (20% default)</div>
+      </div>
+      <div class='card'>
+        <div style='font-size:12px;font-weight:800;color:#1e3a8a;margin-bottom:6px'>Safety Stock & ROP</div>
+        <div style='font-family:DM Mono,monospace;font-size:11.5px;color:#0f172a;background:#f8fafc;padding:8px;border-radius:6px;margin-bottom:6px'>
+          SS  = Z × σ_demand × √(lead_time)<br>
+          ROP = avg_daily × lead_time + SS
+        </div>
+        <div style='font-size:11.5px;color:#475569'>Z = 1.65 at 95% service level · lead_time = 7 days default</div>
+      </div>
+      <div class='card'>
+        <div style='font-size:12px;font-weight:800;color:#1e3a8a;margin-bottom:6px'>Production Need</div>
+        <div style='font-family:DM Mono,monospace;font-size:11.5px;color:#0f172a;background:#f8fafc;padding:8px;border-radius:6px;margin-bottom:6px'>
+          Prod_Need = max(<br>
+          &nbsp; Forecast_6M + SS − Stock,<br>
+          &nbsp; ROP + EOQ − Stock )
+        </div>
+        <div style='font-size:11.5px;color:#475569'>Demand-driven: deducts existing stock before computing need</div>
+      </div>
+      <div class='card'>
+        <div style='font-size:12px;font-weight:800;color:#1e3a8a;margin-bottom:6px'>Carrier Performance Score</div>
+        <div style='font-family:DM Mono,monospace;font-size:11.5px;color:#0f172a;background:#f8fafc;padding:8px;border-radius:6px;margin-bottom:6px'>
+          Score = w₁×(1−days_norm)<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;+ w₂×(1−cost_norm)<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;+ w₃×(1−return_norm)
+        </div>
+        <div style='font-size:11.5px;color:#475569'>Default weights: Speed 40% · Cost 40% · Returns 20%. Adjustable via slider.</div>
+      </div>
+    </div>
+    </div>""", unsafe_allow_html=True)
+
+    # ── Technology stack ──────────────────────────────────────────────────────
+    st.markdown("""
+    <div class='about-section'>
+    <div style='font-size:16px;font-weight:900;margin-bottom:14px'>Technology Stack</div>
+    <div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px'>
+      <div class='card'>
+        <div style='font-weight:800;color:#1e3a8a;font-size:12px'>Data Layer</div>
+        <div style='font-size:11.5px;color:#475569;margin-top:6px;line-height:1.7'>
+          <b>Python 3.12</b> · Pandas · NumPy<br>
+          Time-series feature engineering<br>
+          Period-based monthly aggregation<br>
+          33-column order dataset
+        </div>
+      </div>
+      <div class='card'>
+        <div style='font-weight:800;color:#1e3a8a;font-size:12px'>ML Forecasting</div>
+        <div style='font-size:11.5px;color:#475569;margin-top:6px;line-height:1.7'>
+          <b>scikit-learn</b> ensemble:<br>
+          Ridge Regression · Random Forest<br>
+          Gradient Boosting · Ensemble avg<br>
+          Evaluated by R², NRMSE, RMSE
+        </div>
+      </div>
+      <div class='card'>
+        <div style='font-weight:800;color:#1e3a8a;font-size:12px'>Optimisation</div>
+        <div style='font-size:11.5px;color:#475569;margin-top:6px;line-height:1.7'>
+          <b>Wilson EOQ model</b><br>
+          Safety stock (Z-score method)<br>
+          ABC classification (Pareto)<br>
+          Urgency scoring by days-left
+        </div>
+      </div>
+      <div class='card'>
+        <div style='font-weight:800;color:#1e3a8a;font-size:12px'>Dashboard</div>
+        <div style='font-size:11.5px;color:#475569;margin-top:6px;line-height:1.7'>
+          <b>Streamlit</b> — web app framework<br>
+          <b>Plotly</b> — interactive charts<br>
+          Scatter · Bar · Heatmap · Pie<br>
+          Forecast CI bands
+        </div>
+      </div>
+      <div class='card'>
+        <div style='font-weight:800;color:#1e3a8a;font-size:12px'>AI Layer</div>
+        <div style='font-size:11.5px;color:#475569;margin-top:6px;line-height:1.7'>
+          <b>Llama 3.3-70B</b> via Groq API<br>
+          Live context injection (all 5 modules)<br>
+          Grounded NL answers with ₹ figures<br>
+          Free API key at console.groq.com
+        </div>
       </div>
     </div>
     </div>""", unsafe_allow_html=True)
@@ -1280,6 +1441,13 @@ def page_demand() -> None:
     ops["YM"] = ops["Order_Date"].dt.to_period("M")
 
     st.markdown("<div class='page-title'>Demand Forecasting</div>", unsafe_allow_html=True)
+    banner(
+        "📊 <b>What this module does:</b> Forecasts future orders, quantity, and revenue using a 3-model "
+        "ensemble (Ridge + Random Forest + Gradient Boosting). Use the <b>Breakdown</b> selector to see "
+        "forecasts by category, region, or sales channel. <b>'Orders'</b> = net active orders "
+        "(Delivered + Shipped), excluding cancellations and returns.",
+        "sky",
+    )
     sec("Ensemble Model Quality")
 
     m_orders = ops.groupby("YM")["Order_ID"].count().rename("v")
@@ -1323,6 +1491,12 @@ def page_demand() -> None:
                                yaxis={**gY(), "title": "NRMSE (%)"},
                                title=dict(text="NRMSE % (lower = better)", font=dict(size=11, color="#64748b")))
             st.plotly_chart(fig2, use_container_width=True, key="d_nrmse")
+    banner(
+        "ℹ️ <b>R² Score</b> (0–1): measures how much variance the model explains. R²≥0.90 = excellent, "
+        "≥0.75 = good, <0.5 = poor. <b>NRMSE %</b>: normalised error — lower is better, target <15%. "
+        "<b>Ensemble</b> averages all three models, typically outperforming any single model.",
+        "sky",
+    )
     sp()
 
     c1, c2, c3 = st.columns([2, 2, 1])
@@ -1410,6 +1584,16 @@ def page_inventory() -> None:
     ops["YM"] = ops["Order_Date"].dt.to_period("M")
 
     st.markdown("<div class='page-title'>Inventory Optimization</div>", unsafe_allow_html=True)
+    banner(
+        "📦 <b>What this module does:</b> For each of the 50 SKUs, it computes: "
+        "<b>EOQ</b> (optimal batch size to minimise order + holding cost), "
+        "<b>Safety Stock</b> (buffer for demand variance), "
+        "<b>ROP</b> (reorder point — stock level that triggers a new order), "
+        "and <b>Prod Need</b> (units to produce = max(Forecast + SS − Stock, ROP + EOQ − Stock)). "
+        "<b>ABC</b> = A: top 80% revenue SKUs · B: next 15% · C: bottom 5%. "
+        "Status 🔴 Critical = stock ≤ safety stock · 🟡 Low = stock ≤ ROP · 🟢 Adequate = stock > ROP.",
+        "sky",
+    )
 
     with st.expander("Parameters", expanded=False):
         p1, p2, p3, p4 = st.columns(4)
@@ -1643,6 +1827,17 @@ def page_production() -> None:
     ops["YM"] = ops["Order_Date"].dt.to_period("M")
 
     st.markdown("<div class='page-title'>Production Planning</div>", unsafe_allow_html=True)
+    banner(
+        "🏭 <b>What this module does:</b> Converts Inventory Prod_Need into a month-by-month production "
+        "schedule. Production is distributed across 6 months proportional to the demand forecast shape. "
+        "<b>Capacity Multiplier</b> scales all production up or down (1.5× = plan 50% more than minimum need). "
+        "<b>Crit Boost</b> = extra units front-loaded to Month 1 for 🔴 Critical SKUs · "
+        "<b>Low Boost</b> = extra units for 🟡 Low SKUs. "
+        "Urgency tiers: 🔴 Urgent = stock ≤ safety stock · 🟠 High = ≤14 days left · "
+        "🟡 Medium = ≤30 days · 🟢 Normal = >30 days. "
+        "Warehouse routing is based on each category's historical delivery share per warehouse.",
+        "sky",
+    )
     p1, p2 = st.columns(2)
     cap = p1.slider("Capacity Multiplier", 0.5, 2.0, 1.0, 0.1,
                     help="Scale total production up/down. 1.0 = 100% of inventory-driven need.")
@@ -2019,6 +2214,15 @@ def page_logistics() -> None:
     del_df = get_delivered(df)
 
     st.markdown("<div class='page-title'>Logistics Optimization</div>", unsafe_allow_html=True)
+    banner(
+        "🚚 <b>What this module does:</b> Scores all 5 carriers across 3 dimensions using a weighted composite: "
+        "<b>Score = w₁×(1−days_norm) + w₂×(1−cost_norm) + w₃×(1−return_norm)</b> — higher = better. "
+        "Adjustable weights let you prioritise speed vs cost vs reliability. "
+        "Identifies the optimal carrier per region, delay hotspots by carrier × region, "
+        "and projects forward shipping costs from the production plan. "
+        "<b>On-time</b> = delivered ≤ 3 days · <b>Delay threshold</b> in heatmap is adjustable.",
+        "sky",
+    )
 
     # ── Top-level KPIs ────────────────────────────────────────────────────────
     total_spend  = del_df["Shipping_Cost_INR"].sum()
