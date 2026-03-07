@@ -1630,7 +1630,7 @@ def page_inventory() -> None:
     )
     sp()
 
-    tab_alerts, tab_cov, tab_table = st.tabs(["Stock Position", "Coverage Analysis", "SKU Table"])
+    tab_alerts, tab_eoq, tab_table = st.tabs(["Stock Position", "EOQ Analysis", "SKU Table"])
 
     with tab_alerts:
         sc1, sc2, sc3 = st.columns([2, 2, 1])
@@ -1721,161 +1721,84 @@ def page_inventory() -> None:
                     "teal",
                 )
 
-    with tab_cov:
-        inv_c = inv.copy()
+    with tab_eoq:
+        eoq_tbl = inv.groupby("Category").agg(
+            Avg_EOQ        = ("EOQ",           "mean"),
+            Avg_Ann_Demand = ("Annual_Demand", "mean"),
+            Avg_Price      = ("Unit_Price",    "mean"),
+            SKU_Count      = ("SKU_ID",        "count"),
+        ).reset_index()
+        eoq_tbl["Ann_Order_Cost"]   = (eoq_tbl["Avg_Ann_Demand"] / eoq_tbl["Avg_EOQ"].replace(0, 1) * order_cost).round(0)
+        eoq_tbl["Ann_Holding_Cost"] = (eoq_tbl["Avg_EOQ"] / 2 * eoq_tbl["Avg_Price"] * hold_pct).round(0)
+        eoq_tbl["Total_Cost"]       = eoq_tbl["Ann_Order_Cost"] + eoq_tbl["Ann_Holding_Cost"]
+        eoq_tbl["Months_Cover"]     = (eoq_tbl["Avg_EOQ"] / (eoq_tbl["Avg_Ann_Demand"] / 12).replace(0, np.nan)).round(1)
 
-        # Raw (unclipped) coverage for accurate gap analysis
-        inv_c["Cover_Raw"] = np.where(
-            inv_c["Demand_6M"] > 0,
-            inv_c["Current_Stock"] / inv_c["Demand_6M"] * 100,
-            100.0,
-        ).round(1)
-        inv_c["Stock_Gap"] = np.maximum(inv_c["Demand_6M"] - inv_c["Current_Stock"], 0).astype(int)
+        col_l, col_r = st.columns(2, gap="large")
+        with col_l:
+            sec("EOQ vs Annual Demand by Category")
+            fig_es     = go.Figure()
+            cat_colors = {c: COLORS[i % len(COLORS)] for i, c in enumerate(eoq_tbl["Category"])}
+            for _, r in eoq_tbl.iterrows():
+                mc   = r["Months_Cover"] if not np.isnan(r["Months_Cover"]) else 0
+                flag = "⚠️ under" if mc < 1 else ("📦 over" if mc > 3 else "✅ ok")
+                fig_es.add_trace(go.Scatter(
+                    x=[r["Avg_EOQ"]], y=[r["Avg_Ann_Demand"]],
+                    mode="markers+text",
+                    text=[r["Category"][:10]], textposition="top center",
+                    textfont=dict(size=9, color="#334155"),
+                    marker=dict(size=max(r["SKU_Count"] * 5, 18), color=cat_colors[r["Category"]],
+                                opacity=0.85, line=dict(color="#fff", width=2)),
+                    name=r["Category"],
+                    hovertemplate=(
+                        f"<b>{r['Category']}</b><br>"
+                        f"Avg EOQ: {int(r['Avg_EOQ'])}<br>"
+                        f"Ann Demand: {int(r['Avg_Ann_Demand'])}<br>"
+                        f"Covers: {mc:.1f} months  {flag}<br>"
+                        f"SKUs: {int(r['SKU_Count'])}<extra></extra>"
+                    ),
+                ))
+            x_ref = np.linspace(0, eoq_tbl["Avg_EOQ"].max() * 1.15, 50)
+            fig_es.add_trace(go.Scatter(x=x_ref, y=x_ref * 12, mode="lines",
+                                        line=dict(color="#ef4444", width=1, dash="dot"),
+                                        name="1-mo cover", hoverinfo="skip"))
+            fig_es.add_trace(go.Scatter(x=x_ref, y=x_ref * 4, mode="lines",
+                                        line=dict(color="#22c55e", width=1, dash="dot"),
+                                        name="3-mo cover", hoverinfo="skip"))
+            fig_es.update_layout(**CD(), height=320, showlegend=False,
+                                 xaxis={**gX(), "title": "Avg EOQ (units/order)"},
+                                 yaxis={**gY(), "title": "Annual Demand (units/year)"})
+            st.plotly_chart(fig_es, use_container_width=True, key="eoq_scatter")
 
-        # Two meaningful bands matching the actual data (all SKUs are under 60%)
-        inv_c["Coverage_Band"] = inv_c["Cover_Raw"].apply(
-            lambda x: "🔴 <30% — Critical" if x < 30 else "🟡 30–60% — Low"
-        )
-
-        n_crit_cov  = (inv_c["Cover_Raw"] < 30).sum()
-        n_low_cov   = ((inv_c["Cover_Raw"] >= 30) & (inv_c["Cover_Raw"] < 60)).sum()
-        avg_cover   = inv_c["Cover_Raw"].mean()
-        total_gap   = int(inv_c["Stock_Gap"].sum())
-
-        # ── KPIs ─────────────────────────────────────────────────────────────
-        k1, k2, k3, k4 = st.columns(4)
-        kpi(k1, "🔴 Critical (<30%)",  f"{n_crit_cov} SKUs",     "coral", "stock < 30% of 6M demand")
-        kpi(k2, "🟡 Low (30–60%)",     f"{n_low_cov} SKUs",      "amber", "stock 30–60% of 6M demand")
-        kpi(k3, "Avg Coverage",         f"{avg_cover:.1f}%",      "sky",   "portfolio average")
-        kpi(k4, "Total Stock Gap",      f"{total_gap:,} units",   "coral", "units short across all SKUs")
-        sp(0.5)
-        banner(
-            "ℹ️ <b>Stock Coverage %</b> = Current Stock ÷ 6-Month Forecast Demand × 100. "
-            "Every SKU in this dataset is currently below 60% coverage — meaning no SKU has "
-            "enough stock to meet even half its projected 6-month demand without restocking. "
-            "<b>Stock Gap</b> = Demand_6M − Current Stock — the shortfall that production must fill.",
-            "amber",
-        )
-        sp(0.5)
-
-        # ── Row 1: Coverage % bar (all SKUs sorted) + Category gap bar ───────
-        rc1, rc2 = st.columns(2, gap="large")
-
-        with rc1:
-            sec("Stock Coverage % — All SKUs (sorted worst → best)")
-            inv_sorted = inv_c.sort_values("Cover_Raw", ascending=True).copy()
-            inv_sorted["Label"] = inv_sorted["Product_Name"].str[:20] + " [" + inv_sorted["SKU_ID"] + "]"
-            inv_sorted["Bar_Color"] = inv_sorted["Cover_Raw"].apply(
-                lambda x: "#ef4444" if x < 30 else "#f59e0b"
-            )
-            fig_cov = go.Figure(go.Bar(
-                x=inv_sorted["Cover_Raw"],
-                y=inv_sorted["Label"],
-                orientation="h",
-                marker=dict(color=inv_sorted["Bar_Color"].tolist(), line=dict(color="rgba(0,0,0,0)")),
-                text=[f"{v:.0f}%" for v in inv_sorted["Cover_Raw"]],
-                textposition="outside",
-                textfont=dict(color="#334155", size=8),
-                customdata=inv_sorted[["Category", "Current_Stock", "Demand_6M", "Stock_Gap", "Status"]].values,
-                hovertemplate=(
-                    "<b>%{y}</b><br>"
-                    "Coverage: %{x:.1f}%<br>"
-                    "Category: %{customdata[0]}<br>"
-                    "Stock: %{customdata[1]} · 6M Demand: %{customdata[2]}<br>"
-                    "Gap: <b>%{customdata[3]} units short</b><br>"
-                    "Status: %{customdata[4]}<extra></extra>"
-                ),
+        with col_r:
+            sec("Annual Cost Trade-off by Category")
+            fig_eoq = go.Figure()
+            fig_eoq.add_trace(go.Bar(name="Ordering Cost", x=eoq_tbl["Category"], y=eoq_tbl["Ann_Order_Cost"],
+                                     marker=dict(color="#3B82F6", line=dict(color="rgba(0,0,0,0)"))))
+            fig_eoq.add_trace(go.Bar(name="Holding Cost", x=eoq_tbl["Category"], y=eoq_tbl["Ann_Holding_Cost"],
+                                     marker=dict(color="#F59E0B", line=dict(color="rgba(0,0,0,0)"))))
+            fig_eoq.add_trace(go.Scatter(
+                name="Total", x=eoq_tbl["Category"], y=eoq_tbl["Total_Cost"],
+                mode="markers+text",
+                marker=dict(size=11, color="#EF4444", symbol="diamond"),
+                text=[f"₹{v/1e3:.0f}k" for v in eoq_tbl["Total_Cost"]],
+                textposition="top center", textfont=dict(color="#334155", size=9),
             ))
-            fig_cov.add_vline(x=30, line_dash="dash", line_color="#ef4444", line_width=1.5,
-                              annotation_text=" 30%", annotation_font=dict(color="#ef4444", size=9))
-            fig_cov.add_vline(x=60, line_dash="dash", line_color="#f59e0b", line_width=1.5,
-                              annotation_text=" 60% target", annotation_font=dict(color="#f59e0b", size=9))
-            fig_cov.update_layout(
-                **CD(), height=max(360, len(inv_sorted) * 16),
-                xaxis={**gX(), "title": "Coverage % of 6M Forecast Demand", "range": [0, 75]},
-                yaxis=dict(showgrid=False, color="#64748b", automargin=True, tickfont=dict(size=8)),
-            )
-            st.plotly_chart(fig_cov, use_container_width=True, key="cov_ranked")
-
-        with rc2:
-            sec("Stock Gap by Category — Units Short vs 6M Demand")
-            cat_gap = inv_c.groupby("Category").agg(
-                Total_Stock=("Current_Stock", "sum"),
-                Total_Demand_6M=("Demand_6M", "sum"),
-                Total_Gap=("Stock_Gap", "sum"),
-                Avg_Cover=("Cover_Raw", "mean"),
-                SKUs=("SKU_ID", "count"),
-            ).reset_index().sort_values("Total_Gap", ascending=False)
-
-            fig_gap = go.Figure()
-            fig_gap.add_trace(go.Bar(
-                name="Current Stock",
-                x=cat_gap["Category"], y=cat_gap["Total_Stock"],
-                marker=dict(color="#3b82f6", line=dict(color="rgba(0,0,0,0)")),
-                text=[f"{v}" for v in cat_gap["Total_Stock"]],
-                textposition="inside", textfont=dict(color="white", size=10),
-            ))
-            fig_gap.add_trace(go.Bar(
-                name="Gap (shortfall)",
-                x=cat_gap["Category"], y=cat_gap["Total_Gap"],
-                marker=dict(color="#ef4444", opacity=0.85, line=dict(color="rgba(0,0,0,0)")),
-                text=[f"{v}" for v in cat_gap["Total_Gap"]],
-                textposition="inside", textfont=dict(color="white", size=10),
-            ))
-            fig_gap.add_trace(go.Scatter(
-                x=cat_gap["Category"], y=cat_gap["Total_Demand_6M"],
-                mode="markers+text", name="6M Demand",
-                marker=dict(size=12, color="#f59e0b", symbol="diamond",
-                            line=dict(color="#fff", width=2)),
-                text=[f"{v}" for v in cat_gap["Total_Demand_6M"]],
-                textposition="top center", textfont=dict(size=9, color="#d97706"),
-            ))
-            fig_gap.update_layout(
-                **CD(), height=280, barmode="stack",
-                xaxis={**gX(), "tickangle": -10},
-                yaxis={**gY(), "title": "Units"},
-                legend={**leg(), "orientation": "h", "y": -0.32},
-                title=dict(text="Blue = stocked · Red = gap to fill · ◆ = 6M demand target",
-                           font=dict(size=10, color="#64748b")),
-            )
-            st.plotly_chart(fig_gap, use_container_width=True, key="cov_gap_bar")
-
-            sp(0.5)
-            sec("Category Summary")
-            cat_disp = cat_gap[["Category", "SKUs", "Total_Stock", "Total_Demand_6M",
-                                "Total_Gap", "Avg_Cover"]].copy()
-            cat_disp["Avg_Cover"] = cat_disp["Avg_Cover"].apply(lambda x: f"{x:.1f}%")
-            cat_disp.columns = ["Category", "SKUs", "Stock", "6M Demand", "Gap (units)", "Avg Cover %"]
-            st.dataframe(cat_disp, use_container_width=True, hide_index=True)
+            fig_eoq.update_layout(**CD(), height=320, barmode="group",
+                                  xaxis={**gX(), "tickangle": -10},
+                                  yaxis={**gY(), "title": "₹/Year"}, legend=leg())
+            st.plotly_chart(fig_eoq, use_container_width=True, key="eoq_cost")
 
         sp(0.5)
-
-        # ── Row 2: Days of stock + coverage table ─────────────────────────────
-        sec("Days of Stock Remaining vs Coverage % — Full SKU View")
-        inv_full = inv_c.sort_values("Cover_Raw").copy()
-        inv_full["Days_of_Stock"] = inv_full["Days_of_Stock"].apply(
-            lambda x: f"{int(x)}d" if x < 999 else "∞"
-        )
-        inv_full["Cover_Pct_Str"] = inv_full["Cover_Raw"].apply(lambda x: f"{x:.1f}%")
-        inv_full["Stock_Gap_str"] = inv_full["Stock_Gap"].apply(lambda x: f"{int(x):,}")
-        disp_full = inv_full[[
-            "SKU_ID", "Product_Name", "Category", "ABC", "Status",
-            "Current_Stock", "Demand_6M", "Cover_Pct_Str",
-            "Stock_Gap_str", "Days_of_Stock", "Prod_Need",
-        ]].copy()
-        disp_full.columns = [
-            "SKU", "Product", "Category", "ABC", "Status",
-            "Stock", "6M Demand", "Coverage %",
-            "Gap (units)", "Days Left", "Units to Produce",
-        ]
-        st.dataframe(disp_full, use_container_width=True, hide_index=True, height=380)
-        banner(
-            f"<b>Every SKU is below 60% coverage.</b> "
-            f"{n_crit_cov} SKUs are below 30% — they cover less than a third of forecast demand. "
-            f"Total shortfall across all {len(inv_c)} SKUs: <b>{total_gap:,} units</b>. "
-            "Go to <b>Production Planning</b> to see the month-by-month schedule to close this gap.",
-            "coral",
-        )
+        edisp = eoq_tbl[["Category", "Avg_EOQ", "Avg_Ann_Demand", "Months_Cover",
+                          "Ann_Order_Cost", "Ann_Holding_Cost", "Total_Cost"]].copy()
+        edisp["Avg_EOQ"]          = edisp["Avg_EOQ"].round(0).astype(int)
+        edisp["Avg_Ann_Demand"]   = edisp["Avg_Ann_Demand"].round(0).astype(int)
+        edisp["Ann_Order_Cost"]   = edisp["Ann_Order_Cost"].apply(lambda x: f"₹{int(x):,}")
+        edisp["Ann_Holding_Cost"] = edisp["Ann_Holding_Cost"].apply(lambda x: f"₹{int(x):,}")
+        edisp["Total_Cost"]       = edisp["Total_Cost"].apply(lambda x: f"₹{int(x):,}")
+        edisp.columns = ["Category", "Avg EOQ", "Ann Demand", "Months Cover",
+                         "Order Cost/Yr", "Holding Cost/Yr", "Total/Yr"]
+        st.dataframe(edisp, use_container_width=True, hide_index=True)
 
     with tab_table:
         sec("SKU-Level Inventory Table")
