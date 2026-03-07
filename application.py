@@ -1693,6 +1693,21 @@ def page_inventory() -> None:
     kpi(c3, "🟡 Low Stock",        n_low,                     "amber", f"stock < reorder point · {avg_low_days}")
     kpi(c4, "6M Forecast Demand",  f"{total_demand_6m:,}",    "sky",   f"units · {fc_range}")
     kpi(c5, "Units to Produce",    f"{total_prod_need:,}",    "mint",  f"to meet demand by {fc_end}")
+
+    # Visual clarifier: which KPIs are "now" vs "forecast"
+    lbl1, lbl2, lbl3, lbl4, lbl5 = st.columns(5)
+    for col, txt, clr in [
+        (lbl1, "", "#94a3b8"),
+        (lbl2, "📍 Current stock status", "#ef4444"),
+        (lbl3, "📍 Current stock status", "#f59e0b"),
+        (lbl4, f"📅 Forecast {fc_range}", "#2563eb"),
+        (lbl5, f"📅 Forecast {fc_range}", "#059669"),
+    ]:
+        col.markdown(
+            f"<div style='font-size:9.5px;color:{clr};font-family:DM Mono;"
+            f"text-align:center;margin-top:-8px;padding-bottom:4px'>{txt}</div>",
+            unsafe_allow_html=True,
+        )
     banner(
         f"ℹ️ All metrics reflect the <b>parameter settings</b> above. "
         f"<b>🔴 Critical</b> = stock has already fallen below the Safety Stock buffer "
