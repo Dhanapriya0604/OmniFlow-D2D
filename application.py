@@ -812,15 +812,16 @@ def build_sku_production_plan() -> pd.DataFrame:
     del_df = get_delivered(df)
     inv    = compute_inventory()
 
-    wh_cat = del_df.groupby(["Category", "Warehouse"])["Quantity"].sum().reset_index()
-    wh_cat["wh_share"] = wh_cat.groupby("Category")["Quantity"].transform(lambda x: x / x.sum())
-    best_wh = (
-        wh_cat.sort_values("wh_share", ascending=False)
-        .groupby("Category").first()
-        .reset_index()[["Category", "Warehouse", "wh_share"]]
-        .rename(columns={"Warehouse": "Target_Warehouse", "wh_share": "WH_Share_Pct"})
+    # ── Warehouse shares per category (all 4 warehouses) ─────────────────────
+    wh_cat = (
+        del_df.groupby(["Category", "Warehouse"])["Quantity"]
+        .sum().reset_index()
+    )
+    wh_cat["wh_share"] = wh_cat.groupby("Category")["Quantity"].transform(
+        lambda x: x / x.sum()
     )
 
+    # ── Avg shipping cost per category × warehouse ────────────────────────────
     avg_ship = (
         del_df.groupby(["Category", "Warehouse"])
         .agg(avg_cost=("Shipping_Cost_INR", "mean"))
@@ -828,6 +829,7 @@ def build_sku_production_plan() -> pd.DataFrame:
         .rename(columns={"Warehouse": "Target_Warehouse"})
     )
 
+    # ── Build needs dataframe ─────────────────────────────────────────────────
     needs = inv[inv["Prod_Need"] > 0].copy()
     abc_weight = {"A": 3, "B": 2, "C": 1}
     needs["ABC_Priority"] = needs["ABC"].map(abc_weight)
@@ -850,10 +852,56 @@ def build_sku_production_plan() -> pd.DataFrame:
     needs["Ready_By"] = pd.to_datetime(today) + pd.Timedelta(days=LEAD_DAYS_PROD)
     needs["Ship_By"]  = needs["Ready_By"] + pd.Timedelta(days=SHIP_DAYS_AFTER)
 
-    needs = needs.merge(best_wh, on="Category", how="left")
-    needs["Target_Warehouse"] = needs["Target_Warehouse"].fillna("Central WH")
-    needs["WH_Share_Pct"]     = (needs["WH_Share_Pct"].fillna(1.0) * 100).round(1)
+    # ── Proportional warehouse assignment ─────────────────────────────────────
+    # Problem: Delhi WH has the highest share (~37%) in every category, so
+    # winner-takes-all would assign ALL SKUs to Delhi.
+    # Fix: distribute SKUs proportionally across all warehouses by category share.
+    # High-value (ABC-A) SKUs go to the highest-share WH; B/C fill the rest.
+    wh_assignments = []
+    for cat, grp in needs.groupby("Category"):
+        cat_wh = (
+            wh_cat[wh_cat["Category"] == cat]
+            .sort_values("wh_share", ascending=False)
+            .reset_index(drop=True)
+        )
+        warehouses = cat_wh["Warehouse"].tolist()
+        shares     = cat_wh["wh_share"].values
 
+        # Sort SKUs within category: A→B→C (best WH for highest value)
+        skus_sorted = grp.sort_values(
+            ["ABC_Priority", "Priority_Score"], ascending=[False, False]
+        )
+        n = len(skus_sorted)
+
+        # Compute cut-points for each warehouse slot
+        cumulative = np.round(np.cumsum(shares) * n).astype(int).clip(0, n)
+        prev = 0
+        slot_assignments: list[str] = []
+        for cut, wh in zip(cumulative, warehouses):
+            count = int(cut) - prev
+            slot_assignments.extend([wh] * count)
+            prev = int(cut)
+        # Safety pad
+        while len(slot_assignments) < n:
+            slot_assignments.append(warehouses[-1])
+
+        for (idx, _), wh in zip(skus_sorted.iterrows(), slot_assignments):
+            cat_share = float(
+                cat_wh.loc[cat_wh["Warehouse"] == wh, "wh_share"].values[0]
+                if wh in cat_wh["Warehouse"].values else shares[0]
+            )
+            wh_assignments.append({
+                "idx":              idx,
+                "Target_Warehouse": wh,
+                "WH_Share_Pct":     round(cat_share * 100, 1),
+            })
+
+    wh_df = pd.DataFrame(wh_assignments).set_index("idx")
+    needs = needs.join(wh_df[["Target_Warehouse", "WH_Share_Pct"]])
+    needs["Target_Warehouse"] = needs["Target_Warehouse"].fillna("Central WH")
+    needs["WH_Share_Pct"]     = needs["WH_Share_Pct"].fillna(100.0)
+
+    # ── Shipping cost ─────────────────────────────────────────────────────────
     needs = needs.merge(avg_ship, on=["Category", "Target_Warehouse"], how="left")
     needs["avg_cost"]      = needs["avg_cost"].fillna(del_df["Shipping_Cost_INR"].mean())
     needs["Est_Ship_Cost"] = (needs["Prod_Need"] * needs["avg_cost"]).round(0)
@@ -1729,6 +1777,43 @@ def page_production() -> None:
 
     with pt2:
         sec("Warehouse Stock Needs & Routing Plan")
+
+        # Show WH distribution bar first so user sees all warehouses at a glance
+        wh_dist = (
+            sku_plan.groupby("Target_Warehouse")
+            .agg(SKUs=("SKU_ID", "count"), Units=("Prod_Need", "sum"))
+            .reset_index().sort_values("Units", ascending=False)
+        )
+        n_warehouses = len(wh_dist)
+        wh_colors = ["#1e3a8a", "#2563eb", "#3b82f6", "#60a5fa", "#93c5fd",
+                     "#059669", "#10b981", "#34d399"][:n_warehouses]
+
+        fig_wh_dist = go.Figure()
+        fig_wh_dist.add_trace(go.Bar(
+            x=wh_dist["Target_Warehouse"], y=wh_dist["Units"],
+            name="Units", marker=dict(color=wh_colors, line=dict(color="rgba(0,0,0,0)")),
+            text=[f"{int(v):,}" for v in wh_dist["Units"]], textposition="outside",
+            textfont=dict(color="#334155"),
+        ))
+        fig_wh_dist.add_trace(go.Scatter(
+            x=wh_dist["Target_Warehouse"], y=wh_dist["SKUs"],
+            name="SKU count", yaxis="y2", mode="markers+text",
+            marker=dict(size=14, color="#f59e0b", line=dict(color="#fff", width=2)),
+            text=[f"{v} SKUs" for v in wh_dist["SKUs"]],
+            textposition="top center", textfont=dict(size=9, color="#d97706"),
+        ))
+        fig_wh_dist.update_layout(
+            **CD(), height=240, barmode="group",
+            xaxis=gX(),
+            yaxis={**gY(), "title": "Units to Receive"},
+            yaxis2=dict(overlaying="y", side="right", showgrid=False,
+                        title="SKU Count", tickcolor="#d97706", range=[0, wh_dist["SKUs"].max() * 3]),
+            legend={**leg(), "orientation": "h", "y": -0.28},
+            title=dict(text=f"Inbound units split across {n_warehouses} warehouse(s)", font=dict(size=11, color="#64748b")),
+        )
+        st.plotly_chart(fig_wh_dist, use_container_width=True, key="wh_dist_bar")
+        sp(0.5)
+
         wh_agg = (
             sku_plan.groupby("Target_Warehouse")
             .agg(
@@ -1786,11 +1871,17 @@ def page_production() -> None:
         routing_tbl["Ship_By"]       = routing_tbl["Ship_By"].dt.strftime("%d %b")
         routing_tbl["WH_Share_Pct"]  = routing_tbl["WH_Share_Pct"].apply(lambda x: f"{x:.0f}%")
         routing_tbl.columns = ["Warehouse", "SKU", "Product", "Category", "ABC", "Urgency",
-                               "Units", "Days Left", "Ready By", "Ship By", "Ship Cost", "WH Traffic %"]
+                               "Units", "Days Left", "Ready By", "Ship By", "Ship Cost", "SKU WH Share %"]
         st.dataframe(routing_tbl.sort_values(["Warehouse", "Urgency"]),
                      use_container_width=True, hide_index=True, height=380)
         sp(0.5)
-        banner("<b>Routing logic:</b> Each SKU is assigned to the warehouse that historically handles the highest share of its product category — ensuring stock lands where demand is highest.", "sky")
+        banner(
+            "<b>Routing logic:</b> SKUs are distributed <b>proportionally</b> across all 4 warehouses "
+            "based on each category's historical delivery share (Delhi ~37%, Mumbai ~33%, Bengaluru ~18%, "
+            "Hyderabad ~11%). Within each category, ABC-A SKUs go to the highest-volume warehouse first. "
+            "<b>WH Share %</b> = that warehouse's share of the category's total delivered volume.",
+            "sky",
+        )
 
     with pt3:
         sec("Production Urgency Distribution")
@@ -1866,20 +1957,32 @@ def page_production() -> None:
 
         sp()
         sec("Warehouse Load — Units Inbound")
-        wh_load = sku_plan.groupby("Target_Warehouse")["Prod_Need"].sum().reset_index().sort_values("Prod_Need", ascending=False)
+        wh_load = (
+            sku_plan.groupby("Target_Warehouse")
+            .agg(Units=("Prod_Need", "sum"), SKUs=("SKU_ID", "count"))
+            .reset_index()
+            .sort_values("Units", ascending=False)
+        )
+        wh_load["Share_Pct"] = (wh_load["Units"] / wh_load["Units"].sum() * 100).round(1)
+        wh_colors_vis = ["#1e3a8a", "#2563eb", "#3b82f6", "#60a5fa", "#93c5fd",
+                         "#059669", "#10b981", "#34d399"][:len(wh_load)]
         fig_wl = go.Figure(go.Bar(
-            x=wh_load["Target_Warehouse"], y=wh_load["Prod_Need"],
-            marker=dict(
-                color=["#1e3a8a", "#2563eb", "#3b82f6", "#60a5fa", "#93c5fd"][:len(wh_load)],
-                line=dict(color="rgba(0,0,0,0)"),
-            ),
-            text=[f"{int(v):,} units" for v in wh_load["Prod_Need"]],
+            x=wh_load["Target_Warehouse"], y=wh_load["Units"],
+            marker=dict(color=wh_colors_vis, line=dict(color="rgba(0,0,0,0)")),
+            text=[f"{int(v):,} u · {s:.0f}%" for v, s in zip(wh_load["Units"], wh_load["Share_Pct"])],
             textposition="outside", textfont=dict(color="#334155"),
+            customdata=wh_load[["SKUs", "Share_Pct"]].values,
+            hovertemplate="<b>%{x}</b><br>Units: %{y:,}<br>SKUs: %{customdata[0]}<br>Share: %{customdata[1]:.1f}%<extra></extra>",
         ))
-        fig_wl.update_layout(**CD(), height=240,
-                             xaxis={**gX(), "tickangle": -15},
-                             yaxis={**gY(), "title": "Units to Receive"},
-                             title=dict(text="Planned Inbound Units per Warehouse", font=dict(size=11, color="#64748b")))
+        fig_wl.update_layout(
+            **CD(), height=260,
+            xaxis={**gX(), "tickangle": -15},
+            yaxis={**gY(), "title": "Units to Receive"},
+            title=dict(
+                text=f"Planned Inbound Units per Warehouse — {len(wh_load)} warehouse(s) · SKU-level routing",
+                font=dict(size=11, color="#64748b"),
+            ),
+        )
         st.plotly_chart(fig_wl, use_container_width=True, key="pq_wh_load")
 
 
