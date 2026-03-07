@@ -1087,7 +1087,7 @@ def build_context() -> str:
     n_crit       = (inv["Status"] == "🔴 Critical").sum()
     n_low        = (inv["Status"] == "🟡 Low").sum()
     n_adequate   = (inv["Status"] == "🟢 Adequate").sum()
-    crit_skus    = inv[inv["Status"] == "🔴 Critical"][["Product_Name","Category","Current_Stock","Safety_Stock","ROP","Days_of_Stock","Prod_Need"]]
+    crit_skus    = inv[inv["Status"] == "🔴 Critical"][["Product_Name","Category","Current_Stock","SS","ROP","Days_of_Stock","Prod_Need"]]
     low_skus     = inv[inv["Status"] == "🟡 Low"][["Product_Name","Category","Current_Stock","ROP","Days_of_Stock","Prod_Need"]].head(5)
     total_stockout = inv["Stockout_Cost"].sum()
     abc_str      = ", ".join([f"{k}:{v} SKUs" for k, v in sorted(inv["ABC"].value_counts().to_dict().items())])
@@ -1099,7 +1099,7 @@ def build_context() -> str:
 
     # Build per-SKU critical detail string
     crit_detail = "; ".join([
-        f"{r['Product_Name']}(stock:{r['Current_Stock']},SS:{r['Safety_Stock']},ROP:{r['ROP']},days:{r['Days_of_Stock']:.0f},need:{int(r['Prod_Need'])})"
+        f"{r['Product_Name']}(stock:{r['Current_Stock']},SS:{r['SS']},ROP:{r['ROP']},days:{r['Days_of_Stock']:.0f},need:{int(r['Prod_Need'])})"
         for _, r in crit_skus.iterrows()
     ])
     low_detail = "; ".join([
