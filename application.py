@@ -960,12 +960,15 @@ def page_overview() -> None:
     n_skus        = df["SKU_ID"].nunique()
     n_regions     = df["Region"].nunique()
     st.markdown("""
+     <div style='background:linear-gradient(135deg,#0f172a,#1e3a8a,#2563eb);border-radius:18px;
+         padding:30px 32px;margin-bottom:24px;'>
       <div style='font-size:38px;font-weight:900;color:white;letter-spacing:-.02em;
            text-transform:uppercase;line-height:1.1'>OmniFlow D2D</div>
       <div style='font-size:11px;font-family:DM Mono,monospace;color:#93c5fd;letter-spacing:.14em;
            text-transform:uppercase;margin-top:6px;margin-bottom:4px'>
         Predictive Logistics & AI Powered Demand to Delivery Optimization
-      </div>""", unsafe_allow_html=True)
+      </div>
+     </div>""", unsafe_allow_html=True)
     sec("Dataset at a Glance")
     k1, k2, k3, k4, k5, k6 = st.columns(6)
     kpi(k1, "Total Orders", f"{total_orders:,}", "sky",   "Jan 2024 – Dec 2025")
@@ -2074,16 +2077,16 @@ def page_chatbot() -> None:
             </div>""",
             unsafe_allow_html=True,
         )
-    snap_card(col_d, "📈", "Demand Forecast",
+    snap_card(col_d, "Demand Forecast",
               f"₹{next_rev/1e6:.1f}M", f"{rev_chg:+.1f}% vs last month",
               f"forecast for {rev_mo}", "#2563eb")
-    snap_card(col_i, "📦", "Inventory Risk",
+    snap_card(col_i, "Inventory Risk",
               str(n_crit), f"critical · {n_low} low stock SKUs",
               crit_timing, "#ef4444")
-    snap_card(col_p, "🏭", "Production Need",
+    snap_card(col_p, "Production Need",
               f"{prod_need:,}", f"units · {n_urgent_s} urgent · starts {first_prod_mo}",
               f"peak demand: {peak_mo_str}", "#d97706")
-    snap_card(col_l, "🚚", "Logistics",
+    snap_card(col_l", "Logistics",
               f"{on_time:.0f}%", f"on-time · avg {avg_delay:.1f}d delivery",
               f"₹{sav_total:,.0f} saving available", "#059669")
     sp(0.5)
