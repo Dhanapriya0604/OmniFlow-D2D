@@ -945,7 +945,7 @@ def compute_logistics(
     carr = carr.merge(carrier_returns, on="Courier_Partner", how="left")
     carr["Return_Rate"] = carr["Return_Rate"].fillna(0)
 
-    for col in ["Avg_Days", "Avg_Cost", "Return_Rate"]:
+    for col, _ in [("Avg_Days", w_speed), ("Avg_Cost", w_cost), ("Return_Rate", w_returns)]:
         mn = carr[col].min(); mx = carr[col].max()
         carr[f"Norm_{col}"] = 1 - (carr[col] - mn) / (mx - mn + 1e-9)
     carr["Perf_Score"] = (
@@ -963,7 +963,7 @@ def compute_logistics(
     region_carr = region_carr.merge(region_carrier_returns, on=["Region", "Courier_Partner"], how="left")
     region_carr["Return_Rate"] = region_carr["Return_Rate"].fillna(0)
 
-    for col in ["Avg_Days", "Avg_Cost", "Return_Rate"]:
+    for col, _ in [("Avg_Days", w_speed), ("Avg_Cost", w_cost), ("Return_Rate", w_returns)]:
         mn = region_carr[col].min(); mx = region_carr[col].max()
         region_carr[f"Norm_{col}"] = 1 - (region_carr[col] - mn) / (mx - mn + 1e-9)
     region_carr["Score"] = (
@@ -979,7 +979,7 @@ def compute_logistics(
 
     cheapest = (
         del_df.groupby(["Region", "Courier_Partner"])
-        .agg(avg_cost=("Shipping_Cost_INR", "mean"))
+        .agg(avg_cost=("Shipping_Cost_INR", "mean"), orders=("Order_ID", "count"))
         .reset_index()
         .sort_values("avg_cost")
         .groupby("Region").first().reset_index()
@@ -993,10 +993,10 @@ def compute_logistics(
     opt = region_costs.merge(cheapest[["Region", "Optimal_Carrier", "Min_Avg_Cost"]], on="Region")
     opt["Potential_Saving"] = (
         (opt["Current_Avg_Cost"] - opt["Min_Avg_Cost"]) * opt["Orders"]
-    ).clip(lower=0).round(0)
+    ).round(0)
     opt["Saving_Pct"] = (
         (opt["Current_Avg_Cost"] - opt["Min_Avg_Cost"]) / opt["Current_Avg_Cost"] * 100
-    ).clip(lower=0).round(1)
+    ).round(1)
 
     avg_ship_unit  = max(
         del_df["Shipping_Cost_INR"].sum() / max(del_df["Quantity"].replace(0, np.nan).sum(), 1), 1.0
@@ -1621,9 +1621,9 @@ def page_demand() -> None:
                 "Category":              cat,
                 "2024 ₹M":               round(r24 / 1e6, 1),
                 "2025 ₹M":               round(r25 / 1e6, 1),
-                "YoY 24→25":             f"{min((r25-r24)/r24*100, 100):+.1f}%" if r24 > 0 else "N/A",
+                "YoY 24→25":             f"{(r25-r24)/r24*100:+.1f}%" if r24 > 0 else "N/A",
                 f"Next {N_FUTURE_MONTHS}M Proj ₹M": round(rp / 1e6, 1),
-                "Projected Growth":      f"{min((rp-r25)/r25*100, 100):+.1f}%" if r25 > 0 else "N/A",
+                "Projected Growth":      f"{(rp-r25)/r25*100:+.1f}%" if r25 > 0 else "N/A",
             })
         st.dataframe(
             pd.DataFrame(rows).sort_values(f"Next {N_FUTURE_MONTHS}M Proj ₹M", ascending=False),
