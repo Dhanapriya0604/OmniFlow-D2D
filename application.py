@@ -2077,16 +2077,16 @@ def page_chatbot() -> None:
             </div>""",
             unsafe_allow_html=True,
         )
-    snap_card(col_d, "Demand Forecast",
+    snap_card(col_d, "📈", "Demand Forecast",
               f"₹{next_rev/1e6:.1f}M", f"{rev_chg:+.1f}% vs last month",
               f"forecast for {rev_mo}", "#2563eb")
-    snap_card(col_i, "Inventory Risk",
+    snap_card(col_i, "📦", "Inventory Risk",
               str(n_crit), f"critical · {n_low} low stock SKUs",
               crit_timing, "#ef4444")
-    snap_card(col_p, "Production Need",
+    snap_card(col_p, "🏭", "Production Need",
               f"{prod_need:,}", f"units · {n_urgent_s} urgent · starts {first_prod_mo}",
               f"peak demand: {peak_mo_str}", "#d97706")
-    snap_card(col_l", "Logistics",
+    snap_card(col_l, "🚚", "Logistics",
               f"{on_time:.0f}%", f"on-time · avg {avg_delay:.1f}d delivery",
               f"₹{sav_total:,.0f} saving available", "#059669")
     sp(0.5)
