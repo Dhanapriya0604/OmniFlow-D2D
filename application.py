@@ -54,14 +54,9 @@ LLM_TEMP       = 0.4
 LLM_TIMEOUT    = 50
 CONTEXT_CHARS  = 2500
 
-
-# ---------------------------------------------------------------------------
-# Global horizon helper — reads from session_state set in sidebar
-# ---------------------------------------------------------------------------
 def get_horizon() -> int:
     """Return the globally selected forecast horizon (months)."""
     return st.session_state.get("global_horizon", N_FUTURE_MONTHS)
-
 
 def inject_css() -> None:
     st.markdown("""
@@ -118,7 +113,6 @@ def inject_css() -> None:
         color:#1e3a8a;font-family:'DM Mono',monospace;margin-bottom:6px;}
     </style>
     """, unsafe_allow_html=True)
-
 
 def CD() -> dict:
     return dict(
@@ -319,10 +313,6 @@ def ml_forecast(vals: np.ndarray, ds_idx, n_future: int = N_FUTURE_MONTHS) -> di
         eval_actual=yte_h, eval_pred=ypred_eval, eval_ds=ts_idx[-h:],
         model_metrics=model_metrics, weights={m: weights[m] for m in _make_models()},
     )
-
-# ---------------------------------------------------------------------------
-# All compute functions now accept n_future explicitly (from global horizon)
-# ---------------------------------------------------------------------------
 
 @st.cache_data
 def compute_category_forecasts(n_future: int = N_FUTURE_MONTHS) -> dict:
@@ -988,10 +978,10 @@ def page_overview() -> None:
      <div style='background:linear-gradient(135deg,#0f172a,#1e3a8a,#2563eb);border-radius:18px;
          padding:30px 32px;margin-bottom:24px;'>
       <div style='font-size:38px;font-weight:900;color:white;letter-spacing:-.02em;
-           text-transform:uppercase;line-height:1.1'>OmniFlow D2D</div>
+           text-transform:uppercase;line-height:1.1'>OmniFlow D2D Intelligence</div>
       <div style='font-size:11px;font-family:DM Mono,monospace;color:#93c5fd;letter-spacing:.14em;
            text-transform:uppercase;margin-top:6px;margin-bottom:4px'>
-        Predictive Logistics & AI Powered Demand to Delivery Optimization
+        AI Driven Demand to Delivery Optimization System
       </div>
      </div>""", unsafe_allow_html=True)
     sec("Dataset at a Glance")
@@ -1069,7 +1059,7 @@ def page_overview() -> None:
         </div>
       </div>
       <div class='card' style='border-top:3px solid #f59e0b'>
-        <div style='font-size:11px;font-weight:800;color:#f59e0b;letter-spacing:.06em;text-transform:uppercase'>2 · Inventory Optimisation</div>
+        <div style='font-size:11px;font-weight:800;color:#f59e0b;letter-spacing:.06em;text-transform:uppercase'>2 · Inventory Optimization</div>
         <div style='font-size:11px;font-weight:700;color:#0f172a;margin:6px 0 4px'><i>Which SKUs need restocking?</i></div>
         <div style='font-size:11.5px;color:#475569;line-height:1.7'>
           Wilson EOQ formula computes optimal order batch. Safety stock protects against demand variance.
@@ -1085,7 +1075,7 @@ def page_overview() -> None:
         </div>
       </div>
       <div class='card' style='border-top:3px solid #059669'>
-        <div style='font-size:11px;font-weight:800;color:#059669;letter-spacing:.06em;text-transform:uppercase'>4 · Logistics Optimisation</div>
+        <div style='font-size:11px;font-weight:800;color:#059669;letter-spacing:.06em;text-transform:uppercase'>4 · Logistics Optimization</div>
         <div style='font-size:11px;font-weight:700;color:#0f172a;margin:6px 0 4px'><i>Which carrier, at what cost?</i></div>
         <div style='font-size:11.5px;color:#475569;line-height:1.7'>
           Carrier composite score = weighted(speed + cost + return rate). Identifies cheapest carrier
@@ -1093,7 +1083,7 @@ def page_overview() -> None:
         </div>
       </div>
       <div class='card' style='border-top:3px solid #ef4444'>
-        <div style='font-size:11px;font-weight:800;color:#ef4444;letter-spacing:.06em;text-transform:uppercase'>5 · AI Decision Intelligence</div>
+        <div style='font-size:11px;font-weight:800;color:#ef4444;letter-spacing:.06em;text-transform:uppercase'>5 · Decision Intelligence</div>
         <div style='font-size:11px;font-weight:700;color:#0f172a;margin:6px 0 4px'><i>What action should I take?</i></div>
         <div style='font-size:11.5px;color:#475569;line-height:1.7'>
           LLM (Llama 3.3-70B via Groq) is fed a live context snapshot from all 4 modules and answers
@@ -2252,7 +2242,7 @@ def main() -> None:
         "Inventory Optimization": page_inventory,
         "Production Planning":    page_production,
         "Logistics Optimization": page_logistics,
-        "Decision Chatbot":       page_chatbot,
+        "Decision Intelligence":       page_chatbot,
     }
     sel = st.sidebar.radio("Navigation", list(PAGES.keys()))
     PAGES[sel]()
