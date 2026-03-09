@@ -1935,8 +1935,7 @@ def page_chatbot() -> None:
             letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px'>AI Config</div>""",
             unsafe_allow_html=True)
         api_key = st.text_input("Groq API Key", type="password",
-                                placeholder="gsk_xxxxxxxxxxxxxxxxx",
-                                help="Get free key at console.groq.com")
+                                placeholder="gsk_xxxxxxxxxxxxxxxxx")
         if api_key and len(api_key.strip()) > 10:
             if api_key.strip().startswith("gsk_"):
                 st.markdown("<div style='font-size:10px;color:#56e0a0;font-family:DM Mono;margin-top:3px'>✅ Key looks valid</div>",
@@ -2176,7 +2175,7 @@ def page_chatbot() -> None:
                 f"Demand is {int(demand_growth_pct)}% above historical average",
                 f"Last month shipped {int(_last_qty):,} units vs avg {int(_all_avg_qty):,} — stock depleting faster")
         with al2:
-            _alert_header(al2, "⏳", "What Will Happen", "#7c3aed")
+            _alert_header(al2, "What Will Happen", "#7c3aed")
             _alert_row(al2, "#f5f3ff", "#7c3aed",
                 f"{n_stockout14} SKU{'s' if n_stockout14!=1 else ''} will stock out within 14 days",
                 f"At current demand rate — lost sales & customer churn risk")
