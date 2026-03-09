@@ -30,7 +30,7 @@ DEFAULT_LEAD_TIME  = 7
 DEFAULT_SERVICE_Z  = 1.65
 LEAD_DAYS_PROD     = 7
 SHIP_DAYS_AFTER    = 2
-N_FUTURE_MONTHS    = 6          # default; overridden by global horizon selector
+N_FUTURE_MONTHS    = 6
 MIN_HISTORY_MONTHS = 6
 N_ESTIMATORS_RF    = 100
 MAX_DEPTH_RF       = 3
@@ -55,7 +55,6 @@ LLM_TIMEOUT    = 50
 CONTEXT_CHARS  = 2500
 
 def get_horizon() -> int:
-    """Return the globally selected forecast horizon (months)."""
     return st.session_state.get("global_horizon", N_FUTURE_MONTHS)
 
 def inject_css() -> None:
@@ -162,7 +161,6 @@ def sp(n: float = 1) -> None:
     st.markdown(f"<div style='height:{n * 12}px'></div>", unsafe_allow_html=True)
 
 def horizon_badge(n_months: int) -> None:
-    """Show a small badge indicating the active forecast horizon."""
     st.markdown(
         f"<div class='horizon-badge'>📅 Forecast Horizon: {n_months} months</div>",
         unsafe_allow_html=True,
@@ -470,7 +468,7 @@ def compute_inventory(
     hold_pct:   float = DEFAULT_HOLD_PCT,
     lead_time:  int   = DEFAULT_LEAD_TIME,
     z:          float = DEFAULT_SERVICE_Z,
-    n_future:   int   = N_FUTURE_MONTHS,   # ← now explicit
+    n_future:   int   = N_FUTURE_MONTHS,
 ) -> pd.DataFrame:
     df          = load_data()
     ops         = get_ops(df).copy()
@@ -623,6 +621,7 @@ def compute_production(cap_mult: float = 1.0, n_future: int = N_FUTURE_MONTHS) -
             })
     return pd.DataFrame(rows)
 
+# ─── FIX 2: Ready_By and Ship_By removed from build_sku_production_plan ───
 @st.cache_data
 def build_sku_production_plan(n_future: int = N_FUTURE_MONTHS) -> pd.DataFrame:
     df     = load_data()
@@ -650,10 +649,7 @@ def build_sku_production_plan(n_future: int = N_FUTURE_MONTHS) -> pd.DataFrame:
         if row["Days_Left"] <= 14:            return "🟠 High"
         if row["Days_Left"] <= 30:            return "🟡 Medium"
         return "🟢 Normal"
-    needs["Urgency"]  = needs.apply(_urgency, axis=1)
-    today             = _dt.date.today()
-    needs["Ready_By"] = pd.to_datetime(today) + pd.Timedelta(days=LEAD_DAYS_PROD)
-    needs["Ship_By"]  = needs["Ready_By"] + pd.Timedelta(days=SHIP_DAYS_AFTER)
+    needs["Urgency"] = needs.apply(_urgency, axis=1)
     wh_assignments = []
     for cat, grp in needs.groupby("Category"):
         cat_wh = (
@@ -690,11 +686,12 @@ def build_sku_production_plan(n_future: int = N_FUTURE_MONTHS) -> pd.DataFrame:
     needs["avg_cost"]      = needs["avg_cost"].fillna(del_df["Shipping_Cost_INR"].mean())
     needs["Est_Ship_Cost"] = (needs["Prod_Need"] * needs["avg_cost"]).round(0)
     needs = needs.sort_values(["Priority_Score", "Days_Left"], ascending=[False, True]).reset_index(drop=True)
+    # Ready_By and Ship_By removed
     return needs[[
         "SKU_ID", "Product_Name", "Category", "ABC", "Urgency", "Prod_Need",
         "Current_Stock", "Demand_6M", "Demand_Cover_Pct", "Days_Left",
         "Stockout_Cost", "Target_Warehouse", "WH_Share_Pct",
-        "Est_Ship_Cost", "Ready_By", "Ship_By", "Status",
+        "Est_Ship_Cost", "Status",
     ]]
 
 @st.cache_data
@@ -702,7 +699,7 @@ def compute_logistics(
     w_speed:   float = DEFAULT_W_SPEED,
     w_cost:    float = DEFAULT_W_COST,
     w_returns: float = DEFAULT_W_RETURNS,
-    n_future:  int   = N_FUTURE_MONTHS,   # ← now explicit
+    n_future:  int   = N_FUTURE_MONTHS,
 ):
     df     = load_data()
     del_df = get_delivered(df)
@@ -1059,7 +1056,7 @@ def page_overview() -> None:
         </div>
       </div>
       <div class='card' style='border-top:3px solid #f59e0b'>
-        <div style='font-size:11px;font-weight:800;color:#f59e0b;letter-spacing:.06em;text-transform:uppercase'>2 · Inventory Optimization</div>
+        <div style='font-size:11px;font-weight:800;color:#f59e0b;letter-spacing:.06em;text-transform:uppercase'>2 · Inventory Optimisation</div>
         <div style='font-size:11px;font-weight:700;color:#0f172a;margin:6px 0 4px'><i>Which SKUs need restocking?</i></div>
         <div style='font-size:11.5px;color:#475569;line-height:1.7'>
           Wilson EOQ formula computes optimal order batch. Safety stock protects against demand variance.
@@ -1075,7 +1072,7 @@ def page_overview() -> None:
         </div>
       </div>
       <div class='card' style='border-top:3px solid #059669'>
-        <div style='font-size:11px;font-weight:800;color:#059669;letter-spacing:.06em;text-transform:uppercase'>4 · Logistics Optimization</div>
+        <div style='font-size:11px;font-weight:800;color:#059669;letter-spacing:.06em;text-transform:uppercase'>4 · Logistics Optimisation</div>
         <div style='font-size:11px;font-weight:700;color:#0f172a;margin:6px 0 4px'><i>Which carrier, at what cost?</i></div>
         <div style='font-size:11.5px;color:#475569;line-height:1.7'>
           Carrier composite score = weighted(speed + cost + return rate). Identifies cheapest carrier
@@ -1101,7 +1098,6 @@ def page_demand() -> None:
     st.markdown("<div class='page-title'>Demand Forecasting</div>", unsafe_allow_html=True)
     horizon_badge(n_future)
     sec("Ensemble Model Quality")
-
     m_orders = ops.groupby("YM")["Order_ID"].count().rename("v")
     res_ov   = ml_forecast(m_orders.values.astype(float), m_orders.index, n_future)
     if res_ov:
@@ -1141,7 +1137,6 @@ def page_demand() -> None:
                                yaxis={**gY(), "title": "NRMSE (%)"},
                                title=dict(text="NRMSE % (lower = better)", font=dict(size=11, color="#64748b")))
             st.plotly_chart(fig2, use_container_width=True, key="d_nrmse")
-
     sp()
     c1, c2 = st.columns([2, 2])
     metric_opt = c1.selectbox("Metric", ["Orders", "Quantity", "Net Revenue"], key="d_metric")
@@ -1206,6 +1201,7 @@ def page_demand() -> None:
             use_container_width=True, hide_index=True,
         )
 
+# ─── FIX 1: Default service level = 95% (z=1.65) via index=1 ───
 def page_inventory() -> None:
     n_future = get_horizon()
     df  = load_data()
@@ -1218,7 +1214,8 @@ def page_inventory() -> None:
         order_cost = p1.number_input("Order Cost", 100, 5000, DEFAULT_ORDER_COST, 50)
         hold_pct   = p2.slider("Holding Cost %", 5, 40, int(DEFAULT_HOLD_PCT * 100)) / 100
         lead_time  = p3.slider("Lead Time days", 1, 30, DEFAULT_LEAD_TIME)
-        svc        = p4.selectbox("Service Level", ["90% (z=1.28)", "95% (z=1.65)", "99% (z=2.33)"])
+        # FIX: index=1 sets default to "95% (z=1.65)" matching DEFAULT_SERVICE_Z = 1.65
+        svc        = p4.selectbox("Service Level", ["90% (z=1.28)", "95% (z=1.65)", "99% (z=2.33)"], index=1)
         z          = {"90% (z=1.28)": 1.28, "95% (z=1.65)": 1.65, "99% (z=2.33)": 2.33}[svc]
     inv = compute_inventory(order_cost, hold_pct, lead_time, z, n_future)
     if inv.empty:
@@ -1547,17 +1544,16 @@ def page_production() -> None:
             </div>""", unsafe_allow_html=True)
         sp()
         sec("Detailed Shipment Routing Plan")
+        # FIX 2: Ready By and Ship By columns removed
         routing_tbl = sku_plan[[
             "Target_Warehouse", "SKU_ID", "Product_Name", "Category", "ABC", "Urgency",
-            "Prod_Need", "Days_Left", "Ready_By", "Ship_By", "Est_Ship_Cost", "WH_Share_Pct",
+            "Prod_Need", "Days_Left", "Est_Ship_Cost", "WH_Share_Pct",
         ]].copy()
         routing_tbl["Days_Left"]     = routing_tbl["Days_Left"].apply(lambda x: f"{int(x)}d" if x < 999 else "∞")
         routing_tbl["Est_Ship_Cost"] = routing_tbl["Est_Ship_Cost"].apply(lambda x: f"₹{int(x):,}")
-        routing_tbl["Ready_By"]      = routing_tbl["Ready_By"].dt.strftime("%d %b")
-        routing_tbl["Ship_By"]       = routing_tbl["Ship_By"].dt.strftime("%d %b")
         routing_tbl["WH_Share_Pct"]  = routing_tbl["WH_Share_Pct"].apply(lambda x: f"{x:.0f}%")
         routing_tbl.columns = ["Warehouse", "SKU", "Product", "Category", "ABC", "Urgency",
-                               "Units", "Days Left", "Ready By", "Ship By", "Ship Cost", "SKU WH Share %"]
+                               "Units", "Days Left", "Ship Cost", "SKU WH Share %"]
         st.dataframe(routing_tbl.sort_values(["Warehouse", "Urgency"]),
                      use_container_width=True, hide_index=True, height=380)
     with pt3:
@@ -1636,7 +1632,6 @@ def page_logistics() -> None:
     ops    = get_ops(df).copy()
     ops["YM"] = ops["Order_Date"].dt.to_period("M")
     del_df = get_delivered(df)
-
     st.markdown("<div class='page-title'>Logistics Optimization</div>", unsafe_allow_html=True)
     horizon_badge(n_future)
     total_spend  = del_df["Shipping_Cost_INR"].sum()
@@ -2211,7 +2206,6 @@ def main() -> None:
            background:linear-gradient(135deg,#f5a623,#ff6b6b,#2ed8c3);
            -webkit-background-clip:text;-webkit-text-fill-color:transparent'>OmniFlow D2D</div>
     </div>""", unsafe_allow_html=True)
-
     st.sidebar.markdown(
         "<div style='font-size:10px;font-weight:700;color:#4a5e7a;letter-spacing:.1em;"
         "text-transform:uppercase;font-family:DM Mono;margin-bottom:4px'>📅 Forecast Horizon</div>",
@@ -2234,14 +2228,13 @@ def main() -> None:
         "<div style='height:1px;background:rgba(100,116,139,0.15);margin-bottom:10px'></div>",
         unsafe_allow_html=True,
     )
-
     PAGES = {
         "Overview":               page_overview,
         "Demand Forecasting":     page_demand,
         "Inventory Optimization": page_inventory,
         "Production Planning":    page_production,
         "Logistics Optimization": page_logistics,
-        "Decision Intelligence":       page_chatbot,
+        "Decision Intelligence":  page_chatbot,
     }
     sel = st.sidebar.radio("Navigation", list(PAGES.keys()))
     PAGES[sel]()
