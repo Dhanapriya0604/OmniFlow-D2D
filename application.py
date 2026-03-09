@@ -2051,14 +2051,14 @@ def page_chatbot() -> None:
     if "chat_msgs" not in st.session_state:
         st.session_state.chat_msgs = []
     SUGGESTIONS = [
-        ("Which SKUs will stock out first and what should I produce immediately?"),
-        ("How does the demand forecast affect my inventory and production plan?"),
-        ("Give me a full production and logistics action plan for this month"),
-        ("Which carrier should I use for each region given current delay data?"),
-        ("What is my total revenue at risk if I don't act on inventory today?"),
-        ("Which warehouse is most overloaded and how should I rebalance routing?"),
-        ("Walk me through the full supply chain status — demand to delivery"),
-        ("What are the top 3 decisions I should make today across all modules?"),
+        ("🔴", "Which SKUs will stock out first and what should I produce immediately?"),
+        ("📈", "How does the demand forecast affect my inventory and production plan?"),
+        ("🏭", "Give me a full production and logistics action plan for this month"),
+        ("🚚", "Which carrier should I use for each region given current delay data?"),
+        ("💰", "What is my total revenue at risk if I don't act on inventory today?"),
+        ("🏪", "Which warehouse is most overloaded and how should I rebalance routing?"),
+        ("🔗", "Walk me through the full supply chain status — demand to delivery"),
+        ("📊", "What are the top 3 decisions I should make today across all modules?"),
     ]
     if not st.session_state.chat_msgs:
         sec("Quick Queries — click any to get started")
@@ -2218,6 +2218,10 @@ def page_chatbot() -> None:
 
 def main() -> None:
     inject_css()
+
+    # -----------------------------------------------------------------------
+    # GLOBAL FORECAST HORIZON SELECTOR — shown in sidebar for ALL pages
+    # -----------------------------------------------------------------------
     st.sidebar.markdown("""<div style='padding:16px 0 10px'>
       <div style='font-size:28px;font-weight:900;letter-spacing:-.03em;text-transform:uppercase;
            background:linear-gradient(135deg,#f5a623,#ff6b6b,#2ed8c3);
