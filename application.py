@@ -360,11 +360,12 @@ def ensemble_chart(res: dict, chart_key: str, height: int = 300, title: str = ""
                 fig.add_trace(go.Scatter(
                     x=res["hist_ds"], y=res["fitted_per_model"][mname],
                     name=f"{mname} fit", line=dict(color=clr, width=1.2, dash=dash),
-                    opacity=0.5, visible="legendonly",
+                    opacity=0.5, visible="legendonly", showlegend=False,
                 ))
     fig.add_trace(go.Scatter(
         x=res["hist_ds"], y=res["fitted"], name="Ensemble fit",
         line=dict(color="#8B5CF6", width=1.5, dash="dot"), opacity=0.55,
+        showlegend=False,
     ))
     if show_models and "forecast_per_model" in res:
         for mname, clr, dash in model_styles:
@@ -372,7 +373,8 @@ def ensemble_chart(res: dict, chart_key: str, height: int = 300, title: str = ""
                 fig.add_trace(go.Scatter(
                     x=res["fut_ds"], y=res["forecast_per_model"][mname],
                     name=f"{mname} fc", line=dict(color=clr, width=1.8, dash=dash),
-                    mode="lines+markers", marker=dict(size=5, color=clr), visible="legendonly",
+                    mode="lines+markers", marker=dict(size=5, color=clr),
+                    visible="legendonly", showlegend=False,
                 ))
     fig.add_trace(go.Scatter(
         x=res["fut_ds"], y=res["forecast"], name="Ensemble Forecast",
@@ -1173,7 +1175,7 @@ def page_demand() -> None:
     else:
         grp_map = {"Category": "Category", "Region": "Region", "Sales Channel": "Sales_Channel"}
         grp     = grp_map[level_opt]
-        top     = ops[grp].value_counts().head(5).index.tolist()
+        top     = ops[grp].value_counts().index.tolist()
         tabs    = st.tabs(top)
         for i, (tab, val) in enumerate(zip(tabs, top)):
             with tab:
