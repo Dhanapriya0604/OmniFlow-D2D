@@ -1933,10 +1933,10 @@ def page_chatbot() -> None:
                                 placeholder="gsk_xxxxxxxxxxxxxxxxx")
         if api_key and len(api_key.strip()) > 10:
             if api_key.strip().startswith("gsk_"):
-                st.markdown("<div style='font-size:10px;color:#56e0a0;font-family:DM Mono;margin-top:3px'>✅ Key looks valid</div>",
+                st.markdown("<div style='font-size:10px;color:#56e0a0;font-family:DM Mono;margin-top:3px'>Key looks valid</div>",
                             unsafe_allow_html=True)
             else:
-                st.markdown("<div style='font-size:10px;color:#ff6b6b;font-family:DM Mono;margin-top:3px'>⚠️ Should start with gsk_</div>",
+                st.markdown("<div style='font-size:10px;color:#ff6b6b;font-family:DM Mono;margin-top:3px'>Should start with gsk_</div>",
                             unsafe_allow_html=True)
     _order_cost = DEFAULT_ORDER_COST
     _hold_pct   = DEFAULT_HOLD_PCT
@@ -1979,10 +1979,11 @@ def page_chatbot() -> None:
     sec("Platform Snapshot — All Modules")
     col_d, col_i, col_p, col_l = st.columns(4, gap="medium")
     def snap_card(col, icon, title, metric, sub, detail, color):
+        icon_html = f"<div style='font-size:22px;margin-bottom:4px'>{icon}</div>" if icon else ""
         col.markdown(
             f"""<div style='background:white;border-radius:14px;border:1px solid #e5e7eb;
                  padding:18px 16px;box-shadow:0 2px 12px rgba(0,0,0,0.06)'>
-              <div style='font-size:22px;margin-bottom:4px'>{icon}</div>
+              {icon_html}
               <div style='font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;
                    letter-spacing:.08em;font-family:DM Mono'>{title}</div>
               <div style='font-size:26px;font-weight:900;color:{color};margin:4px 0'>{metric}</div>
@@ -1991,16 +1992,16 @@ def page_chatbot() -> None:
             </div>""",
             unsafe_allow_html=True,
         )
-    snap_card(col_d, "📈", "Demand Forecast",
+    snap_card(col_d, "", "Demand Forecast",
               f"₹{next_rev/1e6:.1f}M", f"{rev_chg:+.1f}% vs last month",
               f"forecast for {rev_mo} · {n_future}M horizon", "#2563eb")
-    snap_card(col_i, "📦", "Inventory Risk",
+    snap_card(col_i, "", "Inventory Risk",
               str(n_crit), f"critical · {n_low} low stock SKUs",
               crit_timing, "#ef4444")
-    snap_card(col_p, "🏭", "Production Need",
+    snap_card(col_p, "", "Production Need",
               f"{prod_need:,}", f"units · {n_urgent_s} urgent · starts {first_prod_mo}",
               f"peak demand: {peak_mo_str}", "#d97706")
-    snap_card(col_l, "🚚", "Logistics",
+    snap_card(col_l, "", "Logistics",
               f"{on_time:.0f}%", f"on-time · avg {avg_delay:.1f}d delivery",
               f"₹{sav_total:,.0f} saving available", "#059669")
     sp(0.5)
@@ -2031,27 +2032,27 @@ def page_chatbot() -> None:
         st.code(ctx, language="text")
     key_ok = bool(api_key and len(api_key.strip()) > 10)
     if not key_ok:
-        banner("⚠️ <b>API Key Required</b> — Enter your Groq API key in the sidebar to enable AI responses", "amber")
+        banner("<b>API Key Required</b> — Enter your Groq API key in the sidebar to enable AI responses", "amber")
     if "chat_msgs" not in st.session_state:
         st.session_state.chat_msgs = []
     SUGGESTIONS = [
-        ("🔴", "Which SKUs will stock out first and what should I produce immediately?"),
-        ("📈", "How does the demand forecast affect my inventory and production plan?"),
-        ("🏭", "Give me a full production and logistics action plan for this month"),
-        ("🚚", "Which carrier should I use for each region given current delay data?"),
-        ("💰", "What is my total revenue at risk if I don't act on inventory today?"),
-        ("🏪", "Which warehouse is most overloaded and how should I rebalance routing?"),
-        ("🔗", "Walk me through the full supply chain status — demand to delivery"),
-        ("📊", "What are the top 3 decisions I should make today across all modules?"),
+        ("Which SKUs will stock out first and what should I produce immediately?"),
+        ("How does the demand forecast affect my inventory and production plan?"),
+        ("Give me a full production and logistics action plan for this month"),
+        ("Which carrier should I use for each region given current delay data?"),
+        ("What is my total revenue at risk if I don't act on inventory today?"),
+        ("Which warehouse is most overloaded and how should I rebalance routing?"),
+        ("Walk me through the full supply chain status — demand to delivery"),
+        ("What are the top 3 decisions I should make today across all modules?"),
     ]
     if not st.session_state.chat_msgs:
         sec("Quick Queries — click any to get started")
         cols = st.columns(4)
-        for i, (icon, s) in enumerate(SUGGESTIONS):
+        for i, s in enumerate(SUGGESTIONS):
             with cols[i % 4]:
-                if st.button(f"{icon} {s}", key=f"sug_{i}", use_container_width=True):
+                if st.button(s, key=f"sug_{i}", use_container_width=True):
                     if not key_ok:
-                        st.warning("⚠️ Enter your API key first.")
+                        st.warning("Enter your API key first.")
                     else:
                         st.session_state.chat_msgs.append({"role": "user", "content": s})
                         with st.spinner("OmniFlow analysing…"):
@@ -2096,7 +2097,7 @@ def page_chatbot() -> None:
     with cb:
         if st.button("Send", use_container_width=True):
             if not key_ok:
-                st.warning("⚠️ Enter your API key first.")
+                st.warning("Enter your API key first.")
             elif user_in.strip():
                 st.session_state.chat_msgs.append({"role": "user", "content": user_in.strip()})
                 with st.spinner("OmniFlow thinking…"):
@@ -2141,10 +2142,11 @@ def page_chatbot() -> None:
         top_save = opt.sort_values("Potential_Saving", ascending=False).iloc[0]
         al1, al2, al3 = st.columns(3, gap="medium")
         def _alert_header(col, icon, label, color):
+            icon_part = f"{icon} " if icon else ""
             col.markdown(
                 f"<div style='font-size:11px;font-weight:700;color:{color};"
                 f"letter-spacing:.06em;text-transform:uppercase;"
-                f"font-family:DM Mono;margin-bottom:10px'>{icon} {label}</div>",
+                f"font-family:DM Mono;margin-bottom:10px'>{icon_part}{label}</div>",
                 unsafe_allow_html=True,
             )
         def _alert_row(col, bg, border, title, body):
@@ -2156,7 +2158,7 @@ def page_chatbot() -> None:
                 unsafe_allow_html=True,
             )
         with al1:
-            _alert_header(al1, "🔴", "What's Happening Now", "#EF4444")
+            _alert_header(al1, "", "What's Happening Now", "#EF4444")
             _alert_row(al1, "#fff1f2", "#ef4444",
                 f"{n_crit_now} SKUs are critically low",
                 f"Stock has already fallen below safety buffer — reorder before next delivery arrives")
@@ -2170,22 +2172,22 @@ def page_chatbot() -> None:
                 f"Demand is {int(demand_growth_pct)}% above historical average",
                 f"Last month shipped {int(_last_qty):,} units vs avg {int(_all_avg_qty):,} — stock depleting faster")
         with al2:
-            _alert_header(al2, "⏳", "What Will Happen", "#7c3aed")
+            _alert_header(al2, "", "What Will Happen", "#7c3aed")
             _alert_row(al2, "#f5f3ff", "#7c3aed",
                 f"{n_stockout14} SKU{'s' if n_stockout14!=1 else ''} will stock out within 14 days",
                 f"At current demand rate — lost sales & customer churn risk")
-            _alert_row(al2, "#f5f3ff", "#7c3aed",
-                f"{n_stockout30} SKUs will stock out within 30 days",
-                f"Without production action, ₹{rev_at_risk:,.0f}/month revenue at risk")
+            _alert_row(al2, "#fffbeb", "#d97706",
+                f"₹{rev_at_risk:,.0f}/month revenue at risk",
+                f"{n_stockout30} SKUs below 30-day cover — act before stockout")
             if top_prod is not None:
                 _alert_row(al2, "#fffbeb", "#d97706",
                     f"{top_prod['Product_Name']} needs {int(top_prod['Prod_Need'])} units most urgently",
                     f"{int(top_prod['Days_Left'])}d of stock left → {top_prod['Target_Warehouse']}")
             _alert_row(al2, "#fef9c3", "#ca8a04",
-                f"Growing demand will widen the stock gap faster",
-                f"ML forecast projects {int(inv['Demand_6M'].sum()):,} units needed over next {n_future} months")
+                f"ML forecast projects {int(inv['Demand_6M'].sum()):,} units over next {n_future} months",
+                f"Growing demand will widen the stock gap faster without intervention")
         with al3:
-            _alert_header(al3, "✅", "What You Should Do", "#059669")
+            _alert_header(al3, "", "What You Should Do", "#059669")
             _alert_row(al3, "#f0fdf4", "#059669",
                 f"Produce {int(inv['Prod_Need'].sum()):,} units across {(inv['Prod_Need']>0).sum()} SKUs",
                 f"Go to Production Planning for the {n_future}-month schedule")
@@ -2195,9 +2197,6 @@ def page_chatbot() -> None:
             _alert_row(al3, "#f0fdf4", "#16a34a",
                 f"Avoid {worst_carr} for time-sensitive orders",
                 f"Avg {worst_days}d delivery vs {best_carr} at {best_days}d — {round(worst_days-best_days,1)}d slower")
-            _alert_row(al3, "#ecfdf5", "#059669",
-                f"Ask the chatbot for a full action plan",
-                f"Type 'What should I do today?' for a prioritised cross-module recommendation")
 
 def main() -> None:
     inject_css()
