@@ -1875,7 +1875,6 @@ def page_logistics() -> None:
                 **CD(), height=200,
                 xaxis={**gX(), "tickangle": 0},
                 yaxis={**gY(), "title": "₹"},
-                margin=dict(l=30, r=30, t=20, b=30),
             )
             st.plotly_chart(fig_cost2, use_container_width=True, key="fwd_cost")
             sp(0.5)
