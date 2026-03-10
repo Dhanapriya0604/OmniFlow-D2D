@@ -1934,71 +1934,6 @@ def page_chatbot() -> None:
             else:
                 st.markdown("<div style='font-size:10px;color:#ff6b6b;font-family:DM Mono;margin-top:3px'>Should start with gsk_</div>",
                             unsafe_allow_html=True)
-    _order_cost = DEFAULT_ORDER_COST
-    _hold_pct   = DEFAULT_HOLD_PCT
-    _lead_time  = DEFAULT_LEAD_TIME
-    _z          = DEFAULT_SERVICE_Z
-    inv  = compute_inventory(_order_cost, _hold_pct, _lead_time, _z, n_future)
-    plan = compute_production(n_future=n_future)
-    carr, best_carr, opt, fwd_plan = compute_logistics(n_future=n_future)
-    m_rev    = ops.groupby("YM")["Net_Revenue"].sum().rename("v")
-    r_rev    = ml_forecast(m_rev.values.astype(float), m_rev.index, n_future)
-    next_rev = float(r_rev["forecast"][0]) if r_rev else 0
-    last_rev = float(m_rev.iloc[-1]) if len(m_rev) else 1
-    rev_chg  = (next_rev - last_rev) / last_rev * 100 if last_rev > 0 else 0
-    rev_mo   = r_rev["fut_ds"][0].strftime("%b %Y") if r_rev else "—"
-    n_crit        = (inv["Status"] == "🔴 Critical").sum()
-    n_low         = (inv["Status"] == "🟡 Low").sum()
-    stockout_risk = inv["Stockout_Cost"].sum()
-    prod_need     = int(inv["Prod_Need"].sum())
-    crit_inv = inv[inv["Status"] == "🔴 Critical"]
-    if len(crit_inv):
-        min_days = int(crit_inv["Days_of_Stock"].clip(upper=999).min())
-        import datetime as _dt2
-        stockout_date = (_dt2.date.today() + _dt2.timedelta(days=min_days)).strftime("%d %b %Y")
-        crit_timing = f"first stockout in ~{min_days}d ({stockout_date})"
-    else:
-        crit_timing = "no critical SKUs"
-    try:
-        sku_plan    = build_sku_production_plan(n_future)
-        n_urgent_s  = (sku_plan["Urgency"] == "🔴 Urgent").sum()
-        peak_mo_str = plan.groupby("Month_dt")["Production"].sum().idxmax().strftime("%b %Y") if not plan.empty else "—"
-        first_prod_mo = plan["Month_dt"].min().strftime("%b %Y") if not plan.empty else "—"
-    except Exception:
-        n_urgent_s  = 0
-        peak_mo_str = "—"
-        first_prod_mo = "—"
-    on_time     = (del_df["Delivery_Days"] <= 3).mean() * 100
-    sav_total   = opt["Potential_Saving"].sum()
-    avg_delay   = del_df["Delivery_Days"].mean()
-    sp(0.5)
-    sec("Platform Snapshot — All Modules")
-    col_d, col_i, col_p, col_l = st.columns(4, gap="medium")
-    def snap_card(col, title, metric, sub, detail, color):
-        html = (
-            "<div style=\"background:white;border-radius:14px;border:1px solid #e5e7eb;"
-            "padding:18px 16px;box-shadow:0 2px 12px rgba(0,0,0,0.06)\">"
-            "<div style=\"font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;"
-            "letter-spacing:.08em;font-family:DM Mono,monospace\">" + title + "</div>"
-            "<div style=\"font-size:26px;font-weight:900;color:" + color + ";margin:4px 0\">" + metric + "</div>"
-            "<div style=\"font-size:11px;color:#334155;font-weight:600\">" + sub + "</div>"
-            "<div style=\"font-size:10px;color:#94a3b8;margin-top:3px\">" + detail + "</div>"
-            "</div>"
-        )
-        col.markdown(html, unsafe_allow_html=True)
-    snap_card(col_d, "Demand Forecast",
-              f"&#8377;{next_rev/1e6:.1f}M", f"{rev_chg:+.1f}% vs last month",
-              f"forecast for {rev_mo} · {n_future}M horizon", "#2563eb")
-    snap_card(col_i, "Inventory Risk",
-              str(n_crit), f"critical · {n_low} low stock SKUs",
-              crit_timing, "#ef4444")
-    snap_card(col_p, "Production Need",
-              f"{prod_need:,}", f"units · {n_urgent_s} urgent · starts {first_prod_mo}",
-              f"peak demand: {peak_mo_str}", "#d97706")
-    snap_card(col_l, "Logistics",
-              f"{on_time:.0f}%", f"on-time · avg {avg_delay:.1f}d delivery",
-              f"&#8377;{sav_total:,.0f} saving available", "#059669")
-    sp(0.5)
     ctx    = build_context(n_future)[:CONTEXT_CHARS]
     system = (
         f"You are OmniFlow, an expert AI supply chain analyst for an India D2D e-commerce business.\n"
@@ -2022,8 +1957,6 @@ def page_chatbot() -> None:
         "5. Never give generic advice — every point must cite data from context\n\n"
         f"LIVE CONTEXT:\n{ctx}"
     )
-    with st.expander("Live Context fed to AI", expanded=False):
-        st.code(ctx, language="text")
     key_ok = bool(api_key and len(api_key.strip()) > 10)
     if not key_ok:
         banner("<b>API Key Required</b> — Enter your Groq API key in the sidebar to enable AI responses", "amber")
@@ -2102,95 +2035,6 @@ def page_chatbot() -> None:
         if st.button("Clear", use_container_width=True):
             st.session_state.chat_msgs = []
             st.rerun()
-    if not st.session_state.chat_msgs:
-        sp()
-        sec("Live Decision Alerts")
-        n_crit_now    = (inv["Status"] == "🔴 Critical").sum()
-        n_low_now     = (inv["Status"] == "🟡 Low").sum()
-        n_stockout14  = (inv["Days_of_Stock"] < 14).sum()
-        n_stockout30  = (inv["Days_of_Stock"] < 30).sum()
-        total_stock   = int(inv["Current_Stock"].sum())
-        total_monthly = inv["Monthly_Avg"].sum()
-        months_cover  = round(total_stock / max(total_monthly, 1), 1)
-        _ops_alert   = get_ops(df).copy()
-        _ops_alert["YM"] = _ops_alert["Order_Date"].dt.to_period("M")
-        _price       = df.groupby("SKU_ID")["Sell_Price"].mean().rename("Avg_Price")
-        _inv_risk    = inv.merge(_price, on="SKU_ID", how="left")
-        _inv_risk["Monthly_Rev"] = _inv_risk["Monthly_Avg"] * _inv_risk["Avg_Price"]
-        rev_at_risk  = int(_inv_risk[_inv_risk["Days_of_Stock"] < 30]["Monthly_Rev"].sum())
-        _last_m      = _ops_alert["YM"].max()
-        _last_qty    = _ops_alert[_ops_alert["YM"] == _last_m]["Net_Qty"].sum()
-        _all_avg_qty = _ops_alert.groupby("YM")["Net_Qty"].sum().mean()
-        demand_growth_pct = round((_last_qty / max(_all_avg_qty, 1) - 1) * 100, 0)
-        _del       = df[df["Order_Status"] == "Delivered"]
-        _carr_avg  = _del.groupby("Courier_Partner")["Delivery_Days"].mean()
-        worst_carr = _carr_avg.idxmax()
-        worst_days = round(_carr_avg.max(), 1)
-        best_carr  = _carr_avg.idxmin()
-        best_days  = round(_carr_avg.min(), 1)
-        try:
-            sku_plan_alert = build_sku_production_plan(n_future)
-            top_prod = sku_plan_alert.sort_values("Prod_Need", ascending=False).iloc[0]
-        except Exception:
-            top_prod = None
-        top_save = opt.sort_values("Potential_Saving", ascending=False).iloc[0]
-        al1, al2, al3 = st.columns(3, gap="medium")
-        def _alert_header(col, icon, label, color):
-            icon_part = f"{icon} " if icon else ""
-            col.markdown(
-                f"<div style='font-size:11px;font-weight:700;color:{color};"
-                f"letter-spacing:.06em;text-transform:uppercase;"
-                f"font-family:DM Mono;margin-bottom:10px'>{icon_part}{label}</div>",
-                unsafe_allow_html=True,
-            )
-        def _alert_row(col, bg, border, title, body):
-            col.markdown(
-                f"<div style='background:{bg};border-left:3px solid {border};"
-                f"border-radius:6px;padding:8px 11px;margin-bottom:7px'>"
-                f"<div style='font-size:12px;font-weight:600;color:#0f172a'>{title}</div>"
-                f"<div style='font-size:11px;color:#475569;margin-top:2px'>{body}</div></div>",
-                unsafe_allow_html=True,
-            )
-        with al1:
-            _alert_header(al1, "", "What's Happening Now", "#EF4444")
-            _alert_row(al1, "#fff1f2", "#ef4444",
-                f"{n_crit_now} SKUs are critically low",
-                f"Stock has already fallen below safety buffer — reorder before next delivery arrives")
-            _alert_row(al1, "#fff7ed", "#f97316",
-                f"{n_low_now} more SKUs approaching reorder point",
-                f"Still above safety stock but below ROP — queue production soon")
-            _alert_row(al1, "#fff7ed", "#f97316",
-                f"Portfolio covers only {months_cover} months",
-                f"Total stock of {total_stock:,} units vs {total_monthly:.0f} units/month avg demand")
-            _alert_row(al1, "#fef2f2", "#dc2626",
-                f"Demand is {int(demand_growth_pct)}% above historical average",
-                f"Last month shipped {int(_last_qty):,} units vs avg {int(_all_avg_qty):,} — stock depleting faster")
-        with al2:
-            _alert_header(al2, "", "What Will Happen", "#7c3aed")
-            _alert_row(al2, "#f5f3ff", "#7c3aed",
-                f"{n_stockout14} SKU{'s' if n_stockout14!=1 else ''} will stock out within 14 days",
-                f"At current demand rate — lost sales & customer churn risk")
-            _alert_row(al2, "#fffbeb", "#d97706",
-                f"₹{rev_at_risk:,.0f}/month revenue at risk",
-                f"{n_stockout30} SKUs below 30-day cover — act before stockout")
-            if top_prod is not None:
-                _alert_row(al2, "#fffbeb", "#d97706",
-                    f"{top_prod['Product_Name']} needs {int(top_prod['Prod_Need'])} units most urgently",
-                    f"{int(top_prod['Days_Left'])}d of stock left → {top_prod['Target_Warehouse']}")
-            _alert_row(al2, "#fef9c3", "#ca8a04",
-                f"ML forecast projects {int(inv['Demand_6M'].sum()):,} units over next {n_future} months",
-                f"Growing demand will widen the stock gap faster without intervention")
-        with al3:
-            _alert_header(al3, "", "What You Should Do", "#059669")
-            _alert_row(al3, "#f0fdf4", "#059669",
-                f"Produce {int(inv['Prod_Need'].sum()):,} units across {(inv['Prod_Need']>0).sum()} SKUs",
-                f"Go to Production Planning for the {n_future}-month schedule")
-            _alert_row(al3, "#f0fdf4", "#059669",
-                f"Switch {top_save['Region']} shipments to {top_save['Optimal_Carrier']}",
-                f"Save ₹{top_save['Potential_Saving']:,.0f} ({top_save['Saving_Pct']:.1f}%) — see Logistics page")
-            _alert_row(al3, "#f0fdf4", "#16a34a",
-                f"Avoid {worst_carr} for time-sensitive orders",
-                f"Avg {worst_days}d delivery vs {best_carr} at {best_days}d — {round(worst_days-best_days,1)}d slower")
 
 def main() -> None:
     inject_css()
