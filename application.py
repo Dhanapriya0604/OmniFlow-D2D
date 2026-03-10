@@ -1862,16 +1862,21 @@ def page_logistics() -> None:
                     .reset_index().sort_values("Units", ascending=False)
                 )
                 cat_fwd.columns = ["Category", "Units", "Est. Orders", "Ship Cost ₹"]
-                st.dataframe(cat_fwd, use_container_width=True, hide_index=True)
-                sp(0.5)
+                st.dataframe(cat_fwd, use_container_width=True, hide_index=True, height=210)
                 sec("Projected Shipping Cost")
                 fig_cost2 = go.Figure(go.Scatter(
                     x=fwd_agg["Month_dt"], y=fwd_agg["Total_Ship_Cost"],
                     mode="lines+markers", line=dict(color="#8B5CF6", width=2.5),
                     marker=dict(size=8, color="#8B5CF6", line=dict(color="#FFFFFF", width=2)),
                     fill="tozeroy", fillcolor="rgba(139,92,246,0.07)",
+                    hovertemplate="<b>%{x|%b %Y}</b><br>₹%{y:,.0f}<extra></extra>",
                 ))
-                fig_cost2.update_layout(**CD(), height=180, xaxis=gX(), yaxis={**gY(), "title": "₹"})
+                fig_cost2.update_layout(
+                    **CD(), height=220,
+                    xaxis={**gX(), "tickangle": -30},
+                    yaxis={**gY(), "title": "₹"},
+                    margin=dict(l=30, r=20, t=20, b=40),
+                )
                 st.plotly_chart(fig_cost2, use_container_width=True, key="fwd_cost")
             sp(0.5)
             sec("Inbound Plan per Warehouse")
