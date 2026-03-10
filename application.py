@@ -1978,32 +1978,30 @@ def page_chatbot() -> None:
     sp(0.5)
     sec("Platform Snapshot — All Modules")
     col_d, col_i, col_p, col_l = st.columns(4, gap="medium")
-    def snap_card(col, icon, title, metric, sub, detail, color):
-        icon_html = f"<div style='font-size:22px;margin-bottom:4px'>{icon}</div>" if icon else ""
-        col.markdown(
-            f"""<div style='background:white;border-radius:14px;border:1px solid #e5e7eb;
-                 padding:18px 16px;box-shadow:0 2px 12px rgba(0,0,0,0.06)'>
-              {icon_html}
-              <div style='font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;
-                   letter-spacing:.08em;font-family:DM Mono'>{title}</div>
-              <div style='font-size:26px;font-weight:900;color:{color};margin:4px 0'>{metric}</div>
-              <div style='font-size:11px;color:#334155;font-weight:600'>{sub}</div>
-              <div style='font-size:10px;color:#94a3b8;margin-top:3px'>{detail}</div>
-            </div>""",
-            unsafe_allow_html=True,
+    def snap_card(col, title, metric, sub, detail, color):
+        html = (
+            "<div style=\"background:white;border-radius:14px;border:1px solid #e5e7eb;"
+            "padding:18px 16px;box-shadow:0 2px 12px rgba(0,0,0,0.06)\">"
+            "<div style=\"font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;"
+            "letter-spacing:.08em;font-family:DM Mono,monospace\">" + title + "</div>"
+            "<div style=\"font-size:26px;font-weight:900;color:" + color + ";margin:4px 0\">" + metric + "</div>"
+            "<div style=\"font-size:11px;color:#334155;font-weight:600\">" + sub + "</div>"
+            "<div style=\"font-size:10px;color:#94a3b8;margin-top:3px\">" + detail + "</div>"
+            "</div>"
         )
-    snap_card(col_d, "", "Demand Forecast",
-              f"₹{next_rev/1e6:.1f}M", f"{rev_chg:+.1f}% vs last month",
+        col.markdown(html, unsafe_allow_html=True)
+    snap_card(col_d, "Demand Forecast",
+              f"&#8377;{next_rev/1e6:.1f}M", f"{rev_chg:+.1f}% vs last month",
               f"forecast for {rev_mo} · {n_future}M horizon", "#2563eb")
-    snap_card(col_i, "", "Inventory Risk",
+    snap_card(col_i, "Inventory Risk",
               str(n_crit), f"critical · {n_low} low stock SKUs",
               crit_timing, "#ef4444")
-    snap_card(col_p, "", "Production Need",
+    snap_card(col_p, "Production Need",
               f"{prod_need:,}", f"units · {n_urgent_s} urgent · starts {first_prod_mo}",
               f"peak demand: {peak_mo_str}", "#d97706")
-    snap_card(col_l, "", "Logistics",
+    snap_card(col_l, "Logistics",
               f"{on_time:.0f}%", f"on-time · avg {avg_delay:.1f}d delivery",
-              f"₹{sav_total:,.0f} saving available", "#059669")
+              f"&#8377;{sav_total:,.0f} saving available", "#059669")
     sp(0.5)
     ctx    = build_context(n_future)[:CONTEXT_CHARS]
     system = (
