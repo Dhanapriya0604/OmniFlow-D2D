@@ -28,8 +28,6 @@ DEFAULT_ORDER_COST = 500
 DEFAULT_HOLD_PCT   = 0.20
 DEFAULT_LEAD_TIME  = 7
 DEFAULT_SERVICE_Z  = 1.65
-LEAD_DAYS_PROD     = 7
-SHIP_DAYS_AFTER    = 2
 N_FUTURE_MONTHS    = 6
 MIN_HISTORY_MONTHS = 6
 N_ESTIMATORS_RF    = 100
@@ -852,7 +850,6 @@ def build_context(n_future: int = N_FUTURE_MONTHS) -> str:
     prod_sum  = plan.groupby("Category")["Production"].sum().to_dict() if not plan.empty else {}
     prod_str  = ", ".join([f"{k}:{v:.0f}u" for k, v in prod_sum.items()])
     peak_mo   = plan.groupby("Month_dt")["Production"].sum().idxmax().strftime("%b %Y") if not plan.empty else "N/A"
-    total_prod = int(plan["Production"].sum()) if not plan.empty else 0
     try:
         sku_plan     = build_sku_production_plan(n_future)
         n_urgent_sku = (sku_plan["Urgency"] == "🔴 Urgent").sum()
@@ -975,7 +972,6 @@ def page_overview() -> None:
     on_time       = (del_df["Delivery_Days"] <= 3).mean() * 100
     avg_days      = del_df["Delivery_Days"].mean()
     n_skus        = df["SKU_ID"].nunique()
-    n_regions     = df["Region"].nunique()
     st.markdown("""
      <div style='background:linear-gradient(135deg,#0f172a,#1e3a8a,#2563eb);border-radius:18px;
          padding:30px 32px;margin-bottom:24px;'>
