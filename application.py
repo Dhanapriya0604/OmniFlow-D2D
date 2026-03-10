@@ -685,6 +685,9 @@ def build_sku_production_plan(n_future: int = N_FUTURE_MONTHS) -> pd.DataFrame:
     needs = needs.merge(avg_ship, on=["Category", "Target_Warehouse"], how="left")
     needs["avg_cost"]      = needs["avg_cost"].fillna(del_df["Shipping_Cost_INR"].mean())
     needs["Est_Ship_Cost"] = (needs["Prod_Need"] * needs["avg_cost"]).round(0)
+    # Recalculate WH_Share_Pct: each SKU's units as % of total units going to its warehouse
+    wh_total = needs.groupby("Target_Warehouse")["Prod_Need"].transform("sum")
+    needs["WH_Share_Pct"] = (needs["Prod_Need"] / wh_total.clip(lower=1) * 100).round(1)
     needs = needs.sort_values(["Priority_Score", "Days_Left"], ascending=[False, True]).reset_index(drop=True)
     # Ready_By and Ship_By removed
     return needs[[
@@ -1553,7 +1556,7 @@ def page_production() -> None:
         routing_tbl["Est_Ship_Cost"] = routing_tbl["Est_Ship_Cost"].apply(lambda x: f"₹{int(x):,}")
         routing_tbl["WH_Share_Pct"]  = routing_tbl["WH_Share_Pct"].apply(lambda x: f"{x:.0f}%")
         routing_tbl.columns = ["Warehouse", "SKU", "Product", "Category", "ABC", "Urgency",
-                               "Units", "Days Left", "Ship Cost", "SKU WH Share %"]
+                               "Units", "Days Left", "Ship Cost", "% of WH Inbound"]
         st.dataframe(routing_tbl.sort_values(["Warehouse", "Urgency"]),
                      use_container_width=True, hide_index=True, height=380)
     with pt3:
