@@ -1719,10 +1719,10 @@ def page_logistics() -> None:
                 st.info("Production plan not available.")
         sp(0.5)
         sec("Carrier × Region Delay Heatmap")
-        thr_h    = st.slider("Delay threshold (days)", 3, 10, DEFAULT_LEAD_TIME, key="log_thr_h")
-        del_df2  = del_df.copy()
-        del_df2["Delayed"] = del_df2["Delivery_Days"] > thr_h
-        pv = del_df2.groupby(["Courier_Partner", "Region"])["Delayed"].mean().unstack(fill_value=0) * 100
+        delay_thr = st.slider("Delay threshold (days)", 3, 10, DEFAULT_LEAD_TIME, key="log_thr")
+        del_df_delayed = del_df.copy()
+        del_df_delayed["Delayed"] = del_df_delayed["Delivery_Days"] > delay_thr
+        pv = del_df_delayed.groupby(["Courier_Partner", "Region"])["Delayed"].mean().unstack(fill_value=0) * 100
         fig_h = go.Figure(go.Heatmap(
             z=pv.values, x=list(pv.columns), y=list(pv.index),
             colorscale=[[0, "#0d1829"], [0.4, "#7c4fd0"], [0.7, "#e87adb"], [1, "#EF4444"]],
@@ -1732,18 +1732,20 @@ def page_logistics() -> None:
         fig_h.update_layout(**CD(), height=260,
                             xaxis=dict(showgrid=False, tickangle=-25, color="#64748b"),
                             yaxis=dict(showgrid=False, color="#64748b"),
-                            title=dict(text=f"% orders delayed beyond {thr_h}d · carrier × region",
+                            title=dict(text=f"% orders delayed beyond {delay_thr}d · carrier × region",
                                        font=dict(size=11, color="#64748b")))
         st.plotly_chart(fig_h, use_container_width=True, key="log_heat")
     with t2:
-        total_curr = del_df["Shipping_Cost_INR"].sum()
-        total_sav  = opt["Potential_Saving"].sum()
+        total_sav = opt["Potential_Saving"].sum()
         c1, c2, c3, c4 = st.columns(4)
-        kpi(c1, "Current Spend",    f"₹{total_curr:,.0f}",              "sky",  "all deliveries")
-        kpi(c2, "Optimised Spend",  f"₹{total_curr - total_sav:,.0f}",  "mint", "with best carriers")
-        kpi(c3, "Potential Saving", f"₹{total_sav:,.0f}",               "mint", "by switching carrier")
-        kpi(c4, "Saving %",         f"{total_sav/total_curr*100:.1f}%", "mint", "of total spend")
+        kpi(c1, "Current Spend",    f"₹{total_spend:,.0f}",                   "sky",  "all deliveries")
+        kpi(c2, "Optimised Spend",  f"₹{total_spend - total_sav:,.0f}",       "mint", "with best carriers")
+        kpi(c3, "Potential Saving", f"₹{total_sav:,.0f}",                     "mint", "by switching carrier")
+        kpi(c4, "Saving %",         f"{total_sav/total_spend*100:.1f}%",      "mint", "of total spend")
         sp(0.5)
+        # Shared delay data using the single threshold slider from Tab 1
+        del_df_t2 = del_df.copy()
+        del_df_t2["Delayed"] = del_df_t2["Delivery_Days"] > delay_thr
         tb1, tb2 = st.columns(2, gap="large")
         with tb1:
             sec("Region Cost — Current vs Optimal")
@@ -1769,10 +1771,7 @@ def page_logistics() -> None:
             st.plotly_chart(fig_cost, use_container_width=True, key="log_cost")
         with tb2:
             sec("Delay Rate by Region")
-            thr      = st.slider("Delay threshold (days)", 3, 10, DEFAULT_LEAD_TIME, key="log_thr")
-            del_df3  = del_df.copy()
-            del_df3["Delayed"] = del_df3["Delivery_Days"] > thr
-            rd  = del_df3.groupby("Region").agg(T=("Order_ID", "count"), D=("Delayed", "sum")).reset_index()
+            rd = del_df_t2.groupby("Region").agg(T=("Order_ID", "count"), D=("Delayed", "sum")).reset_index()
             rd["Rate"] = (rd["D"] / rd["T"] * 100).round(1)
             rd_s = rd.sort_values("Rate", ascending=True)
             fig_r = go.Figure(go.Bar(
@@ -1790,20 +1789,16 @@ def page_logistics() -> None:
         sp(0.5)
         tb3, tb4 = st.columns(2, gap="large")
         with tb3:
-            sec("Potential Savings by Region")
-            s_s = opt.sort_values("Potential_Saving", ascending=False)
-            fig_sav = go.Figure(go.Bar(
-                x=s_s["Region"], y=s_s["Potential_Saving"],
-                marker=dict(color="#F59E0B", line=dict(color="rgba(0,0,0,0)")),
-                text=[f"₹{v:,.0f}" for v in s_s["Potential_Saving"]],
-                textposition="outside", textfont=dict(color="#334155"),
-            ))
-            fig_sav.update_layout(**CD(), height=240,
-                    xaxis={**gX(), "tickangle": -25}, yaxis={**gY(), "title": "Saving ₹"})
-            st.plotly_chart(fig_sav, use_container_width=True, key="log_saving")
+            sec("Carrier Switch Recommendations")
+            od = opt[["Region", "Optimal_Carrier", "Current_Avg_Cost", "Min_Avg_Cost", "Potential_Saving", "Saving_Pct", "Orders"]].copy()
+            od["Current_Avg_Cost"] = od["Current_Avg_Cost"].round(1)
+            od["Min_Avg_Cost"]     = od["Min_Avg_Cost"].round(1)
+            od["Potential_Saving"] = od["Potential_Saving"].astype(int)
+            od.columns = ["Region", "Switch To", "Current Avg ₹", "Optimal Avg ₹", "Saving ₹", "Saving %", "Orders"]
+            st.dataframe(od.sort_values("Saving ₹", ascending=False), use_container_width=True, hide_index=True)
         with tb4:
             sec("Delay Rate by Carrier")
-            cd  = del_df3.groupby("Courier_Partner").agg(T=("Order_ID", "count"), D=("Delayed", "sum")).reset_index()
+            cd = del_df_t2.groupby("Courier_Partner").agg(T=("Order_ID", "count"), D=("Delayed", "sum")).reset_index()
             cd["Rate"] = (cd["D"] / cd["T"] * 100).round(1)
             fig_cd = go.Figure(go.Bar(
                 x=cd["Courier_Partner"], y=cd["Rate"],
@@ -1816,14 +1811,6 @@ def page_logistics() -> None:
             ))
             fig_cd.update_layout(**CD(), height=240, xaxis=gX(), yaxis={**gY(), "title": "Delay Rate %"})
             st.plotly_chart(fig_cd, use_container_width=True, key="log_delay_carrier")
-        sp(0.5)
-        sec("Carrier Switch Recommendations")
-        od = opt[["Region", "Optimal_Carrier", "Current_Avg_Cost", "Min_Avg_Cost", "Potential_Saving", "Saving_Pct", "Orders"]].copy()
-        od["Current_Avg_Cost"] = od["Current_Avg_Cost"].round(1)
-        od["Min_Avg_Cost"]     = od["Min_Avg_Cost"].round(1)
-        od["Potential_Saving"] = od["Potential_Saving"].astype(int)
-        od.columns = ["Region", "Switch To", "Current Avg ₹", "Optimal Avg ₹", "Saving ₹", "Saving %", "Orders"]
-        st.dataframe(od.sort_values("Saving ₹", ascending=False), use_container_width=True, hide_index=True)
     with t3:
         if fwd_plan.empty:
             st.info("No forward plan available — production plan has no actionable SKUs.")
