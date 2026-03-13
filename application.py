@@ -185,13 +185,18 @@ def get_delivered(df: pd.DataFrame) -> pd.DataFrame:
 def _to_ts(idx) -> pd.DatetimeIndex:
     return idx.to_timestamp() if hasattr(idx, "to_timestamp") else pd.DatetimeIndex(idx)
 
-def _make_models() -> dict:
+def _make_models(n_train: int = 20) -> dict:
+    # Scale RF regularisation to training size — prevents overfitting on small datasets
+    min_leaf = max(int(n_train * 0.15), 3)   # at least 15% of training size per leaf
+    max_dep  = 2 if n_train < 18 else 3       # shallower tree for very small sets
     return {
         "Ridge": Ridge(alpha=RIDGE_ALPHA),
         "RandomForest": RandomForestRegressor(
             n_estimators=N_ESTIMATORS_RF,
-            max_depth=MAX_DEPTH_RF,
-            min_samples_leaf=MIN_SAMPLES_LEAF,
+            max_depth=max_dep,
+            min_samples_leaf=min_leaf,
+            max_features=0.7,
+            max_samples=0.85,
             random_state=42,
         ),
         "GradBoost": GradientBoostingRegressor(
@@ -251,7 +256,7 @@ def ml_forecast(vals: np.ndarray, ds_idx, n_future: int = N_FUTURE_MONTHS) -> di
 
     # ── Step 2: Train each model on (n-4) pts → predict hold-out 4 pts ──
     holdout_preds: dict[str, np.ndarray] = {}
-    for mname, mdl in _make_models().items():
+    for mname, mdl in _make_models(len(ytr_h)).items():
         pipe = Pipeline([("scaler", StandardScaler()), ("model", mdl)])
         pipe.fit(Xtr_h, ytr_h)
         holdout_preds[mname] = np.maximum(pipe.predict(Xte_h), 0)
@@ -268,7 +273,7 @@ def ml_forecast(vals: np.ndarray, ds_idx, n_future: int = N_FUTURE_MONTHS) -> di
             break
         Xtr, ytr = Xtr_h[:te_start], ytr_h[:te_start]
         Xte, yte = Xtr_h[te_start:te_end], ytr_h[te_start:te_end]
-        for mname, mdl in _make_models().items():
+        for mname, mdl in _make_models(len(ytr)).items():
             pipe = Pipeline([("scaler", StandardScaler()), ("model", mdl)])
             pipe.fit(Xtr, ytr)
             ep = np.maximum(pipe.predict(Xte), 0)
@@ -292,7 +297,7 @@ def ml_forecast(vals: np.ndarray, ds_idx, n_future: int = N_FUTURE_MONTHS) -> di
         model_metrics[mname] = {"rmse": rmse_m, "nrmse": nrmse_m, "mae": mae_m, "r2": 0.0}
 
     # Full-fit R² for each model (train on all n, predict all n)
-    for mname, mdl in _make_models().items():
+    for mname, mdl in _make_models(n).items():
         pipe = Pipeline([("scaler", StandardScaler()), ("model", mdl)])
         pipe.fit(X_hist, vals)
         fp       = np.maximum(pipe.predict(X_hist), 0)
@@ -308,7 +313,7 @@ def ml_forecast(vals: np.ndarray, ds_idx, n_future: int = N_FUTURE_MONTHS) -> di
     # ── Step 6: Full retrain on ALL n points → final fitted + forecast ──
     fitted_pm:   dict[str, np.ndarray] = {}
     forecast_pm: dict[str, np.ndarray] = {}
-    for mname, mdl in _make_models().items():
+    for mname, mdl in _make_models(n).items():
         pipe = Pipeline([("scaler", StandardScaler()), ("model", mdl)])
         pipe.fit(X_hist, vals)
         fitted_pm[mname]   = np.maximum(pipe.predict(X_hist), 0)
