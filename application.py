@@ -1,3 +1,5 @@
+#with decision intelligence
+
 import os
 import re as _re
 import datetime as _dt
@@ -294,10 +296,6 @@ def ml_forecast(vals: np.ndarray, ds_idx, n_future: int = N_FUTURE_MONTHS) -> di
     nrmse_e    = rmse_e / np.mean(yte_h) if np.mean(yte_h) > 0 else 0.0
     mae_e      = mean_absolute_error(yte_h, ypred_eval)
     model_metrics["Ensemble"] = {"rmse": rmse_e, "nrmse": nrmse_e, "mae": mae_e, "r2": r2_e}
-    best_model = min(model_metrics.items(), key=lambda x: x[1]["nrmse"])[0]
-    best_metrics = model_metrics[best_model]    
-    best_fitted = fitted_pm.get(best_model, ens_fitted)
-    best_forecast = forecast_pm.get(best_model, ens_forecast)
     ts_idx   = _to_ts(ds_idx)
     last_dt  = ts_idx[-1]
     fut_dates = pd.date_range(last_dt + pd.offsets.MonthBegin(1), periods=n_future, freq="MS")
@@ -306,37 +304,12 @@ def ml_forecast(vals: np.ndarray, ds_idx, n_future: int = N_FUTURE_MONTHS) -> di
     ci_lo   = np.maximum(ens_forecast * np.exp(-CI_Z * log_std * np.sqrt(steps)), 0)
     ci_hi   = ens_forecast * np.exp(CI_Z * log_std * np.sqrt(steps))
     return dict(
-        hist_ds=ts_idx,
-        hist_y=vals,
-    
-        fitted=ens_fitted,
-        forecast=ens_forecast,
-    
-        best_model=best_model,
-        best_fitted=best_fitted,
-        best_forecast=best_forecast,
-        best_metrics=best_metrics,
-    
-        fitted_per_model=fitted_pm,
-        forecast_per_model=forecast_pm,
-    
-        fut_ds=fut_dates,
-        ci_lo=ci_lo,
-        ci_hi=ci_hi,
-    
-        rmse=rmse_e,
-        nrmse=nrmse_e,
-        mae=mae_e,
-        r2=r2_e,
-    
-        resid_std=resid_std,
-    
-        eval_actual=yte_h,
-        eval_pred=ypred_eval,
-        eval_ds=ts_idx[-h:],
-    
-        model_metrics=model_metrics,
-        weights={m: weights[m] for m in _make_models()},
+        hist_ds=ts_idx, hist_y=vals, fitted=ens_fitted,
+        fitted_per_model=fitted_pm, forecast_per_model=forecast_pm,
+        fut_ds=fut_dates, forecast=ens_forecast, ci_lo=ci_lo, ci_hi=ci_hi,
+        rmse=rmse_e, nrmse=nrmse_e, mae=mae_e, r2=r2_e, resid_std=resid_std,
+        eval_actual=yte_h, eval_pred=ypred_eval, eval_ds=ts_idx[-h:],
+        model_metrics=model_metrics, weights={m: weights[m] for m in _make_models()},
     )
 
 @st.cache_data
@@ -467,16 +440,6 @@ def render_model_quality(res: dict) -> None:
                     <span class='model-pill pill-gb'>GB {w.get("GradBoost",0)/tot*100:.0f}%</span>
                 </div>""", unsafe_allow_html=True,
             )
-    if "best_model" in res:
-        st.markdown(
-            f"""
-            <div style='background:#ecfdf5;border:1px solid #34d399;
-            border-radius:10px;padding:10px;margin-bottom:10px;font-size:13px'>
-            🏆 <b>Best Performing Model:</b> {res["best_model"]}
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
     c1, c2, c3, c4, c5 = st.columns(5)
     kpi(c1, "RMSE",     f"{res['rmse']:.1f}",         "sky",  "hold-out")
     kpi(c2, "NRMSE",    f"{res['nrmse']*100:.1f}%",   "sky",  "normalised")
@@ -660,6 +623,7 @@ def compute_production(cap_mult: float = 1.0, n_future: int = N_FUTURE_MONTHS) -
             })
     return pd.DataFrame(rows)
 
+# ─── FIX 2: Ready_By and Ship_By removed from build_sku_production_plan ───
 @st.cache_data
 def build_sku_production_plan(n_future: int = N_FUTURE_MONTHS) -> pd.DataFrame:
     df     = load_data()
@@ -1240,6 +1204,7 @@ def page_demand() -> None:
             use_container_width=True, hide_index=True,
         )
 
+# ─── FIX 1: Default service level = 95% (z=1.65) via index=1 ───
 def page_inventory() -> None:
     n_future = get_horizon()
     df  = load_data()
@@ -1756,58 +1721,23 @@ def page_logistics() -> None:
             else:
                 st.info("Production plan not available.")
         sp(0.5)
-        del_df_delayed = del_df.copy()
-        del_df_delayed["Delayed"] = del_df_delayed["Delivery_Days"] > DEFAULT_LEAD_TIME
         sec("Carrier × Region Delay Heatmap")
+        delay_thr = st.slider("Delay threshold (days)", 3, 10, DEFAULT_LEAD_TIME, key="log_thr")
+        del_df_delayed = del_df.copy()
+        del_df_delayed["Delayed"] = del_df_delayed["Delivery_Days"] > delay_thr
         pv = del_df_delayed.groupby(["Courier_Partner", "Region"])["Delayed"].mean().unstack(fill_value=0) * 100
-        
-        fig_h = go.Figure(
-            go.Heatmap(
-                z=pv.values,
-                x=list(pv.columns),
-                y=list(pv.index),
-        
-                colorscale="RdYlGn_r",
-        
-                zmin=0,
-                zmax=100,
-        
-                text=np.round(pv.values, 1),
-                texttemplate="%{text}%",
-        
-                hovertemplate=
-                "<b>%{y}</b> → %{x}<br>"
-                "Delay Rate: %{z:.1f}%<extra></extra>",
-        
-                colorbar=dict(
-                    title="Delay %",
-                    titleside="right"
-                )
-            )
-        )
-        
-        fig_h.update_layout(
-            **CD(),
-            height=320,
-        
-            xaxis=dict(
-                title="Region",
-                tickangle=-25,
-                showgrid=False
-            ),
-        
-            yaxis=dict(
-                title="Courier Partner",
-                showgrid=False
-            ),
-        
-            title=dict(
-                text="Carrier vs Region Delay Heatmap",
-                font=dict(size=13)
-            )
-        )
-        
-        st.plotly_chart(fig_h, use_container_width=True)
+        fig_h = go.Figure(go.Heatmap(
+            z=pv.values, x=list(pv.columns), y=list(pv.index),
+            colorscale=[[0, "#0d1829"], [0.4, "#7c4fd0"], [0.7, "#e87adb"], [1, "#EF4444"]],
+            text=np.round(pv.values, 1), texttemplate="%{text}%", textfont=dict(size=10),
+            colorbar=dict(tickfont=dict(color="#8a9dc0", size=10)),
+        ))
+        fig_h.update_layout(**CD(), height=260,
+                            xaxis=dict(showgrid=False, tickangle=-25, color="#64748b"),
+                            yaxis=dict(showgrid=False, color="#64748b"),
+                            title=dict(text=f"% orders delayed beyond {delay_thr}d · carrier × region",
+                                       font=dict(size=11, color="#64748b")))
+        st.plotly_chart(fig_h, use_container_width=True, key="log_heat")
     with t2:
         total_sav = opt["Potential_Saving"].sum()
         c1, c2, c3, c4 = st.columns(4)
@@ -1818,7 +1748,7 @@ def page_logistics() -> None:
         sp(0.5)
         # Shared delay data using the single threshold slider from Tab 1
         del_df_t2 = del_df.copy()
-        del_df_t2["Delayed"] = del_df_t2["Delivery_Days"] > DEFAULT_LEAD_TIME
+        del_df_t2["Delayed"] = del_df_t2["Delivery_Days"] > delay_thr
         tb1, tb2 = st.columns(2, gap="large")
         with tb1:
             sec("Region Cost — Current vs Optimal")
