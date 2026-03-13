@@ -30,14 +30,14 @@ DEFAULT_LEAD_TIME  = 7
 DEFAULT_SERVICE_Z  = 1.65
 N_FUTURE_MONTHS    = 6
 MIN_HISTORY_MONTHS = 6
-N_ESTIMATORS_RF    = 100
-MAX_DEPTH_RF       = 2
-MIN_SAMPLES_LEAF   = 5
-N_ESTIMATORS_GB    = 80
-MAX_DEPTH_GB       = 2
-LEARNING_RATE_GB   = 0.08
-SUBSAMPLE_GB       = 0.9
-RIDGE_ALPHA        = 1.0
+N_ESTIMATORS_RF    = 200      # more trees = more stable averaging
+MAX_DEPTH_RF       = 3        # depth 3 captures enough nonlinearity for 24 months
+MIN_SAMPLES_LEAF   = 2        # smaller leaf = better fit on small datasets
+N_ESTIMATORS_GB    = 120      # more boosting rounds = lower bias
+MAX_DEPTH_GB       = 3        # slightly deeper for better interaction capture
+LEARNING_RATE_GB   = 0.05     # slower learning = better generalisation
+SUBSAMPLE_GB       = 0.85     # slight stochasticity reduces overfit
+RIDGE_ALPHA        = 0.1      # weaker regularisation = closer fit to seasonal patterns
 CI_Z               = 1.645
 MIN_REGIME_IDX     = 6
 MARGIN_RATE        = 0.20
@@ -187,11 +187,13 @@ def _to_ts(idx) -> pd.DatetimeIndex:
 
 def _make_models(n_train: int = 20) -> dict:
     return {
-        "Ridge": Ridge(alpha=RIDGE_ALPHA),
+        "Ridge": Ridge(alpha=RIDGE_ALPHA, fit_intercept=True),
         "RandomForest": RandomForestRegressor(
             n_estimators=N_ESTIMATORS_RF,
             max_depth=MAX_DEPTH_RF,
             min_samples_leaf=MIN_SAMPLES_LEAF,
+            max_features=0.8,          # use 80% of features per split — reduces variance
+            min_weight_fraction_leaf=0.05,
             random_state=42,
         ),
         "GradBoost": GradientBoostingRegressor(
@@ -199,6 +201,8 @@ def _make_models(n_train: int = 20) -> dict:
             max_depth=MAX_DEPTH_GB,
             learning_rate=LEARNING_RATE_GB,
             subsample=SUBSAMPLE_GB,
+            min_samples_leaf=2,
+            max_features=0.8,          # feature subsampling per split
             random_state=42,
         )
     }
