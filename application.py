@@ -1452,42 +1452,13 @@ def page_demand() -> None:
     ops["YM"] = ops["Order_Date"].dt.to_period("M")
     st.markdown("<div class='page-title'>Demand Forecasting</div>", unsafe_allow_html=True)
     horizon_badge(n_future)
+
+    # ── Forecast section ──────────────────────────────────────────────────
     sec("Ensemble Model Quality")
     m_orders = ops.groupby("YM")["Order_ID"].count().rename("v")
     res_ov   = ml_forecast(m_orders.values.astype(float), m_orders.index, n_future)
     if res_ov:
         render_model_quality(res_ov)
-    sp()
-    if res_ov and "model_metrics" in res_ov:
-        sec("Model Accuracy Comparison")
-        mm     = res_ov["model_metrics"]
-        labels = [m for m in ["Ridge", "RandomForest", "GradBoost", "Ensemble"] if m in mm]
-        r2_vals    = [mm[m]["r2"]          for m in labels]
-        nrmse_vals = [mm[m]["nrmse"] * 100 for m in labels]
-        clrs       = [MODEL_COLORS.get(m, "#888") for m in labels]
-        bc1, bc2 = st.columns(2, gap="large")
-        with bc1:
-            fig = go.Figure(go.Bar(x=labels, y=r2_vals,
-                marker=dict(color=clrs, line=dict(color="rgba(0,0,0,0)")),
-                text=[f"{v:.3f}" for v in r2_vals], textposition="outside",
-                textfont=dict(color="#334155")))
-            fig.add_hline(y=0.9, line_dash="dash", line_color="#22C55E",
-                annotation_text=" Target R²=0.90", annotation_font=dict(color="#22C55E", size=10))
-            fig.update_layout(**CD(), height=240, xaxis=gX(),
-                yaxis={**gY(), "title":"R² Score","range":[0,1.1]},
-                title=dict(text="R² Score (higher = better)", font=dict(size=11, color="#64748b")))
-            st.plotly_chart(fig, use_container_width=True, key="d_r2")
-        with bc2:
-            fig2 = go.Figure(go.Bar(x=labels, y=nrmse_vals,
-                marker=dict(color=clrs, line=dict(color="rgba(0,0,0,0)")),
-                text=[f"{v:.1f}%" for v in nrmse_vals], textposition="outside",
-                textfont=dict(color="#334155")))
-            fig2.add_hline(y=15, line_dash="dash", line_color="#22C55E",
-                annotation_text=" Target <15%", annotation_font=dict(color="#22C55E", size=10))
-            fig2.update_layout(**CD(), height=240, xaxis=gX(),
-                yaxis={**gY(), "title":"NRMSE (%)"},
-                title=dict(text="NRMSE % (lower = better)", font=dict(size=11, color="#64748b")))
-            st.plotly_chart(fig2, use_container_width=True, key="d_nrmse")
     sp()
     c1, c2 = st.columns([2, 2])
     metric_opt = c1.selectbox("Metric", ["Orders", "Quantity", "Net Revenue"], key="d_metric")
@@ -1521,9 +1492,9 @@ def page_demand() -> None:
         grp_map = {"Category": "Category", "Region": "Region", "Sales Channel": "Sales_Channel"}
         grp     = grp_map[level_opt]
         top     = ops[grp].value_counts().index.tolist()
-        tabs    = st.tabs(top)
-        for i, (tab, val) in enumerate(zip(tabs, top)):
-            with tab:
+        tabs_bd = st.tabs(top)
+        for i, (tab_bd, val) in enumerate(zip(tabs_bd, top)):
+            with tab_bd:
                 draw_with_table(get_series(ops[ops[grp] == val]), title=val, chart_key=f"d_bd_{i}")
     sp()
     sec("YoY Revenue Growth by Category")
@@ -1545,6 +1516,349 @@ def page_demand() -> None:
             })
         st.dataframe(pd.DataFrame(rows).sort_values(f"Next {n_future}M Proj ₹M", ascending=False),
             use_container_width=True, hide_index=True)
+
+    st.markdown("<hr style='border:none;border-top:2px solid #e5e7eb;margin:28px 0'>", unsafe_allow_html=True)
+
+    # ── Model Comparison (inline, no separate tab) ────────────────────────
+    if True:
+        st.markdown(
+            "<div style='font-size:12.5px;color:#64748b;margin-bottom:18px;line-height:1.6'>"
+            "Benchmark <b>Ridge Regression</b>, <b>Random Forest</b>, <b>Gradient Boosting</b> and their "
+            "<b>Inverse-RMSE Ensemble</b> across every metric series. "
+            "Best model per series is selected by lowest NRMSE on the hold-out window."
+            "</div>", unsafe_allow_html=True)
+
+        SERIES_OPTIONS: dict[str, tuple] = {
+            "Overall Orders":   ("Order_ID",    "Overall"),
+            "Overall Quantity": ("Net_Qty",     "Overall"),
+            "Overall Revenue":  ("Net_Revenue", "Overall"),
+        }
+        for cat in sorted(ops["Category"].unique()):
+            SERIES_OPTIONS[f"Qty — {cat}"]     = ("Net_Qty",     cat)
+            SERIES_OPTIONS[f"Revenue — {cat}"] = ("Net_Revenue", cat)
+
+        ms1, ms2 = st.columns([3, 1])
+        chosen = ms1.multiselect("Select series to benchmark",
+            list(SERIES_OPTIONS.keys()),
+            default=["Overall Orders", "Overall Quantity", "Overall Revenue"],
+            key="mc_series")
+        show_charts = ms2.toggle("Show forecast charts", value=False, key="mc_charts")
+
+        if not chosen:
+            st.info("Select at least one series above.")
+        else:
+            # Run all models
+            all_results: dict[str, dict | None] = {}
+            prog = st.progress(0, text="Running models…")
+            for idx, sname in enumerate(chosen):
+                col_key, level = SERIES_OPTIONS[sname]
+                if level == "Overall":
+                    series = (ops.groupby("YM")["Order_ID"].count() if col_key == "Order_ID"
+                              else ops.groupby("YM")[col_key].sum()).rename("v")
+                else:
+                    sub    = ops[ops["Category"] == level]
+                    series = sub.groupby("YM")[col_key].sum().rename("v")
+                all_results[sname] = _run_all_models_on_series(series.values.astype(float), series.index, n_future)
+                prog.progress((idx + 1) / len(chosen), text=f"Benchmarked: {sname}")
+            prog.empty()
+
+            MODEL_ORDER = ["Ridge", "RandomForest", "GradBoost", "Ensemble"]
+            MC = MODEL_COLORS
+
+            # ── Global benchmark table ────────────────────────────────────
+            sec("📊 Global Benchmark — All Series × All Models")
+            summary_rows = []
+            for sname, res in all_results.items():
+                if res is None: continue
+                best_m = min([m for m in MODEL_ORDER if m in res["metrics"]], key=lambda m: res["metrics"][m]["nrmse"])
+                for model in MODEL_ORDER:
+                    if model not in res["metrics"]: continue
+                    m = res["metrics"][model]
+                    grade, _ = _mc_grade(m["nrmse"], m["r2"])
+                    summary_rows.append({
+                        "Series":  sname, "Model": model,
+                        "RMSE":    round(m["rmse"], 2), "MAE": round(m["mae"], 2),
+                        "NRMSE %": round(m["nrmse"] * 100, 2), "MAPE %": round(m["mape"], 2),
+                        "R²":      round(m["r2"], 4), "Grade": grade,
+                        "Best?":   "✅ Winner" if model == best_m else "",
+                    })
+            df_summ = pd.DataFrame(summary_rows)
+
+            def _hl(row):
+                return ["background-color:#f0fdf4;font-weight:700"]*len(row) if row["Best?"]=="✅ Winner" else [""]*len(row)
+
+            st.dataframe(df_summ.style.apply(_hl, axis=1).format({
+                "RMSE":"{:.2f}","MAE":"{:.2f}","NRMSE %":"{:.2f}","MAPE %":"{:.2f}","R²":"{:.4f}"}),
+                use_container_width=True, hide_index=True, height=min(40*len(df_summ)+40, 520))
+            sp()
+
+            # ── Leaderboard cards ─────────────────────────────────────────
+            sec("🏆 Model Leaderboard")
+            win_counts     = df_summ[df_summ["Best?"]=="✅ Winner"]["Model"].value_counts().reindex(MODEL_ORDER, fill_value=0)
+            avg_nrmse_mc   = df_summ.groupby("Model")["NRMSE %"].mean().reindex(MODEL_ORDER)
+            avg_r2_mc      = df_summ.groupby("Model")["R²"].mean().reindex(MODEL_ORDER)
+            overall_winner = win_counts.idxmax()
+            total_series   = len([s for s in all_results.values() if s is not None])
+
+            lc = st.columns(4)
+            for col_lb, mname in zip(lc, MODEL_ORDER):
+                wins  = int(win_counts.get(mname, 0))
+                nrmse = float(avg_nrmse_mc.get(mname, 0))
+                r2    = float(avg_r2_mc.get(mname, 0))
+                grade, gclr = _mc_grade(nrmse/100, r2)
+                is_best = (mname == overall_winner)
+                border  = f"3px solid {MC[mname]}" if is_best else "1px solid #e5e7eb"
+                crown   = "👑 " if is_best else ""
+                best_badge = ("<div style='position:absolute;top:-11px;left:50%;transform:translateX(-50%);"
+                    "background:#fef9c3;border:1px solid #fbbf24;border-radius:12px;padding:2px 10px;"
+                    "font-size:10px;font-weight:800;color:#a16207;white-space:nowrap'>BEST OVERALL</div>"
+                    if is_best else "")
+                col_lb.markdown(
+                    f"""<div style='background:white;border:{border};border-radius:14px;
+                         padding:18px 16px;text-align:center;
+                         box-shadow:{"0 0 0 3px "+MC[mname]+"33,0 8px 24px "+MC[mname]+"22" if is_best else "0 4px 16px rgba(0,0,0,0.07)"};
+                         position:relative;margin-top:12px'>
+                      {best_badge}
+                      <div style='font-size:14px;font-weight:800;color:{MC[mname]};margin-bottom:10px'>{crown}{mname}</div>
+                      <div style='font-size:40px;font-weight:900;color:#0f172a;line-height:1'>{wins}</div>
+                      <div style='font-size:10px;color:#94a3b8;text-transform:uppercase;font-family:DM Mono;margin-bottom:10px'>series wins / {total_series}</div>
+                      <div style='display:grid;grid-template-columns:1fr 1fr;gap:6px'>
+                        <div style='background:#f8fafc;border-radius:8px;padding:7px'>
+                          <div style='font-size:8px;color:#94a3b8;font-family:DM Mono'>AVG NRMSE</div>
+                          <div style='font-size:16px;font-weight:800;color:{MC[mname]}'>{nrmse:.1f}%</div>
+                        </div>
+                        <div style='background:#f8fafc;border-radius:8px;padding:7px'>
+                          <div style='font-size:8px;color:#94a3b8;font-family:DM Mono'>AVG R²</div>
+                          <div style='font-size:16px;font-weight:800;color:{MC[mname]}'>{r2:.3f}</div>
+                        </div>
+                      </div>
+                      <div style='margin-top:10px;background:{gclr}22;border:1px solid {gclr}55;border-radius:8px;padding:5px'>
+                        <span style='font-size:14px;font-weight:800;color:{gclr}'>Grade {grade}</span>
+                      </div>
+                    </div>""", unsafe_allow_html=True)
+            sp()
+
+            # ── NRMSE + R² bars ───────────────────────────────────────────
+            sec("📉 NRMSE & R² — Side-by-Side Comparison")
+            bc1, bc2 = st.columns(2, gap="large")
+            pivot_nrmse = df_summ.pivot_table(index="Series", columns="Model", values="NRMSE %")
+            pivot_r2    = df_summ.pivot_table(index="Series", columns="Model", values="R²")
+            with bc1:
+                fig_nrmse = go.Figure()
+                for mname in MODEL_ORDER:
+                    if mname not in pivot_nrmse.columns: continue
+                    fig_nrmse.add_trace(go.Bar(name=mname, x=pivot_nrmse.index, y=pivot_nrmse[mname],
+                        marker=dict(color=MC[mname], opacity=0.85, line=dict(color="rgba(0,0,0,0)")),
+                        text=[f"{v:.1f}%" for v in pivot_nrmse[mname]], textposition="outside",
+                        textfont=dict(color="#334155", size=8)))
+                fig_nrmse.add_hline(y=15, line_dash="dash", line_color="#22c55e",
+                    annotation_text=" 15% target", annotation_font=dict(color="#22c55e", size=9))
+                fig_nrmse.update_layout(**CD(), height=300, barmode="group",
+                    xaxis={**gX(),"tickangle":-30,"tickfont":dict(size=9)},
+                    yaxis={**gY(),"title":"NRMSE %"},
+                    legend={**leg(),"orientation":"h","y":-0.4},
+                    title=dict(text="NRMSE % (lower = better)", font=dict(size=11, color="#64748b")))
+                st.plotly_chart(fig_nrmse, use_container_width=True, key="mc_nrmse")
+            with bc2:
+                fig_r2mc = go.Figure()
+                for mname in MODEL_ORDER:
+                    if mname not in pivot_r2.columns: continue
+                    fig_r2mc.add_trace(go.Bar(name=mname, x=pivot_r2.index, y=pivot_r2[mname],
+                        marker=dict(color=MC[mname], opacity=0.85, line=dict(color="rgba(0,0,0,0)")),
+                        text=[f"{v:.3f}" for v in pivot_r2[mname]], textposition="outside",
+                        textfont=dict(color="#334155", size=8)))
+                fig_r2mc.add_hline(y=0.90, line_dash="dash", line_color="#22c55e",
+                    annotation_text=" R²=0.90 target", annotation_font=dict(color="#22c55e", size=9))
+                fig_r2mc.update_layout(**CD(), height=300, barmode="group",
+                    xaxis={**gX(),"tickangle":-30,"tickfont":dict(size=9)},
+                    yaxis={**gY(),"title":"R² Score","range":[0,1.12]},
+                    legend={**leg(),"orientation":"h","y":-0.4},
+                    title=dict(text="R² Score (higher = better)", font=dict(size=11, color="#64748b")))
+                st.plotly_chart(fig_r2mc, use_container_width=True, key="mc_r2")
+            sp()
+
+            # ── Radar ──────────────────────────────────────────────────────
+            sec("🕸️ Multi-Metric Radar — Normalised Profile")
+            radar_rows = []
+            for mname in MODEL_ORDER:
+                sub = df_summ[df_summ["Model"] == mname]
+                if sub.empty: continue
+                radar_rows.append({
+                    "Model":                   mname,
+                    "Accuracy\n(1-NRMSE)":     max(0, 1 - sub["NRMSE %"].mean()/100),
+                    "Low Error\n(1-MAPE)":     max(0, 1 - sub["MAPE %"].mean()/100),
+                    "R² Score":                sub["R²"].mean(),
+                    "Consistency\n(1-σNRMSE)": max(0, 1 - sub["NRMSE %"].std()/100),
+                })
+            radar_df   = pd.DataFrame(radar_rows)
+            radar_cats = ["Accuracy\n(1-NRMSE)", "Low Error\n(1-MAPE)", "R² Score", "Consistency\n(1-σNRMSE)"]
+            fig_radar  = go.Figure()
+            for _, row_r in radar_df.iterrows():
+                mname  = row_r["Model"]
+                vals_r = [float(row_r[c]) for c in radar_cats]
+                fig_radar.add_trace(go.Scatterpolar(
+                    r=vals_r + [vals_r[0]], theta=radar_cats + [radar_cats[0]],
+                    fill="toself", name=mname,
+                    line=dict(color=MC[mname], width=2.2),
+                    fillcolor=MC[mname] + "22"))
+            fig_radar.update_layout(**CD(), height=370,
+                polar=dict(
+                    radialaxis=dict(visible=True, range=[0,1], tickfont=dict(size=9, color="#94a3b8")),
+                    angularaxis=dict(tickfont=dict(size=10, color="#334155")),
+                    bgcolor="rgba(0,0,0,0)"),
+                legend={**leg(),"orientation":"h"},
+                title=dict(text="All axes normalised 0–1 (higher = better)",
+                           font=dict(size=11, color="#64748b")))
+            st.plotly_chart(fig_radar, use_container_width=True, key="mc_radar")
+            sp()
+
+            # ── Per-series deep dive ──────────────────────────────────────
+            sec("🔍 Per-Series Deep Dive")
+            valid = [s for s in chosen if all_results.get(s) is not None]
+            chosen_deep = st.selectbox("Select series to inspect", valid, key="mc_deep")
+            res_deep = all_results.get(chosen_deep)
+            if res_deep:
+                best_m_deep = min([m for m in MODEL_ORDER if m in res_deep["metrics"]],
+                                  key=lambda m: res_deep["metrics"][m]["nrmse"])
+                m_best = res_deep["metrics"][best_m_deep]
+                st.markdown(
+                    f"<div style='background:linear-gradient(135deg,#f0fdf4,#fff);"
+                    f"border:1px solid #86efac;border-left:5px solid #22c55e;"
+                    f"border-radius:12px;padding:12px 16px;margin-bottom:16px'>"
+                    f"<span style='font-size:12px;color:#15803d;font-weight:700'>🏆 Best model for «{chosen_deep}»: </span>"
+                    f"<span style='background:{MC[best_m_deep]}22;color:{MC[best_m_deep]};border:1px solid {MC[best_m_deep]}44;"
+                    f"padding:3px 10px;border-radius:20px;font-size:11px;font-weight:800;font-family:DM Mono'>{best_m_deep}</span>"
+                    f"<span style='font-size:11px;color:#64748b;margin-left:8px'>"
+                    f"NRMSE {m_best['nrmse']*100:.2f}% · R² {m_best['r2']:.4f} · MAPE {m_best['mape']:.2f}%</span>"
+                    f"</div>", unsafe_allow_html=True)
+                deep_rows = []
+                for mname in MODEL_ORDER:
+                    if mname not in res_deep["metrics"]: continue
+                    m = res_deep["metrics"][mname]
+                    grade, gclr = _mc_grade(m["nrmse"], m["r2"])
+                    deep_rows.append({
+                        "Model": mname, "RMSE": round(m["rmse"],2), "MAE": round(m["mae"],2),
+                        "NRMSE %": round(m["nrmse"]*100,2), "MAPE %": round(m["mape"],2),
+                        "R²": round(m["r2"],4), "Grade": grade,
+                        "Best?": "✅" if mname == best_m_deep else "",
+                    })
+                deep_df = pd.DataFrame(deep_rows)
+                st.dataframe(deep_df.style.apply(_hl, axis=1), use_container_width=True, hide_index=True)
+                w = res_deep.get("weights", {})
+                if w:
+                    tot_w = sum(w.values())
+                    st.markdown(
+                        "<div style='background:#f8faff;border:1px solid #c7d7fd;border-radius:8px;"
+                        "padding:10px 14px;font-size:11px;margin:8px 0'>"
+                        "<b style='color:#1e3a8a'>Ensemble inverse-RMSE blend: </b>"
+                        + "".join([
+                            f"<span style='background:{MC[m]}22;color:{MC[m]};border:1px solid {MC[m]}44;"
+                            f"padding:2px 8px;border-radius:12px;font-weight:700;font-size:10px;margin:0 3px'>"
+                            f"{m} {w[m]/tot_w*100:.1f}%</span>"
+                            for m in _make_models() if m in w])
+                        + "</div>", unsafe_allow_html=True)
+                sp(0.5)
+                if show_charts:
+                    sec("📈 Forecast Chart — All Models vs Hold-out Actuals")
+                    MODEL_STYLES_MC = [
+                        ("Ridge",        "#3B82F6", "dot"),
+                        ("RandomForest", "#22C55E", "dashdot"),
+                        ("GradBoost",    "#F59E0B", "longdash"),
+                    ]
+                    fig_fc = go.Figure()
+                    x_ci = list(res_deep["fut_ds"]) + list(res_deep["fut_ds"])[::-1]
+                    y_ci = list(res_deep["ci_hi"]) + list(res_deep["ci_lo"])[::-1]
+                    fig_fc.add_trace(go.Scatter(x=x_ci, y=y_ci, fill="toself",
+                        fillcolor="rgba(139,92,246,0.07)", line=dict(color="rgba(0,0,0,0)"), name="Ensemble 90% CI"))
+                    fig_fc.add_vline(x=res_deep["fut_ds"][0], line_dash="dash",
+                        line_color="rgba(139,92,246,0.5)", line_width=1.5)
+                    fig_fc.add_trace(go.Scatter(x=res_deep["hist_ds"], y=res_deep["hist_y"], name="Actual",
+                        line=dict(color="#4a5e7a", width=2.2)))
+                    for mname, clr, dash in MODEL_STYLES_MC:
+                        if mname in res_deep["fitted_pm"]:
+                            is_b = (mname == best_m_deep)
+                            fig_fc.add_trace(go.Scatter(
+                                x=res_deep["hist_ds"], y=res_deep["fitted_pm"][mname],
+                                name=f"{mname} fit", line=dict(color=clr, width=1.8 if is_b else 1.2, dash=dash),
+                                opacity=0.7 if is_b else 0.45))
+                    fig_fc.add_trace(go.Scatter(x=res_deep["hist_ds"], y=res_deep["ens_fitted"],
+                        name="Ensemble fit", line=dict(color="#8B5CF6", width=1.8, dash="dot"), opacity=0.65))
+                    for mname, clr, dash in MODEL_STYLES_MC:
+                        if mname in res_deep["forecast_pm"]:
+                            is_b = (mname == best_m_deep)
+                            fig_fc.add_trace(go.Scatter(
+                                x=res_deep["fut_ds"], y=res_deep["forecast_pm"][mname],
+                                name=f"{mname} fc" + (" 🏆" if is_b else ""),
+                                line=dict(color=clr, width=3 if is_b else 1.5, dash=dash),
+                                mode="lines+markers",
+                                marker=dict(size=9 if is_b else 5, color=clr, line=dict(color="#fff", width=2))))
+                    fig_fc.add_trace(go.Scatter(x=res_deep["fut_ds"], y=res_deep["ens_forecast"],
+                        name="Ensemble fc" + (" 🏆" if best_m_deep=="Ensemble" else ""),
+                        line=dict(color="#8B5CF6", width=3, dash="dot"), mode="lines+markers",
+                        marker=dict(size=9, color="#8B5CF6", line=dict(color="#fff", width=2))))
+                    fig_fc.add_trace(go.Scatter(x=res_deep["eval_ds"], y=res_deep["eval_y"],
+                        name="Hold-out actuals", mode="markers",
+                        marker=dict(size=11, color="#EF4444", symbol="x", line=dict(color="#fff", width=2))))
+                    fig_fc.update_layout(**CD(), height=360, xaxis=gX(), yaxis=gY(), legend=leg(),
+                        title=dict(text=f"{chosen_deep} — all models", font=dict(size=11, color="#64748b")))
+                    st.plotly_chart(fig_fc, use_container_width=True, key="mc_fc_chart")
+                    sp(0.5)
+                    sec("📐 Residual Analysis (Ensemble fit)")
+                    rc1, rc2 = st.columns(2, gap="large")
+                    residuals = res_deep["hist_y"] - res_deep["ens_fitted"]
+                    with rc1:
+                        fig_res = go.Figure()
+                        fig_res.add_trace(go.Scatter(x=list(res_deep["hist_ds"]), y=list(residuals),
+                            mode="markers+lines", line=dict(color="#8B5CF6", width=1.2),
+                            marker=dict(size=6, color=residuals, colorscale="RdYlGn_r",
+                                        line=dict(color="#fff", width=1)), name="Residual"))
+                        fig_res.add_hline(y=0, line_dash="dash", line_color="rgba(0,0,0,0.2)")
+                        fig_res.update_layout(**CD(), height=220, xaxis=gX(),
+                            yaxis={**gY(),"title":"Actual − Fitted"},
+                            title=dict(text="Residuals over Time", font=dict(size=11, color="#64748b")))
+                        st.plotly_chart(fig_res, use_container_width=True, key="mc_res_ts")
+                    with rc2:
+                        fig_hist_mc = go.Figure(go.Histogram(x=residuals, nbinsx=12,
+                            marker=dict(color="#8B5CF6", opacity=0.75, line=dict(color="#fff", width=1))))
+                        fig_hist_mc.add_vline(x=0, line_dash="dash", line_color="rgba(0,0,0,0.3)")
+                        fig_hist_mc.update_layout(**CD(), height=220,
+                            xaxis={**gX(),"title":"Residual value"}, yaxis={**gY(),"title":"Count"},
+                            title=dict(text="Residual Distribution", font=dict(size=11, color="#64748b")))
+                        st.plotly_chart(fig_hist_mc, use_container_width=True, key="mc_res_hist")
+            sp()
+
+            # ── Final recommendation ──────────────────────────────────────
+            sec("✅ Recommendation")
+            tw     = int(win_counts.get(overall_winner, 0))
+            avn    = float(avg_nrmse_mc.get(overall_winner, 0))
+            avr    = float(avg_r2_mc.get(overall_winner, 0))
+            gw, gc = _mc_grade(avn/100, avr)
+            st.markdown(
+                f"""<div style='background:linear-gradient(135deg,#fdf4ff,#fff);
+                     border:1px solid #d8b4fe;border-left:5px solid #8B5CF6;
+                     border-radius:14px;padding:22px 26px'>
+                  <div style='font-size:13px;font-weight:800;color:#6b21a8;margin-bottom:10px'>
+                    Overall Best Model for This Dataset
+                  </div>
+                  <div style='display:flex;align-items:center;gap:18px;flex-wrap:wrap'>
+                    <div style='font-size:36px;font-weight:900;color:{MC[overall_winner]}'>{overall_winner}</div>
+                    <div><div style='font-size:10px;color:#94a3b8;font-family:DM Mono'>SERIES WINS</div>
+                      <div style='font-size:22px;font-weight:800;color:#0f172a'>{tw} / {total_series}</div></div>
+                    <div><div style='font-size:10px;color:#94a3b8;font-family:DM Mono'>AVG NRMSE</div>
+                      <div style='font-size:22px;font-weight:800;color:#0f172a'>{avn:.1f}%</div></div>
+                    <div><div style='font-size:10px;color:#94a3b8;font-family:DM Mono'>AVG R²</div>
+                      <div style='font-size:22px;font-weight:800;color:#0f172a'>{avr:.3f}</div></div>
+                    <div style='background:{gc}22;border:1px solid {gc};border-radius:10px;padding:10px 18px'>
+                      <div style='font-size:9px;color:#64748b;font-family:DM Mono'>GRADE</div>
+                      <div style='font-size:26px;font-weight:900;color:{gc}'>{gw}</div>
+                    </div>
+                  </div>
+                  <div style='margin-top:14px;font-size:12px;color:#475569;line-height:1.7;border-top:1px solid #e5e7eb;padding-top:12px'>
+                    <b>{overall_winner}</b> wins the most series by lowest NRMSE on the hold-out window.
+                    The <b>Ensemble</b> blends all three models using inverse-RMSE weights — recommended
+                    for production as it's consistently competitive across all horizon lengths.
+                  </div>
+                </div>""", unsafe_allow_html=True)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1974,120 +2288,152 @@ def page_logistics() -> None:
 
         sp(0.5)
 
-        # ── IMPROVED Delay Heatmap ─────────────────────────────────────────
-        sec("Carrier × Region Delay & Performance Heatmap")
-        hm_metric = st.selectbox(
-            "Heatmap metric",
-            ["Delay Rate %", "Avg Delivery Days", "Avg Cost ₹", "Return Rate %", "Performance Score"],
-            key="hm_metric")
+        # ── Polished Delay Heatmap ─────────────────────────────────────────
+        sec("Carrier × Region — Delay Rate Heatmap")
+
         delay_thr = st.slider("Delay threshold (days)", 3, 10, DEFAULT_LEAD_TIME, key="log_thr")
 
-        del_df_delayed = del_df.copy()
-        del_df_delayed["Delayed"] = del_df_delayed["Delivery_Days"] > delay_thr
+        del_df_h = del_df.copy()
+        del_df_h["Delayed"] = del_df_h["Delivery_Days"] > delay_thr
 
-        # Build region×carrier pivot for each metric
-        region_carrier_stats = del_df_delayed.groupby(["Courier_Partner","Region"]).agg(
-            Orders    = ("Order_ID",          "count"),
-            Delayed   = ("Delayed",           "mean"),
-            Avg_Days  = ("Delivery_Days",      "mean"),
-            Avg_Cost  = ("Shipping_Cost_INR",  "mean"),
+        rc_stats = del_df_h.groupby(["Courier_Partner", "Region"]).agg(
+            Orders   = ("Order_ID",      "count"),
+            Delayed  = ("Delayed",       "mean"),
+            Avg_Days = ("Delivery_Days", "mean"),
         ).reset_index()
-        ret_stats = df.groupby(["Courier_Partner","Region"])["Return_Flag"].mean().reset_index()
-        ret_stats.columns = ["Courier_Partner","Region","Return_Rate"]
-        region_carrier_stats = region_carrier_stats.merge(ret_stats, on=["Courier_Partner","Region"], how="left")
-        region_carrier_stats["Return_Rate"] = region_carrier_stats["Return_Rate"].fillna(0)
 
-        # Compute composite score per carrier×region
-        for col_c in ["Avg_Days","Avg_Cost","Return_Rate"]:
-            mn_c = region_carrier_stats[col_c].min(); mx_c = region_carrier_stats[col_c].max()
-            region_carrier_stats[f"N_{col_c}"] = 1 - (region_carrier_stats[col_c]-mn_c)/(mx_c-mn_c+1e-9)
-        region_carrier_stats["Score"] = (
-            w_speed   * region_carrier_stats["N_Avg_Days"]
-            + w_cost  * region_carrier_stats["N_Avg_Cost"]
-            + w_returns * region_carrier_stats["N_Return_Rate"])
+        pv_delay = rc_stats.pivot_table(
+            index="Courier_Partner", columns="Region",
+            values="Delayed", aggfunc="mean"
+        ).fillna(0)
 
-        metric_col_map = {
-            "Delay Rate %":       ("Delayed",     lambda v: f"{v*100:.1f}%",  True),
-            "Avg Delivery Days":  ("Avg_Days",    lambda v: f"{v:.1f}d",      True),
-            "Avg Cost ₹":         ("Avg_Cost",    lambda v: f"₹{v:.0f}",      True),
-            "Return Rate %":      ("Return_Rate", lambda v: f"{v*100:.1f}%",  True),
-            "Performance Score":  ("Score",       lambda v: f"{v:.3f}",       False),
-        }
-        metric_col, fmt_fn, lower_is_better = metric_col_map[hm_metric]
+        pv_days = rc_stats.pivot_table(
+            index="Courier_Partner", columns="Region",
+            values="Avg_Days", aggfunc="mean"
+        ).fillna(0)
 
-        pv = region_carrier_stats.pivot_table(
-            index="Courier_Partner", columns="Region", values=metric_col, aggfunc="mean")
-        pv_display = pv.copy()
-        if metric_col in ["Delayed","Return_Rate"]:
-            pv_display = pv_display * 100
+        # Polished colorscale: green → yellow → red (classic traffic-light, clean)
+        hm_colorscale = [
+            [0.00, "#dcfce7"],
+            [0.25, "#86efac"],
+            [0.50, "#fde68a"],
+            [0.75, "#fca5a5"],
+            [1.00, "#dc2626"],
+        ]
 
-        # Color scales: red-bad-green-good or reverse
-        if lower_is_better:
-            colorscale = [[0,"#0d1829"],[0.25,"#1e3a8a"],[0.5,"#7c4fd0"],[0.75,"#f59e0b"],[1,"#ef4444"]]
-        else:  # higher is better (score)
-            colorscale = [[0,"#ef4444"],[0.3,"#f59e0b"],[0.6,"#22c55e"],[1,"#059669"]]
+        # Cell text: "XX.X% / Y.Yd"
+        carriers = list(pv_delay.index)
+        regions  = list(pv_delay.columns)
+        cell_text = []
+        for carrier in carriers:
+            row_text = []
+            for region in regions:
+                d_rate = pv_delay.loc[carrier, region] * 100 if region in pv_delay.columns else 0
+                d_days = pv_days.loc[carrier, region] if region in pv_days.columns else 0
+                row_text.append(f"{d_rate:.0f}%<br>{d_days:.1f}d")
+            cell_text.append(row_text)
 
-        # Text labels for cells
-        text_labels = np.vectorize(fmt_fn)(pv.values)
+        # Adaptive text colour: dark text on light cells, white on dark
+        flat_vals = pv_delay.values.flatten()
+        vmin, vmax = float(np.nanmin(flat_vals)), float(np.nanmax(flat_vals))
 
         fig_h = go.Figure(go.Heatmap(
-            z=pv_display.values,
-            x=list(pv_display.columns),
-            y=list(pv_display.index),
-            colorscale=colorscale,
-            text=text_labels,
+            z=(pv_delay.values * 100),          # show as %
+            x=regions,
+            y=carriers,
+            text=cell_text,
             texttemplate="%{text}",
-            textfont=dict(size=11, color="white"),
+            textfont=dict(size=11, family="DM Mono, monospace", color="#1e293b"),
+            colorscale=hm_colorscale,
+            zmin=0, zmax=min(vmax * 100 * 1.05, 100),
+            showscale=True,
             colorbar=dict(
-                tickfont=dict(color="#64748b", size=10),
-                len=0.85, thickness=14,
-                title=dict(text=hm_metric, font=dict(size=10, color="#64748b"))),
-            hovertemplate="<b>%{y}</b> → <b>%{x}</b><br>" + hm_metric + ": %{text}<extra></extra>"))
+                title=dict(text="Delay %", font=dict(size=11, color="#64748b")),
+                ticksuffix="%",
+                tickfont=dict(size=10, color="#64748b"),
+                thickness=12, len=0.85,
+                outlinewidth=0,
+                bgcolor="rgba(255,255,255,0)",
+            ),
+            hovertemplate=(
+                "<b>%{y}</b> → <b>%{x}</b><br>"
+                "Delay rate: %{z:.1f}%<br>"
+                "<extra></extra>"
+            ),
+            xgap=3, ygap=3,
+        ))
 
-        # Overlay: star best carrier per region
-        best_per_region_idx = pv_display.idxmin() if lower_is_better else pv_display.idxmax()
-        star_x, star_y = [], []
-        for region, carrier in best_per_region_idx.items():
-            if carrier in pv_display.index:
-                star_x.append(region)
-                star_y.append(carrier)
-        if star_x:
-            fig_h.add_trace(go.Scatter(
-                x=star_x, y=star_y, mode="markers",
-                marker=dict(symbol="star", size=16, color="#fbbf24",
-                    line=dict(color="#0f172a", width=1.5)),
-                name="Best per region", hoverinfo="skip"))
+        # Best-carrier marker per region (lowest delay rate)
+        best_per_region = pv_delay.idxmin()
+        fig_h.add_trace(go.Scatter(
+            x=list(best_per_region.index),
+            y=list(best_per_region.values),
+            mode="markers",
+            marker=dict(
+                symbol="circle-open",
+                size=28, color="rgba(0,0,0,0)",
+                line=dict(color="#1e3a8a", width=2.5),
+            ),
+            name="Best per region",
+            hoverinfo="skip",
+        ))
 
+        n_carriers = len(carriers)
+        n_regions  = len(regions)
         fig_h.update_layout(
-            **CD(), height=300,
-            xaxis=dict(showgrid=False, tickangle=-25, color="#64748b", side="bottom"),
-            yaxis=dict(showgrid=False, color="#64748b", automargin=True),
+            **CD(),
+            height=max(220, n_carriers * 64 + 80),
+            xaxis=dict(
+                showgrid=False, zeroline=False,
+                tickfont=dict(size=11, color="#334155", family="Inter,sans-serif"),
+                side="top",
+                tickangle=0,
+            ),
+            yaxis=dict(
+                showgrid=False, zeroline=False, autorange="reversed",
+                tickfont=dict(size=11, color="#334155", family="Inter,sans-serif"),
+                automargin=True,
+            ),
+            margin=dict(l=10, r=80, t=60, b=20),
+            plot_bgcolor="#f8fafc",
+            paper_bgcolor="rgba(0,0,0,0)",
+            legend=dict(
+                orientation="h", y=-0.14,
+                font=dict(size=10, color="#64748b"),
+                bgcolor="rgba(0,0,0,0)",
+            ),
             title=dict(
-                text=f"<b>{hm_metric}</b> per carrier × region | ★ = best carrier for that region (threshold: {delay_thr}d)",
-                font=dict(size=11, color="#64748b")),
-            legend={**leg(),"orientation":"h","y":-0.22})
-        st.plotly_chart(fig_h, use_container_width=True, key="log_heat_v2")
+                text=f"Delay rate (%) & avg days per carrier × region  ·  threshold: >{delay_thr}d  ·  ○ = best per region",
+                font=dict(size=11, color="#64748b"),
+                x=0, xanchor="left",
+            ),
+        )
+        st.plotly_chart(fig_h, use_container_width=True, key="log_heat_polished")
 
-        # ── Insight strip below heatmap ─────────────────────────────────
-        regions   = list(pv_display.columns)
-        insight_cols = st.columns(min(len(regions), 5), gap="small")
-        for col, region in zip(insight_cols, regions):
-            if lower_is_better:
-                best_c  = pv_display[region].idxmin()
-                worst_c = pv_display[region].idxmax()
-            else:
-                best_c  = pv_display[region].idxmax()
-                worst_c = pv_display[region].idxmin()
-            bv = pv_display[region][best_c]
-            wv = pv_display[region][worst_c]
-            col.markdown(
+        # Clean summary row — best/worst per region
+        sp(0.5)
+        n_show = min(len(regions), 9)
+        ins_cols = st.columns(n_show, gap="small")
+        for col_ins, region in zip(ins_cols, regions[:n_show]):
+            col_delay = pv_delay[region].dropna()
+            if col_delay.empty:
+                continue
+            best_c  = col_delay.idxmin()
+            worst_c = col_delay.idxmax()
+            bval    = col_delay[best_c] * 100
+            wval    = col_delay[worst_c] * 100
+            bdays   = pv_days.loc[best_c, region] if region in pv_days.columns and best_c in pv_days.index else 0
+            col_ins.markdown(
                 f"""<div style='background:white;border:1px solid #e5e7eb;border-radius:10px;
-                     padding:10px 10px;text-align:center'>
-                  <div style='font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:#94a3b8;font-family:DM Mono'>{region}</div>
-                  <div style='font-size:11px;font-weight:800;color:#22c55e;margin-top:4px'>✅ {best_c}</div>
-                  <div style='font-size:10px;color:#64748b'>{fmt_fn(pv[region][best_c])}</div>
-                  <div style='font-size:11px;font-weight:800;color:#ef4444;margin-top:4px'>⚠ {worst_c}</div>
-                  <div style='font-size:10px;color:#94a3b8'>{fmt_fn(pv[region][worst_c])}</div>
+                     padding:10px 8px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,0.04)'>
+                  <div style='font-size:9px;text-transform:uppercase;letter-spacing:.08em;
+                       color:#94a3b8;font-family:DM Mono,monospace;margin-bottom:6px'>{region}</div>
+                  <div style='font-size:10px;color:#15803d;font-weight:700'>✅ {best_c}</div>
+                  <div style='font-size:11px;font-weight:900;color:#15803d'>{bval:.0f}%</div>
+                  <div style='font-size:9px;color:#94a3b8;margin-bottom:5px'>{bdays:.1f}d avg</div>
+                  <div style='height:1px;background:#f1f5f9;margin:4px 0'></div>
+                  <div style='font-size:10px;color:#dc2626;font-weight:700'>⚠ {worst_c}</div>
+                  <div style='font-size:11px;font-weight:900;color:#dc2626'>{wval:.0f}%</div>
                 </div>""", unsafe_allow_html=True)
 
     # ── TAB 2: Cost & Delay ────────────────────────────────────────────────
@@ -2366,7 +2712,6 @@ def main() -> None:
         "Inventory Optimization": page_inventory,
         "Production Planning":    page_production,
         "Logistics Optimization": page_logistics,
-        "Model Comparison":       page_model_comparison,
         "Decision Intelligence":  page_chatbot,
     }
     sel = st.sidebar.radio("Navigation", list(PAGES.keys()))
