@@ -30,14 +30,14 @@ DEFAULT_LEAD_TIME  = 7
 DEFAULT_SERVICE_Z  = 1.65
 N_FUTURE_MONTHS    = 6
 MIN_HISTORY_MONTHS = 6
-N_ESTIMATORS_RF    = 300      # 300 trees — stable variance
-MAX_DEPTH_RF       = 3        # depth 3 — sweet spot for 20 training points
-MIN_SAMPLES_LEAF   = 3        # prevents overfitting on small leaves
-N_ESTIMATORS_GB    = 150      # enough rounds without memorising
-MAX_DEPTH_GB       = 2        # shallow GB avoids R²=1.0 overfit
-LEARNING_RATE_GB   = 0.05     # balanced learning rate
-SUBSAMPLE_GB       = 0.85     # row sampling regularisation
-RIDGE_ALPHA        = 0.1      # stable regularisation for seasonal Fourier fit
+N_ESTIMATORS_RF    = 500      # maximum tree count — averaging beats depth
+MAX_DEPTH_RF       = 2        # shallow trees — 20 pts cant support depth>2 reliably
+MIN_SAMPLES_LEAF   = 4        # 4 samples per leaf — strong regularisation
+N_ESTIMATORS_GB    = 150      # enough boosting rounds
+MAX_DEPTH_GB       = 2        # shallow stumps — proven best for small time series
+LEARNING_RATE_GB   = 0.05     # balanced
+SUBSAMPLE_GB       = 0.85     # row sampling
+RIDGE_ALPHA        = 0.1      # stable
 CI_Z               = 1.645
 MIN_REGIME_IDX     = 6
 MARGIN_RATE        = 0.20
@@ -192,7 +192,7 @@ def _make_models(n_train: int = 20) -> dict:
             n_estimators=N_ESTIMATORS_RF,
             max_depth=MAX_DEPTH_RF,
             min_samples_leaf=MIN_SAMPLES_LEAF,
-            max_features=0.75,         # 75% features per split — balanced bias/variance
+            max_features="log2",       # log2 features — most conservative, best for tiny datasets
             bootstrap=True,
             random_state=42,
         ),
@@ -201,7 +201,7 @@ def _make_models(n_train: int = 20) -> dict:
             max_depth=MAX_DEPTH_GB,
             learning_rate=LEARNING_RATE_GB,
             subsample=SUBSAMPLE_GB,
-            min_samples_leaf=3,        # prevents leaf-level memorisation
+            min_samples_leaf=4,
             max_features=0.75,
             random_state=42,
         )
@@ -236,108 +236,102 @@ def _detect_regime(vals: np.ndarray, min_idx: int = MIN_REGIME_IDX) -> int:
             best_idx   = i
     return best_idx
 
+def _make_pipe(mname: str, mdl) -> Pipeline:
+    """Ridge needs StandardScaler. Tree models (RF, GradBoost) do not."""
+    if mname == "Ridge":
+        return Pipeline([("scaler", StandardScaler()), ("model", mdl)])
+    return Pipeline([("model", mdl)])
+
 def ml_forecast(vals: np.ndarray, ds_idx, n_future: int = N_FUTURE_MONTHS) -> dict | None:
+    """
+    Clean single-pass evaluation:
+      1. Hold-out split: train on first (n-4), test on last 4  — for RMSE/MAE/weights
+      2. Full-fit on all n points                              — for R² and final forecast
+    All models evaluated on the SAME hold-out. Weights from hold-out RMSE (inverse).
+    No redundant training passes.
+    """
     n = len(vals)
     if n < MIN_HISTORY_MONTHS:
         return None
+
     regime_idx = _detect_regime(vals)
     X_all  = _build_features(n, n_future, ds_idx, regime_idx)
     X_hist = X_all[:n]
     X_fut  = X_all[n:]
-    mean_vals = np.mean(vals)
-    ss_tot    = np.sum((vals - mean_vals) ** 2)
+    mean_vals    = float(np.mean(vals))
+    ss_tot       = float(np.sum((vals - mean_vals) ** 2))
+    mean_holdout = float(np.mean(vals[-4:])) if np.mean(vals[-4:]) > 0 else 1.0
 
-    # ── Step 1: Hold-out split — train on first (n-4), test on last 4 ──
-    h             = 4
-    Xtr_h, ytr_h  = X_hist[:-h], vals[:-h]
-    Xte_h, yte_h  = X_hist[-h:], vals[-h:]
-    mean_holdout  = float(np.mean(yte_h)) if np.mean(yte_h) > 0 else 1.0
+    # ── PASS 1: Hold-out — train on (n-4), evaluate on last 4 ──────────────
+    # Used for: RMSE, NRMSE, MAE per model + ensemble weights
+    h            = 4
+    Xtr, ytr     = X_hist[:-h], vals[:-h]
+    Xte, yte     = X_hist[-h:], vals[-h:]
+    models       = _make_models(len(ytr))
 
-    # ── Step 2: Train each model on (n-4) pts → predict hold-out 4 pts ──
     holdout_preds: dict[str, np.ndarray] = {}
-    for mname, mdl in _make_models(len(ytr_h)).items():
-        pipe = Pipeline([("scaler", StandardScaler()), ("model", mdl)])
-        pipe.fit(Xtr_h, ytr_h)
-        holdout_preds[mname] = np.maximum(pipe.predict(Xte_h), 0)
+    holdout_rmse:  dict[str, float]      = {}
+    for mname, mdl in models.items():
+        pipe = _make_pipe(mname, mdl)
+        pipe.fit(Xtr, ytr)
+        pred                  = np.maximum(pipe.predict(Xte), 0)
+        holdout_preds[mname]  = pred
+        holdout_rmse[mname]   = float(np.sqrt(mean_squared_error(yte, pred)))
 
-    # ── Step 3: CV folds on (n-4) data → inverse-RMSE weights ──
-    n_tr      = len(ytr_h)
-    n_folds   = min(3, n_tr // 6)
-    fold_size = 2
-    fold_rmses: dict[str, list] = {m: [] for m in _make_models()}
-    for fold in range(n_folds):
-        te_end   = n_tr - fold * fold_size
-        te_start = te_end - fold_size
-        if te_start < MIN_HISTORY_MONTHS:
-            break
-        Xtr, ytr = Xtr_h[:te_start], ytr_h[:te_start]
-        Xte, yte = Xtr_h[te_start:te_end], ytr_h[te_start:te_end]
-        for mname, mdl in _make_models(len(ytr)).items():
-            pipe = Pipeline([("scaler", StandardScaler()), ("model", mdl)])
-            pipe.fit(Xtr, ytr)
-            ep = np.maximum(pipe.predict(Xte), 0)
-            fold_rmses[mname].append(np.sqrt(mean_squared_error(yte, ep)))
-    model_rmses: dict[str, float] = {}
-    for mname in fold_rmses:
-        model_rmses[mname] = np.mean(fold_rmses[mname]) if fold_rmses[mname] else 1.0
-    inv_rmse = {m: 1.0 / (r + 1e-9) for m, r in model_rmses.items()}
-    tot      = sum(inv_rmse.values())
-    weights  = {m: v / tot for m, v in inv_rmse.items()}
+    # Inverse-RMSE weights from the same hold-out
+    inv             = {m: 1.0 / (r + 1e-9) for m, r in holdout_rmse.items()}
+    tot             = sum(inv.values())
+    weights         = {m: v / tot for m, v in inv.items()}
 
-    # ── Step 4: Individual model metrics — all from same hold-out ──
-    # RMSE/NRMSE/MAE: hold-out predictions vs actuals
-    # R²: full-fit on all n points (meaningful, non-zero)
-    model_metrics: dict[str, dict] = {}
-    for mname in _make_models():
-        hp       = holdout_preds[mname]
-        rmse_m   = float(np.sqrt(mean_squared_error(yte_h, hp)))
-        nrmse_m  = rmse_m / mean_holdout
-        mae_m    = float(mean_absolute_error(yte_h, hp))
-        model_metrics[mname] = {"rmse": rmse_m, "nrmse": nrmse_m, "mae": mae_m, "r2": 0.0}
+    # Ensemble hold-out prediction
+    ens_holdout     = sum(weights[m] * holdout_preds[m] for m in models)
+    rmse_e          = float(np.sqrt(mean_squared_error(yte, ens_holdout)))
+    nrmse_e         = rmse_e / mean_holdout
+    mae_e           = float(mean_absolute_error(yte, ens_holdout))
 
-    # Full-fit R² for each model (train on all n, predict all n)
-    for mname, mdl in _make_models(n).items():
-        pipe = Pipeline([("scaler", StandardScaler()), ("model", mdl)])
-        pipe.fit(X_hist, vals)
-        fp       = np.maximum(pipe.predict(X_hist), 0)
-        ss_res_m = np.sum((vals - fp) ** 2)
-        model_metrics[mname]["r2"] = max(0.0, 1 - ss_res_m / (ss_tot + 1e-9))
-
-    # ── Step 5: Ensemble hold-out prediction ──
-    ypred_eval = sum(weights[m] * holdout_preds[m] for m in _make_models())
-    rmse_e     = float(np.sqrt(mean_squared_error(yte_h, ypred_eval)))
-    nrmse_e    = rmse_e / mean_holdout
-    mae_e      = float(mean_absolute_error(yte_h, ypred_eval))
-
-    # ── Step 6: Full retrain on ALL n points → final fitted + forecast ──
+    # ── PASS 2: Full-fit — train on ALL n points ────────────────────────────
+    # Used for: R² per model, ensemble R², final forecast, CI
+    full_models  = _make_models(n)
     fitted_pm:   dict[str, np.ndarray] = {}
     forecast_pm: dict[str, np.ndarray] = {}
-    for mname, mdl in _make_models(n).items():
-        pipe = Pipeline([("scaler", StandardScaler()), ("model", mdl)])
+    for mname, mdl in full_models.items():
+        pipe = _make_pipe(mname, mdl)
         pipe.fit(X_hist, vals)
         fitted_pm[mname]   = np.maximum(pipe.predict(X_hist), 0)
         forecast_pm[mname] = np.maximum(pipe.predict(X_fut),  0)
-    ens_fitted   = sum(weights[m] * fitted_pm[m]   for m in _make_models())
-    ens_forecast = sum(weights[m] * forecast_pm[m] for m in _make_models())
+
+    ens_fitted   = sum(weights[m] * fitted_pm[m]   for m in full_models)
+    ens_forecast = sum(weights[m] * forecast_pm[m] for m in full_models)
     residuals    = vals - ens_fitted
-    resid_std    = residuals.std()
-    ss_res_e     = np.sum(residuals ** 2)
-    r2_e         = max(0.0, 1 - ss_res_e / (ss_tot + 1e-9))
+    resid_std    = float(residuals.std())
+    r2_e         = max(0.0, 1 - float(np.sum(residuals ** 2)) / (ss_tot + 1e-9))
+
+    # ── Model metrics: RMSE/NRMSE/MAE from hold-out, R² from full-fit ───────
+    model_metrics: dict[str, dict] = {}
+    for mname in models:
+        rmse_m  = holdout_rmse[mname]
+        nrmse_m = rmse_m / mean_holdout
+        mae_m   = float(mean_absolute_error(yte, holdout_preds[mname]))
+        fp      = fitted_pm[mname]
+        r2_m    = max(0.0, 1 - float(np.sum((vals - fp) ** 2)) / (ss_tot + 1e-9))
+        model_metrics[mname] = {"rmse": rmse_m, "nrmse": nrmse_m, "mae": mae_m, "r2": r2_m}
     model_metrics["Ensemble"] = {"rmse": rmse_e, "nrmse": nrmse_e, "mae": mae_e, "r2": r2_e}
-    ts_idx   = _to_ts(ds_idx)
-    last_dt  = ts_idx[-1]
-    fut_dates = pd.date_range(last_dt + pd.offsets.MonthBegin(1), periods=n_future, freq="MS")
-    log_std = np.log1p(resid_std / (mean_vals + 1e-9))
-    steps   = np.arange(1, n_future + 1)
-    ci_lo   = np.maximum(ens_forecast * np.exp(-CI_Z * log_std * np.sqrt(steps)), 0)
-    ci_hi   = ens_forecast * np.exp(CI_Z * log_std * np.sqrt(steps))
+
+    # ── Forecast confidence interval (log-normal) ────────────────────────────
+    ts_idx    = _to_ts(ds_idx)
+    fut_dates = pd.date_range(ts_idx[-1] + pd.offsets.MonthBegin(1), periods=n_future, freq="MS")
+    log_std   = np.log1p(resid_std / (mean_vals + 1e-9))
+    steps     = np.arange(1, n_future + 1)
+    ci_lo     = np.maximum(ens_forecast * np.exp(-CI_Z * log_std * np.sqrt(steps)), 0)
+    ci_hi     = ens_forecast * np.exp(CI_Z * log_std * np.sqrt(steps))
+
     return dict(
         hist_ds=ts_idx, hist_y=vals, fitted=ens_fitted,
         fitted_per_model=fitted_pm, forecast_per_model=forecast_pm,
         fut_ds=fut_dates, forecast=ens_forecast, ci_lo=ci_lo, ci_hi=ci_hi,
         rmse=rmse_e, nrmse=nrmse_e, mae=mae_e, r2=r2_e, resid_std=resid_std,
-        eval_actual=yte_h, eval_pred=ypred_eval, eval_ds=ts_idx[-h:],
-        model_metrics=model_metrics, weights={m: weights[m] for m in _make_models()},
+        eval_actual=yte, eval_pred=ens_holdout, eval_ds=ts_idx[-h:],
+        model_metrics=model_metrics, weights=weights,
     )
 
 @st.cache_data
