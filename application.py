@@ -6,8 +6,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import requests as _requests
 import streamlit as st
-from sklearn.ensemble import GradientBoostingRegressor
-from sklearn.svm import SVR
+from sklearn.ensemble import GradientBoostingRegressor, RandomForestRegressor
 from sklearn.linear_model import Ridge
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 from sklearn.pipeline import Pipeline
@@ -21,7 +20,7 @@ DATA_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "india_ecom
 COLORS = ["#1565C0", "#2E7D32", "#E65100", "#C62828", "#6A1B9A", "#00695C"]
 MODEL_COLORS = {
     "Ridge": "#3B82F6",
-    "SVR": "#22C55E",
+    "RandomForest": "#22C55E",
     "GradBoost": "#F59E0B",
     "Ensemble": "#8B5CF6",
 }
@@ -31,8 +30,9 @@ DEFAULT_LEAD_TIME  = 7
 DEFAULT_SERVICE_Z  = 1.65
 N_FUTURE_MONTHS    = 6
 MIN_HISTORY_MONTHS = 6
-SVR_C              = 100.0
-SVR_EPSILON        = 0.1
+N_ESTIMATORS_RF    = 100
+MAX_DEPTH_RF       = 2
+MIN_SAMPLES_LEAF   = 5
 N_ESTIMATORS_GB    = 80
 MAX_DEPTH_GB       = 2
 LEARNING_RATE_GB   = 0.08
@@ -188,11 +188,11 @@ def _to_ts(idx) -> pd.DatetimeIndex:
 def _make_models(n_train: int = 20) -> dict:
     return {
         "Ridge": Ridge(alpha=RIDGE_ALPHA),
-        "SVR": SVR(
-            kernel="rbf",
-            C=SVR_C,
-            epsilon=SVR_EPSILON,
-            gamma="scale",
+        "RandomForest": RandomForestRegressor(
+            n_estimators=N_ESTIMATORS_RF,
+            max_depth=MAX_DEPTH_RF,
+            min_samples_leaf=MIN_SAMPLES_LEAF,
+            random_state=42,
         ),
         "GradBoost": GradientBoostingRegressor(
             n_estimators=N_ESTIMATORS_GB,
@@ -375,7 +375,7 @@ def ensemble_chart(res: dict, chart_key: str, height: int = 300, title: str = ""
     ))
     model_styles = [
         ("Ridge",        "#3B82F6", "dot"),
-        ("SVR",          "#22C55E", "dashdot"),
+        ("RandomForest", "#22C55E", "dashdot"),
         ("GradBoost",    "#F59E0B", "longdash"),
     ]
     if show_models and "fitted_per_model" in res:
@@ -436,7 +436,7 @@ def render_model_quality(res: dict) -> None:
         cols = st.columns(4)
         model_display = [
             ("Ridge",        "pill-ridge",    "#3B82F6"),
-            ("SVR",          "pill-rf",       "#22C55E"),
+            ("RandomForest", "pill-rf",       "#22C55E"),
             ("GradBoost",    "pill-gb",       "#F59E0B"),
             ("Ensemble",     "pill-ensemble", "#8B5CF6"),
         ]
@@ -464,7 +464,7 @@ def render_model_quality(res: dict) -> None:
                     padding:8px 12px;font-size:11px;margin:6px 0'>
                     <b style='color:#1e3a8a'>Ensemble blend (inverse-RMSE):</b>
                     <span class='model-pill pill-ridge'>Ridge {w.get("Ridge",0)/tot*100:.0f}%</span>
-                    <span class='model-pill pill-rf'>SVR {w.get("SVR",0)/tot*100:.0f}%</span>
+                    <span class='model-pill pill-rf'>RF {w.get("RandomForest",0)/tot*100:.0f}%</span>
                     <span class='model-pill pill-gb'>GB {w.get("GradBoost",0)/tot*100:.0f}%</span>
                 </div>""", unsafe_allow_html=True,
             )
@@ -1137,7 +1137,7 @@ def page_demand() -> None:
     if res_ov and "model_metrics" in res_ov:
         sec("Model Accuracy Comparison")
         mm     = res_ov["model_metrics"]
-        labels = [m for m in ["Ridge", "SVR", "GradBoost", "Ensemble"] if m in mm]
+        labels = [m for m in ["Ridge", "RandomForest", "GradBoost", "Ensemble"] if m in mm]
         r2_vals    = [mm[m]["r2"]          for m in labels]
         nrmse_vals = [mm[m]["nrmse"] * 100 for m in labels]
         clrs       = [MODEL_COLORS.get(m, "#888") for m in labels]
@@ -1189,7 +1189,7 @@ def page_demand() -> None:
             "Month":        [d.strftime("%b %Y") for d in res["fut_ds"]],
             "Ensemble":     res["forecast"].round(0).astype(int),
             "Ridge":        np.maximum(res["forecast_per_model"]["Ridge"],        0).round(0).astype(int),
-            "SVR":          np.maximum(res["forecast_per_model"]["SVR"],          0).round(0).astype(int),
+            "RandomForest": np.maximum(res["forecast_per_model"]["RandomForest"], 0).round(0).astype(int),
             "GradBoost":    np.maximum(res["forecast_per_model"]["GradBoost"],    0).round(0).astype(int),
             "Lower 90%":    res["ci_lo"].round(0).astype(int),
             "Upper 90%":    res["ci_hi"].round(0).astype(int),
@@ -1965,7 +1965,7 @@ def page_chatbot() -> None:
         f"You are OmniFlow, an expert AI supply chain analyst for an India D2D e-commerce business.\n"
         f"The active forecast horizon is {n_future} months — ALL figures, demands, and plans reflect this window.\n\n"
         "YOU HAVE ACCESS TO 4 LIVE MODULES:\n"
-        "1. DEMAND FORECASTING — ML ensemble (Ridge+SVR+GradBoost) forecasting orders, qty, revenue\n"
+        "1. DEMAND FORECASTING — ML ensemble (Ridge+RF+GradBoost) forecasting orders, qty, revenue\n"
         "2. INVENTORY OPTIMIZATION — EOQ, Safety Stock, ROP, ABC classification, stockout risk\n"
         "3. PRODUCTION PLANNING — demand-driven production schedule, urgency tiers, warehouse routing\n"
         "4. LOGISTICS OPTIMIZATION — carrier performance scoring, delay analysis, cost savings\n\n"
