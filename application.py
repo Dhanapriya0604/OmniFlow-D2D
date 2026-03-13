@@ -236,12 +236,6 @@ def _detect_regime(vals: np.ndarray, min_idx: int = MIN_REGIME_IDX) -> int:
             best_idx   = i
     return best_idx
 
-def _make_pipe(mname: str, mdl) -> Pipeline:
-    """Ridge gets StandardScaler; tree models (RF, GradBoost) do not need scaling."""
-    if mname == "Ridge":
-        return Pipeline([("scaler", StandardScaler()), ("model", mdl)])
-    return Pipeline([("model", mdl)])
-
 def ml_forecast(vals: np.ndarray, ds_idx, n_future: int = N_FUTURE_MONTHS) -> dict | None:
     n = len(vals)
     if n < MIN_HISTORY_MONTHS:
@@ -262,7 +256,7 @@ def ml_forecast(vals: np.ndarray, ds_idx, n_future: int = N_FUTURE_MONTHS) -> di
     # ── Step 2: Train each model on (n-4) pts → predict hold-out 4 pts ──
     holdout_preds: dict[str, np.ndarray] = {}
     for mname, mdl in _make_models(len(ytr_h)).items():
-        pipe = _make_pipe(mname, mdl)
+        pipe = Pipeline([("scaler", StandardScaler()), ("model", mdl)])
         pipe.fit(Xtr_h, ytr_h)
         holdout_preds[mname] = np.maximum(pipe.predict(Xte_h), 0)
 
@@ -279,7 +273,7 @@ def ml_forecast(vals: np.ndarray, ds_idx, n_future: int = N_FUTURE_MONTHS) -> di
         Xtr, ytr = Xtr_h[:te_start], ytr_h[:te_start]
         Xte, yte = Xtr_h[te_start:te_end], ytr_h[te_start:te_end]
         for mname, mdl in _make_models(len(ytr)).items():
-            pipe = _make_pipe(mname, mdl)
+            pipe = Pipeline([("scaler", StandardScaler()), ("model", mdl)])
             pipe.fit(Xtr, ytr)
             ep = np.maximum(pipe.predict(Xte), 0)
             fold_rmses[mname].append(np.sqrt(mean_squared_error(yte, ep)))
@@ -303,7 +297,7 @@ def ml_forecast(vals: np.ndarray, ds_idx, n_future: int = N_FUTURE_MONTHS) -> di
 
     # Full-fit R² for each model (train on all n, predict all n)
     for mname, mdl in _make_models(n).items():
-        pipe = _make_pipe(mname, mdl)
+        pipe = Pipeline([("scaler", StandardScaler()), ("model", mdl)])
         pipe.fit(X_hist, vals)
         fp       = np.maximum(pipe.predict(X_hist), 0)
         ss_res_m = np.sum((vals - fp) ** 2)
@@ -319,7 +313,7 @@ def ml_forecast(vals: np.ndarray, ds_idx, n_future: int = N_FUTURE_MONTHS) -> di
     fitted_pm:   dict[str, np.ndarray] = {}
     forecast_pm: dict[str, np.ndarray] = {}
     for mname, mdl in _make_models(n).items():
-        pipe = _make_pipe(mname, mdl)
+        pipe = Pipeline([("scaler", StandardScaler()), ("model", mdl)])
         pipe.fit(X_hist, vals)
         fitted_pm[mname]   = np.maximum(pipe.predict(X_hist), 0)
         forecast_pm[mname] = np.maximum(pipe.predict(X_fut),  0)
