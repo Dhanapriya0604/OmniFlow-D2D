@@ -1,5 +1,3 @@
-#with decision intelligence
-
 import os
 import re as _re
 import datetime as _dt
@@ -242,6 +240,21 @@ def ml_forecast(vals: np.ndarray, ds_idx, n_future: int = N_FUTURE_MONTHS) -> di
     X_all  = _build_features(n, n_future, ds_idx, regime_idx)
     X_hist = X_all[:n]
     X_fut  = X_all[n:]
+    # ── hold-out split (last 4 months) — same for ALL models & ensemble ──
+    h  = 4
+    Xtr_h, ytr_h = X_hist[:-h], vals[:-h]
+    Xte_h, yte_h = X_hist[-h:], vals[-h:]
+    mean_holdout  = float(np.mean(yte_h)) if np.mean(yte_h) > 0 else 1.0
+    mean_vals     = np.mean(vals)
+
+    # ── train each model on (n-4) months, evaluate on hold-out ──
+    eval_preds: dict[str, np.ndarray] = {}
+    for mname, mdl in _make_models().items():
+        pipe = Pipeline([("scaler", StandardScaler()), ("model", mdl)])
+        pipe.fit(Xtr_h, ytr_h)
+        eval_preds[mname] = np.maximum(pipe.predict(Xte_h), 0)
+
+    # ── CV folds used ONLY to compute ensemble weights (not displayed) ──
     n_folds   = min(3, n // 6)
     fold_size = 2
     fold_rmses: dict[str, list] = {m: [] for m in _make_models()}
@@ -258,25 +271,24 @@ def ml_forecast(vals: np.ndarray, ds_idx, n_future: int = N_FUTURE_MONTHS) -> di
             ep = np.maximum(pipe.predict(Xte), 0)
             fold_rmses[mname].append(np.sqrt(mean_squared_error(yte, ep)))
     model_rmses: dict[str, float] = {}
-    model_metrics: dict[str, dict] = {}
-    mean_vals = np.mean(vals)
     for mname in fold_rmses:
-        avg_rmse = np.mean(fold_rmses[mname]) if fold_rmses[mname] else 1.0
-        nrmse_v  = avg_rmse / mean_vals if mean_vals > 0 else 0.0
-        r2_v     = max(0.0, 1 - (avg_rmse ** 2 / (np.var(vals) + 1e-9)))
-        model_rmses[mname]  = avg_rmse
-        model_metrics[mname] = {"rmse": avg_rmse, "nrmse": nrmse_v, "mae": avg_rmse * 0.8, "r2": r2_v}
+        model_rmses[mname] = np.mean(fold_rmses[mname]) if fold_rmses[mname] else 1.0
     inv_rmse = {m: 1.0 / (r + 1e-9) for m, r in model_rmses.items()}
     tot      = sum(inv_rmse.values())
     weights  = {m: v / tot for m, v in inv_rmse.items()}
-    h  = 4
-    Xtr_h, ytr_h = X_hist[:-h], vals[:-h]
-    Xte_h, yte_h = X_hist[-h:], vals[-h:]
-    eval_preds: dict[str, np.ndarray] = {}
-    for mname, mdl in _make_models().items():
-        pipe = Pipeline([("scaler", StandardScaler()), ("model", mdl)])
-        pipe.fit(Xtr_h, ytr_h)
-        eval_preds[mname] = np.maximum(pipe.predict(Xte_h), 0)
+
+    # ── individual model metrics — all on the SAME hold-out ──
+    model_metrics: dict[str, dict] = {}
+    for mname in _make_models():
+        ep      = eval_preds[mname]
+        rmse_m  = float(np.sqrt(mean_squared_error(yte_h, ep)))
+        nrmse_m = rmse_m / mean_holdout
+        mae_m   = float(mean_absolute_error(yte_h, ep))
+        ss_r    = np.sum((yte_h - ep) ** 2)
+        ss_t    = np.sum((yte_h - np.mean(yte_h)) ** 2)
+        r2_m    = max(0.0, 1 - ss_r / (ss_t + 1e-9))
+        model_metrics[mname] = {"rmse": rmse_m, "nrmse": nrmse_m, "mae": mae_m, "r2": r2_m}
+
     ypred_eval = sum(weights[m] * eval_preds[m] for m in _make_models())
     fitted_pm:   dict[str, np.ndarray] = {}
     forecast_pm: dict[str, np.ndarray] = {}
@@ -289,12 +301,13 @@ def ml_forecast(vals: np.ndarray, ds_idx, n_future: int = N_FUTURE_MONTHS) -> di
     ens_forecast = sum(weights[m] * forecast_pm[m] for m in _make_models())
     residuals  = vals - ens_fitted
     resid_std  = residuals.std()
-    ss_res     = np.sum(residuals ** 2)
-    ss_tot     = np.sum((vals - mean_vals) ** 2)
-    r2_e       = 1 - ss_res / ss_tot if ss_tot > 0 else 0.0
-    rmse_e     = np.sqrt(mean_squared_error(yte_h, ypred_eval))
-    nrmse_e    = rmse_e / np.mean(yte_h) if np.mean(yte_h) > 0 else 0.0
-    mae_e      = mean_absolute_error(yte_h, ypred_eval)
+    # Ensemble metrics on same hold-out as individual models
+    rmse_e  = float(np.sqrt(mean_squared_error(yte_h, ypred_eval)))
+    nrmse_e = rmse_e / mean_holdout
+    mae_e   = float(mean_absolute_error(yte_h, ypred_eval))
+    ss_r_e  = np.sum((yte_h - ypred_eval) ** 2)
+    ss_t_e  = np.sum((yte_h - np.mean(yte_h)) ** 2)
+    r2_e    = max(0.0, 1 - ss_r_e / (ss_t_e + 1e-9))
     model_metrics["Ensemble"] = {"rmse": rmse_e, "nrmse": nrmse_e, "mae": mae_e, "r2": r2_e}
     ts_idx   = _to_ts(ds_idx)
     last_dt  = ts_idx[-1]
@@ -418,14 +431,18 @@ def render_model_quality(res: dict) -> None:
         ]
         for col, (mname, pcls, clr) in zip(cols, model_display):
             if mname in mm:
-                m = mm[mname]
+                m    = mm[mname]
+                _acc = max(0.0, round((1 - m["nrmse"]) * 100, 1))
+                _g, _l, _ico, _ = model_grade(m["nrmse"], m["r2"])
                 col.markdown(
                     f"""<div style='text-align:center;padding:10px;border-radius:10px;
                         border:1px solid #e5e7eb;background:white'>
                         <div class='model-pill {pcls}'>{mname}</div>
-                        <div style='font-size:10px;color:#64748b;margin-top:5px'>RMSE</div>
+                        <div style='font-size:10px;color:#64748b;margin-top:5px'>RMSE (hold-out)</div>
                         <div style='font-size:18px;font-weight:800;color:{clr}'>{m["rmse"]:.1f}</div>
                         <div style='font-size:10px;color:#94a3b8'>NRMSE {m["nrmse"]*100:.1f}% · R² {m["r2"]:.3f}</div>
+                        <div style='font-size:12px;font-weight:700;color:{clr};margin-top:4px'>Accuracy {_acc:.1f}%</div>
+                        <div style='font-size:10px;color:#94a3b8'>{_ico} {_g} {_l}</div>
                     </div>""", unsafe_allow_html=True,
                 )
         w = res.get("weights", {})
