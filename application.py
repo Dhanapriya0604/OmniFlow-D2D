@@ -1404,6 +1404,60 @@ def page_demand() -> None:
             with tab:
                 draw_with_table(get_series(ops[ops[grp] == val]), title=val, chart_key=f"d_bd_{i}")
     sp()
+
+    # ── NEW: Channel mix bar chart ──────────────────────────────────────────
+    sec("Revenue & Order Mix by Sales Channel")
+    ch1, ch2 = st.columns(2, gap="large")
+    ch_rev_all = ops.groupby("Sales_Channel")["Net_Revenue"].sum().reset_index().sort_values("Net_Revenue", ascending=False)
+    ch_ord_all = ops.groupby("Sales_Channel")["Order_ID"].count().reset_index().sort_values("Order_ID", ascending=False)
+    ch_colors  = ["#1e3a8a", "#3b82f6", "#93c5fd"]
+    with ch1:
+        fig_ch = go.Figure(go.Bar(
+            x=ch_rev_all["Sales_Channel"], y=ch_rev_all["Net_Revenue"] / 1e6,
+            marker=dict(color=ch_colors[:len(ch_rev_all)], line=dict(color="rgba(0,0,0,0)")),
+            text=[f"₹{v:.1f}M" for v in ch_rev_all["Net_Revenue"] / 1e6],
+            textposition="outside", textfont=dict(color="#334155"),
+        ))
+        fig_ch.update_layout(**CD(), height=220, xaxis=gX(),
+                             yaxis={**gY(), "title": "Net Revenue ₹M"},
+                             title=dict(text="Revenue by Channel", font=dict(size=11, color="#64748b")))
+        st.plotly_chart(fig_ch, use_container_width=True, key="d_ch_rev")
+    with ch2:
+        fig_ch2 = go.Figure(go.Bar(
+            x=ch_ord_all["Sales_Channel"], y=ch_ord_all["Order_ID"],
+            marker=dict(color=ch_colors[:len(ch_ord_all)], line=dict(color="rgba(0,0,0,0)")),
+            text=[f"{v:,}" for v in ch_ord_all["Order_ID"]],
+            textposition="outside", textfont=dict(color="#334155"),
+        ))
+        fig_ch2.update_layout(**CD(), height=220, xaxis=gX(),
+                              yaxis={**gY(), "title": "Orders"},
+                              title=dict(text="Orders by Channel", font=dict(size=11, color="#64748b")))
+        st.plotly_chart(fig_ch2, use_container_width=True, key="d_ch_ord")
+    sp()
+
+    # ── NEW: Monthly demand heatmap (category × month) ──────────────────────
+    sec("Monthly Demand Heatmap — Category × Month")
+    cat_month_qty = ops.groupby(["Category", "YM"])["Net_Qty"].sum().unstack(fill_value=0)
+    hm_x = [str(c) for c in cat_month_qty.columns]
+    hm_y = list(cat_month_qty.index)
+    hm_z = cat_month_qty.values
+    fig_hm = go.Figure(go.Heatmap(
+        z=hm_z, x=hm_x, y=hm_y,
+        colorscale=[[0, "#f0f4ff"], [0.4, "#6366f1"], [0.7, "#3b82f6"], [1, "#1e3a8a"]],
+        text=np.round(hm_z, 0).astype(int),
+        texttemplate="%{text}", textfont=dict(size=9, color="white"),
+        hovertemplate="<b>%{y}</b><br>%{x}<br>Units: %{z:,.0f}<extra></extra>",
+        colorbar=dict(title="Units", tickfont=dict(size=9, color="#64748b")),
+    ))
+    fig_hm.update_layout(
+        **CD(), height=200,
+        xaxis=dict(showgrid=False, tickangle=-30, color="#64748b", tickfont=dict(size=9)),
+        yaxis=dict(showgrid=False, color="#64748b"),
+        margin=dict(l=150, r=60, t=30, b=60),
+    )
+    st.plotly_chart(fig_hm, use_container_width=True, key="d_cat_month_hm")
+    sp()
+
     sec("YoY Revenue Growth by Category")
     yr_rev      = ops.groupby(["Year", "Category"])["Net_Revenue"].sum().unstack(fill_value=0)
     cat_monthly = ops.groupby(["YM", "Category"])["Net_Revenue"].sum().unstack(fill_value=0)
@@ -1416,18 +1470,36 @@ def page_demand() -> None:
         rows = []
         for cat in yr_rev.columns:
             r24 = yr_rev.loc[2024, cat]; r25 = yr_rev.loc[2025, cat]; rp = proj_next.get(cat, 0)
+            yoy_pct  = (r25 - r24) / r24 * 100 if r24 > 0 else 0.0
+            proj_pct = (rp  - r25) / r25 * 100 if r25 > 0 else 0.0
             rows.append({
                 "Category":                   cat,
                 "2024 ₹M":                    round(r24 / 1e6, 1),
                 "2025 ₹M":                    round(r25 / 1e6, 1),
-                "YoY 24→25":                  f"{(r25-r24)/r24*100:+.1f}%" if r24 > 0 else "N/A",
+                "YoY 24→25":                  f"{yoy_pct:+.1f}%" if r24 > 0 else "N/A",
                 f"Next {n_future}M Proj ₹M":  round(rp / 1e6, 1),
-                "Projected Growth":           f"{(rp-r25)/r25*100:+.1f}%" if r25 > 0 else "N/A",
+                "Projected Growth":           f"{proj_pct:+.1f}%" if r25 > 0 else "N/A",
+                "Trend":                      "↑" if proj_pct > 5 else "↓" if proj_pct < -5 else "→",
             })
-        st.dataframe(
-            pd.DataFrame(rows).sort_values(f"Next {n_future}M Proj ₹M", ascending=False),
-            use_container_width=True, hide_index=True,
-        )
+        df_yoy = pd.DataFrame(rows).sort_values(f"Next {n_future}M Proj ₹M", ascending=False)
+        st.dataframe(df_yoy, use_container_width=True, hide_index=True)
+
+        # Visual bar comparison
+        yoy_fig = go.Figure()
+        cats_yoy = df_yoy["Category"].tolist()
+        yoy_fig.add_trace(go.Bar(name="2024", x=cats_yoy,
+                                 y=df_yoy["2024 ₹M"].tolist(),
+                                 marker=dict(color="#93c5fd", line=dict(color="rgba(0,0,0,0)"))))
+        yoy_fig.add_trace(go.Bar(name="2025", x=cats_yoy,
+                                 y=df_yoy["2025 ₹M"].tolist(),
+                                 marker=dict(color="#3b82f6", line=dict(color="rgba(0,0,0,0)"))))
+        yoy_fig.add_trace(go.Bar(name=f"Next {n_future}M Proj", x=cats_yoy,
+                                 y=df_yoy[f"Next {n_future}M Proj ₹M"].tolist(),
+                                 marker=dict(color="#1e3a8a", line=dict(color="rgba(0,0,0,0)"))))
+        yoy_fig.update_layout(**CD(), height=240, barmode="group",
+                              xaxis=gX(), yaxis={**gY(), "title": "Revenue ₹M"},
+                              legend={**leg(), "orientation": "h", "y": -0.28})
+        st.plotly_chart(yoy_fig, use_container_width=True, key="d_yoy_bar")
 
 
 def page_inventory() -> None:
@@ -1541,7 +1613,56 @@ def page_inventory() -> None:
             legend={**leg(), "orientation": "h", "y": -0.18},
         )
         st.plotly_chart(fig_sc, use_container_width=True, key="scatter_stock")
-        action = sv.sort_values(["Status", "Prod_Need"], ascending=[True, False])
+
+        # ── NEW: ABC donut + days-of-stock histogram + stockout by category ──
+        sp(0.5)
+        ia1, ia2, ia3 = st.columns(3, gap="large")
+        with ia1:
+            sec("ABC Classification")
+            abc_rev = sv.groupby("ABC")["Total_Revenue"].sum().reset_index()
+            abc_colors = {"A": "#1e3a8a", "B": "#3b82f6", "C": "#93c5fd"}
+            fig_abc = go.Figure(go.Pie(
+                labels=abc_rev["ABC"], values=abc_rev["Total_Revenue"], hole=0.55,
+                marker=dict(
+                    colors=[abc_colors.get(a, "#ccc") for a in abc_rev["ABC"]],
+                    line=dict(color="#fff", width=2),
+                ),
+                textinfo="label+percent", textfont=dict(size=11),
+                hovertemplate="<b>Class %{label}</b><br>Revenue: ₹%{value:,.0f}<br>Share: %{percent}<extra></extra>",
+            ))
+            fig_abc.update_layout(**CD(), height=210, showlegend=False,
+                                  margin=dict(l=10, r=10, t=30, b=10))
+            st.plotly_chart(fig_abc, use_container_width=True, key="inv_abc_donut")
+        with ia2:
+            sec("Days-of-Stock Distribution")
+            dos = sv["Days_of_Stock"].clip(upper=90)
+            fig_dos = go.Figure(go.Histogram(
+                x=dos, nbinsx=15,
+                marker=dict(color="#3b82f6", line=dict(color="#fff", width=0.5)),
+            ))
+            for xv, clr, lbl in [(7, "#ef4444", "7d"), (14, "#f97316", "14d"), (30, "#eab308", "30d")]:
+                fig_dos.add_vline(x=xv, line_dash="dash", line_color=clr, line_width=1.5,
+                                  annotation_text=f" {lbl}", annotation_font=dict(color=clr, size=9))
+            fig_dos.update_layout(**CD(), height=210,
+                                  xaxis={**gX(), "title": "Days of Stock"},
+                                  yaxis={**gY(), "title": "SKU count"},
+                                  margin=dict(l=30, r=20, t=30, b=40))
+            st.plotly_chart(fig_dos, use_container_width=True, key="inv_dos_hist")
+        with ia3:
+            sec("Stockout Risk by Category")
+            sc_cat = sv.groupby("Category")["Stockout_Cost"].sum().reset_index().sort_values("Stockout_Cost", ascending=True)
+            fig_sc2 = go.Figure(go.Bar(
+                x=sc_cat["Stockout_Cost"] / 1000, y=sc_cat["Category"], orientation="h",
+                marker=dict(color="#ef4444", opacity=0.8, line=dict(color="rgba(0,0,0,0)")),
+                text=[f"₹{v/1000:.0f}K" for v in sc_cat["Stockout_Cost"]],
+                textposition="outside", textfont=dict(color="#334155", size=10),
+            ))
+            fig_sc2.update_layout(**CD(), height=210,
+                                  xaxis={**gX(), "title": "Risk ₹K"},
+                                  yaxis=dict(showgrid=False, color="#64748b"),
+                                  margin=dict(l=140, r=60, t=30, b=40))
+            st.plotly_chart(fig_sc2, use_container_width=True, key="inv_sc_cat")
+        sp(0.5)
         if not action.empty:
             sp(0.5)
             sec("SKU Inventory Table — Action Queue")
@@ -1570,14 +1691,22 @@ def page_production() -> None:
     horizon_badge(n_future)
     cap = st.slider("Capacity Multiplier", 0.5, 2.0, 1.0, 0.1)
 
-    # FIX #2: Pass cap_mult to compute_production (also passes through to logistics)
-    plan = compute_production(cap, n_future)
+    with st.expander("Inventory Parameters (synced with Inventory page)", expanded=False):
+        pp1, pp2, pp3, pp4 = st.columns(4)
+        p_order_cost = pp1.number_input("Order Cost ₹", 100, 5000, DEFAULT_ORDER_COST, 50, key="prod_oc")
+        p_hold_pct   = pp2.slider("Holding Cost %", 5, 40, int(DEFAULT_HOLD_PCT * 100), key="prod_hp") / 100
+        p_lead_time  = pp3.slider("Lead Time days", 1, 30, DEFAULT_LEAD_TIME, key="prod_lt")
+        p_svc        = pp4.selectbox("Service Level", ["90% (z=1.28)", "95% (z=1.65)", "99% (z=2.33)"], index=1, key="prod_svc")
+        p_z          = {"90% (z=1.28)": 1.28, "95% (z=1.65)": 1.65, "99% (z=2.33)": 2.33}[p_svc]
+
+    # FIX #2: Pass cap_mult AND inventory params so production is fully consistent
+    plan = compute_production(cap, n_future, p_order_cost, p_hold_pct, p_lead_time, p_z)
     if plan.empty:
         st.warning("Insufficient data.")
         return
 
     agg = plan.groupby("Month_dt")[["Production", "Demand_Forecast", "Crit_Boost", "Low_Boost"]].sum().reset_index()
-    inv_for_kpi         = compute_inventory(n_future=n_future)
+    inv_for_kpi         = compute_inventory(p_order_cost, p_hold_pct, p_lead_time, p_z, n_future)
     total_prod_need_inv = int(inv_for_kpi["Prod_Need"].sum())
     total_demand_6m_inv = int(inv_for_kpi["Demand_6M"].sum())
     total_stock_inv     = int(inv_for_kpi["Current_Stock"].sum())
@@ -1703,7 +1832,7 @@ def page_production() -> None:
         unsafe_allow_html=True,
     )
     # FIX #2: Pass inventory params to keep routing plan consistent
-    sku_plan = build_sku_production_plan(n_future)
+    sku_plan = build_sku_production_plan(n_future, p_order_cost, p_hold_pct, p_lead_time, p_z)
     if sku_plan.empty:
         banner("✅ All SKUs are adequately stocked — no production orders needed.", "mint")
         return
@@ -1937,6 +2066,9 @@ def page_logistics() -> None:
     carr, best_carr, opt, fwd_plan = compute_logistics(w_speed, w_cost, w_returns, n_future)
     plan = compute_production(n_future=n_future)
 
+    # Hoist delay threshold above tabs so both t1 heatmap and t2 delay charts share it
+    delay_thr = st.slider("Delay threshold (days)", 3, 10, DEFAULT_LEAD_TIME, key="log_thr")
+
     t1, t2, t3 = st.tabs(["Carrier Performance", "Cost & Delay", "Forward Plan"])
     with t1:
         sec("Speed vs Cost — Carrier Scorecard")
@@ -2011,27 +2143,170 @@ def page_logistics() -> None:
             else:
                 st.info("Production plan not available.")
         sp(0.5)
-        sec("Carrier × Region Delay Heatmap")
-        delay_thr = st.slider("Delay threshold (days)", 3, 10, DEFAULT_LEAD_TIME, key="log_thr")
+        sec("Carrier × Region Performance Heatmap")
+        hm_metric = st.radio(
+            "Heatmap metric",
+            ["Delay Rate %", "Avg Cost ₹", "Return Rate %", "Composite Score"],
+            horizontal=True, key="hm_metric",
+        )
+
         del_df_delayed = del_df.copy()
         del_df_delayed["Delayed"] = del_df_delayed["Delivery_Days"] > delay_thr
-        pv = del_df_delayed.groupby(["Courier_Partner", "Region"])["Delayed"].mean().unstack(fill_value=0) * 100
+
+        # Build full carrier × region matrix for each metric
+        base = del_df_delayed.groupby(["Courier_Partner", "Region"]).agg(
+            Orders      = ("Order_ID",          "count"),
+            Avg_Days    = ("Delivery_Days",     "mean"),
+            Avg_Cost    = ("Shipping_Cost_INR", "mean"),
+            Delay_Count = ("Delayed",           "sum"),
+        ).reset_index()
+        ret_cr = df.groupby(["Courier_Partner", "Region"])["Return_Flag"].mean().reset_index()
+        ret_cr.columns = ["Courier_Partner", "Region", "Return_Rate"]
+        base = base.merge(ret_cr, on=["Courier_Partner", "Region"], how="left")
+        base["Return_Rate"] = base["Return_Rate"].fillna(0)
+        base["Delay_Rate"]  = base["Delay_Count"] / base["Orders"].clip(lower=1) * 100
+
+        # Normalise each metric for composite score (0=best, 1=worst → invert for score)
+        for col_n in ["Delay_Rate", "Avg_Cost", "Return_Rate"]:
+            mn_n = base[col_n].min(); mx_n = base[col_n].max()
+            base[f"N_{col_n}"] = (base[col_n] - mn_n) / (mx_n - mn_n + 1e-9)
+        base["Composite"] = (
+            w_speed   * (1 - base["N_Delay_Rate"])
+            + w_cost  * (1 - base["N_Avg_Cost"])
+            + w_returns * (1 - base["N_Return_Rate"])
+        ) * 100  # scale 0–100
+
+        metric_col_map = {
+            "Delay Rate %":      ("Delay_Rate",  "Reds",          "%{z:.1f}%",  "% delayed",    False),
+            "Avg Cost ₹":        ("Avg_Cost",    "Blues",         "₹%{z:.0f}",  "₹ per order",  False),
+            "Return Rate %":     ("Return_Rate", "Oranges",       "%{z:.1f}%",  "% returned",   False),
+            "Composite Score":   ("Composite",   "Greens",        "%{z:.1f}",   "score (higher=better)", True),
+        }
+        m_col, m_scale, m_fmt, m_label, higher_better = metric_col_map[hm_metric]
+
+        pv = base.pivot(index="Courier_Partner", columns="Region", values=m_col).fillna(0)
+
+        # Sort carriers: best first (lowest delay/cost/return, or highest composite)
+        carrier_order = (
+            pv.mean(axis=1).sort_values(ascending=not higher_better).index.tolist()
+        )
+        # Sort regions: highest order volume first for context
+        region_order = (
+            del_df_delayed.groupby("Region")["Order_ID"].count()
+            .sort_values(ascending=False).index.tolist()
+        )
+        region_order = [r for r in region_order if r in pv.columns]
+        pv = pv.loc[carrier_order, region_order]
+
+        z_vals = pv.values
+        # Build text matrix: value + rank annotation
+        text_arr = []
+        for row_i, carr_n in enumerate(pv.index):
+            row_txt = []
+            for col_j, reg_n in enumerate(pv.columns):
+                val = z_vals[row_i, col_j]
+                col_vals = z_vals[:, col_j]
+                rank = int(np.argsort(col_vals if not higher_better else -col_vals).tolist().index(row_i)) + 1
+                rank_str = f"#{rank}" if len(pv.index) > 2 else ""
+                if "%" in m_fmt or hm_metric in ("Delay Rate %", "Return Rate %"):
+                    row_txt.append(f"{val:.1f}%\n{rank_str}")
+                elif "₹" in m_fmt:
+                    row_txt.append(f"₹{val:.0f}\n{rank_str}")
+                else:
+                    row_txt.append(f"{val:.1f}\n{rank_str}")
+            text_arr.append(row_txt)
+
+        # Identify best cell per region (column)
+        best_cells = []
+        for col_j in range(len(pv.columns)):
+            col_v = z_vals[:, col_j]
+            best_row = int(np.argmax(col_v) if higher_better else np.argmin(col_v))
+            best_cells.append((best_row, col_j))
+
+        colorscale_map = {
+            "Reds":    [[0, "#fff5f5"], [0.5, "#fc8181"], [1, "#c53030"]],
+            "Blues":   [[0, "#ebf8ff"], [0.5, "#63b3ed"], [1, "#2b6cb0"]],
+            "Oranges": [[0, "#fffaf0"], [0.5, "#f6ad55"], [1, "#c05621"]],
+            "Greens":  [[0, "#f0fff4"], [0.5, "#68d391"], [1, "#276749"]],
+        }
+
         fig_h = go.Figure(go.Heatmap(
-            z=pv.values, x=list(pv.columns), y=list(pv.index),
-            colorscale=[[0, "#0d1829"], [0.4, "#7c4fd0"], [0.7, "#e87adb"], [1, "#EF4444"]],
-            text=np.round(pv.values, 1), texttemplate="%{text}%", textfont=dict(size=10),
-            colorbar=dict(tickfont=dict(color="#8a9dc0", size=10)),
+            z=z_vals,
+            x=list(pv.columns),
+            y=list(pv.index),
+            text=text_arr,
+            texttemplate="%{text}",
+            textfont=dict(size=10, family="DM Mono,monospace"),
+            colorscale=colorscale_map[m_scale],
+            reversescale=not higher_better,
+            hovertemplate=(
+                "<b>%{y} → %{x}</b><br>"
+                + m_label + ": %{z:.2f}<extra></extra>"
+            ),
+            colorbar=dict(
+                title=dict(text=m_label, font=dict(size=10, color="#64748b")),
+                tickfont=dict(size=9, color="#64748b"),
+                thickness=12, len=0.8,
+            ),
         ))
+
+        # Highlight best cell per region with a white ring marker
+        for (br, bc) in best_cells:
+            fig_h.add_trace(go.Scatter(
+                x=[pv.columns[bc]], y=[pv.index[br]],
+                mode="markers",
+                marker=dict(size=28, color="rgba(0,0,0,0)",
+                            line=dict(color="#22c55e", width=2.5)),
+                showlegend=False, hoverinfo="skip",
+            ))
+
+        # Add order-volume annotation on x-axis (top)
+        vol_by_region = del_df_delayed.groupby("Region")["Order_ID"].count()
+        x_annots = []
+        for reg in pv.columns:
+            vol = vol_by_region.get(reg, 0)
+            x_annots.append(dict(
+                x=reg, y=len(pv.index) - 0.5 + 0.65,
+                text=f"<span style='font-size:9px;color:#94a3b8'>{vol:,} orders</span>",
+                showarrow=False, xref="x", yref="y",
+                font=dict(size=8, color="#94a3b8"),
+            ))
+
         fig_h.update_layout(
-            **CD(), height=260,
-            xaxis=dict(showgrid=False, tickangle=-25, color="#64748b"),
-            yaxis=dict(showgrid=False, color="#64748b"),
+            **CD(),
+            height=max(260, len(pv.index) * 52 + 100),
+            xaxis=dict(showgrid=False, tickangle=-20, color="#64748b",
+                       tickfont=dict(size=10), side="bottom"),
+            yaxis=dict(showgrid=False, color="#64748b",
+                       tickfont=dict(size=10), autorange="reversed"),
+            annotations=x_annots,
+            margin=dict(l=110, r=80, t=60, b=60),
             title=dict(
-                text=f"% orders delayed beyond {delay_thr}d · carrier × region",
-                font=dict(size=11, color="#64748b"),
+                text=(
+                    f"<b>{hm_metric}</b> — Carrier × Region  "
+                    f"<span style='font-size:10px;color:#64748b'>"
+                    f"(carriers sorted best→worst avg · regions sorted by volume · "
+                    f"🟢 ring = best carrier per region)</span>"
+                ),
+                font=dict(size=12, color="#0f172a"), x=0,
             ),
         )
         st.plotly_chart(fig_h, use_container_width=True, key="log_heat")
+
+        # ── Insight strip below heatmap ──────────────────────────────────────
+        sp(0.5)
+        worst_combo = base.loc[base["Delay_Rate"].idxmax(), ["Courier_Partner", "Region", "Delay_Rate"]]
+        best_combo  = base.loc[base["Composite"].idxmax(),  ["Courier_Partner", "Region", "Composite"]]
+        avg_delay   = base["Delay_Rate"].mean()
+        banner(
+            f"🔍 <b>Heatmap Insights</b> &nbsp;|&nbsp; "
+            f"Worst combo: <b>{worst_combo['Courier_Partner']} → {worst_combo['Region']}</b> "
+            f"({worst_combo['Delay_Rate']:.1f}% delayed) &nbsp;|&nbsp; "
+            f"Best overall: <b>{best_combo['Courier_Partner']} → {best_combo['Region']}</b> "
+            f"(composite {best_combo['Composite']:.1f}/100) &nbsp;|&nbsp; "
+            f"Network avg delay rate: <b>{avg_delay:.1f}%</b> beyond {delay_thr}d",
+            "sky",
+        )
 
     with t2:
         total_sav = opt["Potential_Saving"].sum()
