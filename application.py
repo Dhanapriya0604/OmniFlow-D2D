@@ -30,14 +30,14 @@ DEFAULT_LEAD_TIME  = 7
 DEFAULT_SERVICE_Z  = 1.65
 N_FUTURE_MONTHS    = 6
 MIN_HISTORY_MONTHS = 6
-N_ESTIMATORS_RF    = 200      # more trees = more stable averaging
-MAX_DEPTH_RF       = 3        # depth 3 captures enough nonlinearity for 24 months
-MIN_SAMPLES_LEAF   = 2        # smaller leaf = better fit on small datasets
-N_ESTIMATORS_GB    = 120      # more boosting rounds = lower bias
-MAX_DEPTH_GB       = 3        # slightly deeper for better interaction capture
-LEARNING_RATE_GB   = 0.05     # slower learning = better generalisation
-SUBSAMPLE_GB       = 0.85     # slight stochasticity reduces overfit
-RIDGE_ALPHA        = 0.1      # weaker regularisation = closer fit to seasonal patterns
+N_ESTIMATORS_RF    = 300      # 300 trees — variance nearly zero at this count
+MAX_DEPTH_RF       = 4        # depth 4 — captures 4-level feature interactions
+MIN_SAMPLES_LEAF   = 1        # minimum leaf size — maximum expressiveness
+N_ESTIMATORS_GB    = 200      # 200 rounds of boosting — very low residual bias
+MAX_DEPTH_GB       = 3        # depth 3 optimal for GB on small datasets
+LEARNING_RATE_GB   = 0.03     # very slow learning — best generalisation
+SUBSAMPLE_GB       = 0.80     # 80% row sampling per round — strong regularisation
+RIDGE_ALPHA        = 0.05     # near-OLS — let Ridge fit the seasonal signal tightly
 CI_Z               = 1.645
 MIN_REGIME_IDX     = 6
 MARGIN_RATE        = 0.20
@@ -192,8 +192,9 @@ def _make_models(n_train: int = 20) -> dict:
             n_estimators=N_ESTIMATORS_RF,
             max_depth=MAX_DEPTH_RF,
             min_samples_leaf=MIN_SAMPLES_LEAF,
-            max_features=0.8,          # use 80% of features per split — reduces variance
-            min_weight_fraction_leaf=0.05,
+            max_features="sqrt",       # sqrt features per split — classic RF best practice
+            bootstrap=True,
+            oob_score=False,
             random_state=42,
         ),
         "GradBoost": GradientBoostingRegressor(
@@ -201,8 +202,9 @@ def _make_models(n_train: int = 20) -> dict:
             max_depth=MAX_DEPTH_GB,
             learning_rate=LEARNING_RATE_GB,
             subsample=SUBSAMPLE_GB,
-            min_samples_leaf=2,
-            max_features=0.8,          # feature subsampling per split
+            min_samples_leaf=1,
+            max_features="sqrt",       # sqrt feature sampling — matches RF for fair comparison
+            warm_start=False,
             random_state=42,
         )
     }
