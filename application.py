@@ -30,14 +30,14 @@ DEFAULT_LEAD_TIME  = 7
 DEFAULT_SERVICE_Z  = 1.65
 N_FUTURE_MONTHS    = 6
 MIN_HISTORY_MONTHS = 6
-N_ESTIMATORS_RF    = 200      # more trees = more stable averaging
-MAX_DEPTH_RF       = 3        # depth 3 captures enough nonlinearity for 24 months
-MIN_SAMPLES_LEAF   = 2        # smaller leaf = better fit on small datasets
-N_ESTIMATORS_GB    = 120      # more boosting rounds = lower bias
-MAX_DEPTH_GB       = 3        # slightly deeper for better interaction capture
-LEARNING_RATE_GB   = 0.05     # slower learning = better generalisation
-SUBSAMPLE_GB       = 0.85     # slight stochasticity reduces overfit
-RIDGE_ALPHA        = 0.1      # weaker regularisation = closer fit to seasonal patterns
+N_ESTIMATORS_RF    = 300      # 300 trees — stable variance
+MAX_DEPTH_RF       = 3        # depth 3 — sweet spot for 20 training points
+MIN_SAMPLES_LEAF   = 3        # prevents overfitting on small leaves
+N_ESTIMATORS_GB    = 150      # enough rounds without memorising
+MAX_DEPTH_GB       = 2        # shallow GB avoids R²=1.0 overfit
+LEARNING_RATE_GB   = 0.05     # balanced learning rate
+SUBSAMPLE_GB       = 0.85     # row sampling regularisation
+RIDGE_ALPHA        = 0.1      # stable regularisation for seasonal Fourier fit
 CI_Z               = 1.645
 MIN_REGIME_IDX     = 6
 MARGIN_RATE        = 0.20
@@ -192,8 +192,8 @@ def _make_models(n_train: int = 20) -> dict:
             n_estimators=N_ESTIMATORS_RF,
             max_depth=MAX_DEPTH_RF,
             min_samples_leaf=MIN_SAMPLES_LEAF,
-            max_features=0.8,          # use 80% of features per split — reduces variance
-            min_weight_fraction_leaf=0.05,
+            max_features=0.75,         # 75% features per split — balanced bias/variance
+            bootstrap=True,
             random_state=42,
         ),
         "GradBoost": GradientBoostingRegressor(
@@ -201,8 +201,8 @@ def _make_models(n_train: int = 20) -> dict:
             max_depth=MAX_DEPTH_GB,
             learning_rate=LEARNING_RATE_GB,
             subsample=SUBSAMPLE_GB,
-            min_samples_leaf=2,
-            max_features=0.8,          # feature subsampling per split
+            min_samples_leaf=3,        # prevents leaf-level memorisation
+            max_features=0.75,
             random_state=42,
         )
     }
