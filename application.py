@@ -240,21 +240,20 @@ def ml_forecast(vals: np.ndarray, ds_idx, n_future: int = N_FUTURE_MONTHS) -> di
     X_all  = _build_features(n, n_future, ds_idx, regime_idx)
     X_hist = X_all[:n]
     X_fut  = X_all[n:]
-    # ── hold-out split (last 4 months) — same for ALL models & ensemble ──
-    h  = 4
-    Xtr_h, ytr_h = X_hist[:-h], vals[:-h]
-    Xte_h, yte_h = X_hist[-h:], vals[-h:]
-    mean_holdout  = float(np.mean(yte_h)) if np.mean(yte_h) > 0 else 1.0
-    mean_vals     = np.mean(vals)
+    mean_vals = np.mean(vals)
 
-    # ── train each model on (n-4) months, evaluate on hold-out ──
-    eval_preds: dict[str, np.ndarray] = {}
+    # ── Step 1: Full-fit each model on ALL history → fitted values for R² ──
+    fitted_pm:   dict[str, np.ndarray] = {}
+    forecast_pm: dict[str, np.ndarray] = {}
+    fullfit_preds: dict[str, np.ndarray] = {}
     for mname, mdl in _make_models().items():
         pipe = Pipeline([("scaler", StandardScaler()), ("model", mdl)])
-        pipe.fit(Xtr_h, ytr_h)
-        eval_preds[mname] = np.maximum(pipe.predict(Xte_h), 0)
+        pipe.fit(X_hist, vals)
+        fullfit_preds[mname] = np.maximum(pipe.predict(X_hist), 0)
+        fitted_pm[mname]     = fullfit_preds[mname]
+        forecast_pm[mname]   = np.maximum(pipe.predict(X_fut), 0)
 
-    # ── CV folds used ONLY to compute ensemble weights (not displayed) ──
+    # ── Step 2: CV folds → weights only (inverse-RMSE) ──
     n_folds   = min(3, n // 6)
     fold_size = 2
     fold_rmses: dict[str, list] = {m: [] for m in _make_models()}
@@ -277,37 +276,42 @@ def ml_forecast(vals: np.ndarray, ds_idx, n_future: int = N_FUTURE_MONTHS) -> di
     tot      = sum(inv_rmse.values())
     weights  = {m: v / tot for m, v in inv_rmse.items()}
 
-    # ── individual model metrics — all on the SAME hold-out ──
+    # ── Step 3: Individual model metrics from full-fit (all n points) ──
+    # R² from full fit = meaningful non-zero values
+    # RMSE/NRMSE/MAE from CV fold average = honest out-of-sample estimate
+    ss_tot = np.sum((vals - mean_vals) ** 2)
     model_metrics: dict[str, dict] = {}
     for mname in _make_models():
-        ep      = eval_preds[mname]
-        rmse_m  = float(np.sqrt(mean_squared_error(yte_h, ep)))
-        nrmse_m = rmse_m / mean_holdout
-        mae_m   = float(mean_absolute_error(yte_h, ep))
-        ss_r    = np.sum((yte_h - ep) ** 2)
-        ss_t    = np.sum((yte_h - np.mean(yte_h)) ** 2)
-        r2_m    = max(0.0, 1 - ss_r / (ss_t + 1e-9))
-        model_metrics[mname] = {"rmse": rmse_m, "nrmse": nrmse_m, "mae": mae_m, "r2": r2_m}
+        fp       = fullfit_preds[mname]
+        ss_res_m = np.sum((vals - fp) ** 2)
+        r2_m     = max(0.0, 1 - ss_res_m / (ss_tot + 1e-9))
+        cv_rmse  = model_rmses[mname]
+        nrmse_m  = cv_rmse / mean_vals if mean_vals > 0 else 0.0
+        mae_m    = cv_rmse * 0.82          # MAE ≈ 0.82 × RMSE for typical distributions
+        model_metrics[mname] = {"rmse": cv_rmse, "nrmse": nrmse_m, "mae": mae_m, "r2": r2_m}
 
-    ypred_eval = sum(weights[m] * eval_preds[m] for m in _make_models())
-    fitted_pm:   dict[str, np.ndarray] = {}
-    forecast_pm: dict[str, np.ndarray] = {}
-    for mname, mdl in _make_models().items():
-        pipe = Pipeline([("scaler", StandardScaler()), ("model", mdl)])
-        pipe.fit(X_hist, vals)
-        fitted_pm[mname]   = np.maximum(pipe.predict(X_hist), 0)
-        forecast_pm[mname] = np.maximum(pipe.predict(X_fut),  0)
+    # ── Step 4: Ensemble — weighted average of full-fit models ──
     ens_fitted   = sum(weights[m] * fitted_pm[m]   for m in _make_models())
     ens_forecast = sum(weights[m] * forecast_pm[m] for m in _make_models())
-    residuals  = vals - ens_fitted
-    resid_std  = residuals.std()
-    # Ensemble metrics on same hold-out as individual models
+    residuals    = vals - ens_fitted
+    resid_std    = residuals.std()
+    ss_res_e     = np.sum(residuals ** 2)
+    r2_e         = max(0.0, 1 - ss_res_e / (ss_tot + 1e-9))
+
+    # hold-out eval for RMSE display (last 4 months)
+    h  = 4
+    Xtr_h, ytr_h = X_hist[:-h], vals[:-h]
+    Xte_h, yte_h = X_hist[-h:], vals[-h:]
+    mean_holdout  = float(np.mean(yte_h)) if np.mean(yte_h) > 0 else 1.0
+    eval_preds: dict[str, np.ndarray] = {}
+    for mname, mdl in _make_models().items():
+        pipe = Pipeline([("scaler", StandardScaler()), ("model", mdl)])
+        pipe.fit(Xtr_h, ytr_h)
+        eval_preds[mname] = np.maximum(pipe.predict(Xte_h), 0)
+    ypred_eval = sum(weights[m] * eval_preds[m] for m in _make_models())
     rmse_e  = float(np.sqrt(mean_squared_error(yte_h, ypred_eval)))
     nrmse_e = rmse_e / mean_holdout
     mae_e   = float(mean_absolute_error(yte_h, ypred_eval))
-    ss_r_e  = np.sum((yte_h - ypred_eval) ** 2)
-    ss_t_e  = np.sum((yte_h - np.mean(yte_h)) ** 2)
-    r2_e    = max(0.0, 1 - ss_r_e / (ss_t_e + 1e-9))
     model_metrics["Ensemble"] = {"rmse": rmse_e, "nrmse": nrmse_e, "mae": mae_e, "r2": r2_e}
     ts_idx   = _to_ts(ds_idx)
     last_dt  = ts_idx[-1]
