@@ -257,11 +257,6 @@ def ml_forecast(vals: np.ndarray, ds_idx, n_future: int = N_FUTURE_MONTHS) -> di
             fold_rmses[mname].append(np.sqrt(mean_squared_error(yte, ep)))
     model_rmses: dict[str, float] = {}
     model_metrics: dict[str, dict] = {}
-    best_model = min(model_metrics.items(), key=lambda x: x[1]["nrmse"])[0]
-    best_metrics = model_metrics[best_model]
-    
-    best_fitted = fitted_pm[best_model]
-    best_forecast = forecast_pm[best_model]
     mean_vals = np.mean(vals)
     for mname in fold_rmses:
         avg_rmse = np.mean(fold_rmses[mname]) if fold_rmses[mname] else 1.0
@@ -299,6 +294,10 @@ def ml_forecast(vals: np.ndarray, ds_idx, n_future: int = N_FUTURE_MONTHS) -> di
     nrmse_e    = rmse_e / np.mean(yte_h) if np.mean(yte_h) > 0 else 0.0
     mae_e      = mean_absolute_error(yte_h, ypred_eval)
     model_metrics["Ensemble"] = {"rmse": rmse_e, "nrmse": nrmse_e, "mae": mae_e, "r2": r2_e}
+    best_model = min(model_metrics.items(), key=lambda x: x[1]["nrmse"])[0]
+    best_metrics = model_metrics[best_model]    
+    best_fitted = fitted_pm.get(best_model, ens_fitted)
+    best_forecast = forecast_pm.get(best_model, ens_forecast)
     ts_idx   = _to_ts(ds_idx)
     last_dt  = ts_idx[-1]
     fut_dates = pd.date_range(last_dt + pd.offsets.MonthBegin(1), periods=n_future, freq="MS")
@@ -1241,7 +1240,6 @@ def page_demand() -> None:
             use_container_width=True, hide_index=True,
         )
 
-# ─── FIX 1: Default service level = 95% (z=1.65) via index=1 ───
 def page_inventory() -> None:
     n_future = get_horizon()
     df  = load_data()
@@ -1758,6 +1756,8 @@ def page_logistics() -> None:
             else:
                 st.info("Production plan not available.")
         sp(0.5)
+        del_df_delayed = del_df.copy()
+        del_df_delayed["Delayed"] = del_df_delayed["Delivery_Days"] > DEFAULT_LEAD_TIME
         sec("Carrier × Region Delay Heatmap")
         pv = del_df_delayed.groupby(["Courier_Partner", "Region"])["Delayed"].mean().unstack(fill_value=0) * 100
         
@@ -1818,7 +1818,7 @@ def page_logistics() -> None:
         sp(0.5)
         # Shared delay data using the single threshold slider from Tab 1
         del_df_t2 = del_df.copy()
-        del_df_t2["Delayed"] = del_df_t2["Delivery_Days"] > delay_thr
+        del_df_t2["Delayed"] = del_df_t2["Delivery_Days"] > DEFAULT_LEAD_TIME
         tb1, tb2 = st.columns(2, gap="large")
         with tb1:
             sec("Region Cost — Current vs Optimal")
