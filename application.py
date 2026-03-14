@@ -349,21 +349,27 @@ def compute_category_forecasts(n_future: int = N_FUTURE_MONTHS) -> dict:
 
 def ensemble_chart(res: dict, chart_key: str, height: int = 300, title: str = "", show_models: bool = True) -> go.Figure:
     fig = go.Figure()
+    # Forecast zone shading
     fig.add_vrect(x0=res["fut_ds"][0], x1=res["fut_ds"][-1],
         fillcolor="rgba(139,92,246,0.04)", layer="below", line_width=0,
     )
-    fig.add_vline(x=res["fut_ds"][0], line_dash="dash", line_color="rgba(139,92,246,0.4)", line_width=1.5)
+    fig.add_vline(x=res["fut_ds"][0], line_dash="dash",
+                  line_color="rgba(139,92,246,0.4)", line_width=1.5)
+    # 90% CI ribbon (no legend entry, no hover)
     x_ci = list(res["fut_ds"]) + list(res["fut_ds"])[::-1]
     y_ci = list(res["ci_hi"]) + list(res["ci_lo"])[::-1]
-    fig.add_trace(go.Scatter(x=x_ci, y=y_ci, fill="toself",
-        fillcolor="rgba(139,92,246,0.07)", line=dict(color="rgba(0,0,0,0)"),
-        name="90% CI", hoverinfo="skip",
+    fig.add_trace(go.Scatter(
+        x=x_ci, y=y_ci, fill="toself",
+        fillcolor="rgba(139,92,246,0.10)", line=dict(color="rgba(0,0,0,0)"),
+        name="90% CI", hoverinfo="skip", showlegend=True,
     ))
+    # Actual historical line
     fig.add_trace(go.Scatter(
         x=res["hist_ds"], y=res["hist_y"], name="Actual",
-        line=dict(color="#4a5e7a", width=2.2),
-        hovertemplate="<b>%{x|%b %Y}</b><br>%{y:,.0f}<extra></extra>",
+        line=dict(color="#1e3a8a", width=2.5),
+        hovertemplate="<b>%{x|%b %Y}</b><br>Actual: %{y:,.0f}<extra></extra>",
     ))
+    # Per-model fits — hidden by default, toggleable
     model_styles = [
         ("Ridge",        "#3B82F6", "dot"),
         ("RandomForest", "#22C55E", "dashdot"),
@@ -375,33 +381,45 @@ def ensemble_chart(res: dict, chart_key: str, height: int = 300, title: str = ""
                 fig.add_trace(go.Scatter(
                     x=res["hist_ds"], y=res["fitted_per_model"][mname],
                     name=f"{mname} fit", line=dict(color=clr, width=1.2, dash=dash),
-                    opacity=0.6, visible="legendonly",
+                    opacity=0.7, visible="legendonly",
+                    hovertemplate=f"<b>%{{x|%b %Y}}</b><br>{mname}: %{{y:,.0f}}<extra></extra>",
                 ))
+    # Ensemble fitted line — hidden by default
     fig.add_trace(go.Scatter(
         x=res["hist_ds"], y=res["fitted"], name="Ensemble fit",
-        line=dict(color="#8B5CF6", width=1.5, dash="dot"), opacity=0.6,
+        line=dict(color="#8B5CF6", width=1.5, dash="dot"), opacity=0.7,
+        visible="legendonly",
+        hovertemplate="<b>%{x|%b %Y}</b><br>Ensemble fit: %{y:,.0f}<extra></extra>",
     ))
+    # Per-model forecasts — hidden by default, toggleable
     if show_models and "forecast_per_model" in res:
         for mname, clr, dash in model_styles:
             if mname in res["forecast_per_model"]:
                 fig.add_trace(go.Scatter(
                     x=res["fut_ds"], y=res["forecast_per_model"][mname],
-                    name=f"{mname} forecast", line=dict(color=clr, width=1.8, dash=dash),
+                    name=f"{mname} forecast", line=dict(color=clr, width=1.6, dash=dash),
                     mode="lines+markers", marker=dict(size=5, color=clr),
                     visible="legendonly",
+                    hovertemplate=f"<b>%{{x|%b %Y}}</b><br>{mname}: %{{y:,.0f}}<extra></extra>",
                 ))
+    # Ensemble Forecast — always visible, bold
     fig.add_trace(go.Scatter(
         x=res["fut_ds"], y=res["forecast"], name="Ensemble Forecast",
-        line=dict(color="#8B5CF6", width=2.8, dash="dot"), mode="lines+markers",
-        marker=dict(size=8, color="#8B5CF6", line=dict(color="#FFFFFF", width=2)),
-        hovertemplate="<b>%{x|%b %Y}</b><br>%{y:,.0f}<extra></extra>",
+        line=dict(color="#8B5CF6", width=3.0), mode="lines+markers",
+        marker=dict(size=9, color="#8B5CF6", line=dict(color="#FFFFFF", width=2)),
+        hovertemplate="<b>%{x|%b %Y}</b><br>Forecast: %{y:,.0f}<extra></extra>",
     ))
+    # Eval markers — hold-out predictions vs actuals
     fig.add_trace(go.Scatter(
-        x=res["eval_ds"], y=res["eval_pred"], name="Eval",
-        mode="markers", marker=dict(size=9, color="#EF4444", symbol="x", line=dict(color="#FFFFFF", width=2)),
+        x=res["eval_ds"], y=res["eval_pred"], name="Hold-out eval",
+        mode="markers",
+        marker=dict(size=10, color="#EF4444", symbol="x-thin",
+                    line=dict(color="#EF4444", width=2.5)),
+        hovertemplate="<b>%{x|%b %Y}</b><br>Eval pred: %{y:,.0f}<extra></extra>",
     ))
     fig.update_layout(
-        **CD(), height=height, xaxis=gX(), yaxis=gY(), legend=leg(),
+        **CD(), height=height, xaxis=gX(), yaxis=gY(),
+        legend={**leg(), "traceorder": "normal"},
         title=dict(text=title, font=dict(color="#64748b", size=11)),
     )
     return fig
@@ -919,7 +937,7 @@ def page_demand() -> None:
             fig.add_hline(y=0.9, line_dash="dash", line_color="#22C55E",
                           annotation_text=" Target R²=0.90", annotation_font=dict(color="#22C55E", size=10))
             fig.update_layout(**CD(), height=240, xaxis=gX(),
-                              yaxis={**gY(), "title": "R² Score", "range": [0, 1.1]},
+                              yaxis={**gY(), "title": "R² Score", "range": [0, 1.25]},
                               title=dict(text="R² Score (higher = better)", font=dict(size=11, color="#64748b")))
             st.plotly_chart(fig, use_container_width=True, key="d_r2")
         with bc2:
@@ -932,7 +950,7 @@ def page_demand() -> None:
             fig2.add_hline(y=15, line_dash="dash", line_color="#22C55E",
                            annotation_text=" Target <15%", annotation_font=dict(color="#22C55E", size=10))
             fig2.update_layout(**CD(), height=240, xaxis=gX(),
-                               yaxis={**gY(), "title": "NRMSE (%)"},
+                               yaxis={**gY(), "title": "NRMSE (%)", "autorange": True},
                                title=dict(text="NRMSE % (lower = better)", font=dict(size=11, color="#64748b")))
             st.plotly_chart(fig2, use_container_width=True, key="d_nrmse")
     sp()
@@ -1156,6 +1174,8 @@ def page_production() -> None:
     fig.add_trace(go.Bar(
         x=agg["Month_dt"], y=agg["Production"], name="Production Target",
         marker=dict(color="#8B5CF6", opacity=0.85, line=dict(color="rgba(0,0,0,0)")),
+        text=[f"{int(v):,}" for v in agg["Production"]],
+        textposition="inside", textfont=dict(color="white", size=9),
     ))
     fig.add_trace(go.Scatter(
         x=agg["Month_dt"], y=agg["Demand_Forecast"], name="Ensemble Demand Forecast",
@@ -1194,6 +1214,8 @@ def page_production() -> None:
             fig2.add_trace(go.Bar(
                 x=s["Month_dt"], y=s["Production"], name=cat,
                 marker=dict(color=clr, line=dict(color="rgba(0,0,0,0)")),
+                text=[f"{int(v):,}" for v in s["Production"]],
+                textposition="inside", textfont=dict(color="white", size=8),
             ))
         fig2.update_layout(**CD(), height=270, barmode="stack", xaxis=gX(), yaxis=gY(),
                            legend={**leg(), "orientation": "h", "y": -0.32})
@@ -1749,6 +1771,8 @@ def page_logistics() -> None:
                     x=fwd_agg["Month_dt"], y=fwd_agg["Total_Units"],
                     name="Planned Units",
                     marker=dict(color="#3B82F6", opacity=0.85, line=dict(color="rgba(0,0,0,0)")),
+                    text=[f"{int(v):,}" for v in fwd_agg["Total_Units"]],
+                    textposition="inside", textfont=dict(color="white", size=9),
                     hovertemplate="<b>%{x|%b %Y}</b><br>Units: %{y:,}<extra></extra>",
                 ))
                 fig_fwd.update_layout(
@@ -1801,6 +1825,8 @@ def page_logistics() -> None:
                 fig_inb.add_trace(go.Bar(
                     x=wdf["Month"], y=wdf["Inbound_Units"], name=wh,
                     marker=dict(color=COLORS[i % len(COLORS)], line=dict(color="rgba(0,0,0,0)")),
+                    text=[f"{int(v):,}" for v in wdf["Inbound_Units"]],
+                    textposition="outside", textfont=dict(color="#334155", size=8),
                 ))
             fig_inb.update_layout(**CD(), height=250, barmode="group",
                                   xaxis={**gX(), "tickangle": -25},
