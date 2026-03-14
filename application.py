@@ -784,14 +784,14 @@ def compute_logistics(
     fwd_rows = []
     if not plan.empty:
         for _, row in plan.iterrows():
-            fc_units = row["Demand_Forecast"]
+            prod_units = int(row["Production"])
             fwd_rows.append({
                 "Month_dt":      row["Month_dt"],
                 "Month":         row["Month"],
                 "Category":      row["Category"],
-                "Prod_Units":    int(row["Production"]),
-                "Proj_Orders":   int(round(fc_units / avg_units_ord)),
-                "Proj_Ship_Cost":int(round(fc_units * avg_ship_unit, 0)),
+                "Prod_Units":    prod_units,
+                "Proj_Orders":   int(round(prod_units / avg_units_ord)),
+                "Proj_Ship_Cost":int(round(prod_units * avg_ship_unit, 0)),
                 "CI_Lo_Units":   int(row["CI_Lo"]),
                 "CI_Hi_Units":   int(row["CI_Hi"]),
             })
