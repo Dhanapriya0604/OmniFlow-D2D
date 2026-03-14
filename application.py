@@ -1,10 +1,7 @@
 import os
-import re as _re
-import datetime as _dt
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
-import requests as _requests
 import streamlit as st
 from sklearn.ensemble import GradientBoostingRegressor, RandomForestRegressor
 from sklearn.linear_model import Ridge
@@ -160,9 +157,7 @@ def horizon_badge(n_months: int) -> None:
 @st.cache_data(show_spinner="Loading data…")
 def load_data() -> pd.DataFrame:
     df = pd.read_csv(DATA_FILE, parse_dates=["Order_Date"])
-    df["YearMonth"]   = df["Order_Date"].dt.to_period("M")
     df["Year"]        = df["Order_Date"].dt.year
-    df["Month_Num"]   = df["Order_Date"].dt.month
     df["Net_Revenue"] = np.where(df["Return_Flag"] == 1, 0.0, df["Revenue_INR"])
     df["Net_Qty"]     = np.where(df["Return_Flag"] == 1, 0,   df["Quantity"])
     return df
@@ -178,7 +173,7 @@ def get_delivered(df: pd.DataFrame) -> pd.DataFrame:
 def _to_ts(idx) -> pd.DatetimeIndex:
     return idx.to_timestamp() if hasattr(idx, "to_timestamp") else pd.DatetimeIndex(idx)
 
-def _make_models(n_train: int = 20) -> dict:
+def _make_models() -> dict:
     return {
         "Ridge": Ridge(alpha=RIDGE_ALPHA, fit_intercept=True),
         "RandomForest": RandomForestRegressor(
@@ -248,7 +243,7 @@ def ml_forecast(vals: np.ndarray, ds_idx, n_future: int = N_FUTURE_MONTHS) -> di
 
     # ── Step 2: Train each model on (n-4) pts → predict hold-out 4 pts ──
     holdout_preds: dict[str, np.ndarray] = {}
-    for mname, mdl in _make_models(len(ytr_h)).items():
+    for mname, mdl in _make_models().items():
         pipe = Pipeline([("scaler", StandardScaler()), ("model", mdl)])
         pipe.fit(Xtr_h, ytr_h)
         holdout_preds[mname] = np.maximum(pipe.predict(Xte_h), 0)
@@ -265,7 +260,7 @@ def ml_forecast(vals: np.ndarray, ds_idx, n_future: int = N_FUTURE_MONTHS) -> di
             break
         Xtr, ytr = Xtr_h[:te_start], ytr_h[:te_start]
         Xte, yte = Xtr_h[te_start:te_end], ytr_h[te_start:te_end]
-        for mname, mdl in _make_models(len(ytr)).items():
+        for mname, mdl in _make_models().items():
             pipe = Pipeline([("scaler", StandardScaler()), ("model", mdl)])
             pipe.fit(Xtr, ytr)
             ep = np.maximum(pipe.predict(Xte), 0)
@@ -287,7 +282,7 @@ def ml_forecast(vals: np.ndarray, ds_idx, n_future: int = N_FUTURE_MONTHS) -> di
         model_metrics[mname] = {"rmse": rmse_m, "nrmse": nrmse_m, "mae": mae_m, "r2": 0.0}
 
     # Full-fit R² for each model (train on all n, predict all n)
-    for mname, mdl in _make_models(n).items():
+    for mname, mdl in _make_models().items():
         pipe = Pipeline([("scaler", StandardScaler()), ("model", mdl)])
         pipe.fit(X_hist, vals)
         fp       = np.maximum(pipe.predict(X_hist), 0)
@@ -303,7 +298,7 @@ def ml_forecast(vals: np.ndarray, ds_idx, n_future: int = N_FUTURE_MONTHS) -> di
     # ── Step 6: Full retrain on ALL n points → final fitted + forecast ──
     fitted_pm:   dict[str, np.ndarray] = {}
     forecast_pm: dict[str, np.ndarray] = {}
-    for mname, mdl in _make_models(n).items():
+    for mname, mdl in _make_models().items():
         pipe = Pipeline([("scaler", StandardScaler()), ("model", mdl)])
         pipe.fit(X_hist, vals)
         fitted_pm[mname]   = np.maximum(pipe.predict(X_hist), 0)
@@ -361,7 +356,8 @@ def ensemble_chart(res: dict, chart_key: str, height: int = 300, title: str = ""
     x_ci = list(res["fut_ds"]) + list(res["fut_ds"])[::-1]
     y_ci = list(res["ci_hi"]) + list(res["ci_lo"])[::-1]
     fig.add_trace(go.Scatter(x=x_ci, y=y_ci, fill="toself",
-        fillcolor="rgba(139,92,246,0.07)", line=dict(color="rgba(0,0,0,0)"), name="90% CI",
+        fillcolor="rgba(139,92,246,0.07)", line=dict(color="rgba(0,0,0,0)"),
+        name="90% CI", hoverinfo="skip",
     ))
     fig.add_trace(go.Scatter(
         x=res["hist_ds"], y=res["hist_y"], name="Actual",
@@ -379,21 +375,20 @@ def ensemble_chart(res: dict, chart_key: str, height: int = 300, title: str = ""
                 fig.add_trace(go.Scatter(
                     x=res["hist_ds"], y=res["fitted_per_model"][mname],
                     name=f"{mname} fit", line=dict(color=clr, width=1.2, dash=dash),
-                    opacity=0.5, visible="legendonly", showlegend=False,
+                    opacity=0.6, visible="legendonly",
                 ))
     fig.add_trace(go.Scatter(
         x=res["hist_ds"], y=res["fitted"], name="Ensemble fit",
-        line=dict(color="#8B5CF6", width=1.5, dash="dot"), opacity=0.55,
-        showlegend=False,
+        line=dict(color="#8B5CF6", width=1.5, dash="dot"), opacity=0.6,
     ))
     if show_models and "forecast_per_model" in res:
         for mname, clr, dash in model_styles:
             if mname in res["forecast_per_model"]:
                 fig.add_trace(go.Scatter(
                     x=res["fut_ds"], y=res["forecast_per_model"][mname],
-                    name=f"{mname} fc", line=dict(color=clr, width=1.8, dash=dash),
+                    name=f"{mname} forecast", line=dict(color=clr, width=1.8, dash=dash),
                     mode="lines+markers", marker=dict(size=5, color=clr),
-                    visible="legendonly", showlegend=False,
+                    visible="legendonly",
                 ))
     fig.add_trace(go.Scatter(
         x=res["fut_ds"], y=res["forecast"], name="Ensemble Forecast",
@@ -565,7 +560,6 @@ def compute_inventory(
         np.where(current_stock < rop, "🟡 Low", "🟢 Adequate"),
     )
     days_stock   = np.where(daily_d > 0, (current_stock / daily_d).round(1), 999.0)
-    weeks_cover  = np.where(daily_d > 0, (current_stock / (daily_d * 7)).round(1), 99.0)
     units_below  = np.maximum(ss - current_stock, 0)
     daily_margin  = daily_d * uc * MARGIN_RATE
     stockout_cost = np.where(status == "🔴 Critical",
@@ -586,9 +580,7 @@ def compute_inventory(
         "ROP":             rop,
         "Current_Stock":   current_stock,
         "Days_of_Stock":   days_stock,
-        "Weeks_Cover":     weeks_cover,
         "Status":          status,
-        "Dataset_Status":  sku_snapshot["dataset_status"],
         "Unit_Price":      uc.round(0),
         "Annual_Demand":   ann_d.round(0),
         "Stockout_Cost":   stockout_cost,
@@ -749,7 +741,6 @@ def compute_logistics(
         + w_cost  * carr["Norm_Avg_Cost"]
         + w_returns * carr["Norm_Return_Rate"]
     ).round(3)
-    carr["Delay_Index"] = (carr["Avg_Days"] / carr["Avg_Days"].min()).round(2)
     region_carr = del_df.groupby(["Region", "Courier_Partner"]).agg(
         Avg_Days = ("Delivery_Days",     "mean"),
         Avg_Cost = ("Shipping_Cost_INR", "mean"),
@@ -1207,7 +1198,7 @@ def page_production() -> None:
             fillcolor="rgba(139,92,246,0.07)", line=dict(color="rgba(0,0,0,0)"), name="90% CI",
         ))
     fig.add_vline(x=forecast_start, line_dash="dash", line_color="rgba(139,92,246,0.5)", line_width=2)
-    fig.update_layout(**CD(), height=320, barmode="overlay", xaxis=gX(), yaxis=gY(), legend=leg())
+    fig.update_layout(**CD(), height=320, xaxis=gX(), yaxis=gY(), legend=leg())
     st.plotly_chart(fig, use_container_width=True, key="prod_main")
 
     cl, cr = st.columns(2, gap="large")
@@ -1485,7 +1476,7 @@ def page_logistics() -> None:
         w_returns = wc3.slider("Returns weight %", 10, 70, int(DEFAULT_W_RETURNS * 100)) / 100
         tot = w_speed + w_cost + w_returns
         w_speed /= tot; w_cost /= tot; w_returns /= tot
-    carr, best_carr, opt, fwd_plan = compute_logistics(w_speed, w_cost, w_returns, n_future)
+    carr, _, opt, fwd_plan = compute_logistics(w_speed, w_cost, w_returns, n_future)
     plan = compute_production(n_future=n_future)
     t1, t2, t3 = st.tabs(["Carrier Performance", "Cost & Delay", "Forward Plan"])
     with t1:
