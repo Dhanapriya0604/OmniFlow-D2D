@@ -526,11 +526,21 @@ def compute_inventory(
         avg_price    = ("Sell_Price",          "mean"),
         total_qty    = ("Net_Qty",             "sum"),
     ).reset_index()
+    # Peak-month std: use max monthly demand std across months for seasonal safety stock
+    sku_monthly_pivot = (
+        sku_monthly.copy()
+    )
+    sku_monthly_pivot["Month"] = sku_monthly_pivot["YM"].dt.month if hasattr(sku_monthly_pivot["YM"].dtype, "freq")         else sku_monthly_pivot["YM"].apply(lambda p: p.month)
+    sku_month_avg = sku_monthly_pivot.groupby(["SKU_ID", "Month"])["Net_Qty"].mean().reset_index()
+    sku_peak_std  = sku_month_avg.groupby("SKU_ID")["Net_Qty"].std().reset_index().rename(columns={"Net_Qty": "peak_std"})
     sku_stats = (
         sku_monthly.groupby("SKU_ID")["Net_Qty"]
         .agg(hist_avg="mean", hist_std="std", peak_d="max")
         .reset_index()
     )
+    sku_stats = sku_stats.merge(sku_peak_std, on="SKU_ID", how="left")
+    # Use max(monthly std, seasonal std) for conservative safety stock
+    sku_stats["hist_std"] = sku_stats[["hist_std", "peak_std"]].max(axis=1).fillna(sku_stats["hist_avg"] * 0.25)
     sku_stats["hist_std"] = sku_stats["hist_std"].fillna(sku_stats["hist_avg"] * 0.25)
     cat_hist_avg: dict[str, float] = {
         cat: info["hist_avg"] for cat, info in cat_fcs.items()
@@ -577,6 +587,12 @@ def compute_inventory(
         np.where(current_stock < rop, "🟡 Low", "🟢 Adequate"),
     )
     days_stock   = np.where(daily_d > 0, (current_stock / daily_d).round(1), 999.0)
+    # Days until current stock hits ROP — forward alert for near-future risk
+    days_to_rop  = np.where(
+        (daily_d > 0) & (current_stock > rop),
+        ((current_stock - rop) / daily_d).round(1),
+        0.0,
+    )
     units_below  = np.maximum(ss - current_stock, 0)
     daily_margin  = daily_d * uc * MARGIN_RATE
     stockout_cost = np.where(status == "🔴 Critical",
@@ -595,6 +611,7 @@ def compute_inventory(
         "ROP":             rop,
         "Current_Stock":   current_stock,
         "Days_of_Stock":   days_stock,
+        "Days_To_ROP":     days_to_rop,
         "Status":          status,
         "Unit_Price":      uc.round(0),
         "Stockout_Cost":   stockout_cost,
@@ -641,9 +658,29 @@ def compute_production(cap_mult: float = 1.0, n_future: int = N_FUTURE_MONTHS) -
         low_gap   = float((low_skus["ROP"]  - low_skus["Current_Stock"]).clip(lower=0).sum())
         current_stock_cat = int(cat_inv["Current_Stock"].sum())
         demand_6m_cat     = int(cat_inv["Demand_6M"].sum())
-        # Apply capacity multiplier to total, then distribute with exact integer allocation
+        # Apply capacity multiplier to total
         scheduled_total = int(round(prod_need_cat * cap_mult))
+        # Base allocation proportional to demand forecast
         monthly_prod = _int_allocate(scheduled_total, fc_arr)
+        # Urgency boost: pull forward from later months (no extra units created)
+        # Total stays exactly = scheduled_total
+        urgency_pool = int(round((crit_gap * 0.60 + low_gap * 0.20)))
+        urgency_pool = min(urgency_pool, scheduled_total)
+        if urgency_pool > 0 and n_future >= 2:
+            # Add boost to month 0 and 1, deduct proportionally from remaining months
+            boost_m0 = int(round(urgency_pool * BOOST_SCHEDULE.get(0, 0.60)))
+            boost_m1 = urgency_pool - boost_m0
+            monthly_prod[0] = min(monthly_prod[0] + boost_m0, scheduled_total)
+            if n_future > 1:
+                monthly_prod[1] = min(monthly_prod[1] + boost_m1, scheduled_total)
+            # Deduct excess from later months (largest first to preserve proportionality)
+            excess = sum(monthly_prod) - scheduled_total
+            for idx in range(n_future - 1, 1, -1):
+                if excess <= 0:
+                    break
+                deduct = min(monthly_prod[idx], excess)
+                monthly_prod[idx] -= deduct
+                excess -= deduct
         for i, (dt, fc) in enumerate(zip(fut_ds, fc_arr)):
             bf         = BOOST_SCHEDULE.get(i, 0.0)
             crit_boost = int(round(crit_gap * bf))
@@ -853,6 +890,31 @@ def page_overview() -> None:
     kpi(k4, "Return Rate", f"{ret_rate:.1f}%", "coral", f"{df['Return_Flag'].sum()} orders")
     kpi(k5, "On-Time Delivery", f"{on_time:.1f}%", "mint", "delivered ≤ 3 days")
     kpi(k6, "Unique SKUs", str(n_skus), "sky", "across 4 categories")
+    sp(0.5)
+    # ── Supply Chain Health Alert Banner ─────────────────────────────────
+    _inv_ov = compute_inventory()
+    _n_crit = int((_inv_ov["Status"] == "🔴 Critical").sum())
+    _n_low  = int((_inv_ov["Status"] == "🟡 Low").sum())
+    _stockout_risk = int(_inv_ov["Stockout_Cost"].sum())
+    _top_crit = _inv_ov[_inv_ov["Status"] == "🔴 Critical"].sort_values("Stockout_Cost", ascending=False)
+    if _n_crit > 0:
+        _top_names = ", ".join(_top_crit["Product_Name"].str[:20].tolist()[:3])
+        banner(
+            f"🚨 <b>Supply Chain Alert:</b> &nbsp;"
+            f"<b>{_n_crit} Critical SKUs</b> at or below safety stock &nbsp;|&nbsp; "
+            f"<b>{_n_low} Low Stock SKUs</b> below reorder point &nbsp;|&nbsp; "
+            f"Stockout Risk: <b>₹{_stockout_risk:,}</b> &nbsp;|&nbsp; "
+            f"Most urgent: <b>{_top_names}</b> → Go to <i>Production Planning</i>",
+            "coral",
+        )
+    elif _n_low > 0:
+        banner(
+            f"⚠️ <b>{_n_low} SKUs</b> are below reorder point — consider restocking soon. "
+            f"No critical stockouts currently.",
+            "amber",
+        )
+    else:
+        banner("✅ <b>All SKUs adequately stocked.</b> No immediate stockout risk.", "mint")
     sp(0.5)
     st.markdown("""
     <div class='about-section'>
@@ -1149,6 +1211,22 @@ def page_inventory() -> None:
             legend={**leg(), "orientation": "h", "y": -0.18},
         )
         st.plotly_chart(fig_sc, use_container_width=True, key="scatter_stock")
+        # Near-ROP alert: Adequate SKUs that will hit ROP within the forecast horizon
+        near_rop = sv[
+            (sv["Status"] == "🟢 Adequate") &
+            (sv["Days_To_ROP"] > 0) &
+            (sv["Days_To_ROP"] <= (get_horizon() * 30))
+        ].sort_values("Days_To_ROP")
+        if not near_rop.empty:
+            sp(0.5)
+            _near_names = ", ".join(
+                (near_rop["Product_Name"].str[:18] + " (" + near_rop["Days_To_ROP"].apply(lambda x: f"{int(x)}d") + ")").tolist()[:4]
+            )
+            banner(
+                f"⏰ <b>{len(near_rop)} SKUs will hit reorder point within {get_horizon()} months:</b> "
+                f"{_near_names}{'…' if len(near_rop) > 4 else ''} — plan restocking now.",
+                "amber",
+            )
         action = sv.sort_values(["Status", "Prod_Need"], ascending=[True, False])
         if not action.empty:
             sp(0.5)
@@ -1156,15 +1234,16 @@ def page_inventory() -> None:
             tbl = action[[
                 "SKU_ID", "Product_Name", "Category", "ABC", "Status",
                 "Current_Stock", "Demand_6M", "Demand_Cover_Pct",
-                "ROP", "EOQ", "SS", "Prod_Need",
+                "ROP", "EOQ", "SS", "Days_To_ROP", "Prod_Need",
             ]].copy()
             tbl.columns = [
                 "SKU", "Product", "Category", "ABC", "Status",
                 "Stock", f"{n_future}M Demand", "Covers %",
-                "ROP", "EOQ", "Safety Stock", "Units to Produce",
+                "ROP", "EOQ", "Safety Stock", "Days to ROP", "Units to Produce",
             ]
             for c in ["Stock", f"{n_future}M Demand", "ROP", "EOQ", "Safety Stock", "Units to Produce"]:
                 tbl[c] = tbl[c].astype(int)
+            tbl["Days to ROP"] = tbl["Days to ROP"].apply(lambda x: f"{int(x)}d" if x > 0 else "—")
             tbl["Covers %"] = tbl["Covers %"].apply(lambda x: f"{x:.0f}%")
             st.dataframe(tbl, use_container_width=True, hide_index=True, height=340)
 
@@ -1560,6 +1639,17 @@ def page_logistics() -> None:
         total_sav = opt["Potential_Saving"].sum()
         del_df_t2 = del_df.copy()
         del_df_t2["Delayed"] = del_df_t2["Delivery_Days"] > delay_thr
+        # Saving impact banner — shows the financial effect of switching
+        current_fwd_cost = fwd_plan["Proj_Ship_Cost"].sum() if not fwd_plan.empty else 0
+        hist_cost_if_optimal = total_spend - total_sav
+        banner(
+            f"💡 Switching to optimal carriers saves <b>₹{total_sav:,.0f}</b> "
+            f"({total_sav / total_spend * 100:.1f}% of ₹{total_spend:,.0f} historical spend) &nbsp;|&nbsp; "
+            f"Forward {get_horizon()}M plan already uses optimal carrier costs: "
+            f"<b>₹{current_fwd_cost:,.0f}</b> projected vs ₹{int(current_fwd_cost * total_spend / max(hist_cost_if_optimal,1)):,.0f} at current rates",
+            "mint",
+        )
+        sp(0.5)
         sec("Carrier Switch Recommendations")
         tb3, tb4 = st.columns(2, gap="large")
         with tb3:
