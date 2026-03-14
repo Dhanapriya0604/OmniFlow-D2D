@@ -1205,40 +1205,19 @@ def page_production() -> None:
     fig.update_layout(**CD(), height=320, xaxis=gX(), yaxis=gY(), legend=leg())
     st.plotly_chart(fig, use_container_width=True, key="prod_main")
 
-    cl, cr = st.columns(2, gap="large")
-    with cl:
-        sec("Production by Category")
-        fig2 = go.Figure()
-        fig2.add_vrect(x0=plan["Month_dt"].min(), x1=plan["Month_dt"].max(),
-                       fillcolor="rgba(139,92,246,0.04)", layer="below", line_width=0)
-        fig2.add_vline(x=plan["Month_dt"].min(), line_dash="dash",
-                       line_color="rgba(139,92,246,0.4)", line_width=1.5)
-        for i, cat in enumerate(plan["Category"].unique()):
-            clr = COLORS[i % len(COLORS)]
-            s = plan[plan["Category"] == cat].sort_values("Month_dt")
-            fig2.add_trace(go.Bar(
-                x=s["Month_dt"], y=s["Production"], name=cat,
-                marker=dict(color=clr, line=dict(color="rgba(0,0,0,0)")),
-                text=[f"{int(v):,}" for v in s["Production"]],
-                textposition="inside", textfont=dict(color="white", size=8),
-            ))
-        fig2.update_layout(**CD(), height=270, barmode="stack", xaxis=gX(), yaxis=gY(),
-                           legend={**leg(), "orientation": "h", "y": -0.32})
-        st.plotly_chart(fig2, use_container_width=True, key="prod_cat")
-    with cr:
-        sec("Production vs Demand Gap")
-        agg["Gap"] = agg["Production"] - agg["Demand_Forecast"]
-        fig3 = go.Figure(go.Bar(
-            x=agg["Month_dt"], y=agg["Gap"],
-            marker=dict(color=["#22C55E" if g >= 0 else "#EF4444" for g in agg["Gap"]],
-                        line=dict(color="rgba(0,0,0,0)")),
-            text=[f"{g:+.0f}" for g in agg["Gap"]], textposition="outside",
-            textfont=dict(color="#334155"),
-        ))
-        fig3.add_hline(y=0, line_dash="dash", line_color="rgba(0,0,0,0.2)")
-        fig3.update_layout(**CD(), height=270, xaxis=gX(),
-                           yaxis={**gY(), "title": "Units Surplus / Deficit"})
-        st.plotly_chart(fig3, use_container_width=True, key="prod_gap")
+    sec("Production vs Demand Gap")
+    agg["Gap"] = agg["Production"] - agg["Demand_Forecast"]
+    fig3 = go.Figure(go.Bar(
+        x=agg["Month_dt"], y=agg["Gap"],
+        marker=dict(color=["#22C55E" if g >= 0 else "#EF4444" for g in agg["Gap"]],
+                    line=dict(color="rgba(0,0,0,0)")),
+        text=[f"{g:+.0f}" for g in agg["Gap"]], textposition="outside",
+        textfont=dict(color="#334155"),
+    ))
+    fig3.add_hline(y=0, line_dash="dash", line_color="rgba(0,0,0,0.2)")
+    fig3.update_layout(**CD(), height=240, xaxis=gX(),
+                       yaxis={**gY(), "title": "Units Surplus / Deficit"})
+    st.plotly_chart(fig3, use_container_width=True, key="prod_gap")
     sp()
 
     st.markdown("<div style='font-size:22px;font-weight:900;color:black;letter-spacing:-.02em'>Fulfillment & Routing Plan</div>",
@@ -1292,49 +1271,6 @@ def page_production() -> None:
         )
         st.plotly_chart(fig_wh_dist, use_container_width=True, key="wh_dist_bar")
         sp(0.5)
-        wh_agg = (
-            sku_plan.groupby("Target_Warehouse")
-            .agg(
-                SKUs           = ("SKU_ID",        "count"),
-                Total_Units    = ("Prod_Need",      "sum"),
-                Urgent_SKUs    = ("Urgency",        lambda x: (x == "🔴 Urgent").sum()),
-                High_SKUs      = ("Urgency",        lambda x: (x == "🟠 High").sum()),
-                Total_Ship_Cost= ("Est_Ship_Cost",  "sum"),
-                Categories     = ("Category",       lambda x: ", ".join(sorted(x.unique()))),
-                Avg_Days_Left  = ("Days_Left",      lambda x: x[x < 999].mean()),
-            )
-            .reset_index().sort_values("Urgent_SKUs", ascending=False)
-        )
-        wh_cols = st.columns(min(len(wh_agg), 4), gap="medium")
-        for col, (_, wh) in zip(wh_cols, wh_agg.iterrows()):
-            if wh["Urgent_SKUs"] > 0:
-                urgency_badge = f"<span style='background:#fee2e2;color:#dc2626;padding:2px 8px;border-radius:12px;font-size:10px;font-weight:700'>🔴 {int(wh['Urgent_SKUs'])} urgent</span>"
-            elif wh["High_SKUs"] > 0:
-                urgency_badge = f"<span style='background:#fff7ed;color:#d97706;padding:2px 8px;border-radius:12px;font-size:10px;font-weight:700'>🟠 {int(wh['High_SKUs'])} high</span>"
-            else:
-                urgency_badge = "<span style='background:#f0fdf4;color:#15803d;padding:2px 8px;border-radius:12px;font-size:10px;font-weight:700'>🟢 Scheduled</span>"
-            col.markdown(f"""
-            <div style='background:white;border:1px solid #e5e7eb;border-radius:14px;
-                 padding:18px;box-shadow:0 4px 16px rgba(0,0,0,0.07);height:100%'>
-              <div style='font-size:16px;font-weight:900;color:#0f172a;margin-bottom:4px'>{wh["Target_Warehouse"]}</div>
-              <div style='margin-bottom:10px'>{urgency_badge}</div>
-              <div style='display:grid;grid-template-columns:1fr 1fr;gap:8px'>
-                <div style='background:#f8fafc;border-radius:8px;padding:8px;text-align:center'>
-                  <div style='font-size:9px;color:#94a3b8;text-transform:uppercase;font-family:DM Mono'>SKUs Inbound</div>
-                  <div style='font-size:24px;font-weight:900;color:#1e3a8a'>{int(wh["SKUs"])}</div>
-                </div>
-                <div style='background:#f8fafc;border-radius:8px;padding:8px;text-align:center'>
-                  <div style='font-size:9px;color:#94a3b8;text-transform:uppercase;font-family:DM Mono'>Units Needed</div>
-                  <div style='font-size:24px;font-weight:900;color:#059669'>{int(wh["Total_Units"]):,}</div>
-                </div>
-              </div>
-              <div style='margin-top:10px;font-size:10px;color:#64748b;font-family:DM Mono'>
-                <div>Ship Cost: <b style='color:#0f172a'>₹{int(wh["Total_Ship_Cost"]):,}</b></div>
-                <div style='margin-top:3px'>Categories: <b style='color:#0f172a'>{wh["Categories"]}</b></div>
-                <div style='margin-top:3px'>Avg days left: <b style='color:#d97706'>{wh["Avg_Days_Left"]:.1f}d</b></div>
-              </div>
-            </div>""", unsafe_allow_html=True)
-        sp()
         sec("Detailed Shipment Routing Plan")
         routing_tbl = sku_plan[[
             "Target_Warehouse", "SKU_ID", "Product_Name", "Category", "ABC", "Urgency",
@@ -1354,69 +1290,25 @@ def page_production() -> None:
             "🔴 Urgent": "#ef4444", "🟠 High": "#f97316",
             "🟡 Medium": "#eab308", "🟢 Normal": "#22c55e",
         }
-        with va1:
-            urg_counts = sku_plan["Urgency"].value_counts().reset_index()
-            urg_counts.columns = ["Urgency", "Count"]
-            fig_d = go.Figure(go.Pie(
-                labels=urg_counts["Urgency"], values=urg_counts["Count"], hole=0.55,
-                marker=dict(colors=[urg_color_map.get(u, "#888") for u in urg_counts["Urgency"]],
-                            line=dict(color="#ffffff", width=2)),
-                textinfo="label+value", textfont=dict(size=11),
+        cat_units = sku_plan.groupby(["Category", "Urgency"])["Prod_Need"].sum().reset_index()
+        fig_bu = go.Figure()
+        for urg, clr in urg_color_map.items():
+            sub = cat_units[cat_units["Urgency"] == urg]
+            if sub.empty:
+                continue
+            fig_bu.add_trace(go.Bar(
+                name=urg, x=sub["Category"], y=sub["Prod_Need"],
+                marker=dict(color=clr, line=dict(color="rgba(0,0,0,0)")),
+                text=sub["Prod_Need"].astype(int),
+                textposition="inside", textfont=dict(color="white", size=9),
             ))
-            fig_d.update_layout(**CD(), height=260, showlegend=False,
-                                title=dict(text="SKUs by Urgency Tier", font=dict(size=11, color="#64748b")))
-            st.plotly_chart(fig_d, use_container_width=True, key="pq_donut")
-        with va2:
-            cat_units = sku_plan.groupby(["Category", "Urgency"])["Prod_Need"].sum().reset_index()
-            fig_bu = go.Figure()
-            for urg, clr in urg_color_map.items():
-                sub = cat_units[cat_units["Urgency"] == urg]
-                if sub.empty:
-                    continue
-                fig_bu.add_trace(go.Bar(
-                    name=urg, x=sub["Category"], y=sub["Prod_Need"],
-                    marker=dict(color=clr, line=dict(color="rgba(0,0,0,0)")),
-                    text=sub["Prod_Need"].astype(int),
-                    textposition="inside", textfont=dict(color="white", size=9),
-                ))
-            fig_bu.update_layout(**CD(), height=260, barmode="stack",
-                                 xaxis={**gX(), "tickangle": -10},
-                                 yaxis={**gY(), "title": "Units to Produce"},
-                                 legend={**leg(), "orientation": "h", "y": -0.32},
-                                 title=dict(text="Units Needed by Category & Urgency", font=dict(size=11, color="#64748b")))
-            st.plotly_chart(fig_bu, use_container_width=True, key="pq_cat_bar")
-        sp()
-        sec("Days of Stock Remaining — Most Critical SKUs")
-        top20 = sku_plan.sort_values("Days_Left", ascending=True).head(20).copy()
-        top20["Label"]     = top20["Product_Name"].str[:22] + " [" + top20["SKU_ID"] + "]"
-        top20["Bar_Color"] = top20["Days_Left"].apply(
-            lambda x: "#ef4444" if x <= 7 else "#f97316" if x <= 14 else "#eab308" if x <= 30 else "#22c55e"
-        )
-        top20_s = top20.sort_values("Days_Left", ascending=True)
-        fig_hl = go.Figure(go.Bar(
-            x=top20_s["Days_Left"].clip(upper=60), y=top20_s["Label"],
-            orientation="h",
-            marker=dict(color=top20_s["Bar_Color"].tolist(), line=dict(color="rgba(0,0,0,0)")),
-            text=[f"{int(v)}d · {int(u):,} units" for v, u in zip(top20_s["Days_Left"], top20_s["Prod_Need"])],
-            textposition="outside", textfont=dict(color="#334155", size=9),
-            customdata=top20_s[["Category", "Target_Warehouse", "Urgency"]].values,
-            hovertemplate=(
-                "<b>%{y}</b><br>Days left: %{x:.0f}d<br>"
-                "Category: %{customdata[0]}<br>"
-                "Warehouse: %{customdata[1]}<br>"
-                "Urgency: %{customdata[2]}<extra></extra>"
-            ),
-        ))
-        for xv, clr, lbl in [(7, "#ef4444", " 7d"), (14, "#f97316", " 14d"), (30, "#eab308", " 30d")]:
-            fig_hl.add_vline(x=xv, line_dash="dash", line_color=clr, line_width=1.5,
-                             annotation_text=lbl, annotation_font=dict(color=clr, size=9))
-        _x_max = max(float(top20_s["Days_Left"].clip(upper=60).max()) * 1.35, 75)
-        fig_hl.update_layout(**CD(), height=max(300, len(top20_s) * 22),
-                             xaxis={**gX(), "title": "Days of Stock Remaining", "range": [0, _x_max]},
-                             yaxis=dict(showgrid=False, color="#64748b", automargin=True),
-                             title=dict(text="Top 20 Most Urgent SKUs — Days of Stock Left",
-                                        font=dict(size=11, color="#64748b")))
-        st.plotly_chart(fig_hl, use_container_width=True, key="pq_days_bar")
+        fig_bu.update_layout(**CD(), height=260, barmode="stack",
+                             xaxis={**gX(), "tickangle": -10},
+                             yaxis={**gY(), "title": "Units to Produce"},
+                             legend={**leg(), "orientation": "h", "y": -0.32},
+                             title=dict(text="Units Needed by Category & Urgency", font=dict(size=11, color="#64748b")))
+        st.plotly_chart(fig_bu, use_container_width=True, key="pq_cat_bar")
+
 
 def page_logistics() -> None:
     n_future = get_horizon()
@@ -1469,54 +1361,42 @@ def page_logistics() -> None:
                           xaxis={**gX(), "title": "Avg Delivery Days  (lower = faster)", "rangemode": "normal"},
                           yaxis={**gY(), "title": "Avg Shipping Cost INR  (lower = cheaper)", "rangemode": "normal"})
         st.plotly_chart(fig, use_container_width=True, key="log_bubble")
-        ta1, ta2 = st.columns(2, gap="large")
-        with ta1:
-            sec("Carrier Metrics Table")
-            d2 = carr[["Courier_Partner", "Orders", "Avg_Days", "Avg_Cost", "Return_Rate", "Perf_Score"]].copy()
-            d2["Avg_Days"]    = d2["Avg_Days"].round(1)
-            d2["Avg_Cost"]    = d2["Avg_Cost"].round(1)
-            d2["Return_Rate"] = (d2["Return_Rate"] * 100).round(1).astype(str) + "%"
-            d2["Perf_Score"]  = d2["Perf_Score"].round(3)
-            d2.columns = ["Carrier", "Orders", "Avg Days", "Avg Cost ₹", "Return Rate", "Score"]
-            st.dataframe(d2.sort_values("Score", ascending=False), use_container_width=True, hide_index=True)
-        with ta2:
-            sec("Best Carrier per Category")
-            if not plan.empty:
-                cat_carr = del_df.groupby(["Category", "Courier_Partner"]).agg(
+        sec("Best Carrier per Category")
+        if not plan.empty:
+            cat_carr = del_df.groupby(["Category", "Courier_Partner"]).agg(
                     Avg_Days=("Delivery_Days", "mean"),
                     Avg_Cost=("Shipping_Cost_INR", "mean"),
                 ).reset_index()
-                cat_carr_ret = df.groupby(["Category", "Courier_Partner"])["Return_Flag"].mean().reset_index()
-                cat_carr_ret.columns = ["Category", "Courier_Partner", "Return_Rate"]
-                cat_carr = cat_carr.merge(cat_carr_ret, on=["Category", "Courier_Partner"], how="left")
-                cat_carr["Return_Rate"] = cat_carr["Return_Rate"].fillna(0)
-                for col_c in ["Avg_Days", "Avg_Cost", "Return_Rate"]:
-                    mn_c = cat_carr[col_c].min(); mx_c = cat_carr[col_c].max()
-                    cat_carr[f"N_{col_c}"] = 1 - (cat_carr[col_c] - mn_c) / (mx_c - mn_c + 1e-9)
-                cat_carr["Score"] = (
-                    w_speed * cat_carr["N_Avg_Days"]
-                    + w_cost * cat_carr["N_Avg_Cost"]
-                    + w_returns * cat_carr["N_Return_Rate"]
-                )
-                best_cat = cat_carr.sort_values("Score", ascending=False).groupby("Category").first().reset_index()
-                prod_by_cat = plan.groupby("Category")["Production"].sum().reset_index()
-                best_cat = best_cat.merge(prod_by_cat.rename(columns={"Production": "Planned Units"}), on="Category", how="left")
-                best_cat["Avg_Days"]      = best_cat["Avg_Days"].round(1)
-                best_cat["Avg_Cost"]      = best_cat["Avg_Cost"].round(1)
-                best_cat["Score"]         = best_cat["Score"].round(3)
-                best_cat["Planned Units"] = best_cat["Planned Units"].fillna(0).astype(int)
-                # Add target warehouse from sku production plan
-                sku_pl = build_sku_production_plan(n_future)
-                wh_by_cat = (sku_pl.groupby("Category")["Target_Warehouse"]
-                             .agg(lambda x: x.value_counts().index[0]).reset_index()
-                             .rename(columns={"Target_Warehouse": "Warehouse"}))
-                best_cat = best_cat.merge(wh_by_cat, on="Category", how="left")
-                best_cat["Warehouse"] = best_cat["Warehouse"].fillna("—")
-                best_cat = best_cat[["Category", "Courier_Partner", "Avg_Days", "Avg_Cost", "Score", "Warehouse", "Planned Units"]]
-                best_cat.columns = ["Category", "Best Carrier", "Avg Days", "Avg Cost ₹", "Score", "Target Warehouse", "Planned Units"]
-                st.dataframe(best_cat.sort_values("Score", ascending=False), use_container_width=True, hide_index=True)
-            else:
-                st.info("Production plan not available.")
+            cat_carr_ret = df.groupby(["Category", "Courier_Partner"])["Return_Flag"].mean().reset_index()
+            cat_carr_ret.columns = ["Category", "Courier_Partner", "Return_Rate"]
+            cat_carr = cat_carr.merge(cat_carr_ret, on=["Category", "Courier_Partner"], how="left")
+            cat_carr["Return_Rate"] = cat_carr["Return_Rate"].fillna(0)
+            for col_c in ["Avg_Days", "Avg_Cost", "Return_Rate"]:
+                mn_c = cat_carr[col_c].min(); mx_c = cat_carr[col_c].max()
+                cat_carr[f"N_{col_c}"] = 1 - (cat_carr[col_c] - mn_c) / (mx_c - mn_c + 1e-9)
+            cat_carr["Score"] = (
+                w_speed * cat_carr["N_Avg_Days"]
+                + w_cost * cat_carr["N_Avg_Cost"]
+                + w_returns * cat_carr["N_Return_Rate"]
+            )
+            best_cat = cat_carr.sort_values("Score", ascending=False).groupby("Category").first().reset_index()
+            prod_by_cat = plan.groupby("Category")["Production"].sum().reset_index()
+            best_cat = best_cat.merge(prod_by_cat.rename(columns={"Production": "Planned Units"}), on="Category", how="left")
+            best_cat["Avg_Days"]      = best_cat["Avg_Days"].round(1)
+            best_cat["Avg_Cost"]      = best_cat["Avg_Cost"].round(1)
+            best_cat["Score"]         = best_cat["Score"].round(3)
+            best_cat["Planned Units"] = best_cat["Planned Units"].fillna(0).astype(int)
+            sku_pl = build_sku_production_plan(n_future)
+            wh_by_cat = (sku_pl.groupby("Category")["Target_Warehouse"]
+                         .agg(lambda x: x.value_counts().index[0]).reset_index()
+                         .rename(columns={"Target_Warehouse": "Warehouse"}))
+            best_cat = best_cat.merge(wh_by_cat, on="Category", how="left")
+            best_cat["Warehouse"] = best_cat["Warehouse"].fillna("—")
+            best_cat = best_cat[["Category", "Courier_Partner", "Avg_Days", "Avg_Cost", "Score", "Warehouse", "Planned Units"]]
+            best_cat.columns = ["Category", "Best Carrier", "Avg Days", "Avg Cost ₹", "Score", "Target Warehouse", "Planned Units"]
+            st.dataframe(best_cat.sort_values("Score", ascending=False), use_container_width=True, hide_index=True)
+        else:
+            st.info("Production plan not available.")
         sp(0.5)
         sec("Carrier x Region Heatmap")
 
@@ -1648,31 +1528,9 @@ def page_logistics() -> None:
         total_sav = opt["Potential_Saving"].sum()
         del_df_t2 = del_df.copy()
         del_df_t2["Delayed"] = del_df_t2["Delivery_Days"] > delay_thr
-        sec("Region Cost — Current vs Optimal")
-        fig_cost = go.Figure()
-        fig_cost.add_trace(go.Bar(
-            name="Current ₹/order", x=opt["Region"], y=opt["Current_Avg_Cost"],
-            marker=dict(color="#EF4444", line=dict(color="rgba(0,0,0,0)")),
-            text=[f"₹{v:.0f}" for v in opt["Current_Avg_Cost"]],
-            textposition="outside", textfont=dict(color="#334155"),
-        ))
-        fig_cost.add_trace(go.Bar(
-            name="Optimal ₹/order", x=opt["Region"], y=opt["Min_Avg_Cost"],
-            marker=dict(color="#22C55E", line=dict(color="rgba(0,0,0,0)")),
-            text=[f"₹{v:.0f}" for v in opt["Min_Avg_Cost"]],
-            textposition="outside", textfont=dict(color="#334155"),
-        ))
-        fig_cost.update_layout(
-            **CD(), height=270, barmode="group",
-            xaxis={**gX(), "tickangle": -20, "automargin": True},
-            yaxis={**gY(), "title": "Avg Cost per Order ₹"},
-            legend={**leg(), "orientation": "h", "y": -0.3},
-        )
-        st.plotly_chart(fig_cost, use_container_width=True, key="log_cost")
-        sp(0.5)
+        sec("Carrier Switch Recommendations")
         tb3, tb4 = st.columns(2, gap="large")
         with tb3:
-            sec("Carrier Switch Recommendations")
             od = opt[["Region", "Optimal_Carrier", "Current_Avg_Cost", "Min_Avg_Cost", "Potential_Saving", "Saving_Pct", "Orders"]].copy()
             od["Current_Avg_Cost"] = od["Current_Avg_Cost"].round(1)
             od["Min_Avg_Cost"]     = od["Min_Avg_Cost"].round(1)
