@@ -743,10 +743,11 @@ def compute_logistics(
     w_cost:    float = DEFAULT_W_COST,
     w_returns: float = DEFAULT_W_RETURNS,
     n_future:  int   = N_FUTURE_MONTHS,
+    cap_mult:  float = 1.0,
 ):
     df     = load_data()
     del_df = get_delivered(df)
-    plan   = compute_production(n_future=n_future)
+    plan   = compute_production(cap_mult=cap_mult, n_future=n_future)
     carrier_returns = df.groupby("Courier_Partner")["Return_Flag"].mean().reset_index()
     carrier_returns.columns = ["Courier_Partner", "Return_Rate"]
     carr = del_df.groupby("Courier_Partner").agg(
@@ -1150,7 +1151,7 @@ def page_production() -> None:
     ops["YM"] = ops["Order_Date"].dt.to_period("M")
     st.markdown("<div class='page-title'>Production Planning</div>", unsafe_allow_html=True)
     horizon_badge(n_future)
-    cap = st.slider("Capacity Multiplier", 0.5, 2.0, 1.0, 0.1)
+    cap = st.slider("Capacity Multiplier", 0.5, 2.0, 1.0, 0.1, key="prod_cap")
     plan = compute_production(cap, n_future)
     if plan.empty:
         st.warning("Insufficient data.")
@@ -1484,8 +1485,9 @@ def page_logistics() -> None:
         w_returns = wc3.slider("Returns weight %", 10, 70, int(DEFAULT_W_RETURNS * 100)) / 100
         tot = w_speed + w_cost + w_returns
         w_speed /= tot; w_cost /= tot; w_returns /= tot
-    carr, opt, fwd_plan = compute_logistics(w_speed, w_cost, w_returns, n_future)
-    plan = compute_production(n_future=n_future)
+    cap_log = st.session_state.get("prod_cap", 1.0)
+    carr, opt, fwd_plan = compute_logistics(w_speed, w_cost, w_returns, n_future, cap_log)
+    plan = compute_production(cap_mult=cap_log, n_future=n_future)
     t1, t2, t3 = st.tabs(["Carrier Performance", "Cost & Delay", "Forward Plan"])
     with t1:
         sec("Speed vs Cost — Carrier Scorecard")
@@ -1543,8 +1545,15 @@ def page_logistics() -> None:
                 best_cat["Avg_Cost"]      = best_cat["Avg_Cost"].round(1)
                 best_cat["Score"]         = best_cat["Score"].round(3)
                 best_cat["Planned Units"] = best_cat["Planned Units"].fillna(0).astype(int)
-                best_cat = best_cat[["Category", "Courier_Partner", "Avg_Days", "Avg_Cost", "Score", "Planned Units"]]
-                best_cat.columns = ["Category", "Best Carrier", "Avg Days", "Avg Cost ₹", "Score", "Planned Units"]
+                # Add target warehouse from sku production plan
+                sku_pl = build_sku_production_plan(n_future)
+                wh_by_cat = (sku_pl.groupby("Category")["Target_Warehouse"]
+                             .agg(lambda x: x.value_counts().index[0]).reset_index()
+                             .rename(columns={"Target_Warehouse": "Warehouse"}))
+                best_cat = best_cat.merge(wh_by_cat, on="Category", how="left")
+                best_cat["Warehouse"] = best_cat["Warehouse"].fillna("—")
+                best_cat = best_cat[["Category", "Courier_Partner", "Avg_Days", "Avg_Cost", "Score", "Warehouse", "Planned Units"]]
+                best_cat.columns = ["Category", "Best Carrier", "Avg Days", "Avg Cost ₹", "Score", "Target Warehouse", "Planned Units"]
                 st.dataframe(best_cat.sort_values("Score", ascending=False), use_container_width=True, hide_index=True)
             else:
                 st.info("Production plan not available.")
@@ -1821,13 +1830,26 @@ def page_logistics() -> None:
             st.plotly_chart(fig_cost2, use_container_width=True, key="fwd_cost")
             sp(0.5)
             sec("Inbound Plan per Warehouse")
-            wh_share = (del_df.groupby("Warehouse")["Quantity"].sum() / del_df["Quantity"].sum()).to_dict()
-            inb_rows = [
-                {"Month": row["Month"], "Month_dt": row["Month_dt"],
-                 "Warehouse": wh, "Inbound_Units": round(row["Prod_Units"] * sh),
-                 "Proj_Ship_Cost": round(row["Proj_Ship_Cost"] * sh)}
-                for _, row in fwd_plan.iterrows() for wh, sh in wh_share.items()
-            ]
+            sku_plan_log = build_sku_production_plan(n_future)
+            avg_ship_unit_log = max(
+                del_df["Shipping_Cost_INR"].sum() / max(del_df["Quantity"].replace(0, np.nan).sum(), 1), 1.0
+            )
+            avg_units_ord_log = max(del_df["Quantity"].sum() / max(len(del_df), 1), 1.0)
+            wh_prod = sku_plan_log.groupby("Target_Warehouse")["Prod_Need"].sum().reset_index()
+            wh_prod.columns = ["Warehouse", "Total_Units"]
+            wh_total_units = wh_prod["Total_Units"].sum()
+            inb_rows = []
+            for _, frow in fwd_plan.iterrows():
+                for _, wrow in wh_prod.iterrows():
+                    wh_share_pct = wrow["Total_Units"] / wh_total_units if wh_total_units > 0 else 0
+                    units = round(frow["Prod_Units"] * wh_share_pct)
+                    inb_rows.append({
+                        "Month":    frow["Month"],
+                        "Month_dt": frow["Month_dt"],
+                        "Warehouse": wrow["Warehouse"],
+                        "Inbound_Units":  units,
+                        "Proj_Ship_Cost": round(units * avg_ship_unit_log),
+                    })
             inb_agg = (
                 pd.DataFrame(inb_rows)
                 .groupby(["Month_dt", "Month", "Warehouse"])
