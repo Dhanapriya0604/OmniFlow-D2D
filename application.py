@@ -369,7 +369,7 @@ def ensemble_chart(res: dict, chart_key: str, height: int = 300, title: str = ""
         line=dict(color="#1e3a8a", width=2.5),
         hovertemplate="<b>%{x|%b %Y}</b><br>Actual: %{y:,.0f}<extra></extra>",
     ))
-    # Per-model fits — hidden by default, toggleable
+    # Per-model fits — hidden, not shown in legend
     model_styles = [
         ("Ridge",        "#3B82F6", "dot"),
         ("RandomForest", "#22C55E", "dashdot"),
@@ -381,17 +381,17 @@ def ensemble_chart(res: dict, chart_key: str, height: int = 300, title: str = ""
                 fig.add_trace(go.Scatter(
                     x=res["hist_ds"], y=res["fitted_per_model"][mname],
                     name=f"{mname} fit", line=dict(color=clr, width=1.2, dash=dash),
-                    opacity=0.7, visible="legendonly",
+                    opacity=0.7, visible="legendonly", showlegend=False,
                     hovertemplate=f"<b>%{{x|%b %Y}}</b><br>{mname}: %{{y:,.0f}}<extra></extra>",
                 ))
-    # Ensemble fitted line — hidden by default
+    # Ensemble fitted line — hidden, not shown in legend
     fig.add_trace(go.Scatter(
         x=res["hist_ds"], y=res["fitted"], name="Ensemble fit",
         line=dict(color="#8B5CF6", width=1.5, dash="dot"), opacity=0.7,
-        visible="legendonly",
+        visible="legendonly", showlegend=False,
         hovertemplate="<b>%{x|%b %Y}</b><br>Ensemble fit: %{y:,.0f}<extra></extra>",
     ))
-    # Per-model forecasts — hidden by default, toggleable
+    # Per-model forecasts — hidden, not shown in legend
     if show_models and "forecast_per_model" in res:
         for mname, clr, dash in model_styles:
             if mname in res["forecast_per_model"]:
@@ -399,7 +399,7 @@ def ensemble_chart(res: dict, chart_key: str, height: int = 300, title: str = ""
                     x=res["fut_ds"], y=res["forecast_per_model"][mname],
                     name=f"{mname} forecast", line=dict(color=clr, width=1.6, dash=dash),
                     mode="lines+markers", marker=dict(size=5, color=clr),
-                    visible="legendonly",
+                    visible="legendonly", showlegend=False,
                     hovertemplate=f"<b>%{{x|%b %Y}}</b><br>{mname}: %{{y:,.0f}}<extra></extra>",
                 ))
     # Ensemble Forecast — always visible, bold
@@ -409,13 +409,13 @@ def ensemble_chart(res: dict, chart_key: str, height: int = 300, title: str = ""
         marker=dict(size=9, color="#8B5CF6", line=dict(color="#FFFFFF", width=2)),
         hovertemplate="<b>%{x|%b %Y}</b><br>Forecast: %{y:,.0f}<extra></extra>",
     ))
-    # Eval markers — hold-out predictions vs actuals
+    # Eval markers — shown on chart but not in legend
     fig.add_trace(go.Scatter(
-        x=res["eval_ds"], y=res["eval_pred"], name="Hold-out eval",
-        mode="markers",
+        x=res["eval_ds"], y=res["eval_pred"], name="Eval",
+        mode="markers", showlegend=False,
         marker=dict(size=10, color="#EF4444", symbol="x-thin",
                     line=dict(color="#EF4444", width=2.5)),
-        hovertemplate="<b>%{x|%b %Y}</b><br>Eval pred: %{y:,.0f}<extra></extra>",
+        hovertemplate="<b>%{x|%b %Y}</b><br>Eval: %{y:,.0f}<extra></extra>",
     ))
     fig.update_layout(
         **CD(), height=height, xaxis=gX(), yaxis=gY(),
@@ -457,7 +457,7 @@ def render_model_quality(res: dict) -> None:
                     f"""<div style='text-align:center;padding:10px;border-radius:10px;
                         border:1px solid #e5e7eb;background:white'>
                         <div class='model-pill {pcls}'>{mname}</div>
-                        <div style='font-size:10px;color:#64748b;margin-top:5px'>RMSE (hold-out)</div>
+                        <div style='font-size:10px;color:#64748b;margin-top:5px'>RMSE</div>
                         <div style='font-size:18px;font-weight:800;color:{clr}'>{m["rmse"]:.1f}</div>
                         <div style='font-size:10px;color:#94a3b8'>NRMSE {m["nrmse"]*100:.1f}% · R² {m["r2"]:.3f}</div>
                         <div style='font-size:12px;font-weight:700;color:{clr};margin-top:4px'>Accuracy {_acc:.1f}%</div>
@@ -477,7 +477,7 @@ def render_model_quality(res: dict) -> None:
                 </div>""", unsafe_allow_html=True,
             )
     c1, c2, c3, c4, c5 = st.columns(5)
-    kpi(c1, "RMSE",     f"{res['rmse']:.1f}",         "sky",  "hold-out")
+    kpi(c1, "RMSE",     f"{res['rmse']:.1f}",         "sky",  "error metric")
     kpi(c2, "NRMSE",    f"{res['nrmse']*100:.1f}%",   "sky",  "normalised")
     kpi(c3, "MAE",      f"{res['mae']:.1f}",           "sky",  "mean abs err")
     kpi(c4, "R² Score", f"{res['r2']:.3f}",            "sky",  "fit quality")
