@@ -609,6 +609,18 @@ def compute_inventory(
     inv_df["ABC"] = np.where(cum_pct <= 70, "A", np.where(cum_pct <= 90, "B", "C"))
     return inv_df
 
+def _int_allocate(total: int, weights: np.ndarray) -> list[int]:
+    """Largest-remainder integer allocation — monthly ints always sum exactly to total."""
+    if total == 0 or weights.sum() == 0:
+        return [0] * len(weights)
+    shares   = weights / weights.sum() * total
+    floored  = np.floor(shares).astype(int)
+    remainders = shares - floored
+    deficit  = total - floored.sum()
+    top_idx  = np.argsort(remainders)[::-1][:deficit]
+    floored[top_idx] += 1
+    return floored.tolist()
+
 @st.cache_data
 def compute_production(cap_mult: float = 1.0, n_future: int = N_FUTURE_MONTHS) -> pd.DataFrame:
     inv     = compute_inventory(n_future=n_future)
@@ -622,31 +634,31 @@ def compute_production(cap_mult: float = 1.0, n_future: int = N_FUTURE_MONTHS) -
         cat_inv = inv[inv["Category"] == cat]
         if cat_inv.empty:
             continue
-        prod_need_cat = float(cat_inv["Prod_Need"].sum())
+        prod_need_cat = int(cat_inv["Prod_Need"].sum())
         crit_skus = cat_inv[cat_inv["Status"] == "🔴 Critical"]
         low_skus  = cat_inv[cat_inv["Status"] == "🟡 Low"]
         crit_gap  = float((crit_skus["ROP"] - crit_skus["Current_Stock"]).clip(lower=0).sum())
         low_gap   = float((low_skus["ROP"]  - low_skus["Current_Stock"]).clip(lower=0).sum())
-        current_stock_cat = float(cat_inv["Current_Stock"].sum())
-        demand_6m_cat     = float(cat_inv["Demand_6M"].sum())
-        forecast_total = float(fc_arr.sum())
+        current_stock_cat = int(cat_inv["Current_Stock"].sum())
+        demand_6m_cat     = int(cat_inv["Demand_6M"].sum())
+        # Apply capacity multiplier to total, then distribute with exact integer allocation
+        scheduled_total = int(round(prod_need_cat * cap_mult))
+        monthly_prod = _int_allocate(scheduled_total, fc_arr)
         for i, (dt, fc) in enumerate(zip(fut_ds, fc_arr)):
-            demand_share = fc / forecast_total if forecast_total > 0 else 1.0 / len(fc_arr)
-            prod = prod_need_cat * demand_share * cap_mult
             bf         = BOOST_SCHEDULE.get(i, 0.0)
-            crit_boost = crit_gap * bf
-            low_boost  = low_gap  * bf * 0.5
+            crit_boost = int(round(crit_gap * bf))
+            low_boost  = int(round(low_gap  * bf * 0.5))
             rows.append({
                 "Month_dt":        dt,
                 "Month":           dt.strftime("%b %Y"),
                 "Category":        cat,
                 "Demand_Forecast": round(fc, 0),
-                "Current_Stock":   round(current_stock_cat, 0),
-                "Demand_6M_Cat":   round(demand_6m_cat, 0),
-                "Prod_Need_Cat":   round(prod_need_cat, 0),
-                "Crit_Boost":      round(crit_boost, 0),
-                "Low_Boost":       round(low_boost, 0),
-                "Production":      round(prod, 0),
+                "Current_Stock":   current_stock_cat,
+                "Demand_6M_Cat":   demand_6m_cat,
+                "Prod_Need_Cat":   prod_need_cat,
+                "Crit_Boost":      crit_boost,
+                "Low_Boost":       low_boost,
+                "Production":      monthly_prod[i],
                 "CI_Lo":           round(ci_lo[i], 0),
                 "CI_Hi":           round(ci_hi[i], 0),
             })
