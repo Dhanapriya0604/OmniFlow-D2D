@@ -269,7 +269,7 @@ def ml_forecast(vals: np.ndarray, ds_idx, n_future: int = N_FUTURE_MONTHS) -> di
     temperature = 0.5
     scores = {m: np.exp(-model_rmses[m] / temperature) for m in model_rmses}
     tot = sum(scores.values())
-    weights = {m: scores[m] / tot for m in scores}
+    weights = {m: scores[m]/sum(scores.values()) for m in scores}
     model_metrics: dict[str, dict] = {}
     for mname in _make_models():
         hp       = holdout_preds[mname]
@@ -289,6 +289,7 @@ def ml_forecast(vals: np.ndarray, ds_idx, n_future: int = N_FUTURE_MONTHS) -> di
         r2_test = 1 - ss_res_test / (ss_tot_test + 1e-9)
         model_metrics[mname]["r2"] = max(0.0, r2_test)
     ypred_eval = sum(weights[m] * holdout_preds[m] for m in _make_models())
+    ypred_eval = np.nan_to_num(ypred_eval, nan=0.0, posinf=0.0, neginf=0.0)
     rmse_e     = float(np.sqrt(mean_squared_error(yte_h, ypred_eval)))
     nrmse_e    = rmse_e / mean_holdout
     mae_e      = float(mean_absolute_error(yte_h, ypred_eval))
@@ -307,8 +308,9 @@ def ml_forecast(vals: np.ndarray, ds_idx, n_future: int = N_FUTURE_MONTHS) -> di
     ens_forecast = sum(weights[m] * forecast_pm[m] for m in _make_models())
     residuals    = vals - ens_fitted
     resid_std    = residuals.std()
-    ss_res_e     = np.sum(residuals ** 2)
-    r2_e         = max(0.0, 1 - ss_res_e / (ss_tot + 1e-9))
+    ss_res_e = np.sum((yte_h - ypred_eval) ** 2)
+    ss_tot_e = np.sum((yte_h - yte_h.mean()) ** 2)
+    r2_e = max(0.0, 1 - ss_res_e / (ss_tot_e + 1e-9))
     model_metrics["Ensemble"] = {"rmse": rmse_e, "nrmse": nrmse_e, "mae": mae_e, "r2": r2_e}
     ts_idx   = _to_ts(ds_idx)
     last_dt  = ts_idx[-1]
@@ -793,6 +795,7 @@ def compute_logistics(
         Avg_Days = ("Delivery_Days",     "mean"),
         Avg_Cost = ("Shipping_Cost_INR", "mean"),
     ).reset_index()
+    carr = carr.merge(carrier_returns, on="Courier_Partner", how="left")
     delay_rate = (
         (del_df["Delivery_Days"] > 3).groupby(del_df["Courier_Partner"])
         .mean().reset_index(name="Delay_Rate")
@@ -804,7 +807,7 @@ def compute_logistics(
         mx = carr[col].max()
         carr[f"Norm_{col}"] = 1 - (carr[col] - mn) / (mx - mn + 1e-9)
     carr["Perf_Score"] = (
-        0.35 * carr["Norm_Avg_Days"]+ 0.35 * carr["Norm_Avg_Cost"]+ 0.2 * carr["Norm_Return_Rate"]+ 0.1 * carr["Norm_Delay"]
+        0.35 * carr["Norm_Avg_Days"]+ 0.35 * carr["Norm_Avg_Cost"]+ 0.2 * carr["Norm_Return_Rate"]+ 0.1 * carr["Norm_Delay_Rate"]
     ).round(3)
     cheapest = (del_df.groupby(["Region", "Courier_Partner"])
         .agg(avg_cost=("Shipping_Cost_INR", "mean"), orders=("Order_ID", "count"))
