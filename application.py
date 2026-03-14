@@ -960,14 +960,16 @@ def page_demand() -> None:
                 annotation_font=dict(color="#22C55E", size=10),
             )
             fig.update_layout(
-                **CD(), height=220,
+                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                font=dict(color="#334155", family="Inter,sans-serif", size=11),
+                height=220,
+                margin=dict(l=110, r=30, t=38, b=30),
                 xaxis={**gX(), "title": "R² Score", "range": [0, 1.08],
                        "tickformat": ".2f", "tickfont": dict(size=10)},
                 yaxis={**gY(), "showgrid": False, "tickfont": dict(size=12, color="#334155"),
                        "categoryorder": "array", "categoryarray": list(reversed(labels))},
                 title=dict(text="R² Score  —  higher is better",
                            font=dict(size=11, color="#64748b")),
-                margin=dict(l=110, r=30, t=38, b=30),
             )
             st.plotly_chart(fig, use_container_width=True, key="d_r2")
         # ── NRMSE horizontal bar chart ────────────────────────────────────
@@ -996,14 +998,16 @@ def page_demand() -> None:
                 annotation_font=dict(color="#22C55E", size=10),
             )
             fig2.update_layout(
-                **CD(), height=220,
+                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                font=dict(color="#334155", family="Inter,sans-serif", size=11),
+                height=220,
+                margin=dict(l=110, r=30, t=38, b=30),
                 xaxis={**gX(), "title": "NRMSE %", "range": [0, max(nrmse_vals) * 1.25],
                        "ticksuffix": "%", "tickfont": dict(size=10)},
                 yaxis={**gY(), "showgrid": False, "tickfont": dict(size=12, color="#334155"),
                        "categoryorder": "array", "categoryarray": list(reversed(labels))},
                 title=dict(text="NRMSE %  —  lower is better",
                            font=dict(size=11, color="#64748b")),
-                margin=dict(l=110, r=30, t=38, b=30),
             )
             st.plotly_chart(fig2, use_container_width=True, key="d_nrmse")
     sp()
