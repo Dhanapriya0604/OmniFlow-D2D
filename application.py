@@ -1239,35 +1239,8 @@ def page_production() -> None:
         fig3.update_layout(**CD(), height=270, xaxis=gX(),
                            yaxis={**gY(), "title": "Units Surplus / Deficit"})
         st.plotly_chart(fig3, use_container_width=True, key="prod_gap")
-    sec("Production Schedule")
-    cat_f = st.selectbox("Filter Category", ["All"] + list(plan["Category"].unique()))
-    d2    = plan if cat_f == "All" else plan[plan["Category"] == cat_f]
-    d3    = d2[[
-        "Month", "Category",
-        "Current_Stock", "Demand_6M_Cat", "Prod_Need_Cat",
-        "Demand_Forecast", "Crit_Boost", "Low_Boost",
-        "Production", "CI_Lo", "CI_Hi",
-    ]].copy()
-    d3.columns = [
-        "Month", "Category",
-        "Cat Stock", f"{n_future}M Demand", "Inv Prod Need",
-        "Demand Fc", "Crit Boost", "Low Boost",
-        "Production", "Demand Lo", "Demand Hi",
-    ]
-    st.dataframe(d3.sort_values("Month"), use_container_width=True, hide_index=True)
-    if cat_f != "All":
-        filtered_prod   = int(d2["Production"].sum())
-        filtered_demand = int(d2["Demand_Forecast"].sum())
-        filtered_need   = int(d2["Prod_Need_Cat"].iloc[0]) if not d2.empty else 0
-        banner(
-            f"<b>Filtered subtotal — {cat_f}:</b> &nbsp;"
-            f"Inv Prod Need = <b>{filtered_need:,} units</b> &nbsp;|&nbsp; "
-            f"Production ({n_future} mo) = <b>{filtered_prod:,} units</b> &nbsp;|&nbsp; "
-            f"Demand Forecast = <b>{filtered_demand:,} units</b> &nbsp;|&nbsp; "
-            f"Overall (all categories) = <b>{int(plan['Production'].sum()):,} units</b>",
-            "sky",
-        )
     sp()
+
     st.markdown("<div style='font-size:22px;font-weight:900;color:black;letter-spacing:-.02em'>Fulfillment & Routing Plan</div>",
                 unsafe_allow_html=True)
     sku_plan = build_sku_production_plan(n_future)
@@ -1276,16 +1249,13 @@ def page_production() -> None:
         return
     n_urgent      = (sku_plan["Urgency"] == "🔴 Urgent").sum()
     n_high        = (sku_plan["Urgency"] == "🟠 High").sum()
-    total_units   = int(sku_plan["Prod_Need"].sum())
     total_ship    = sku_plan["Est_Ship_Cost"].sum()
     stockout_risk = sku_plan["Stockout_Cost"].sum()
-    k1, k2, k3, k4, k5, k6 = st.columns(6)
-    kpi(k1, "SKUs Needing Stock",  len(sku_plan),           "sky",   "Prod_Need > 0")
-    kpi(k2, "🔴 Urgent",           n_urgent,                "coral", "stock ≤ safety stock")
-    kpi(k3, "🟠 High",             n_high,                  "amber", "≤14 days stock left")
-    kpi(k4, "Gap Units Total",     f"{total_units:,}",      "sky",   "demand-driven prod need")
-    kpi(k5, "Est. Ship Cost",      f"₹{total_ship:,.0f}",  "amber", "to target warehouses")
-    kpi(k6, "Stockout Risk",       f"₹{stockout_risk:,.0f}","coral", "if not restocked")
+    k1, k2, k3, k4 = st.columns(4)
+    kpi(k1, "🔴 Urgent SKUs",      n_urgent,                "coral", "stock ≤ safety stock")
+    kpi(k2, "🟠 High SKUs",        n_high,                  "amber", "≤14 days stock left")
+    kpi(k3, "Est. Ship Cost",      f"₹{total_ship:,.0f}",  "sky",   "to target warehouses")
+    kpi(k4, "Stockout Risk",       f"₹{stockout_risk:,.0f}","coral", "if not restocked")
     sp(0.5)
     pt2, pt3 = st.tabs(["Warehouse Routing", "Visual Analysis"])
     with pt2:
@@ -1676,12 +1646,6 @@ def page_logistics() -> None:
         )
     with t2:
         total_sav = opt["Potential_Saving"].sum()
-        c1, c2, c3, c4 = st.columns(4)
-        kpi(c1, "Current Spend",    f"₹{total_spend:,.0f}",                   "sky",  "all deliveries")
-        kpi(c2, "Optimised Spend",  f"₹{total_spend - total_sav:,.0f}",       "mint", "with best carriers")
-        kpi(c3, "Potential Saving", f"₹{total_sav:,.0f}",                     "mint", "by switching carrier")
-        kpi(c4, "Saving %",         f"{total_sav/total_spend*100:.1f}%",      "mint", "of total spend")
-        sp(0.5)
         del_df_t2 = del_df.copy()
         del_df_t2["Delayed"] = del_df_t2["Delivery_Days"] > delay_thr
         sec("Region Cost — Current vs Optimal")
@@ -1840,9 +1804,6 @@ def page_logistics() -> None:
                                   xaxis={**gX(), "tickangle": -25},
                                   yaxis={**gY(), "title": "Planned Inbound Units"}, legend=leg())
             st.plotly_chart(fig_inb, use_container_width=True, key="wh_inbound")
-            disp_inb = inb_agg[["Month", "Warehouse", "Inbound_Units", "Proj_Ship_Cost"]].copy()
-            disp_inb.columns = ["Month", "Warehouse", "Planned Units", "Proj. Ship Cost ₹"]
-            st.dataframe(disp_inb, use_container_width=True, hide_index=True)
 
 def main() -> None:
     inject_css()
