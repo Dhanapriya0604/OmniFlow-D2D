@@ -1706,13 +1706,15 @@ def page_logistics() -> None:
             yaxis=dict(
                 showgrid=False, color="#334155",
                 tickfont=dict(size=11, color="#334155"),
-                autorange="reversed",
+                autorange=True,
+                categoryorder="array",
+                categoryarray=list(reversed(carriers)),
             ),
             title=dict(
                 text=(
                     f"<b>{heat_metric}</b> by Carrier × Region"
-                    f"  <span style='font-size:10px;color:#94a3b8'>  "
-                    f"🟢 best  🔴 worst per carrier row  |  threshold: >{delay_thr}d</span>"
+                    f"  |  🟢 best  🔴 worst per row"
+                    f"  |  threshold: >{delay_thr}d"
                 ),
                 font=dict(size=12, color="#0f172a"),
             ),
