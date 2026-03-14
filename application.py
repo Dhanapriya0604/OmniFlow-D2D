@@ -1613,28 +1613,15 @@ def page_logistics() -> None:
         cell_text = [[_cell_text(z_vals[r][c]) for c in range(len(regions))]
                      for r in range(len(carriers))]
 
-        # ── Order count for hover ─────────────────────────────────────────
+        # ── Order count for hover (2-D array matching z shape) ───────────
         order_pv = (del_df_delayed.groupby(["Courier_Partner", "Region"])["Order_ID"]
                     .count().unstack(fill_value=0))
         order_pv = order_pv.reindex(index=pv.index, columns=pv.columns, fill_value=0)
-
-        # ── Hover template ────────────────────────────────────────────────
-        hover_text = []
-        for r, carrier in enumerate(carriers):
-            row_hover = []
-            for c, region in enumerate(regions):
-                v   = z_vals[r][c]
-                n   = int(order_pv.values[r][c])
-                row_hover.append(
-                    f"<b>{carrier} → {region}</b><br>"
-                    f"{heat_metric}: <b>{fmt(v)}</b><br>"
-                    f"Orders: {n}<extra></extra>"
-                )
-            hover_text.append(row_hover)
+        customdata = order_pv.values.astype(int)
 
         fig_h = go.Figure()
 
-        # Main heatmap
+        # Main heatmap — hovertemplate uses %{x}, %{y}, %{z}, %{customdata}
         fig_h.add_trace(go.Heatmap(
             z=z_vals,
             x=regions,
@@ -1644,8 +1631,12 @@ def page_logistics() -> None:
             text=cell_text if show_annot else None,
             texttemplate="%{text}" if show_annot else None,
             textfont=dict(size=10, color="white"),
-            hovertemplate=[[hover_text[r][c] for c in range(len(regions))]
-                           for r in range(len(carriers))],
+            customdata=customdata,
+            hovertemplate=(
+                "<b>%{y} → %{x}</b><br>"
+                + heat_metric + ": <b>%{z:.1f}" + unit + "</b><br>"
+                "Orders: %{customdata}<extra></extra>"
+            ),
             colorbar=dict(
                 title=dict(text=heat_metric, font=dict(size=10, color="#64748b")),
                 tickfont=dict(color="#64748b", size=9),
