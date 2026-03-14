@@ -938,77 +938,32 @@ def page_demand() -> None:
         r2_vals    = [mm[m]["r2"]          for m in labels]
         nrmse_vals = [mm[m]["nrmse"] * 100 for m in labels]
         clrs       = [MODEL_COLORS.get(m, "#888") for m in labels]
-        # ── R² horizontal bar chart ───────────────────────────────────────
         bc1, bc2 = st.columns(2, gap="large")
         with bc1:
             fig = go.Figure(go.Bar(
-                y=labels, x=r2_vals,
-                orientation="h",
-                marker=dict(
-                    color=clrs,
-                    line=dict(color="rgba(0,0,0,0)"),
-                ),
-                text=[f"{v:.3f}" for v in r2_vals],
-                textposition="inside",
-                textfont=dict(color="white", size=12, family="DM Mono, monospace"),
-                width=0.55,
+                x=labels, y=r2_vals,
+                marker=dict(color=clrs, line=dict(color="rgba(0,0,0,0)")),
+                text=[f"{v:.3f}" for v in r2_vals], textposition="outside",
+                textfont=dict(color="#334155"),
             ))
-            fig.add_vline(
-                x=0.9, line_dash="dash", line_color="#22C55E", line_width=1.5,
-                annotation_text="Target 0.90",
-                annotation_position="top right",
-                annotation_font=dict(color="#22C55E", size=10),
-            )
-            fig.update_layout(
-                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                font=dict(color="#334155", family="Inter,sans-serif", size=11),
-                height=220,
-                margin=dict(l=110, r=30, t=38, b=30),
-                xaxis={**gX(), "title": "R² Score", "range": [0, 1.08],
-                       "tickformat": ".2f", "tickfont": dict(size=10)},
-                yaxis={**gY(), "showgrid": False, "tickfont": dict(size=12, color="#334155"),
-                       "categoryorder": "array", "categoryarray": list(reversed(labels))},
-                title=dict(text="R² Score  —  higher is better",
-                           font=dict(size=11, color="#64748b")),
-            )
+            fig.add_hline(y=0.9, line_dash="dash", line_color="#22C55E",
+                          annotation_text=" Target R²=0.90", annotation_font=dict(color="#22C55E", size=10))
+            fig.update_layout(**CD(), height=240, xaxis=gX(),
+                              yaxis={**gY(), "title": "R² Score", "range": [0, 1.25]},
+                              title=dict(text="R² Score (higher = better)", font=dict(size=11, color="#64748b")))
             st.plotly_chart(fig, use_container_width=True, key="d_r2")
-        # ── NRMSE horizontal bar chart ────────────────────────────────────
         with bc2:
-            # Colour each bar: green if below target, amber if borderline, red if above
-            nrmse_clrs = [
-                "#22C55E" if v < 15 else "#F59E0B" if v < 25 else "#EF4444"
-                for v in nrmse_vals
-            ]
             fig2 = go.Figure(go.Bar(
-                y=labels, x=nrmse_vals,
-                orientation="h",
-                marker=dict(
-                    color=nrmse_clrs,
-                    line=dict(color="rgba(0,0,0,0)"),
-                ),
-                text=[f"{v:.1f}%" for v in nrmse_vals],
-                textposition="inside",
-                textfont=dict(color="white", size=12, family="DM Mono, monospace"),
-                width=0.55,
+                x=labels, y=nrmse_vals,
+                marker=dict(color=clrs, line=dict(color="rgba(0,0,0,0)")),
+                text=[f"{v:.1f}%" for v in nrmse_vals], textposition="outside",
+                textfont=dict(color="#334155"),
             ))
-            fig2.add_vline(
-                x=15, line_dash="dash", line_color="#22C55E", line_width=1.5,
-                annotation_text="Target 15%",
-                annotation_position="top right",
-                annotation_font=dict(color="#22C55E", size=10),
-            )
-            fig2.update_layout(
-                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                font=dict(color="#334155", family="Inter,sans-serif", size=11),
-                height=220,
-                margin=dict(l=110, r=30, t=38, b=30),
-                xaxis={**gX(), "title": "NRMSE %", "range": [0, max(nrmse_vals) * 1.25],
-                       "ticksuffix": "%", "tickfont": dict(size=10)},
-                yaxis={**gY(), "showgrid": False, "tickfont": dict(size=12, color="#334155"),
-                       "categoryorder": "array", "categoryarray": list(reversed(labels))},
-                title=dict(text="NRMSE %  —  lower is better",
-                           font=dict(size=11, color="#64748b")),
-            )
+            fig2.add_hline(y=15, line_dash="dash", line_color="#22C55E",
+                           annotation_text=" Target <15%", annotation_font=dict(color="#22C55E", size=10))
+            fig2.update_layout(**CD(), height=240, xaxis=gX(),
+                               yaxis={**gY(), "title": "NRMSE (%)", "range": [0, max(nrmse_vals) * 1.35]},
+                               title=dict(text="NRMSE % (lower = better)", font=dict(size=11, color="#64748b")))
             st.plotly_chart(fig2, use_container_width=True, key="d_nrmse")
     sp()
     c1, c2 = st.columns([2, 2])
