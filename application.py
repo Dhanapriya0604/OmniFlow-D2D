@@ -984,13 +984,10 @@ def page_demand() -> None:
         fig = ensemble_chart(res, chart_key=chart_key, height=310, title=title)
         st.plotly_chart(fig, use_container_width=True, key=chart_key)
         tbl = pd.DataFrame({
-            "Month":        [d.strftime("%b %Y") for d in res["fut_ds"]],
-            "Ensemble":     res["forecast"].round(0).astype(int),
-            "Ridge":        np.maximum(res["forecast_per_model"]["Ridge"],        0).round(0).astype(int),
-            "RandomForest": np.maximum(res["forecast_per_model"]["RandomForest"], 0).round(0).astype(int),
-            "GradBoost":    np.maximum(res["forecast_per_model"]["GradBoost"],    0).round(0).astype(int),
-            "Lower 90%":    res["ci_lo"].round(0).astype(int),
-            "Upper 90%":    res["ci_hi"].round(0).astype(int),
+            "Month":      [d.strftime("%b %Y") for d in res["fut_ds"]],
+            "Forecast":   res["forecast"].round(0).astype(int),
+            "Lower 90%":  res["ci_lo"].round(0).astype(int),
+            "Upper 90%":  res["ci_hi"].round(0).astype(int),
         })
         st.dataframe(tbl, use_container_width=True, hide_index=True)
     sec(f"Forecast Chart — {n_future}-Month Horizon")
@@ -1211,8 +1208,6 @@ def page_production() -> None:
     cl, cr = st.columns(2, gap="large")
     with cl:
         sec("Production by Category")
-        cat_hist    = ops.groupby(["YM", "Category"])["Net_Qty"].sum().unstack(fill_value=0)
-        cat_hist_ts = _to_ts(cat_hist.index)
         fig2 = go.Figure()
         fig2.add_vrect(x0=plan["Month_dt"].min(), x1=plan["Month_dt"].max(),
                        fillcolor="rgba(139,92,246,0.04)", layer="below", line_width=0)
@@ -1220,11 +1215,6 @@ def page_production() -> None:
                        line_color="rgba(139,92,246,0.4)", line_width=1.5)
         for i, cat in enumerate(plan["Category"].unique()):
             clr = COLORS[i % len(COLORS)]
-            if cat in cat_hist.columns:
-                fig2.add_trace(go.Scatter(
-                    x=cat_hist_ts, y=cat_hist[cat].values, name=f"{cat} hist",
-                    line=dict(color=clr, width=1.5, dash="dot"), opacity=0.55, showlegend=False,
-                ))
             s = plan[plan["Category"] == cat].sort_values("Month_dt")
             fig2.add_trace(go.Bar(
                 x=s["Month_dt"], y=s["Production"], name=cat,
@@ -1694,46 +1684,27 @@ def page_logistics() -> None:
         sp(0.5)
         del_df_t2 = del_df.copy()
         del_df_t2["Delayed"] = del_df_t2["Delivery_Days"] > delay_thr
-        tb1, tb2 = st.columns(2, gap="large")
-        with tb1:
-            sec("Region Cost — Current vs Optimal")
-            fig_cost = go.Figure()
-            fig_cost.add_trace(go.Bar(
-                name="Current ₹/order", x=opt["Region"], y=opt["Current_Avg_Cost"],
-                marker=dict(color="#EF4444", line=dict(color="rgba(0,0,0,0)")),
-                text=[f"₹{v:.0f}" for v in opt["Current_Avg_Cost"]],
-                textposition="outside", textfont=dict(color="#334155"),
-            ))
-            fig_cost.add_trace(go.Bar(
-                name="Optimal ₹/order", x=opt["Region"], y=opt["Min_Avg_Cost"],
-                marker=dict(color="#22C55E", line=dict(color="rgba(0,0,0,0)")),
-                text=[f"₹{v:.0f}" for v in opt["Min_Avg_Cost"]],
-                textposition="outside", textfont=dict(color="#334155"),
-            ))
-            fig_cost.update_layout(
-                **CD(), height=270, barmode="group",
-                xaxis={**gX(), "tickangle": -20, "automargin": True},
-                yaxis={**gY(), "title": "Avg Cost per Order ₹"},
-                legend={**leg(), "orientation": "h", "y": -0.3},
-            )
-            st.plotly_chart(fig_cost, use_container_width=True, key="log_cost")
-        with tb2:
-            sec("Delay Rate by Region")
-            rd = del_df_t2.groupby("Region").agg(T=("Order_ID", "count"), D=("Delayed", "sum")).reset_index()
-            rd["Rate"] = (rd["D"] / rd["T"] * 100).round(1)
-            rd_s = rd.sort_values("Rate", ascending=True)
-            fig_r = go.Figure(go.Bar(
-                x=rd_s["Rate"], y=rd_s["Region"], orientation="h",
-                marker=dict(
-                    color=[f"rgba(239,68,68,{min(v/50+0.2,0.9):.2f})" for v in rd_s["Rate"]],
-                    line=dict(color="rgba(0,0,0,0)"),
-                ),
-                text=[f"{v}%" for v in rd_s["Rate"]], textposition="outside",
-                textfont=dict(color="#334155"),
-            ))
-            fig_r.update_layout(**CD(), height=270,
-                xaxis={**gX(), "title": "Delay Rate %"}, yaxis=dict(showgrid=False, color="#64748b"))
-            st.plotly_chart(fig_r, use_container_width=True, key="log_delay_region")
+        sec("Region Cost — Current vs Optimal")
+        fig_cost = go.Figure()
+        fig_cost.add_trace(go.Bar(
+            name="Current ₹/order", x=opt["Region"], y=opt["Current_Avg_Cost"],
+            marker=dict(color="#EF4444", line=dict(color="rgba(0,0,0,0)")),
+            text=[f"₹{v:.0f}" for v in opt["Current_Avg_Cost"]],
+            textposition="outside", textfont=dict(color="#334155"),
+        ))
+        fig_cost.add_trace(go.Bar(
+            name="Optimal ₹/order", x=opt["Region"], y=opt["Min_Avg_Cost"],
+            marker=dict(color="#22C55E", line=dict(color="rgba(0,0,0,0)")),
+            text=[f"₹{v:.0f}" for v in opt["Min_Avg_Cost"]],
+            textposition="outside", textfont=dict(color="#334155"),
+        ))
+        fig_cost.update_layout(
+            **CD(), height=270, barmode="group",
+            xaxis={**gX(), "tickangle": -20, "automargin": True},
+            yaxis={**gY(), "title": "Avg Cost per Order ₹"},
+            legend={**leg(), "orientation": "h", "y": -0.3},
+        )
+        st.plotly_chart(fig_cost, use_container_width=True, key="log_cost")
         sp(0.5)
         tb3, tb4 = st.columns(2, gap="large")
         with tb3:
