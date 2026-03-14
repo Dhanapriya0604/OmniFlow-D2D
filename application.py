@@ -1207,7 +1207,7 @@ def page_production() -> None:
             fillcolor="rgba(139,92,246,0.07)", line=dict(color="rgba(0,0,0,0)"), name="90% CI",
         ))
     fig.add_vline(x=forecast_start, line_dash="dash", line_color="rgba(139,92,246,0.5)", line_width=2)
-    fig.update_layout(**CD(), height=320, barmode="stack", xaxis=gX(), yaxis=gY(), legend=leg())
+    fig.update_layout(**CD(), height=320, barmode="overlay", xaxis=gX(), yaxis=gY(), legend=leg())
     st.plotly_chart(fig, use_container_width=True, key="prod_main")
 
     cl, cr = st.columns(2, gap="large")
@@ -1322,7 +1322,7 @@ def page_production() -> None:
             textposition="top center", textfont=dict(size=9, color="#d97706"),
         ))
         fig_wh_dist.update_layout(
-            **CD(), height=240, barmode="group",
+            **CD(), height=240, barmode="relative",
             xaxis=gX(),
             yaxis={**gY(), "title": "Units to Receive"},
             yaxis2=dict(overlaying="y", side="right", showgrid=False,
@@ -1450,8 +1450,9 @@ def page_production() -> None:
         for xv, clr, lbl in [(7, "#ef4444", " 7d"), (14, "#f97316", " 14d"), (30, "#eab308", " 30d")]:
             fig_hl.add_vline(x=xv, line_dash="dash", line_color=clr, line_width=1.5,
                              annotation_text=lbl, annotation_font=dict(color=clr, size=9))
+        _x_max = max(float(top20_s["Days_Left"].clip(upper=60).max()) * 1.35, 75)
         fig_hl.update_layout(**CD(), height=max(300, len(top20_s) * 22),
-                             xaxis={**gX(), "title": "Days of Stock Remaining", "range": [0, 70]},
+                             xaxis={**gX(), "title": "Days of Stock Remaining", "range": [0, _x_max]},
                              yaxis=dict(showgrid=False, color="#64748b", automargin=True),
                              title=dict(text="Top 20 Most Urgent SKUs — Days of Stock Left",
                                         font=dict(size=11, color="#64748b")))
@@ -1504,8 +1505,8 @@ def page_logistics() -> None:
                 ),
             ))
         fig.update_layout(**CD(), height=270, showlegend=False,
-                          xaxis={**gX(), "title": "Avg Delivery Days  ← faster"},
-                          yaxis={**gY(), "title": "Avg Shipping Cost ₹  ↓ cheaper"})
+                          xaxis={**gX(), "title": "Avg Delivery Days  (lower = faster)", "rangemode": "normal"},
+                          yaxis={**gY(), "title": "Avg Shipping Cost INR  (lower = cheaper)", "rangemode": "normal"})
         st.plotly_chart(fig, use_container_width=True, key="log_bubble")
         ta1, ta2 = st.columns(2, gap="large")
         with ta1:
@@ -1609,7 +1610,6 @@ def page_logistics() -> None:
             x=regions,
             y=carriers,
             colorscale=colorscale,
-            zmid=zmid,
             text=cell_text,
             texttemplate="%{text}" if show_annot else "",
             textfont=dict(size=10, color="white"),
@@ -1704,7 +1704,7 @@ def page_logistics() -> None:
             ))
             fig_cost.update_layout(
                 **CD(), height=270, barmode="group",
-                xaxis={**gX(), "tickangle": -30},
+                xaxis={**gX(), "tickangle": -20, "automargin": True},
                 yaxis={**gY(), "title": "Avg Cost per Order ₹"},
                 legend={**leg(), "orientation": "h", "y": -0.3},
             )
