@@ -493,7 +493,7 @@ def compute_inventory(
     df          = load_data()
     ops         = get_ops(df).copy()
     ops["YM"]   = ops["Order_Date"].dt.to_period("M")
-    del_ops     = df[df["Order_Status"] == "Delivered"].copy()
+    del_ops     = get_delivered(df)
     cat_fcs     = compute_category_forecasts(n_future)
     lt_std_map  = del_ops.groupby("Category")["Delivery_Days"].std().fillna(1.0).to_dict()
     sku_monthly = (
@@ -501,13 +501,12 @@ def compute_inventory(
     )
     df_sorted    = df.sort_values("Order_Date")
     sku_snapshot = df_sorted.groupby("SKU_ID").agg(
-        actual_stock   = ("Current_Stock_Units", "last"),
-        dataset_rop    = ("Reorder_Point",       "last"),
-        dataset_status = ("Stock_Status",        "last"),
-        Product_Name   = ("Product_Name",        "first"),
-        Category       = ("Category",            "first"),
-        avg_price      = ("Sell_Price",          "mean"),
-        total_qty      = ("Net_Qty",             "sum"),
+        actual_stock = ("Current_Stock_Units", "last"),
+        dataset_rop  = ("Reorder_Point",       "last"),
+        Product_Name = ("Product_Name",        "first"),
+        Category     = ("Category",            "first"),
+        avg_price    = ("Sell_Price",          "mean"),
+        total_qty    = ("Net_Qty",             "sum"),
     ).reset_index()
     sku_stats = (
         sku_monthly.groupby("SKU_ID")["Net_Qty"]
@@ -570,8 +569,6 @@ def compute_inventory(
         "Product_Name":    sku_snapshot["Product_Name"],
         "Category":        sku_snapshot["Category"],
         "Monthly_Avg":     sku_snapshot["hist_avg"].round(1),
-        "Monthly_Std":     sku_snapshot["hist_std"].round(1),
-        "Forecast_Avg":    sku_snapshot["avg_d"].round(1),
         "Forecast_Next6":  sku_snapshot["fc_next6"],
         "Demand_6M":       demand_6m,
         "Demand_Cover_Pct":demand_cover_pct,
@@ -582,7 +579,6 @@ def compute_inventory(
         "Days_of_Stock":   days_stock,
         "Status":          status,
         "Unit_Price":      uc.round(0),
-        "Annual_Demand":   ann_d.round(0),
         "Stockout_Cost":   stockout_cost,
         "Prod_Need":       prod_need,
         "Total_Revenue":   (sku_snapshot["total_qty"] * uc).round(0),
@@ -723,17 +719,14 @@ def compute_logistics(
     plan   = compute_production(n_future=n_future)
     carrier_returns = df.groupby("Courier_Partner")["Return_Flag"].mean().reset_index()
     carrier_returns.columns = ["Courier_Partner", "Return_Rate"]
-    region_carrier_returns = df.groupby(["Region", "Courier_Partner"])["Return_Flag"].mean().reset_index()
-    region_carrier_returns.columns = ["Region", "Courier_Partner", "Return_Rate"]
     carr = del_df.groupby("Courier_Partner").agg(
-        Orders    = ("Order_ID",          "count"),
-        Avg_Days  = ("Delivery_Days",     "mean"),
-        Avg_Cost  = ("Shipping_Cost_INR", "mean"),
-        Total_Cost= ("Shipping_Cost_INR", "sum"),
+        Orders   = ("Order_ID",          "count"),
+        Avg_Days = ("Delivery_Days",     "mean"),
+        Avg_Cost = ("Shipping_Cost_INR", "mean"),
     ).reset_index()
     carr = carr.merge(carrier_returns, on="Courier_Partner", how="left")
     carr["Return_Rate"] = carr["Return_Rate"].fillna(0)
-    for col, _ in [("Avg_Days", w_speed), ("Avg_Cost", w_cost), ("Return_Rate", w_returns)]:
+    for col in ["Avg_Days", "Avg_Cost", "Return_Rate"]:
         mn = carr[col].min(); mx = carr[col].max()
         carr[f"Norm_{col}"] = 1 - (carr[col] - mn) / (mx - mn + 1e-9)
     carr["Perf_Score"] = (
@@ -741,25 +734,6 @@ def compute_logistics(
         + w_cost  * carr["Norm_Avg_Cost"]
         + w_returns * carr["Norm_Return_Rate"]
     ).round(3)
-    region_carr = del_df.groupby(["Region", "Courier_Partner"]).agg(
-        Avg_Days = ("Delivery_Days",     "mean"),
-        Avg_Cost = ("Shipping_Cost_INR", "mean"),
-        Orders   = ("Order_ID",          "count"),
-    ).reset_index()
-    region_carr = region_carr.merge(region_carrier_returns, on=["Region", "Courier_Partner"], how="left")
-    region_carr["Return_Rate"] = region_carr["Return_Rate"].fillna(0)
-    for col, _ in [("Avg_Days", w_speed), ("Avg_Cost", w_cost), ("Return_Rate", w_returns)]:
-        mn = region_carr[col].min(); mx = region_carr[col].max()
-        region_carr[f"Norm_{col}"] = 1 - (region_carr[col] - mn) / (mx - mn + 1e-9)
-    region_carr["Score"] = (
-        w_speed   * region_carr["Norm_Avg_Days"]
-        + w_cost  * region_carr["Norm_Avg_Cost"]
-        + w_returns * region_carr["Norm_Return_Rate"]
-    )
-    best = (region_carr.sort_values("Score", ascending=False)
-        .groupby("Region").first().reset_index()
-        [["Region", "Courier_Partner", "Avg_Days", "Avg_Cost", "Score"]]
-    )
     cheapest = (del_df.groupby(["Region", "Courier_Partner"])
         .agg(avg_cost=("Shipping_Cost_INR", "mean"), orders=("Order_ID", "count"))
         .reset_index().sort_values("avg_cost")
@@ -786,13 +760,12 @@ def compute_logistics(
                 "Month":         row["Month"],
                 "Category":      row["Category"],
                 "Prod_Units":    int(row["Production"]),
-                "Demand_Units":  int(fc_units),
                 "Proj_Orders":   int(round(fc_units / avg_units_ord)),
                 "Proj_Ship_Cost":int(round(fc_units * avg_ship_unit, 0)),
                 "CI_Lo_Units":   int(row["CI_Lo"]),
                 "CI_Hi_Units":   int(row["CI_Hi"]),
             })
-    return carr, best, opt, pd.DataFrame(fwd_rows)
+    return carr, opt, pd.DataFrame(fwd_rows)
 
 def page_overview() -> None:
     df  = load_data()
@@ -803,7 +776,6 @@ def page_overview() -> None:
     avg_ov        = ops["Net_Revenue"].mean()
     ret_rate      = df["Return_Flag"].mean() * 100
     on_time       = (del_df["Delivery_Days"] <= 3).mean() * 100
-    avg_days      = del_df["Delivery_Days"].mean()
     n_skus        = df["SKU_ID"].nunique()
     st.markdown("""
      <div style='background:linear-gradient(135deg,#0f172a,#1e3a8a,#2563eb);border-radius:18px;
@@ -1476,7 +1448,7 @@ def page_logistics() -> None:
         w_returns = wc3.slider("Returns weight %", 10, 70, int(DEFAULT_W_RETURNS * 100)) / 100
         tot = w_speed + w_cost + w_returns
         w_speed /= tot; w_cost /= tot; w_returns /= tot
-    carr, _, opt, fwd_plan = compute_logistics(w_speed, w_cost, w_returns, n_future)
+    carr, opt, fwd_plan = compute_logistics(w_speed, w_cost, w_returns, n_future)
     plan = compute_production(n_future=n_future)
     t1, t2, t3 = st.tabs(["Carrier Performance", "Cost & Delay", "Forward Plan"])
     with t1:
