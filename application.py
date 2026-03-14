@@ -1205,24 +1205,52 @@ def page_production() -> None:
     fig.update_layout(**CD(), height=320, xaxis=gX(), yaxis=gY(), legend=leg())
     st.plotly_chart(fig, use_container_width=True, key="prod_main")
 
-    sec("Production vs Demand Gap")
-    agg["Gap"] = agg["Production"] - agg["Demand_Forecast"]
-    fig3 = go.Figure(go.Bar(
-        x=agg["Month_dt"], y=agg["Gap"],
-        marker=dict(color=["#22C55E" if g >= 0 else "#EF4444" for g in agg["Gap"]],
-                    line=dict(color="rgba(0,0,0,0)")),
-        text=[f"{g:+.0f}" for g in agg["Gap"]], textposition="outside",
-        textfont=dict(color="#334155"),
-    ))
-    fig3.add_hline(y=0, line_dash="dash", line_color="rgba(0,0,0,0.2)")
-    fig3.update_layout(**CD(), height=240, xaxis=gX(),
-                       yaxis={**gY(), "title": "Units Surplus / Deficit"})
-    st.plotly_chart(fig3, use_container_width=True, key="prod_gap")
+    # ── Row: Gap chart (left) | Urgency by Category (right) ─────────────────
+    urg_color_map = {
+        "🔴 Urgent": "#ef4444", "🟠 High": "#f97316",
+        "🟡 Medium": "#eab308", "🟢 Normal": "#22c55e",
+    }
+    sku_plan = build_sku_production_plan(n_future)
+    pg1, pg2 = st.columns(2, gap="large")
+    with pg1:
+        sec("Production vs Demand Gap")
+        agg["Gap"] = agg["Production"] - agg["Demand_Forecast"]
+        fig3 = go.Figure(go.Bar(
+            x=agg["Month_dt"], y=agg["Gap"],
+            marker=dict(color=["#22C55E" if g >= 0 else "#EF4444" for g in agg["Gap"]],
+                        line=dict(color="rgba(0,0,0,0)")),
+            text=[f"{g:+.0f}" for g in agg["Gap"]], textposition="outside",
+            textfont=dict(color="#334155"),
+        ))
+        fig3.add_hline(y=0, line_dash="dash", line_color="rgba(0,0,0,0.2)")
+        fig3.update_layout(**CD(), height=270, xaxis=gX(),
+                           yaxis={**gY(), "title": "Units Surplus / Deficit"})
+        st.plotly_chart(fig3, use_container_width=True, key="prod_gap")
+    with pg2:
+        sec("Units Needed by Category & Urgency")
+        if not sku_plan.empty:
+            cat_units = sku_plan.groupby(["Category", "Urgency"])["Prod_Need"].sum().reset_index()
+            fig_bu = go.Figure()
+            for urg, clr in urg_color_map.items():
+                sub = cat_units[cat_units["Urgency"] == urg]
+                if sub.empty:
+                    continue
+                fig_bu.add_trace(go.Bar(
+                    name=urg, x=sub["Category"], y=sub["Prod_Need"],
+                    marker=dict(color=clr, line=dict(color="rgba(0,0,0,0)")),
+                    text=sub["Prod_Need"].astype(int),
+                    textposition="inside", textfont=dict(color="white", size=9),
+                ))
+            fig_bu.update_layout(**CD(), height=270, barmode="stack",
+                                 xaxis={**gX(), "tickangle": -10},
+                                 yaxis={**gY(), "title": "Units to Produce"},
+                                 legend={**leg(), "orientation": "h", "y": -0.32})
+            st.plotly_chart(fig_bu, use_container_width=True, key="pq_cat_bar")
     sp()
 
+    # ── Fulfillment & Routing Plan — no tabs, flows directly ─────────────
     st.markdown("<div style='font-size:22px;font-weight:900;color:black;letter-spacing:-.02em'>Fulfillment & Routing Plan</div>",
                 unsafe_allow_html=True)
-    sku_plan = build_sku_production_plan(n_future)
     if sku_plan.empty:
         banner("✅ All SKUs are adequately stocked — no production orders needed.", "mint")
         return
@@ -1236,78 +1264,51 @@ def page_production() -> None:
     kpi(k3, "Est. Ship Cost",      f"₹{total_ship:,.0f}",  "sky",   "to target warehouses")
     kpi(k4, "Stockout Risk",       f"₹{stockout_risk:,.0f}","coral", "if not restocked")
     sp(0.5)
-    pt2, pt3 = st.tabs(["Warehouse Routing", "Visual Analysis"])
-    with pt2:
-        sec("Warehouse Stock Needs & Routing Plan")
-        wh_dist = (sku_plan.groupby("Target_Warehouse")
-            .agg(SKUs=("SKU_ID", "count"), Units=("Prod_Need", "sum"))
-            .reset_index().sort_values("Units", ascending=False)
-        )
-        n_warehouses = len(wh_dist)
-        wh_colors = ["#1e3a8a", "#2563eb", "#3b82f6", "#60a5fa", "#93c5fd",
-                     "#059669", "#10b981", "#34d399"][:n_warehouses]
-        fig_wh_dist = go.Figure()
-        fig_wh_dist.add_trace(go.Bar(
-            x=wh_dist["Target_Warehouse"], y=wh_dist["Units"],
-            name="Units", marker=dict(color=wh_colors, line=dict(color="rgba(0,0,0,0)")),
-            text=[f"{int(v):,}" for v in wh_dist["Units"]], textposition="outside",
-            textfont=dict(color="#334155"),
-        ))
-        fig_wh_dist.add_trace(go.Scatter(
-            x=wh_dist["Target_Warehouse"], y=wh_dist["SKUs"],
-            name="SKU count", yaxis="y2", mode="markers+text",
-            marker=dict(size=14, color="#f59e0b", line=dict(color="#fff", width=2)),
-            text=[f"{v} SKUs" for v in wh_dist["SKUs"]],
-            textposition="top center", textfont=dict(size=9, color="#d97706"),
-        ))
-        fig_wh_dist.update_layout(
-            **CD(), height=240, barmode="relative",
-            xaxis=gX(),
-            yaxis={**gY(), "title": "Units to Receive"},
-            yaxis2=dict(overlaying="y", side="right", showgrid=False,
-                        title="SKU Count", tickcolor="#d97706", range=[0, wh_dist["SKUs"].max() * 3]),
-            legend={**leg(), "orientation": "h", "y": -0.28},
-            title=dict(text=f"Inbound units split across {n_warehouses} warehouse(s)", font=dict(size=11, color="#64748b")),
-        )
-        st.plotly_chart(fig_wh_dist, use_container_width=True, key="wh_dist_bar")
-        sp(0.5)
-        sec("Detailed Shipment Routing Plan")
-        routing_tbl = sku_plan[[
-            "Target_Warehouse", "SKU_ID", "Product_Name", "Category", "ABC", "Urgency",
-            "Prod_Need", "Days_Left", "Est_Ship_Cost", "WH_Share_Pct",
-        ]].copy()
-        routing_tbl["Days_Left"]     = routing_tbl["Days_Left"].apply(lambda x: f"{int(x)}d" if x < 999 else "∞")
-        routing_tbl["Est_Ship_Cost"] = routing_tbl["Est_Ship_Cost"].apply(lambda x: f"₹{int(x):,}")
-        routing_tbl["WH_Share_Pct"]  = routing_tbl["WH_Share_Pct"].apply(lambda x: f"{x:.0f}%")
-        routing_tbl.columns = ["Warehouse", "SKU", "Product", "Category", "ABC", "Urgency",
-                               "Units", "Days Left", "Ship Cost", "% of WH Inbound"]
-        st.dataframe(routing_tbl.sort_values(["Warehouse", "Urgency"]),
-                     use_container_width=True, hide_index=True, height=380)
-    with pt3:
-        sec("Production Urgency Distribution")
-        va1, va2 = st.columns(2, gap="large")
-        urg_color_map = {
-            "🔴 Urgent": "#ef4444", "🟠 High": "#f97316",
-            "🟡 Medium": "#eab308", "🟢 Normal": "#22c55e",
-        }
-        cat_units = sku_plan.groupby(["Category", "Urgency"])["Prod_Need"].sum().reset_index()
-        fig_bu = go.Figure()
-        for urg, clr in urg_color_map.items():
-            sub = cat_units[cat_units["Urgency"] == urg]
-            if sub.empty:
-                continue
-            fig_bu.add_trace(go.Bar(
-                name=urg, x=sub["Category"], y=sub["Prod_Need"],
-                marker=dict(color=clr, line=dict(color="rgba(0,0,0,0)")),
-                text=sub["Prod_Need"].astype(int),
-                textposition="inside", textfont=dict(color="white", size=9),
-            ))
-        fig_bu.update_layout(**CD(), height=260, barmode="stack",
-                             xaxis={**gX(), "tickangle": -10},
-                             yaxis={**gY(), "title": "Units to Produce"},
-                             legend={**leg(), "orientation": "h", "y": -0.32},
-                             title=dict(text="Units Needed by Category & Urgency", font=dict(size=11, color="#64748b")))
-        st.plotly_chart(fig_bu, use_container_width=True, key="pq_cat_bar")
+    sec("Warehouse Stock Needs & Routing Plan")
+    wh_dist = (sku_plan.groupby("Target_Warehouse")
+        .agg(SKUs=("SKU_ID", "count"), Units=("Prod_Need", "sum"))
+        .reset_index().sort_values("Units", ascending=False)
+    )
+    n_warehouses = len(wh_dist)
+    wh_colors = ["#1e3a8a", "#2563eb", "#3b82f6", "#60a5fa", "#93c5fd",
+                 "#059669", "#10b981", "#34d399"][:n_warehouses]
+    fig_wh_dist = go.Figure()
+    fig_wh_dist.add_trace(go.Bar(
+        x=wh_dist["Target_Warehouse"], y=wh_dist["Units"],
+        name="Units", marker=dict(color=wh_colors, line=dict(color="rgba(0,0,0,0)")),
+        text=[f"{int(v):,}" for v in wh_dist["Units"]], textposition="outside",
+        textfont=dict(color="#334155"),
+    ))
+    fig_wh_dist.add_trace(go.Scatter(
+        x=wh_dist["Target_Warehouse"], y=wh_dist["SKUs"],
+        name="SKU count", yaxis="y2", mode="markers+text",
+        marker=dict(size=14, color="#f59e0b", line=dict(color="#fff", width=2)),
+        text=[f"{v} SKUs" for v in wh_dist["SKUs"]],
+        textposition="top center", textfont=dict(size=9, color="#d97706"),
+    ))
+    fig_wh_dist.update_layout(
+        **CD(), height=240, barmode="relative",
+        xaxis=gX(),
+        yaxis={**gY(), "title": "Units to Receive"},
+        yaxis2=dict(overlaying="y", side="right", showgrid=False,
+                    title="SKU Count", tickcolor="#d97706", range=[0, wh_dist["SKUs"].max() * 3]),
+        legend={**leg(), "orientation": "h", "y": -0.28},
+        title=dict(text=f"Inbound units split across {n_warehouses} warehouse(s)", font=dict(size=11, color="#64748b")),
+    )
+    st.plotly_chart(fig_wh_dist, use_container_width=True, key="wh_dist_bar")
+    sp(0.5)
+    sec("Detailed Shipment Routing Plan")
+    routing_tbl = sku_plan[[
+        "Target_Warehouse", "SKU_ID", "Product_Name", "Category", "ABC", "Urgency",
+        "Prod_Need", "Days_Left", "Est_Ship_Cost", "WH_Share_Pct",
+    ]].copy()
+    routing_tbl["Days_Left"]     = routing_tbl["Days_Left"].apply(lambda x: f"{int(x)}d" if x < 999 else "∞")
+    routing_tbl["Est_Ship_Cost"] = routing_tbl["Est_Ship_Cost"].apply(lambda x: f"₹{int(x):,}")
+    routing_tbl["WH_Share_Pct"]  = routing_tbl["WH_Share_Pct"].apply(lambda x: f"{x:.0f}%")
+    routing_tbl.columns = ["Warehouse", "SKU", "Product", "Category", "ABC", "Urgency",
+                           "Units", "Days Left", "Ship Cost", "% of WH Inbound"]
+    st.dataframe(routing_tbl.sort_values(["Warehouse", "Urgency"]),
+                 use_container_width=True, hide_index=True, height=380)
 
 
 def page_logistics() -> None:
