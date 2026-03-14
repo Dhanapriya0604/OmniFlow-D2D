@@ -1550,22 +1550,200 @@ def page_logistics() -> None:
                 st.info("Production plan not available.")
         sp(0.5)
         sec("Carrier × Region Delay Heatmap")
-        delay_thr = st.slider("Delay threshold (days)", 3, 10, DEFAULT_LEAD_TIME, key="log_thr")
+
+        hc1, hc2, hc3 = st.columns([2, 2, 2])
+        delay_thr  = hc1.slider("Delay threshold (days)", 3, 10, DEFAULT_LEAD_TIME, key="log_thr")
+        heat_metric = hc2.selectbox("Metric", ["Delay Rate %", "Avg Delivery Days", "Avg Shipping Cost ₹"], key="heat_metric")
+        show_annot  = hc3.toggle("Show cell annotations", value=True, key="heat_annot")
+
         del_df_delayed = del_df.copy()
         del_df_delayed["Delayed"] = del_df_delayed["Delivery_Days"] > delay_thr
-        pv = del_df_delayed.groupby(["Courier_Partner", "Region"])["Delayed"].mean().unstack(fill_value=0) * 100
-        fig_h = go.Figure(go.Heatmap(
-            z=pv.values, x=list(pv.columns), y=list(pv.index),
-            colorscale=[[0, "#0d1829"], [0.4, "#7c4fd0"], [0.7, "#e87adb"], [1, "#EF4444"]],
-            text=np.round(pv.values, 1), texttemplate="%{text}%", textfont=dict(size=10),
-            colorbar=dict(tickfont=dict(color="#8a9dc0", size=10)),
+
+        # ── Build pivot based on selected metric ──────────────────────────
+        if heat_metric == "Delay Rate %":
+            pv = (del_df_delayed.groupby(["Courier_Partner", "Region"])["Delayed"]
+                  .mean().unstack(fill_value=0) * 100)
+            fmt       = lambda v: f"{v:.1f}%"
+            unit      = "%"
+            colorscale = [
+                [0.00, "#0f4c2a"], [0.20, "#1a7a40"], [0.40, "#f0c040"],
+                [0.60, "#f97316"], [0.80, "#ef4444"], [1.00, "#7f1d1d"],
+            ]
+            zmid = 25
+        elif heat_metric == "Avg Delivery Days":
+            pv = (del_df_delayed.groupby(["Courier_Partner", "Region"])["Delivery_Days"]
+                  .mean().unstack(fill_value=0))
+            fmt       = lambda v: f"{v:.1f}d"
+            unit      = "d"
+            colorscale = [
+                [0.00, "#0f4c2a"], [0.25, "#22c55e"], [0.50, "#f0c040"],
+                [0.75, "#f97316"], [1.00, "#7f1d1d"],
+            ]
+            zmid = float(pv.values[pv.values > 0].mean()) if pv.values.any() else 3
+        else:
+            pv = (del_df_delayed.groupby(["Courier_Partner", "Region"])["Shipping_Cost_INR"]
+                  .mean().unstack(fill_value=0))
+            fmt       = lambda v: f"₹{v:.0f}"
+            unit      = "₹"
+            colorscale = [
+                [0.00, "#0f4c2a"], [0.25, "#22c55e"], [0.50, "#f0c040"],
+                [0.75, "#f97316"], [1.00, "#7f1d1d"],
+            ]
+            zmid = float(pv.values[pv.values > 0].mean()) if pv.values.any() else 100
+
+        carriers = list(pv.index)
+        regions  = list(pv.columns)
+        z_vals   = pv.values
+
+        # ── Annotation text: value + risk icon ────────────────────────────
+        if heat_metric == "Delay Rate %":
+            def _cell_text(v):
+                icon = "🔴" if v >= 40 else "🟠" if v >= 25 else "🟡" if v >= 10 else "🟢"
+                return f"{icon}<br>{v:.1f}%"
+        elif heat_metric == "Avg Delivery Days":
+            def _cell_text(v):
+                icon = "🔴" if v > 5 else "🟠" if v > 3 else "🟡" if v > 2 else "🟢"
+                return f"{icon}<br>{v:.1f}d"
+        else:
+            med = float(np.median(z_vals[z_vals > 0])) if z_vals.any() else 1
+            def _cell_text(v):
+                icon = "🔴" if v > med * 1.4 else "🟠" if v > med * 1.15 else "🟡" if v > med * 0.9 else "🟢"
+                return f"{icon}<br>₹{v:.0f}"
+
+        cell_text = [[_cell_text(z_vals[r][c]) for c in range(len(regions))]
+                     for r in range(len(carriers))]
+
+        # ── Order count for hover ─────────────────────────────────────────
+        order_pv = (del_df_delayed.groupby(["Courier_Partner", "Region"])["Order_ID"]
+                    .count().unstack(fill_value=0))
+        order_pv = order_pv.reindex(index=pv.index, columns=pv.columns, fill_value=0)
+
+        # ── Hover template ────────────────────────────────────────────────
+        hover_text = []
+        for r, carrier in enumerate(carriers):
+            row_hover = []
+            for c, region in enumerate(regions):
+                v   = z_vals[r][c]
+                n   = int(order_pv.values[r][c])
+                row_hover.append(
+                    f"<b>{carrier} → {region}</b><br>"
+                    f"{heat_metric}: <b>{fmt(v)}</b><br>"
+                    f"Orders: {n}<extra></extra>"
+                )
+            hover_text.append(row_hover)
+
+        fig_h = go.Figure()
+
+        # Main heatmap
+        fig_h.add_trace(go.Heatmap(
+            z=z_vals,
+            x=regions,
+            y=carriers,
+            colorscale=colorscale,
+            zmid=zmid,
+            text=cell_text if show_annot else None,
+            texttemplate="%{text}" if show_annot else None,
+            textfont=dict(size=10, color="white"),
+            hovertemplate=[[hover_text[r][c] for c in range(len(regions))]
+                           for r in range(len(carriers))],
+            colorbar=dict(
+                title=dict(text=heat_metric, font=dict(size=10, color="#64748b")),
+                tickfont=dict(color="#64748b", size=9),
+                thickness=12,
+                len=0.85,
+                x=1.01,
+            ),
+            xgap=3,
+            ygap=3,
         ))
-        fig_h.update_layout(**CD(), height=260,
-                            xaxis=dict(showgrid=False, tickangle=-25, color="#64748b"),
-                            yaxis=dict(showgrid=False, color="#64748b"),
-                            title=dict(text=f"% orders delayed beyond {delay_thr}d · carrier × region",
-                                       font=dict(size=11, color="#64748b")))
+
+        # ── Highlight worst cell per carrier (red outline) ────────────────
+        worst_col_per_row = np.argmax(z_vals, axis=1)
+        for r, c in enumerate(worst_col_per_row):
+            fig_h.add_shape(
+                type="rect",
+                x0=c - 0.5, x1=c + 0.5,
+                y0=r - 0.5, y1=r + 0.5,
+                line=dict(color="#ef4444", width=2.5),
+                fillcolor="rgba(0,0,0,0)",
+            )
+
+        # ── Highlight best cell per carrier (green outline) ───────────────
+        best_col_per_row = np.argmin(z_vals, axis=1)
+        for r, c in enumerate(best_col_per_row):
+            fig_h.add_shape(
+                type="rect",
+                x0=c - 0.5, x1=c + 0.5,
+                y0=r - 0.5, y1=r + 0.5,
+                line=dict(color="#22c55e", width=2.5),
+                fillcolor="rgba(0,0,0,0)",
+            )
+
+        # ── Row averages as annotations on right side ─────────────────────
+        for r, carrier in enumerate(carriers):
+            row_avg = float(np.mean(z_vals[r]))
+            fig_h.add_annotation(
+                x=len(regions) - 0.5 + 0.9,
+                y=r,
+                text=f"<b>avg {fmt(row_avg)}</b>",
+                showarrow=False,
+                font=dict(size=9, color="#64748b"),
+                xanchor="left",
+            )
+
+        # ── Column averages as annotations on bottom ──────────────────────
+        for c, region in enumerate(regions):
+            col_avg = float(np.mean(z_vals[:, c]))
+            fig_h.add_annotation(
+                x=c,
+                y=len(carriers) - 0.5 + 0.55,
+                text=f"<b>{fmt(col_avg)}</b>",
+                showarrow=False,
+                font=dict(size=9, color="#64748b"),
+                yanchor="bottom",
+            )
+
+        cell_h = max(52, 260 // max(len(carriers), 1))
+        fig_h.update_layout(
+            **CD(),
+            height=cell_h * len(carriers) + 100,
+            xaxis=dict(
+                showgrid=False, tickangle=-20, color="#334155",
+                tickfont=dict(size=11, color="#334155"),
+                side="bottom",
+            ),
+            yaxis=dict(
+                showgrid=False, color="#334155",
+                tickfont=dict(size=11, color="#334155"),
+                autorange="reversed",
+            ),
+            title=dict(
+                text=(
+                    f"<b>{heat_metric}</b> by Carrier × Region"
+                    f"  <span style='font-size:10px;color:#94a3b8'>  "
+                    f"🟢 best  🔴 worst per carrier row  |  threshold: >{delay_thr}d</span>"
+                ),
+                font=dict(size=12, color="#0f172a"),
+            ),
+            margin=dict(l=30, r=110, t=52, b=50),
+        )
+
         st.plotly_chart(fig_h, use_container_width=True, key="log_heat")
+
+        # ── Summary insight row below chart ──────────────────────────────
+        flat      = z_vals.flatten()
+        worst_idx = np.unravel_index(np.argmax(flat), z_vals.shape)
+        best_idx  = np.unravel_index(np.argmin(flat), z_vals.shape)
+        worst_lbl = f"{carriers[worst_idx[0]]} → {regions[worst_idx[1]]}"
+        best_lbl  = f"{carriers[best_idx[0]]} → {regions[best_idx[1]]}"
+        banner(
+            f"🔴 <b>Worst lane:</b> {worst_lbl} &nbsp;({fmt(float(flat[np.argmax(flat)]))})"
+            f"&nbsp;&nbsp;|&nbsp;&nbsp;"
+            f"🟢 <b>Best lane:</b> {best_lbl} &nbsp;({fmt(float(flat[np.argmin(flat)]))})"
+            f"&nbsp;&nbsp;|&nbsp;&nbsp;"
+            f"📊 <b>Overall avg:</b> {fmt(float(np.mean(flat)))}",
+            "sky",
+        )
     with t2:
         total_sav = opt["Potential_Saving"].sum()
         c1, c2, c3, c4 = st.columns(4)
