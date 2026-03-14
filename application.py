@@ -234,19 +234,21 @@ def ml_forecast(vals: np.ndarray, ds_idx, n_future: int = N_FUTURE_MONTHS) -> di
     X_fut  = X_all[n:]
     mean_vals = np.mean(vals)
     ss_tot    = np.sum((vals - mean_vals) ** 2)
-    h = min(6, n // 3)
+
+    # ── Step 1: Hold-out split — train on first (n-4), test on last 4 ──
+    h             = 4
     Xtr_h, ytr_h  = X_hist[:-h], vals[:-h]
     Xte_h, yte_h  = X_hist[-h:], vals[-h:]
     mean_holdout  = float(np.mean(yte_h)) if np.mean(yte_h) > 0 else 1.0
+
+    # ── Step 2: Train each model on (n-4) pts → predict hold-out 4 pts ──
     holdout_preds: dict[str, np.ndarray] = {}
     for mname, mdl in _make_models().items():
-        if mname == "Ridge":
-            pipe = Pipeline([("scaler", StandardScaler()), ("model", mdl)])
-        else:
-            pipe = mdl
         pipe = Pipeline([("scaler", StandardScaler()), ("model", mdl)])
         pipe.fit(Xtr_h, ytr_h)
         holdout_preds[mname] = np.maximum(pipe.predict(Xte_h), 0)
+
+    # ── Step 3: CV folds on (n-4) data → inverse-RMSE weights ──
     n_tr      = len(ytr_h)
     n_folds   = min(3, n_tr // 6)
     fold_size = 2
@@ -266,10 +268,11 @@ def ml_forecast(vals: np.ndarray, ds_idx, n_future: int = N_FUTURE_MONTHS) -> di
     model_rmses: dict[str, float] = {}
     for mname in fold_rmses:
         model_rmses[mname] = np.mean(fold_rmses[mname]) if fold_rmses[mname] else 1.0
-    temperature = 0.5
-    scores = {m: np.exp(-model_rmses[m] / temperature) for m in model_rmses}
-    tot = sum(scores.values())
-    weights = {m: scores[m]/sum(scores.values()) for m in scores}
+    inv_rmse = {m: 1.0 / (r + 1e-9) for m, r in model_rmses.items()}
+    tot      = sum(inv_rmse.values())
+    weights  = {m: v / tot for m, v in inv_rmse.items()}
+
+    # ── Step 4: Individual model metrics — all from same hold-out ──
     model_metrics: dict[str, dict] = {}
     for mname in _make_models():
         hp       = holdout_preds[mname]
@@ -277,29 +280,25 @@ def ml_forecast(vals: np.ndarray, ds_idx, n_future: int = N_FUTURE_MONTHS) -> di
         nrmse_m  = rmse_m / mean_holdout
         mae_m    = float(mean_absolute_error(yte_h, hp))
         model_metrics[mname] = {"rmse": rmse_m, "nrmse": nrmse_m, "mae": mae_m, "r2": 0.0}
+
+    # Full-fit R² for each model (train on all n, predict all n)
     for mname, mdl in _make_models().items():
-        if mname == "Ridge":
-            pipe = Pipeline([("scaler", StandardScaler()), ("model", mdl)])
-        else:
-            pipe = mdl
         pipe = Pipeline([("scaler", StandardScaler()), ("model", mdl)])
-        hp = holdout_preds[mname]
-        ss_res_test = np.sum((yte_h - hp) ** 2)
-        ss_tot_test = np.sum((yte_h - yte_h.mean()) ** 2)
-        r2_test = 1 - ss_res_test / (ss_tot_test + 1e-9)
-        model_metrics[mname]["r2"] = max(0.0, r2_test)
+        pipe.fit(X_hist, vals)
+        fp       = np.maximum(pipe.predict(X_hist), 0)
+        ss_res_m = np.sum((vals - fp) ** 2)
+        model_metrics[mname]["r2"] = max(0.0, 1 - ss_res_m / (ss_tot + 1e-9))
+
+    # ── Step 5: Ensemble hold-out prediction ──
     ypred_eval = sum(weights[m] * holdout_preds[m] for m in _make_models())
-    ypred_eval = np.nan_to_num(ypred_eval, nan=0.0, posinf=0.0, neginf=0.0)
     rmse_e     = float(np.sqrt(mean_squared_error(yte_h, ypred_eval)))
     nrmse_e    = rmse_e / mean_holdout
     mae_e      = float(mean_absolute_error(yte_h, ypred_eval))
+
+    # ── Step 6: Full retrain on ALL n points → final fitted + forecast ──
     fitted_pm:   dict[str, np.ndarray] = {}
     forecast_pm: dict[str, np.ndarray] = {}
     for mname, mdl in _make_models().items():
-        if mname == "Ridge":
-            pipe = Pipeline([("scaler", StandardScaler()), ("model", mdl)])
-        else:
-            pipe = mdl
         pipe = Pipeline([("scaler", StandardScaler()), ("model", mdl)])
         pipe.fit(X_hist, vals)
         fitted_pm[mname]   = np.maximum(pipe.predict(X_hist), 0)
@@ -308,22 +307,16 @@ def ml_forecast(vals: np.ndarray, ds_idx, n_future: int = N_FUTURE_MONTHS) -> di
     ens_forecast = sum(weights[m] * forecast_pm[m] for m in _make_models())
     residuals    = vals - ens_fitted
     resid_std    = residuals.std()
-    ss_res_e = np.sum((yte_h - ypred_eval) ** 2)
-    ss_tot_e = np.sum((yte_h - yte_h.mean()) ** 2)
-    r2_e = max(0.0, 1 - ss_res_e / (ss_tot_e + 1e-9))
+    ss_res_e     = np.sum(residuals ** 2)
+    r2_e         = max(0.0, 1 - ss_res_e / (ss_tot + 1e-9))
     model_metrics["Ensemble"] = {"rmse": rmse_e, "nrmse": nrmse_e, "mae": mae_e, "r2": r2_e}
     ts_idx   = _to_ts(ds_idx)
     last_dt  = ts_idx[-1]
     fut_dates = pd.date_range(last_dt + pd.offsets.MonthBegin(1), periods=n_future, freq="MS")
     log_std = np.log1p(resid_std / (mean_vals + 1e-9))
     steps   = np.arange(1, n_future + 1)
-    simulations = [] 
-    for _ in range(1000):
-        noise = np.random.normal(0, resid_std*np.sqrt(steps), size=n_future)
-        simulations.append(ens_forecast + noise)
-    simulations = np.array(simulations)
-    ci_lo = np.percentile(simulations, 5, axis=0)
-    ci_hi = np.percentile(simulations, 95, axis=0)
+    ci_lo   = np.maximum(ens_forecast * np.exp(-CI_Z * log_std * np.sqrt(steps)), 0)
+    ci_hi   = ens_forecast * np.exp(CI_Z * log_std * np.sqrt(steps))
     return dict(
         hist_ds=ts_idx, hist_y=vals, fitted=ens_fitted,
         fitted_per_model=fitted_pm, forecast_per_model=forecast_pm,
@@ -356,11 +349,13 @@ def compute_category_forecasts(n_future: int = N_FUTURE_MONTHS) -> dict:
 
 def ensemble_chart(res: dict, chart_key: str, height: int = 300, title: str = "", show_models: bool = True) -> go.Figure:
     fig = go.Figure()
+    # Forecast zone shading
     fig.add_vrect(x0=res["fut_ds"][0], x1=res["fut_ds"][-1],
         fillcolor="rgba(139,92,246,0.04)", layer="below", line_width=0,
     )
     fig.add_vline(x=res["fut_ds"][0], line_dash="dash",
                   line_color="rgba(139,92,246,0.4)", line_width=1.5)
+    # 90% CI ribbon (no legend entry, no hover)
     x_ci = list(res["fut_ds"]) + list(res["fut_ds"])[::-1]
     y_ci = list(res["ci_hi"]) + list(res["ci_lo"])[::-1]
     fig.add_trace(go.Scatter(
@@ -368,11 +363,13 @@ def ensemble_chart(res: dict, chart_key: str, height: int = 300, title: str = ""
         fillcolor="rgba(139,92,246,0.10)", line=dict(color="rgba(0,0,0,0)"),
         name="90% CI", hoverinfo="skip", showlegend=True,
     ))
+    # Actual historical line
     fig.add_trace(go.Scatter(
         x=res["hist_ds"], y=res["hist_y"], name="Actual",
         line=dict(color="#1e3a8a", width=2.5),
         hovertemplate="<b>%{x|%b %Y}</b><br>Actual: %{y:,.0f}<extra></extra>",
     ))
+    # Per-model fits — hidden, not shown in legend
     model_styles = [
         ("Ridge",        "#3B82F6", "dot"),
         ("RandomForest", "#22C55E", "dashdot"),
@@ -387,12 +384,14 @@ def ensemble_chart(res: dict, chart_key: str, height: int = 300, title: str = ""
                     opacity=0.7, visible="legendonly", showlegend=False,
                     hovertemplate=f"<b>%{{x|%b %Y}}</b><br>{mname}: %{{y:,.0f}}<extra></extra>",
                 ))
+    # Ensemble fitted line — hidden, not shown in legend
     fig.add_trace(go.Scatter(
         x=res["hist_ds"], y=res["fitted"], name="Ensemble fit",
         line=dict(color="#8B5CF6", width=1.5, dash="dot"), opacity=0.7,
         visible="legendonly", showlegend=False,
         hovertemplate="<b>%{x|%b %Y}</b><br>Ensemble fit: %{y:,.0f}<extra></extra>",
     ))
+    # Per-model forecasts — hidden, not shown in legend
     if show_models and "forecast_per_model" in res:
         for mname, clr, dash in model_styles:
             if mname in res["forecast_per_model"]:
@@ -403,12 +402,14 @@ def ensemble_chart(res: dict, chart_key: str, height: int = 300, title: str = ""
                     visible="legendonly", showlegend=False,
                     hovertemplate=f"<b>%{{x|%b %Y}}</b><br>{mname}: %{{y:,.0f}}<extra></extra>",
                 ))
+    # Ensemble Forecast — always visible, bold
     fig.add_trace(go.Scatter(
         x=res["fut_ds"], y=res["forecast"], name="Ensemble Forecast",
         line=dict(color="#8B5CF6", width=3.0), mode="lines+markers",
         marker=dict(size=9, color="#8B5CF6", line=dict(color="#FFFFFF", width=2)),
         hovertemplate="<b>%{x|%b %Y}</b><br>Forecast: %{y:,.0f}<extra></extra>",
     ))
+    # Eval markers — shown on chart but not in legend
     fig.add_trace(go.Scatter(
         x=res["eval_ds"], y=res["eval_pred"], name="Eval",
         mode="markers", showlegend=False,
@@ -475,14 +476,12 @@ def render_model_quality(res: dict) -> None:
                     <span class='model-pill pill-gb'>GB {w.get("GradBoost",0)/tot*100:.0f}%</span>
                 </div>""", unsafe_allow_html=True,
             )
-    bias = float(np.mean(res["eval_pred"] - res["eval_actual"]))
-    c1, c2, c3, c4, c5,c6 = st.columns(6)
+    c1, c2, c3, c4, c5 = st.columns(5)
     kpi(c1, "RMSE",     f"{res['rmse']:.1f}",         "sky",  "error metric")
     kpi(c2, "NRMSE",    f"{res['nrmse']*100:.1f}%",   "sky",  "normalised")
     kpi(c3, "MAE",      f"{res['mae']:.1f}",           "sky",  "mean abs err")
     kpi(c4, "R² Score", f"{res['r2']:.3f}",            "sky",  "fit quality")
     kpi(c5, "Accuracy", f"{acc:.1f}%",                 "mint", "1 − NRMSE")
-    kpi(c6, "Forecast Bias", f"{bias:.1f}", "amber", "prediction drift")
     sp(0.5)
     st.markdown(
         f"""<div class='model-quality-card'>
@@ -527,7 +526,10 @@ def compute_inventory(
         avg_price    = ("Sell_Price",          "mean"),
         total_qty    = ("Net_Qty",             "sum"),
     ).reset_index()
-    sku_monthly_pivot = (sku_monthly.copy())
+    # Peak-month std: use max monthly demand std across months for seasonal safety stock
+    sku_monthly_pivot = (
+        sku_monthly.copy()
+    )
     sku_monthly_pivot["Month"] = sku_monthly_pivot["YM"].dt.month if hasattr(sku_monthly_pivot["YM"].dtype, "freq")         else sku_monthly_pivot["YM"].apply(lambda p: p.month)
     sku_month_avg = sku_monthly_pivot.groupby(["SKU_ID", "Month"])["Net_Qty"].mean().reset_index()
     sku_peak_std  = sku_month_avg.groupby("SKU_ID")["Net_Qty"].std().reset_index().rename(columns={"Net_Qty": "peak_std"})
@@ -537,6 +539,7 @@ def compute_inventory(
         .reset_index()
     )
     sku_stats = sku_stats.merge(sku_peak_std, on="SKU_ID", how="left")
+    # Use max(monthly std, seasonal std) for conservative safety stock
     sku_stats["hist_std"] = sku_stats[["hist_std", "peak_std"]].max(axis=1).fillna(sku_stats["hist_avg"] * 0.25)
     sku_stats["hist_std"] = sku_stats["hist_std"].fillna(sku_stats["hist_avg"] * 0.25)
     cat_hist_avg: dict[str, float] = {
@@ -550,7 +553,7 @@ def compute_inventory(
         cat = row["Category"]
         h_avg = row["hist_avg"]
         if cat in cat_fcs and cat_hist_avg.get(cat, 0) > 0:
-            share = (0.7 * h_avg + 0.3 * row["peak_d"]) / (cat_hist_avg[cat] + 1e-9)
+            share = h_avg / cat_hist_avg[cat]
             fc    = cat_fcs[cat]
             return (
                 fc["mean"] * share,
@@ -565,9 +568,7 @@ def compute_inventory(
     ann_d     = sku_snapshot["econ_d"] * 12
     eoq = np.maximum(np.where(ann_d > 0, np.sqrt(2 * ann_d * order_cost / (uc * hold_pct)), 0), 1).astype(int)
     daily_d   = sku_snapshot["avg_d"] / 30.0
-    daily_std = (sku_snapshot["hist_std"].clip(lower=sku_snapshot["hist_avg"] * 0.20)
-        / np.sqrt(30)
-    )
+    daily_std = sku_snapshot["hist_std"] / np.sqrt(30)
     lt_std    = sku_snapshot["Category"].map(lt_std_map).fillna(1.0)
     ss = np.maximum((z * np.sqrt(lead_time * daily_std ** 2 + daily_d ** 2 * lt_std ** 2)).astype(int), 0)
     computed_rop = np.maximum((daily_d * lead_time + ss).astype(int), 1)
@@ -586,7 +587,12 @@ def compute_inventory(
         np.where(current_stock < rop, "🟡 Low", "🟢 Adequate"),
     )
     days_stock   = np.where(daily_d > 0, (current_stock / daily_d).round(1), 999.0)
-    days_to_rop  = np.where((daily_d > 0) & (current_stock > rop),((current_stock - rop) / daily_d).round(1), 0.0,)
+    # Days until current stock hits ROP — forward alert for near-future risk
+    days_to_rop  = np.where(
+        (daily_d > 0) & (current_stock > rop),
+        ((current_stock - rop) / daily_d).round(1),
+        0.0,
+    )
     units_below  = np.maximum(ss - current_stock, 0)
     daily_margin  = daily_d * uc * MARGIN_RATE
     stockout_cost = np.where(status == "🔴 Critical",
@@ -621,6 +627,7 @@ def compute_inventory(
     return inv_df
 
 def _int_allocate(total: int, weights: np.ndarray) -> list[int]:
+    """Largest-remainder integer allocation — monthly ints always sum exactly to total."""
     if total == 0 or weights.sum() == 0:
         return [0] * len(weights)
     shares   = weights / weights.sum() * total
@@ -633,7 +640,6 @@ def _int_allocate(total: int, weights: np.ndarray) -> list[int]:
 
 @st.cache_data
 def compute_production(cap_mult: float = 1.0, n_future: int = N_FUTURE_MONTHS) -> pd.DataFrame:
-    MAX_MONTHLY_CAPACITY = 2000
     inv     = compute_inventory(n_future=n_future)
     cat_fcs = compute_category_forecasts(n_future)
     rows = []
@@ -652,17 +658,22 @@ def compute_production(cap_mult: float = 1.0, n_future: int = N_FUTURE_MONTHS) -
         low_gap   = float((low_skus["ROP"]  - low_skus["Current_Stock"]).clip(lower=0).sum())
         current_stock_cat = int(cat_inv["Current_Stock"].sum())
         demand_6m_cat     = int(cat_inv["Demand_6M"].sum())
+        # Apply capacity multiplier to total
         scheduled_total = int(round(prod_need_cat * cap_mult))
+        # Base allocation proportional to demand forecast
         monthly_prod = _int_allocate(scheduled_total, fc_arr)
-        monthly_prod = [min(x, MAX_MONTHLY_CAPACITY) for x in monthly_prod]
+        # Urgency boost: pull forward from later months (no extra units created)
+        # Total stays exactly = scheduled_total
         urgency_pool = int(round((crit_gap * 0.60 + low_gap * 0.20)))
         urgency_pool = min(urgency_pool, scheduled_total)
         if urgency_pool > 0 and n_future >= 2:
+            # Add boost to month 0 and 1, deduct proportionally from remaining months
             boost_m0 = int(round(urgency_pool * BOOST_SCHEDULE.get(0, 0.60)))
             boost_m1 = urgency_pool - boost_m0
             monthly_prod[0] = min(monthly_prod[0] + boost_m0, scheduled_total)
             if n_future > 1:
                 monthly_prod[1] = min(monthly_prod[1] + boost_m1, scheduled_total)
+            # Deduct excess from later months (largest first to preserve proportionality)
             excess = sum(monthly_prod) - scheduled_total
             for idx in range(n_future - 1, 1, -1):
                 if excess <= 0:
@@ -699,6 +710,7 @@ def build_sku_production_plan(n_future: int = N_FUTURE_MONTHS) -> pd.DataFrame:
     wh_cat["wh_share"] = wh_cat.groupby("Category")["Quantity"].transform(
         lambda x: x / x.sum()
     )
+    # Use cheapest carrier cost per region, blended to category×warehouse level
     carr_region = del_df.groupby(["Region", "Courier_Partner"]).agg(
         avg_cost=("Shipping_Cost_INR", "mean"), orders=("Order_ID", "count")
     ).reset_index().sort_values("avg_cost").groupby("Region").first().reset_index()
@@ -796,18 +808,14 @@ def compute_logistics(
         Avg_Cost = ("Shipping_Cost_INR", "mean"),
     ).reset_index()
     carr = carr.merge(carrier_returns, on="Courier_Partner", how="left")
-    delay_rate = (
-        (del_df["Delivery_Days"] > 3).groupby(del_df["Courier_Partner"])
-        .mean().reset_index(name="Delay_Rate")
-    )
-    carr = carr.merge(delay_rate, on="Courier_Partner", how="left")    
     carr["Return_Rate"] = carr["Return_Rate"].fillna(0)
-    for col in ["Avg_Days", "Avg_Cost", "Return_Rate", "Delay_Rate"]:
-        mn = carr[col].min()
-        mx = carr[col].max()
+    for col in ["Avg_Days", "Avg_Cost", "Return_Rate"]:
+        mn = carr[col].min(); mx = carr[col].max()
         carr[f"Norm_{col}"] = 1 - (carr[col] - mn) / (mx - mn + 1e-9)
     carr["Perf_Score"] = (
-        0.35 * carr["Norm_Avg_Days"]+ 0.35 * carr["Norm_Avg_Cost"]+ 0.2 * carr["Norm_Return_Rate"]+ 0.1 * carr["Norm_Delay_Rate"]
+        w_speed   * carr["Norm_Avg_Days"]
+        + w_cost  * carr["Norm_Avg_Cost"]
+        + w_returns * carr["Norm_Return_Rate"]
     ).round(3)
     cheapest = (del_df.groupby(["Region", "Courier_Partner"])
         .agg(avg_cost=("Shipping_Cost_INR", "mean"), orders=("Order_ID", "count"))
@@ -826,6 +834,7 @@ def compute_logistics(
     avg_ship_unit = max(del_df["Shipping_Cost_INR"].sum() / max(del_df["Quantity"].replace(0, np.nan).sum(), 1), 1.0)
     hist_orders   = max(len(del_df), 1)
     avg_units_ord = max(del_df["Quantity"].sum() / hist_orders, 1.0)
+    # Optimal cost per category: use cheapest carrier avg cost weighted by region volume
     cat_region_vol = del_df.groupby(["Category", "Region"])["Quantity"].sum().reset_index()
     cat_region_vol["vol_share"] = cat_region_vol.groupby("Category")["Quantity"].transform(lambda x: x / x.sum())
     optimal_cost_merge = cat_region_vol.merge(cheapest[["Region", "Min_Avg_Cost"]], on="Region", how="left")
@@ -882,6 +891,7 @@ def page_overview() -> None:
     kpi(k5, "On-Time Delivery", f"{on_time:.1f}%", "mint", "delivered ≤ 3 days")
     kpi(k6, "Unique SKUs", str(n_skus), "sky", "across 4 categories")
     sp(0.5)
+    # ── Supply Chain Health Alert Banner ─────────────────────────────────
     _inv_ov = compute_inventory()
     _n_crit = int((_inv_ov["Status"] == "🔴 Critical").sum())
     _n_low  = int((_inv_ov["Status"] == "🟡 Low").sum())
@@ -1201,6 +1211,7 @@ def page_inventory() -> None:
             legend={**leg(), "orientation": "h", "y": -0.18},
         )
         st.plotly_chart(fig_sc, use_container_width=True, key="scatter_stock")
+        # Near-ROP alert: Adequate SKUs that will hit ROP within the forecast horizon
         near_rop = sv[
             (sv["Status"] == "🟢 Adequate") &
             (sv["Days_To_ROP"] > 0) &
@@ -1254,6 +1265,7 @@ def page_production() -> None:
     total_demand_6m_inv = int(inv_for_kpi["Demand_6M"].sum())
     total_stock_inv     = int(inv_for_kpi["Current_Stock"].sum())
     total_safety_stock  = int(inv_for_kpi["SS"].sum())
+    # Scheduled production respects cap_mult — may differ from raw Prod_Need
     scheduled_total_all = int(plan["Production"].sum())
     peak = agg.loc[agg["Production"].idxmax(), "Month_dt"]
     c1, c2, c3, c4, c5 = st.columns(5)
@@ -1299,6 +1311,8 @@ def page_production() -> None:
     fig.add_vline(x=forecast_start, line_dash="dash", line_color="rgba(139,92,246,0.5)", line_width=2)
     fig.update_layout(**CD(), height=320, xaxis=gX(), yaxis=gY(), legend=leg())
     st.plotly_chart(fig, use_container_width=True, key="prod_main")
+
+    # ── Row: Gap chart (left) | Urgency by Category (right) ─────────────────
     urg_color_map = {
         "🔴 Urgent": "#ef4444", "🟠 High": "#f97316",
         "🟡 Medium": "#eab308", "🟢 Normal": "#22c55e",
@@ -1340,6 +1354,8 @@ def page_production() -> None:
                                  legend={**leg(), "orientation": "h", "y": -0.32})
             st.plotly_chart(fig_bu, use_container_width=True, key="pq_cat_bar")
     sp()
+
+    # ── Fulfillment & Routing Plan — no tabs, flows directly ─────────────
     st.markdown("<div style='font-size:22px;font-weight:900;color:black;letter-spacing:-.02em'>Fulfillment & Routing Plan</div>",
                 unsafe_allow_html=True)
     if sku_plan.empty:
@@ -1401,6 +1417,7 @@ def page_production() -> None:
     st.dataframe(routing_tbl.sort_values(["Warehouse", "Urgency"]),
                  use_container_width=True, hide_index=True, height=380)
 
+
 def page_logistics() -> None:
     n_future = get_horizon()
     df     = load_data()
@@ -1430,7 +1447,9 @@ def page_logistics() -> None:
         w_speed /= tot; w_cost /= tot; w_returns /= tot
     cap_log = st.session_state.get("prod_cap", 1.0)
     carr, opt, fwd_plan = compute_logistics(w_speed, w_cost, w_returns, n_future, cap_log)
+    # delay_thr default so t2 works even if t1 slider hasn't been touched yet
     delay_thr = st.session_state.get("log_thr", DEFAULT_LEAD_TIME)
+    # Derive planned units per category from fwd_plan (avoids a second compute_production call)
     prod_by_cat_log = (fwd_plan.groupby("Category")["Prod_Units"].sum().reset_index()
                        .rename(columns={"Prod_Units": "Planned Units"}) if not fwd_plan.empty else pd.DataFrame())
     t1, t2, t3 = st.tabs(["Carrier Performance", "Cost & Delay", "Forward Plan"])
@@ -1491,12 +1510,15 @@ def page_logistics() -> None:
             st.info("Production plan not available.")
         sp(0.5)
         sec("Carrier x Region Heatmap")
+
         hc1, hc2, hc3 = st.columns([2, 2, 2])
         delay_thr   = hc1.slider("Delay threshold (days)", 3, 10, DEFAULT_LEAD_TIME, key="log_thr")
         heat_metric = hc2.selectbox("Metric", ["Delay Rate %", "Avg Delivery Days", "Avg Shipping Cost"], key="heat_metric")
         show_annot  = hc3.toggle("Show cell values", value=True, key="heat_annot")
+
         del_df_delayed = del_df.copy()
         del_df_delayed["Delayed"] = del_df_delayed["Delivery_Days"] > delay_thr
+
         if heat_metric == "Delay Rate %":
             pv = (del_df_delayed.groupby(["Courier_Partner", "Region"])["Delayed"]
                   .mean().unstack(fill_value=0) * 100)
@@ -1524,28 +1546,44 @@ def page_logistics() -> None:
                 [0.75, "#f97316"], [1.00, "#7f1d1d"],
             ]
             zmid = float(pv.values[pv.values > 0].mean()) if pv.values.any() else 100.0
+
         carriers = list(pv.index)
         regions  = list(pv.columns)
         z_vals   = pv.values.copy()
+
+        # cell annotation text (plain strings, no HTML tags)
         if show_annot:
             cell_text = [[fmt(z_vals[r][c]) for c in range(len(regions))]
                          for r in range(len(carriers))]
         else:
             cell_text = None
+
+        # order count customdata (2-D int array, same shape as z_vals)
         order_pv = (del_df_delayed.groupby(["Courier_Partner", "Region"])["Order_ID"]
                     .count().unstack(fill_value=0)
                     .reindex(index=pv.index, columns=pv.columns, fill_value=0))
         customdata = order_pv.values.astype(int)
+
         fig_h = go.Figure(go.Heatmap(
-            z=z_vals, x=regions, y=carriers, colorscale=colorscale,
-            text=cell_text, texttemplate="%{text}" if show_annot else "",
-            textfont=dict(size=10, color="white"), customdata=customdata,
+            z=z_vals,
+            x=regions,
+            y=carriers,
+            colorscale=colorscale,
+            text=cell_text,
+            texttemplate="%{text}" if show_annot else "",
+            textfont=dict(size=10, color="white"),
+            customdata=customdata,
             hovertemplate="<b>%{y} to %{x}</b><br>Value: %{z:.1f}<br>Orders: %{customdata}<extra></extra>",
             colorbar=dict(
-                tickfont=dict(color="#64748b", size=9), thickness=12, len=0.85,
+                tickfont=dict(color="#64748b", size=9),
+                thickness=12,
+                len=0.85,
             ),
-            xgap=3, ygap=3,
+            xgap=3,
+            ygap=3,
         ))
+
+        # outline worst cell per row in red, best in green
         worst_cols = np.argmax(z_vals, axis=1)
         best_cols  = np.argmin(z_vals, axis=1)
         for r, c in enumerate(worst_cols):
@@ -1556,6 +1594,8 @@ def page_logistics() -> None:
             fig_h.add_shape(type="rect",
                 x0=c - 0.5, x1=c + 0.5, y0=r - 0.5, y1=r + 0.5,
                 line=dict(color="#22c55e", width=2.5), fillcolor="rgba(0,0,0,0)")
+
+        # row-average annotations on the right
         for r in range(len(carriers)):
             fig_h.add_annotation(
                 x=len(regions) - 0.5 + 0.7, y=r,
@@ -1563,6 +1603,7 @@ def page_logistics() -> None:
                 showarrow=False, xanchor="left",
                 font=dict(size=9, color="#64748b"),
             )
+
         cell_h = max(55, 300 // max(len(carriers), 1))
         layout = dict(
             paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
@@ -1577,7 +1618,10 @@ def page_logistics() -> None:
             yaxis=dict(showgrid=False, tickfont=dict(size=11, color="#334155")),
         )
         fig_h.update_layout(**layout)
+
         st.plotly_chart(fig_h, use_container_width=True, key="log_heat")
+
+        # summary banner
         flat      = z_vals.flatten()
         worst_idx = np.unravel_index(int(np.argmax(flat)), z_vals.shape)
         best_idx  = np.unravel_index(int(np.argmin(flat)), z_vals.shape)
