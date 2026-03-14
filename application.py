@@ -1803,7 +1803,8 @@ def page_logistics() -> None:
                     .reset_index().sort_values("Units", ascending=False)
                 )
                 cat_fwd.columns = ["Category", "Units", "Est. Orders", "Ship Cost ₹"]
-                st.dataframe(cat_fwd, use_container_width=True, hide_index=True, height=210)
+                _tbl_h = min(len(cat_fwd) * 35 + 38, 250)
+                st.dataframe(cat_fwd, use_container_width=True, hide_index=True, height=_tbl_h)
             sec("Projected Shipping Cost")
             fig_cost2 = go.Figure(go.Scatter(
                 x=fwd_agg["Month_dt"], y=fwd_agg["Total_Ship_Cost"],
