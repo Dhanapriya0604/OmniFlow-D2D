@@ -267,7 +267,7 @@ def ml_forecast(vals: np.ndarray, ds_idx, n_future: int = N_FUTURE_MONTHS) -> di
     for mname in fold_rmses:
         model_rmses[mname] = np.mean(fold_rmses[mname]) if fold_rmses[mname] else 1.0
     temperature = 0.5
-    scores = {m: np.exp(-model_rmses[m]/temperature)}
+    scores = {m: np.exp(-model_rmses[m] / temperature) for m in model_rmses}
     tot = sum(scores.values())
     weights = {m: scores[m] / tot for m in scores}
     model_metrics: dict[str, dict] = {}
