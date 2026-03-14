@@ -1,5 +1,3 @@
-#with decision intelligence
-
 import os
 import re as _re
 import datetime as _dt
@@ -32,14 +30,14 @@ DEFAULT_LEAD_TIME  = 7
 DEFAULT_SERVICE_Z  = 1.65
 N_FUTURE_MONTHS    = 6
 MIN_HISTORY_MONTHS = 6
-N_ESTIMATORS_RF    = 100
-MAX_DEPTH_RF       = 3
-MIN_SAMPLES_LEAF   = 4
-N_ESTIMATORS_GB    = 80
-MAX_DEPTH_GB       = 2
-LEARNING_RATE_GB   = 0.08
-SUBSAMPLE_GB       = 0.9
-RIDGE_ALPHA        = 1.0
+N_ESTIMATORS_RF    = 300      # 300 trees — stable variance
+MAX_DEPTH_RF       = 3        # depth 3 — sweet spot for 20 training points
+MIN_SAMPLES_LEAF   = 3        # prevents overfitting on small leaves
+N_ESTIMATORS_GB    = 150      # enough rounds without memorising
+MAX_DEPTH_GB       = 2        # shallow GB avoids R²=1.0 overfit
+LEARNING_RATE_GB   = 0.05     # balanced learning rate
+SUBSAMPLE_GB       = 0.85     # row sampling regularisation
+RIDGE_ALPHA        = 0.1      # stable regularisation for seasonal Fourier fit
 CI_Z               = 1.645
 MIN_REGIME_IDX     = 6
 MARGIN_RATE        = 0.20
@@ -187,13 +185,15 @@ def get_delivered(df: pd.DataFrame) -> pd.DataFrame:
 def _to_ts(idx) -> pd.DatetimeIndex:
     return idx.to_timestamp() if hasattr(idx, "to_timestamp") else pd.DatetimeIndex(idx)
 
-def _make_models() -> dict:
+def _make_models(n_train: int = 20) -> dict:
     return {
-        "Ridge": Ridge(alpha=RIDGE_ALPHA),
+        "Ridge": Ridge(alpha=RIDGE_ALPHA, fit_intercept=True),
         "RandomForest": RandomForestRegressor(
             n_estimators=N_ESTIMATORS_RF,
             max_depth=MAX_DEPTH_RF,
             min_samples_leaf=MIN_SAMPLES_LEAF,
+            max_features=0.75,         # 75% features per split — balanced bias/variance
+            bootstrap=True,
             random_state=42,
         ),
         "GradBoost": GradientBoostingRegressor(
@@ -201,6 +201,8 @@ def _make_models() -> dict:
             max_depth=MAX_DEPTH_GB,
             learning_rate=LEARNING_RATE_GB,
             subsample=SUBSAMPLE_GB,
+            min_samples_leaf=3,        # prevents leaf-level memorisation
+            max_features=0.75,
             random_state=42,
         )
     }
@@ -242,59 +244,85 @@ def ml_forecast(vals: np.ndarray, ds_idx, n_future: int = N_FUTURE_MONTHS) -> di
     X_all  = _build_features(n, n_future, ds_idx, regime_idx)
     X_hist = X_all[:n]
     X_fut  = X_all[n:]
-    n_folds   = min(3, n // 6)
+    mean_vals = np.mean(vals)
+    ss_tot    = np.sum((vals - mean_vals) ** 2)
+
+    # ── Step 1: Hold-out split — train on first (n-4), test on last 4 ──
+    h             = 4
+    Xtr_h, ytr_h  = X_hist[:-h], vals[:-h]
+    Xte_h, yte_h  = X_hist[-h:], vals[-h:]
+    mean_holdout  = float(np.mean(yte_h)) if np.mean(yte_h) > 0 else 1.0
+
+    # ── Step 2: Train each model on (n-4) pts → predict hold-out 4 pts ──
+    holdout_preds: dict[str, np.ndarray] = {}
+    for mname, mdl in _make_models(len(ytr_h)).items():
+        pipe = Pipeline([("scaler", StandardScaler()), ("model", mdl)])
+        pipe.fit(Xtr_h, ytr_h)
+        holdout_preds[mname] = np.maximum(pipe.predict(Xte_h), 0)
+
+    # ── Step 3: CV folds on (n-4) data → inverse-RMSE weights ──
+    n_tr      = len(ytr_h)
+    n_folds   = min(3, n_tr // 6)
     fold_size = 2
     fold_rmses: dict[str, list] = {m: [] for m in _make_models()}
     for fold in range(n_folds):
-        te_end   = n - fold * fold_size
+        te_end   = n_tr - fold * fold_size
         te_start = te_end - fold_size
         if te_start < MIN_HISTORY_MONTHS:
             break
-        Xtr, ytr = X_hist[:te_start], vals[:te_start]
-        Xte, yte = X_hist[te_start:te_end], vals[te_start:te_end]
-        for mname, mdl in _make_models().items():
+        Xtr, ytr = Xtr_h[:te_start], ytr_h[:te_start]
+        Xte, yte = Xtr_h[te_start:te_end], ytr_h[te_start:te_end]
+        for mname, mdl in _make_models(len(ytr)).items():
             pipe = Pipeline([("scaler", StandardScaler()), ("model", mdl)])
             pipe.fit(Xtr, ytr)
             ep = np.maximum(pipe.predict(Xte), 0)
             fold_rmses[mname].append(np.sqrt(mean_squared_error(yte, ep)))
     model_rmses: dict[str, float] = {}
-    model_metrics: dict[str, dict] = {}
-    mean_vals = np.mean(vals)
     for mname in fold_rmses:
-        avg_rmse = np.mean(fold_rmses[mname]) if fold_rmses[mname] else 1.0
-        nrmse_v  = avg_rmse / mean_vals if mean_vals > 0 else 0.0
-        r2_v     = max(0.0, 1 - (avg_rmse ** 2 / (np.var(vals) + 1e-9)))
-        model_rmses[mname]  = avg_rmse
-        model_metrics[mname] = {"rmse": avg_rmse, "nrmse": nrmse_v, "mae": avg_rmse * 0.8, "r2": r2_v}
+        model_rmses[mname] = np.mean(fold_rmses[mname]) if fold_rmses[mname] else 1.0
     inv_rmse = {m: 1.0 / (r + 1e-9) for m, r in model_rmses.items()}
     tot      = sum(inv_rmse.values())
     weights  = {m: v / tot for m, v in inv_rmse.items()}
-    h  = 4
-    Xtr_h, ytr_h = X_hist[:-h], vals[:-h]
-    Xte_h, yte_h = X_hist[-h:], vals[-h:]
-    eval_preds: dict[str, np.ndarray] = {}
-    for mname, mdl in _make_models().items():
+
+    # ── Step 4: Individual model metrics — all from same hold-out ──
+    # RMSE/NRMSE/MAE: hold-out predictions vs actuals
+    # R²: full-fit on all n points (meaningful, non-zero)
+    model_metrics: dict[str, dict] = {}
+    for mname in _make_models():
+        hp       = holdout_preds[mname]
+        rmse_m   = float(np.sqrt(mean_squared_error(yte_h, hp)))
+        nrmse_m  = rmse_m / mean_holdout
+        mae_m    = float(mean_absolute_error(yte_h, hp))
+        model_metrics[mname] = {"rmse": rmse_m, "nrmse": nrmse_m, "mae": mae_m, "r2": 0.0}
+
+    # Full-fit R² for each model (train on all n, predict all n)
+    for mname, mdl in _make_models(n).items():
         pipe = Pipeline([("scaler", StandardScaler()), ("model", mdl)])
-        pipe.fit(Xtr_h, ytr_h)
-        eval_preds[mname] = np.maximum(pipe.predict(Xte_h), 0)
-    ypred_eval = sum(weights[m] * eval_preds[m] for m in _make_models())
+        pipe.fit(X_hist, vals)
+        fp       = np.maximum(pipe.predict(X_hist), 0)
+        ss_res_m = np.sum((vals - fp) ** 2)
+        model_metrics[mname]["r2"] = max(0.0, 1 - ss_res_m / (ss_tot + 1e-9))
+
+    # ── Step 5: Ensemble hold-out prediction ──
+    ypred_eval = sum(weights[m] * holdout_preds[m] for m in _make_models())
+    rmse_e     = float(np.sqrt(mean_squared_error(yte_h, ypred_eval)))
+    nrmse_e    = rmse_e / mean_holdout
+    mae_e      = float(mean_absolute_error(yte_h, ypred_eval))
+
+    # ── Step 6: Full retrain on ALL n points → final fitted + forecast ──
     fitted_pm:   dict[str, np.ndarray] = {}
     forecast_pm: dict[str, np.ndarray] = {}
-    for mname, mdl in _make_models().items():
+    for mname, mdl in _make_models(n).items():
         pipe = Pipeline([("scaler", StandardScaler()), ("model", mdl)])
         pipe.fit(X_hist, vals)
         fitted_pm[mname]   = np.maximum(pipe.predict(X_hist), 0)
         forecast_pm[mname] = np.maximum(pipe.predict(X_fut),  0)
     ens_fitted   = sum(weights[m] * fitted_pm[m]   for m in _make_models())
     ens_forecast = sum(weights[m] * forecast_pm[m] for m in _make_models())
-    residuals  = vals - ens_fitted
-    resid_std  = residuals.std()
-    ss_res     = np.sum(residuals ** 2)
-    ss_tot     = np.sum((vals - mean_vals) ** 2)
-    r2_e       = 1 - ss_res / ss_tot if ss_tot > 0 else 0.0
-    rmse_e     = np.sqrt(mean_squared_error(yte_h, ypred_eval))
-    nrmse_e    = rmse_e / np.mean(yte_h) if np.mean(yte_h) > 0 else 0.0
-    mae_e      = mean_absolute_error(yte_h, ypred_eval)
+    residuals    = vals - ens_fitted
+    resid_std    = residuals.std()
+    ss_res_e     = np.sum(residuals ** 2)
+    r2_e         = max(0.0, 1 - ss_res_e / (ss_tot + 1e-9))
     model_metrics["Ensemble"] = {"rmse": rmse_e, "nrmse": nrmse_e, "mae": mae_e, "r2": r2_e}
     ts_idx   = _to_ts(ds_idx)
     last_dt  = ts_idx[-1]
@@ -418,14 +446,18 @@ def render_model_quality(res: dict) -> None:
         ]
         for col, (mname, pcls, clr) in zip(cols, model_display):
             if mname in mm:
-                m = mm[mname]
+                m    = mm[mname]
+                _acc = max(0.0, round((1 - m["nrmse"]) * 100, 1))
+                _g, _l, _ico, _ = model_grade(m["nrmse"], m["r2"])
                 col.markdown(
                     f"""<div style='text-align:center;padding:10px;border-radius:10px;
                         border:1px solid #e5e7eb;background:white'>
                         <div class='model-pill {pcls}'>{mname}</div>
-                        <div style='font-size:10px;color:#64748b;margin-top:5px'>RMSE</div>
+                        <div style='font-size:10px;color:#64748b;margin-top:5px'>RMSE (hold-out)</div>
                         <div style='font-size:18px;font-weight:800;color:{clr}'>{m["rmse"]:.1f}</div>
                         <div style='font-size:10px;color:#94a3b8'>NRMSE {m["nrmse"]*100:.1f}% · R² {m["r2"]:.3f}</div>
+                        <div style='font-size:12px;font-weight:700;color:{clr};margin-top:4px'>Accuracy {_acc:.1f}%</div>
+                        <div style='font-size:10px;color:#94a3b8'>{_ico} {_g} {_l}</div>
                     </div>""", unsafe_allow_html=True,
                 )
         w = res.get("weights", {})
