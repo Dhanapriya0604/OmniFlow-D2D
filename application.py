@@ -1051,44 +1051,53 @@ def page_demand() -> None:
         r2_vals    = [mm[m]["r2"]          for m in labels]
         nrmse_vals = [mm[m]["nrmse"] * 100 for m in labels]
         clrs       = [MODEL_COLORS.get(m, "#888") for m in labels]
-        # ── Single merged chart: R² bars (left y) + NRMSE line (right y) ──
-        fig_acc = go.Figure()
-        fig_acc.add_trace(go.Bar(
-            name="R² Score", x=labels, y=r2_vals,
-            marker=dict(color=clrs, opacity=0.85, line=dict(color="rgba(0,0,0,0)")),
-            text=[f"{v:.3f}" for v in r2_vals],
-            textposition="outside",
-            textfont=dict(color="#334155", size=11),
-            yaxis="y1",
-            width=0.45,
-        ))
-        fig_acc.add_trace(go.Scatter(
-            name="NRMSE %", x=labels, y=nrmse_vals,
-            mode="lines+markers+text",
-            line=dict(color="#EF4444", width=2.5, dash="dot"),
-            marker=dict(size=10, color="#EF4444", line=dict(color="#fff", width=2)),
-            text=[f"{v:.1f}%" for v in nrmse_vals],
-            textposition="top center", textfont=dict(size=9, color="#EF4444"),
-            yaxis="y2",
-        ))
-        fig_acc.add_hline(y=0.9, line_dash="dash", line_color="#22C55E", line_width=1.2,
-                          annotation_text=" R²≥0.90", annotation_font=dict(color="#22C55E", size=9),
-                          annotation_position="right")
-        fig_acc.update_layout(
-            **CD(), height=300,
-            bargap=0.35,
-            xaxis={**gX(), "tickfont": dict(size=12)},
-            yaxis=dict(**gY(), title="R² Score",
-                       range=[0, max(r2_vals) * 1.28]),
-            yaxis2=dict(overlaying="y", side="right", showgrid=False,
-                        title="NRMSE %", tickcolor="#EF4444",
-                        range=[0, max(nrmse_vals) * 2.2],
-                        tickfont=dict(color="#EF4444")),
-            legend=dict(**leg(), orientation="h", y=-0.18, x=0.5, xanchor="center"),
-            title=dict(text="R² Score (bars, left axis) · NRMSE % (line, right axis)",
-                       font=dict(size=11, color="#64748b")),
-        )
-        st.plotly_chart(fig_acc, use_container_width=True, key="d_acc_merged")
+        # ── Two side-by-side bar charts: R² (left) + NRMSE (right) ──────
+        bc1, bc2 = st.columns(2, gap="large")
+        with bc1:
+            fig_r2 = go.Figure(go.Bar(
+                x=labels, y=r2_vals,
+                marker=dict(color=clrs, opacity=0.88, line=dict(color="rgba(0,0,0,0)")),
+                text=[f"{v:.3f}" for v in r2_vals],
+                textposition="outside",
+                textfont=dict(color="#334155", size=11),
+            ))
+            fig_r2.add_hline(y=0.9, line_dash="dash", line_color="#22C55E", line_width=1.5,
+                             annotation_text=" R²≥0.90",
+                             annotation_font=dict(color="#22C55E", size=9),
+                             annotation_position="right")
+            fig_r2.update_layout(
+                **CD(), height=270,
+                xaxis={**gX(), "tickfont": dict(size=12)},
+                yaxis={**gY(), "title": "R² Score",
+                       "range": [0, max(r2_vals) * 1.22]},
+                title=dict(text="R² Score — higher is better",
+                           font=dict(size=11, color="#64748b")),
+                showlegend=False,
+            )
+            st.plotly_chart(fig_r2, use_container_width=True, key="d_r2")
+
+        with bc2:
+            fig_nrmse = go.Figure(go.Bar(
+                x=labels, y=nrmse_vals,
+                marker=dict(color=clrs, opacity=0.88, line=dict(color="rgba(0,0,0,0)")),
+                text=[f"{v:.1f}%" for v in nrmse_vals],
+                textposition="outside",
+                textfont=dict(color="#334155", size=11),
+            ))
+            fig_nrmse.add_hline(y=15, line_dash="dash", line_color="#22C55E", line_width=1.5,
+                                annotation_text=" NRMSE<15%",
+                                annotation_font=dict(color="#22C55E", size=9),
+                                annotation_position="right")
+            fig_nrmse.update_layout(
+                **CD(), height=270,
+                xaxis={**gX(), "tickfont": dict(size=12)},
+                yaxis={**gY(), "title": "NRMSE %",
+                       "range": [0, max(nrmse_vals) * 1.30]},
+                title=dict(text="NRMSE % — lower is better",
+                           font=dict(size=11, color="#64748b")),
+                showlegend=False,
+            )
+            st.plotly_chart(fig_nrmse, use_container_width=True, key="d_nrmse")
     sp()
     c1, c2 = st.columns([2, 2])
     metric_opt = c1.selectbox("Metric", ["Orders", "Quantity", "Net Revenue"], key="d_metric")
@@ -1712,81 +1721,83 @@ def page_logistics() -> None:
             st.info("Production plan not available.")
         sp(0.5)
         sec("Carrier x Region Heatmap")
-        hc1, hc2 = st.columns([2, 4])
-        delay_thr   = hc1.slider("Delay threshold (days)", 1, 10, DEFAULT_DELAY_THR, key="log_thr")
-        with hc2:
-            st.markdown("<div style='font-size:11px;color:#64748b;margin-bottom:4px'>Metric</div>",
-                        unsafe_allow_html=True)
-            heat_metric = st.radio(
-                "Metric", ["Delay Rate %", "Avg Delivery Days", "Avg Shipping Cost"],
-                horizontal=True, label_visibility="collapsed", key="heat_metric",
-            )
-        show_annot = st.toggle("Show cell values", value=True, key="heat_annot")
-        del_df_d    = del_df.copy()
+        delay_thr = st.slider("Delay threshold (days)", 1, 10, DEFAULT_DELAY_THR, key="log_thr")
+        del_df_d  = del_df.copy()
         del_df_d["Delayed"] = del_df_d["Delivery_Days"] > delay_thr
-        if heat_metric == "Delay Rate %":
-            pv = (del_df_d.groupby(["Courier_Partner", "Region"])["Delayed"]
-                  .mean().unstack(fill_value=0) * 100)
-            def fmt(v): return f"{v:.1f}%"
-            colorscale = [[0.00,"#166534"],[0.25,"#16a34a"],[0.50,"#eab308"],[0.75,"#f97316"],[1.00,"#7f1d1d"]]
-        elif heat_metric == "Avg Delivery Days":
-            pv = (del_df_d.groupby(["Courier_Partner", "Region"])["Delivery_Days"]
-                  .mean().unstack(fill_value=0))
-            def fmt(v): return f"{v:.1f}d"
-            colorscale = [[0.00,"#166534"],[0.25,"#16a34a"],[0.50,"#eab308"],[0.75,"#f97316"],[1.00,"#7f1d1d"]]
-        else:
-            pv = (del_df_d.groupby(["Courier_Partner", "Region"])["Shipping_Cost_INR"]
-                  .mean().unstack(fill_value=0))
-            def fmt(v): return f"₹{v:.0f}"
-            colorscale = [[0.00,"#166534"],[0.25,"#16a34a"],[0.50,"#eab308"],[0.75,"#f97316"],[1.00,"#7f1d1d"]]
-        carriers = list(pv.index)
-        regions  = list(pv.columns)
-        z_vals   = pv.values.copy()
-        cell_text = [[fmt(z_vals[r][c]) for c in range(len(regions))] for r in range(len(carriers))] if show_annot else None
-        order_pv  = (del_df_d.groupby(["Courier_Partner", "Region"])["Order_ID"]
-                     .count().unstack(fill_value=0)
-                     .reindex(index=pv.index, columns=pv.columns, fill_value=0))
-        fig_h = go.Figure(go.Heatmap(
-            z=z_vals, x=regions, y=carriers, colorscale=colorscale,
-            text=cell_text, texttemplate="%{text}" if show_annot else "",
-            textfont=dict(size=10, color="white"),
-            customdata=order_pv.values.astype(int),
-            hovertemplate="<b>%{y} to %{x}</b><br>Value: %{z:.1f}<br>Orders: %{customdata}<extra></extra>",
-            colorbar=dict(tickfont=dict(color="#64748b", size=9), thickness=12, len=0.85),
-            xgap=3, ygap=3,
-        ))
-        for r, c in enumerate(np.argmax(z_vals, axis=1)):
-            fig_h.add_shape(type="rect", x0=c-.5, x1=c+.5, y0=r-.5, y1=r+.5,
-                line=dict(color="#ef4444", width=2.5), fillcolor="rgba(0,0,0,0)")
-        for r, c in enumerate(np.argmin(z_vals, axis=1)):
-            fig_h.add_shape(type="rect", x0=c-.5, x1=c+.5, y0=r-.5, y1=r+.5,
-                line=dict(color="#22c55e", width=2.5), fillcolor="rgba(0,0,0,0)")
-        for r in range(len(carriers)):
-            fig_h.add_annotation(x=len(regions)-.5+.7, y=r,
-                text=f"avg {fmt(float(np.mean(z_vals[r])))}",
-                showarrow=False, xanchor="left", font=dict(size=9, color="#64748b"))
-        cell_h = max(55, 300 // max(len(carriers), 1))
-        fig_h.update_layout(
-            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-            font=dict(color="#334155", family="Inter,sans-serif", size=11),
-            height=cell_h * len(carriers) + 80, margin=dict(l=30, r=120, t=44, b=40),
-            title=dict(text=f"{heat_metric} by Carrier × Region  |  threshold >{delay_thr}d",
-                       font=dict(size=11, color="#64748b")),
-            xaxis=dict(showgrid=False, tickangle=-20, tickfont=dict(size=11, color="#334155")),
-            yaxis=dict(showgrid=False, tickfont=dict(size=11, color="#334155")),
-        )
-        st.plotly_chart(fig_h, use_container_width=True, key="log_heat")
-        flat      = z_vals.flatten()
-        worst_idx = np.unravel_index(int(np.argmax(flat)), z_vals.shape)
-        best_idx  = np.unravel_index(int(np.argmin(flat)), z_vals.shape)
+
+        colorscale = [[0.00,"#166534"],[0.25,"#16a34a"],[0.50,"#eab308"],[0.75,"#f97316"],[1.00,"#7f1d1d"]]
+
+        def _make_heatmap(pv, fmt_fn, title_str, key_str):
+            carriers_h = list(pv.index)
+            regions_h  = list(pv.columns)
+            z_h        = pv.values.copy()
+            cell_text_h = [[fmt_fn(z_h[r][c]) for c in range(len(regions_h))]
+                           for r in range(len(carriers_h))]
+            order_pv_h = (del_df_d.groupby(["Courier_Partner","Region"])["Order_ID"]
+                          .count().unstack(fill_value=0)
+                          .reindex(index=pv.index, columns=pv.columns, fill_value=0))
+            fig_h = go.Figure(go.Heatmap(
+                z=z_h, x=regions_h, y=carriers_h, colorscale=colorscale,
+                text=cell_text_h, texttemplate="%{text}",
+                textfont=dict(size=8, color="white"),
+                customdata=order_pv_h.values.astype(int),
+                hovertemplate="<b>%{y} → %{x}</b><br>Value: %{z:.1f}<br>Orders: %{customdata}<extra></extra>",
+                colorbar=dict(tickfont=dict(color="#64748b", size=8), thickness=8, len=0.8),
+                xgap=2, ygap=2,
+                showscale=True,
+            ))
+            # Highlight worst (red) and best (green) per row
+            for r, c in enumerate(np.argmax(z_h, axis=1)):
+                fig_h.add_shape(type="rect", x0=c-.5, x1=c+.5, y0=r-.5, y1=r+.5,
+                    line=dict(color="#ef4444", width=2), fillcolor="rgba(0,0,0,0)")
+            for r, c in enumerate(np.argmin(z_h, axis=1)):
+                fig_h.add_shape(type="rect", x0=c-.5, x1=c+.5, y0=r-.5, y1=r+.5,
+                    line=dict(color="#22c55e", width=2), fillcolor="rgba(0,0,0,0)")
+            cell_h = max(48, 260 // max(len(carriers_h), 1))
+            fig_h.update_layout(
+                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                font=dict(color="#334155", family="Inter,sans-serif", size=10),
+                height=cell_h * len(carriers_h) + 80,
+                margin=dict(l=10, r=50, t=40, b=60),
+                title=dict(text=title_str, font=dict(size=10, color="#64748b")),
+                xaxis=dict(showgrid=False, tickangle=-30, tickfont=dict(size=9, color="#334155")),
+                yaxis=dict(showgrid=False, tickfont=dict(size=9, color="#334155")),
+            )
+            return fig_h
+
+        # Build all 3 pivot tables
+        pv_delay = (del_df_d.groupby(["Courier_Partner","Region"])["Delayed"]
+                    .mean().unstack(fill_value=0) * 100)
+        pv_days  = (del_df_d.groupby(["Courier_Partner","Region"])["Delivery_Days"]
+                    .mean().unstack(fill_value=0))
+        pv_cost  = (del_df_d.groupby(["Courier_Partner","Region"])["Shipping_Cost_INR"]
+                    .mean().unstack(fill_value=0))
+
+        hm1, hm2, hm3 = st.columns(3, gap="small")
+        with hm1:
+            fig_d = _make_heatmap(pv_delay, lambda v: f"{v:.0f}%",
+                                  f"Delay Rate %  (>{delay_thr}d)", "log_heat_delay")
+            st.plotly_chart(fig_d, use_container_width=True, key="log_heat_delay")
+        with hm2:
+            fig_dd = _make_heatmap(pv_days, lambda v: f"{v:.1f}d",
+                                   "Avg Delivery Days", "log_heat_days")
+            st.plotly_chart(fig_dd, use_container_width=True, key="log_heat_days")
+        with hm3:
+            fig_dc = _make_heatmap(pv_cost, lambda v: f"₹{v:.0f}",
+                                   "Avg Shipping Cost", "log_heat_cost")
+            st.plotly_chart(fig_dc, use_container_width=True, key="log_heat_cost")
+
+        # Summary banner using delay heatmap for worst/best
+        flat_d    = pv_delay.values.flatten()
+        carr_list = list(pv_delay.index)
+        reg_list  = list(pv_delay.columns)
+        wi = np.unravel_index(int(np.argmax(flat_d)), pv_delay.values.shape)
+        bi = np.unravel_index(int(np.argmin(flat_d)), pv_delay.values.shape)
         banner(
-            f"Worst lane: <b>{carriers[worst_idx[0]]} → {regions[worst_idx[1]]}</b>"
-            f" ({fmt(float(flat[np.argmax(flat)]))})"
+            f"Worst delay lane: <b>{carr_list[wi[0]]} → {reg_list[wi[1]]}</b> ({flat_d[np.argmax(flat_d)]:.1f}%)"
             f" &nbsp;|&nbsp; "
-            f"Best lane: <b>{carriers[best_idx[0]]} → {regions[best_idx[1]]}</b>"
-            f" ({fmt(float(flat[np.argmin(flat)]))})"
-            f" &nbsp;|&nbsp; "
-            f"Overall avg: <b>{fmt(float(np.mean(flat)))}</b>",
+            f"Best delay lane: <b>{carr_list[bi[0]]} → {reg_list[bi[1]]}</b> ({flat_d[np.argmin(flat_d)]:.1f}%)"
+            f" &nbsp;|&nbsp; Overall avg delay: <b>{float(np.mean(flat_d)):.1f}%</b>",
             "sky",
         )
 
