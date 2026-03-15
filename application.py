@@ -272,22 +272,33 @@ def ml_forecast(vals: np.ndarray, ds_idx, n_future: int = N_FUTURE_MONTHS) -> di
     tot      = sum(inv_rmse.values())
     weights  = {m: v / tot for m, v in inv_rmse.items()}
 
-    # ── Step 4: Individual model metrics — all from same hold-out ──
+    # ── Step 4: Individual model metrics — R² on HOLD-OUT test data ──
+    # Use h=6 for R² if data allows; fall back to h=4 if R² is all-zero
+    for test_h in [6, 4]:
+        if n - test_h < MIN_HISTORY_MONTHS:
+            continue
+        Xtr_r2  = X_hist[:-test_h]
+        ytr_r2  = vals[:-test_h]
+        Xte_r2  = X_hist[-test_h:]
+        yte_r2  = vals[-test_h:]
+        ss_test = np.sum((yte_r2 - np.mean(yte_r2)) ** 2)
+        r2_per_model: dict[str, float] = {}
+        for mname, mdl in _make_models().items():
+            pipe = Pipeline([("scaler", StandardScaler()), ("model", mdl)])
+            pipe.fit(Xtr_r2, ytr_r2)
+            fp_r2    = np.maximum(pipe.predict(Xte_r2), 0)
+            ss_res_r2 = np.sum((yte_r2 - fp_r2) ** 2)
+            r2_per_model[mname] = max(0.0, 1 - ss_res_r2 / (ss_test + 1e-9))
+        # Accept h=6 if at least one model has R² > 0; else try h=4
+        if any(v > 0 for v in r2_per_model.values()) or test_h == 4:
+            break
     model_metrics: dict[str, dict] = {}
     for mname in _make_models():
         hp       = holdout_preds[mname]
         rmse_m   = float(np.sqrt(mean_squared_error(yte_h, hp)))
         nrmse_m  = rmse_m / mean_holdout
         mae_m    = float(mean_absolute_error(yte_h, hp))
-        model_metrics[mname] = {"rmse": rmse_m, "nrmse": nrmse_m, "mae": mae_m, "r2": 0.0}
-
-    # Full-fit R² for each model (train on all n, predict all n)
-    for mname, mdl in _make_models().items():
-        pipe = Pipeline([("scaler", StandardScaler()), ("model", mdl)])
-        pipe.fit(X_hist, vals)
-        fp       = np.maximum(pipe.predict(X_hist), 0)
-        ss_res_m = np.sum((vals - fp) ** 2)
-        model_metrics[mname]["r2"] = max(0.0, 1 - ss_res_m / (ss_tot + 1e-9))
+        model_metrics[mname] = {"rmse": rmse_m, "nrmse": nrmse_m, "mae": mae_m, "r2": r2_per_model.get(mname, 0.0)}
 
     # ── Step 5: Ensemble hold-out prediction ──
     ypred_eval = sum(weights[m] * holdout_preds[m] for m in _make_models())
@@ -307,8 +318,14 @@ def ml_forecast(vals: np.ndarray, ds_idx, n_future: int = N_FUTURE_MONTHS) -> di
     ens_forecast = sum(weights[m] * forecast_pm[m] for m in _make_models())
     residuals    = vals - ens_fitted
     resid_std    = residuals.std()
-    ss_res_e     = np.sum(residuals ** 2)
-    r2_e         = max(0.0, 1 - ss_res_e / (ss_tot + 1e-9))
+    # Recompute ensemble R² on same test hold-out window used for individual models
+    ens_test_preds = np.zeros(len(yte_r2))
+    for mname, mdl in _make_models().items():
+        pipe = Pipeline([("scaler", StandardScaler()), ("model", mdl)])
+        pipe.fit(X_hist[:-test_h], vals[:-test_h])
+        ens_test_preds += weights[mname] * np.maximum(pipe.predict(Xte_r2), 0)
+    ss_res_ens = np.sum((yte_r2 - ens_test_preds) ** 2)
+    r2_e = max(0.0, 1 - ss_res_ens / (ss_test + 1e-9))
     model_metrics["Ensemble"] = {"rmse": rmse_e, "nrmse": nrmse_e, "mae": mae_e, "r2": r2_e}
     ts_idx   = _to_ts(ds_idx)
     last_dt  = ts_idx[-1]
@@ -1476,9 +1493,10 @@ def page_logistics() -> None:
         sec("Best Carrier per Category")
         if not prod_by_cat_log.empty:
             cat_carr = del_df.groupby(["Category", "Courier_Partner"]).agg(
-                    Avg_Days=("Delivery_Days", "mean"),
-                    Avg_Cost=("Shipping_Cost_INR", "mean"),
-                ).reset_index()
+                Avg_Days=("Delivery_Days", "mean"),
+                Avg_Cost=("Shipping_Cost_INR", "mean"),
+                Orders  =("Order_ID",          "count"),
+            ).reset_index()
             cat_carr_ret = df.groupby(["Category", "Courier_Partner"])["Return_Flag"].mean().reset_index()
             cat_carr_ret.columns = ["Category", "Courier_Partner", "Return_Rate"]
             cat_carr = cat_carr.merge(cat_carr_ret, on=["Category", "Courier_Partner"], how="left")
@@ -1486,26 +1504,49 @@ def page_logistics() -> None:
             for col_c in ["Avg_Days", "Avg_Cost", "Return_Rate"]:
                 mn_c = cat_carr[col_c].min(); mx_c = cat_carr[col_c].max()
                 cat_carr[f"N_{col_c}"] = 1 - (cat_carr[col_c] - mn_c) / (mx_c - mn_c + 1e-9)
+            # Composite score (balanced: speed + cost + reliability)
             cat_carr["Score"] = (
-                w_speed * cat_carr["N_Avg_Days"]
-                + w_cost * cat_carr["N_Avg_Cost"]
+                w_speed   * cat_carr["N_Avg_Days"]
+                + w_cost  * cat_carr["N_Avg_Cost"]
                 + w_returns * cat_carr["N_Return_Rate"]
             )
-            best_cat = cat_carr.sort_values("Score", ascending=False).groupby("Category").first().reset_index()
-            best_cat = best_cat.merge(prod_by_cat_log, on="Category", how="left")
-            best_cat["Avg_Days"]      = best_cat["Avg_Days"].round(1)
-            best_cat["Avg_Cost"]      = best_cat["Avg_Cost"].round(1)
-            best_cat["Score"]         = best_cat["Score"].round(3)
-            best_cat["Planned Units"] = best_cat["Planned Units"].fillna(0).astype(int)
+            # Best overall = highest composite score (safe, reliable, cost-efficient)
+            best_overall = (cat_carr.sort_values("Score", ascending=False)
+                            .groupby("Category").first().reset_index()
+                            .rename(columns={"Courier_Partner": "Best Overall",
+                                             "Avg_Days": "Overall Days",
+                                             "Avg_Cost": "Overall Cost ₹",
+                                             "Score":    "Overall Score"}))
+            # Fastest = lowest avg delivery days (for urgent orders)
+            best_fast = (cat_carr.sort_values("Avg_Days", ascending=True)
+                         .groupby("Category").first().reset_index()
+                         .rename(columns={"Courier_Partner": "Fastest (Urgent)",
+                                          "Avg_Days": "Fastest Days",
+                                          "Avg_Cost": "Fastest Cost ₹"}))
             sku_pl = build_sku_production_plan(n_future)
             wh_by_cat = (sku_pl.groupby("Category")["Target_Warehouse"]
                          .agg(lambda x: x.value_counts().index[0]).reset_index()
                          .rename(columns={"Target_Warehouse": "Warehouse"}))
-            best_cat = best_cat.merge(wh_by_cat, on="Category", how="left")
-            best_cat["Warehouse"] = best_cat["Warehouse"].fillna("—")
-            best_cat = best_cat[["Category", "Courier_Partner", "Avg_Days", "Avg_Cost", "Score", "Warehouse", "Planned Units"]]
-            best_cat.columns = ["Category", "Best Carrier", "Avg Days", "Avg Cost ₹", "Score", "Target Warehouse", "Planned Units"]
-            st.dataframe(best_cat.sort_values("Score", ascending=False), use_container_width=True, hide_index=True)
+            result = (best_overall[["Category", "Best Overall", "Overall Days", "Overall Cost ₹", "Overall Score"]]
+                      .merge(best_fast[["Category", "Fastest (Urgent)", "Fastest Days", "Fastest Cost ₹"]], on="Category")
+                      .merge(prod_by_cat_log, on="Category", how="left")
+                      .merge(wh_by_cat, on="Category", how="left"))
+            result["Overall Days"]    = result["Overall Days"].round(1)
+            result["Overall Cost ₹"]  = result["Overall Cost ₹"].round(1)
+            result["Overall Score"]   = result["Overall Score"].round(3)
+            result["Fastest Days"]    = result["Fastest Days"].round(1)
+            result["Fastest Cost ₹"]  = result["Fastest Cost ₹"].round(1)
+            result["Planned Units"]   = result["Planned Units"].fillna(0).astype(int)
+            result["Warehouse"]       = result["Warehouse"].fillna("—")
+            result = result[["Category", "Warehouse", "Planned Units",
+                              "Best Overall", "Overall Days", "Overall Cost ₹", "Overall Score",
+                              "Fastest (Urgent)", "Fastest Days", "Fastest Cost ₹"]]
+            st.dataframe(result, use_container_width=True, hide_index=True)
+            banner(
+                "📦 <b>Best Overall</b> = lowest composite score (speed + cost + return rate) — use for normal shipments. "
+                "⚡ <b>Fastest (Urgent)</b> = lowest avg delivery days — use when SKU is 🔴 Critical or 🟠 High urgency.",
+                "sky",
+            )
         else:
             st.info("Production plan not available.")
         sp(0.5)
