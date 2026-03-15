@@ -1188,7 +1188,7 @@ def page_demand() -> None:
         fig_yoy.update_layout(
             **_yoy_cd, height=340, barmode="group",
             xaxis={**gX(), "tickangle": 0, "tickfont": dict(size=13, color="#0f172a")},
-            yaxis={**gY(), "title": "Revenue ₹M", "titlefont": dict(size=11)},
+            yaxis={**gY(), "title": dict(text="Revenue ₹M", font=dict(size=11))},
             legend=dict(**leg(), orientation="h", y=-0.18, x=0.5, xanchor="center"),
             title=dict(text="Revenue by Category — 2024 vs 2025 vs Projection",
                        font=dict(size=11, color="#64748b")),
@@ -1249,7 +1249,7 @@ def page_demand() -> None:
             fig_gr.update_layout(
                 **CD(), height=280, barmode="group",
                 xaxis={**gX(), "tickangle": 0, "tickfont": dict(size=12, color="#0f172a")},
-                yaxis={**gY(), "title": "Growth %", "titlefont": dict(size=11)},
+                yaxis={**gY(), "title": dict(text="Growth %", font=dict(size=11))},
                 legend=dict(**leg(), orientation="h", y=-0.36, x=0.5, xanchor="center"),
                 title=dict(text="Growth % — YoY & Projection",
                            font=dict(size=11, color="#64748b")),
