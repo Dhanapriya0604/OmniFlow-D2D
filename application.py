@@ -1051,33 +1051,41 @@ def page_demand() -> None:
         r2_vals    = [mm[m]["r2"]          for m in labels]
         nrmse_vals = [mm[m]["nrmse"] * 100 for m in labels]
         clrs       = [MODEL_COLORS.get(m, "#888") for m in labels]
-        bc1, bc2 = st.columns(2, gap="large")
-        with bc1:
-            fig = go.Figure(go.Bar(
-                x=labels, y=r2_vals,
-                marker=dict(color=clrs, line=dict(color="rgba(0,0,0,0)")),
-                text=[f"{v:.3f}" for v in r2_vals], textposition="outside",
-                textfont=dict(color="#334155"),
-            ))
-            fig.add_hline(y=0.9, line_dash="dash", line_color="#22C55E",
-                          annotation_text=" Target R²=0.90", annotation_font=dict(color="#22C55E", size=10))
-            fig.update_layout(**CD(), height=240, xaxis=gX(),
-                              yaxis={**gY(), "title": "R² Score", "range": [0, 1.25]},
-                              title=dict(text="R² Score (higher = better)", font=dict(size=11, color="#64748b")))
-            st.plotly_chart(fig, use_container_width=True, key="d_r2")
-        with bc2:
-            fig2 = go.Figure(go.Bar(
-                x=labels, y=nrmse_vals,
-                marker=dict(color=clrs, line=dict(color="rgba(0,0,0,0)")),
-                text=[f"{v:.1f}%" for v in nrmse_vals], textposition="outside",
-                textfont=dict(color="#334155"),
-            ))
-            fig2.add_hline(y=15, line_dash="dash", line_color="#22C55E",
-                           annotation_text=" Target <15%", annotation_font=dict(color="#22C55E", size=10))
-            fig2.update_layout(**CD(), height=240, xaxis=gX(),
-                               yaxis={**gY(), "title": "NRMSE (%)", "range": [0, max(nrmse_vals) * 1.35]},
-                               title=dict(text="NRMSE % (lower = better)", font=dict(size=11, color="#64748b")))
-            st.plotly_chart(fig2, use_container_width=True, key="d_nrmse")
+        # ── Single merged chart: R² bars (left y) + NRMSE line (right y) ──
+        fig_acc = go.Figure()
+        fig_acc.add_trace(go.Bar(
+            name="R² Score", x=labels, y=r2_vals,
+            marker=dict(color=clrs, opacity=0.88, line=dict(color="rgba(0,0,0,0)")),
+            text=[f"{v:.3f}" for v in r2_vals], textposition="outside",
+            textfont=dict(color="#334155", size=10),
+            yaxis="y1",
+        ))
+        fig_acc.add_trace(go.Scatter(
+            name="NRMSE %", x=labels, y=nrmse_vals,
+            mode="lines+markers+text",
+            line=dict(color="#EF4444", width=2.5, dash="dot"),
+            marker=dict(size=10, color="#EF4444", line=dict(color="#fff", width=2)),
+            text=[f"{v:.1f}%" for v in nrmse_vals],
+            textposition="top center", textfont=dict(size=9, color="#EF4444"),
+            yaxis="y2",
+        ))
+        # Target reference lines
+        fig_acc.add_hline(y=0.9, line_dash="dash", line_color="#22C55E", line_width=1.2,
+                          annotation_text=" R²≥0.90", annotation_font=dict(color="#22C55E", size=9),
+                          annotation_position="right")
+        fig_acc.update_layout(
+            **CD(), height=260,
+            xaxis=gX(),
+            yaxis=dict(**gY(), title="R² Score", range=[0, 1.3]),
+            yaxis2=dict(overlaying="y", side="right", showgrid=False,
+                        title="NRMSE %", tickcolor="#EF4444",
+                        range=[0, max(nrmse_vals) * 1.6],
+                        tickfont=dict(color="#EF4444")),
+            legend=dict(**leg(), orientation="h", y=-0.22, x=0.5, xanchor="center"),
+            title=dict(text="R² Score (bars, left) vs NRMSE % (line, right) — Ensemble target: R²≥0.90 · NRMSE<15%",
+                       font=dict(size=10, color="#64748b")),
+        )
+        st.plotly_chart(fig_acc, use_container_width=True, key="d_acc_merged")
     sp()
     c1, c2 = st.columns([2, 2])
     metric_opt = c1.selectbox("Metric", ["Orders", "Quantity", "Net Revenue"], key="d_metric")
@@ -1123,128 +1131,124 @@ def page_demand() -> None:
         if r:
             proj_next[cat] = float(r["forecast"].sum())
     if 2024 in yr_rev.index and 2025 in yr_rev.index:
-        cats_sorted = sorted(yr_rev.columns,
-                             key=lambda c: yr_rev.loc[2025, c], reverse=True)
+        cats_sorted = sorted(yr_rev.columns, key=lambda c: yr_rev.loc[2025, c], reverse=True)
         cat_colors  = {
             "Electronics & Mobiles":  "#1e3a8a",
             "Fashion & Apparel":      "#059669",
             "Home & Kitchen":         "#d97706",
             "Health & Personal Care": "#7c3aed",
         }
-        # ── Left: grouped bar 2024 / 2025 / Projection ──────────────────
+        cat_short = {
+            "Electronics & Mobiles":  "Electronics",
+            "Fashion & Apparel":      "Fashion",
+            "Home & Kitchen":         "Home",
+            "Health & Personal Care": "Health",
+        }
+        r24_vals = [yr_rev.loc[2024, c] / 1e6 for c in cats_sorted]
+        r25_vals = [yr_rev.loc[2025, c] / 1e6 for c in cats_sorted]
+        rp_vals  = [proj_next.get(c, 0) / 1e6  for c in cats_sorted]
+        x_labels = [cat_short.get(c, c) for c in cats_sorted]
+        bar_clrs = [cat_colors.get(c, "#888") for c in cats_sorted]
+
         yoy_left, yoy_right = st.columns([3, 2], gap="large")
         with yoy_left:
             fig_yoy = go.Figure()
-            bar_labels = ["2024", "2025", f"Proj {n_future}M"]
-            bar_opacities = [0.45, 0.85, 1.0]
-            bar_patterns  = ["", "", "/"]
-            for ci, cat in enumerate(cats_sorted):
-                r24 = yr_rev.loc[2024, cat] / 1e6
-                r25 = yr_rev.loc[2025, cat] / 1e6
-                rp  = proj_next.get(cat, 0) / 1e6
-                clr = cat_colors.get(cat, COLORS[ci])
-                vals_bar = [r24, r25, rp]
-                for bi, (lbl, val, op) in enumerate(zip(bar_labels, vals_bar, bar_opacities)):
-                    fig_yoy.add_trace(go.Bar(
-                        name=f"{cat} · {lbl}",
-                        x=[cat],
-                        y=[val],
-                        marker=dict(
-                            color=clr,
-                            opacity=op,
-                            pattern=dict(shape="/" if lbl.startswith("Proj") else "", size=4,
-                                         fgcolor="rgba(255,255,255,0.4)") if lbl.startswith("Proj") else {},
-                            line=dict(color="rgba(0,0,0,0)"),
-                        ),
-                        legendgroup=lbl,
-                        legendgrouptitle=dict(text=lbl) if ci == 0 else None,
-                        showlegend=(ci == 0),
-                        text=f"₹{val:.1f}M",
-                        textposition="outside",
-                        textfont=dict(size=9, color="#334155"),
-                        hovertemplate=f"<b>{cat}</b><br>{lbl}: ₹{{y:.2f}}M<extra></extra>",
-                    ))
+            # 2024 bars — faint
+            fig_yoy.add_trace(go.Bar(
+                name="2024", x=x_labels, y=r24_vals,
+                marker=dict(color=bar_clrs, opacity=0.30, line=dict(color="rgba(0,0,0,0)")),
+                text=[f"₹{v:.1f}M" for v in r24_vals],
+                textposition="outside", textfont=dict(size=8, color="#64748b"),
+                hovertemplate="<b>%{x}</b><br>2024: ₹%{y:.2f}M<extra></extra>",
+            ))
+            # 2025 bars — solid
+            fig_yoy.add_trace(go.Bar(
+                name="2025", x=x_labels, y=r25_vals,
+                marker=dict(color=bar_clrs, opacity=0.80, line=dict(color="rgba(0,0,0,0)")),
+                text=[f"₹{v:.1f}M" for v in r25_vals],
+                textposition="outside", textfont=dict(size=8, color="#334155"),
+                hovertemplate="<b>%{x}</b><br>2025: ₹%{y:.2f}M<extra></extra>",
+            ))
+            # Projection bars — hatched
+            fig_yoy.add_trace(go.Bar(
+                name=f"Proj {n_future}M", x=x_labels, y=rp_vals,
+                marker=dict(
+                    color=bar_clrs, opacity=0.95,
+                    pattern=dict(shape="/", size=4, fgcolor="rgba(255,255,255,0.35)"),
+                    line=dict(color="rgba(0,0,0,0)"),
+                ),
+                text=[f"₹{v:.1f}M" for v in rp_vals],
+                textposition="outside", textfont=dict(size=8, color="#334155"),
+                hovertemplate=f"<b>%{{x}}</b><br>Proj {n_future}M: ₹%{{y:.2f}}M<extra></extra>",
+            ))
             fig_yoy.update_layout(
                 **CD(), height=300, barmode="group",
-                xaxis={**gX(), "tickangle": -12},
+                xaxis={**gX(), "tickangle": 0},
                 yaxis={**gY(), "title": "Revenue ₹M"},
-                legend=dict(**leg(), orientation="h", y=-0.32, x=0.5, xanchor="center"),
-                title=dict(text="Revenue by Category — 2024 vs 2025 vs Projection",
+                legend=dict(**leg(), orientation="h", y=-0.28, x=0.5, xanchor="center"),
+                title=dict(text="Revenue — 2024 vs 2025 vs Projection",
                            font=dict(size=11, color="#64748b")),
             )
             st.plotly_chart(fig_yoy, use_container_width=True, key="yoy_bar")
 
-        # ── Right: growth % horizontal bar ──────────────────────────────
+        # ── Right: growth % horizontal bars ─────────────────────────────
         with yoy_right:
-            growth_rows = []
-            for cat in cats_sorted:
-                r24 = yr_rev.loc[2024, cat]; r25 = yr_rev.loc[2025, cat]
-                rp  = proj_next.get(cat, 0)
-                g_hist = (r25 - r24) / r24 * 100 if r24 > 0 else 0
-                g_proj = (rp  - r25) / r25 * 100 if r25 > 0 else 0
-                growth_rows.append({"cat": cat, "hist": g_hist, "proj": g_proj})
-
+            g_hist = [(yr_rev.loc[2025,c]-yr_rev.loc[2024,c])/yr_rev.loc[2024,c]*100
+                      if yr_rev.loc[2024,c]>0 else 0 for c in cats_sorted]
+            g_proj = [(proj_next.get(c,0)-yr_rev.loc[2025,c])/yr_rev.loc[2025,c]*100
+                      if yr_rev.loc[2025,c]>0 else 0 for c in cats_sorted]
             fig_gr = go.Figure()
-            for ci, row in enumerate(growth_rows):
-                clr = cat_colors.get(row["cat"], COLORS[ci])
-                short = row["cat"].split(" & ")[0]
-                fig_gr.add_trace(go.Bar(
-                    name="YoY 24→25",
-                    y=[short],
-                    x=[row["hist"]],
-                    orientation="h",
-                    marker=dict(color=clr, opacity=0.6, line=dict(color="rgba(0,0,0,0)")),
-                    showlegend=(ci == 0),
-                    legendgroup="hist",
-                    text=f"{row['hist']:+.0f}%",
-                    textposition="outside",
-                    textfont=dict(size=9, color="#334155"),
-                    hovertemplate=f"<b>{row['cat']}</b><br>YoY 24→25: {{x:+.1f}}%<extra></extra>",
-                ))
-                fig_gr.add_trace(go.Bar(
-                    name=f"Proj {n_future}M growth",
-                    y=[short],
-                    x=[row["proj"]],
-                    orientation="h",
-                    marker=dict(color=clr, opacity=1.0, line=dict(color="rgba(0,0,0,0)")),
-                    showlegend=(ci == 0),
-                    legendgroup="proj",
-                    text=f"{row['proj']:+.0f}%",
-                    textposition="outside",
-                    textfont=dict(size=9, color="#334155"),
-                    hovertemplate=f"<b>{row['cat']}</b><br>Proj growth: {{x:+.1f}}%<extra></extra>",
-                ))
-            fig_gr.add_vline(x=0, line_dash="dash", line_color="rgba(0,0,0,0.2)", line_width=1)
+            fig_gr.add_trace(go.Bar(
+                name="YoY 24→25", y=x_labels, x=g_hist,
+                orientation="h",
+                marker=dict(color=bar_clrs, opacity=0.50, line=dict(color="rgba(0,0,0,0)")),
+                text=[f"{v:+.0f}%" for v in g_hist],
+                textposition="outside", textfont=dict(size=9, color="#64748b"),
+                hovertemplate="<b>%{y}</b><br>YoY 24→25: %{x:+.1f}%<extra></extra>",
+            ))
+            fig_gr.add_trace(go.Bar(
+                name=f"Proj vs 2025", y=x_labels, x=g_proj,
+                orientation="h",
+                marker=dict(color=bar_clrs, opacity=0.90, line=dict(color="rgba(0,0,0,0)")),
+                text=[f"{v:+.0f}%" for v in g_proj],
+                textposition="outside", textfont=dict(size=9, color="#334155"),
+                hovertemplate="<b>%{y}</b><br>Proj growth: %{x:+.1f}%<extra></extra>",
+            ))
+            fig_gr.add_vline(x=0, line_dash="solid", line_color="rgba(0,0,0,0.12)", line_width=1)
             fig_gr.update_layout(
                 **CD(), height=300, barmode="group",
                 xaxis={**gX(), "title": "Growth %"},
                 yaxis={**gY(), "showgrid": False},
-                legend=dict(**leg(), orientation="h", y=-0.32, x=0.5, xanchor="center"),
+                legend=dict(**leg(), orientation="h", y=-0.28, x=0.5, xanchor="center"),
                 title=dict(text="Growth % — YoY & Projection",
                            font=dict(size=11, color="#64748b")),
             )
             st.plotly_chart(fig_gr, use_container_width=True, key="yoy_growth")
 
-        # ── Monthly sparklines: area chart per category ──────────────────
+        # ── Monthly sparklines ───────────────────────────────────────────
         sp(0.5)
         ts_idx = _to_ts(cat_monthly.index)
         fig_spark = go.Figure()
         for ci, cat in enumerate(cats_sorted):
             clr   = cat_colors.get(cat, COLORS[ci])
             vals  = cat_monthly[cat].values / 1e6
-            short = cat.split(" & ")[0]
+            short = cat_short.get(cat, cat)
+            # parse hex to rgba fill
+            r_c = int(clr.lstrip('#')[0:2], 16)
+            g_c = int(clr.lstrip('#')[2:4], 16)
+            b_c = int(clr.lstrip('#')[4:6], 16)
             fig_spark.add_trace(go.Scatter(
                 x=ts_idx, y=vals, name=short,
                 line=dict(color=clr, width=2),
                 fill="tozeroy",
-                fillcolor=f"rgba{tuple(list(int(clr.lstrip('#')[i:i+2], 16) for i in (0,2,4)) + [0.08])}",
+                fillcolor=f"rgba({r_c},{g_c},{b_c},0.07)",
                 hovertemplate=f"<b>{cat}</b><br>%{{x|%b %Y}}: ₹%{{y:.2f}}M<extra></extra>",
             ))
         fig_spark.update_layout(
             **CD(), height=200,
             xaxis={**gX(), "tickangle": -20},
             yaxis={**gY(), "title": "₹M / month"},
-            legend={**leg(), "orientation": "h", "y": -0.38, "x": 0.5, "xanchor": "center"},
+            legend=dict(**leg(), orientation="h", y=-0.40, x=0.5, xanchor="center"),
             title=dict(text="Monthly Revenue Trend by Category",
                        font=dict(size=11, color="#64748b")),
         )
@@ -1633,37 +1637,32 @@ def page_logistics() -> None:
                 "BlueDart": "#1565C0", "Delhivery": "#2E7D32", "DTDC": "#E65100",
                 "Ecom Express": "#6A1B9A", "XpressBees": "#00695C",
             }
-            fig_cat = go.Figure()
-            for _, row in result.iterrows():
-                best_clr  = carrier_colors_cat.get(row["Best Overall"], "#888")
-                fast_clr  = carrier_colors_cat.get(row["Fastest (Urgent)"], "#888")
-                cat_short = row["Category"].split(" & ")[0]
-                fig_cat.add_trace(go.Bar(
-                    name="Best Overall",
-                    y=[cat_short],
-                    x=[row["Overall Score"]],
-                    orientation="h",
-                    marker=dict(color=best_clr, opacity=0.85, line=dict(color="rgba(0,0,0,0)")),
-                    showlegend=(_ == result.index[0]),
-                    legendgroup="best",
-                    text=f"{row['Best Overall']} · {row['Overall Days']}d · ₹{row['Overall Cost ₹']:.0f}",
-                    textposition="inside",
-                    textfont=dict(size=9, color="white"),
-                    hovertemplate=(
-                        f"<b>{row['Category']}</b><br>"
-                        f"Best Overall: {row['Best Overall']}<br>"
-                        f"Score: {row['Overall Score']:.3f}<br>"
-                        f"Days: {row['Overall Days']}d · Cost: ₹{row['Overall Cost ₹']:.0f}<br>"
-                        f"Planned Units: {row['Planned Units']:,} → {row['Warehouse']}<extra></extra>"
-                    ),
-                ))
+            result_sorted = result.sort_values("Overall Score", ascending=True)
+            y_cats  = [r.split(" & ")[0] for r in result_sorted["Category"]]
+            x_score = result_sorted["Overall Score"].tolist()
+            bar_clrs_cat = [carrier_colors_cat.get(c, "#888") for c in result_sorted["Best Overall"]]
+            labels_cat   = [
+                f"{row['Best Overall']} · {row['Overall Days']}d · ₹{row['Overall Cost ₹']:.0f}"
+                for _, row in result_sorted.iterrows()
+            ]
+            fig_cat = go.Figure(go.Bar(
+                name="Best Carrier (composite score)",
+                y=y_cats, x=x_score,
+                orientation="h",
+                marker=dict(color=bar_clrs_cat, opacity=0.88, line=dict(color="rgba(0,0,0,0)")),
+                text=labels_cat,
+                textposition="inside",
+                textfont=dict(size=9, color="white"),
+                hovertemplate=(
+                    "<b>%{y}</b><br>Score: %{x:.3f}<extra></extra>"
+                ),
+            ))
             fig_cat.add_vline(x=0.5, line_dash="dot", line_color="rgba(0,0,0,0.15)", line_width=1)
             fig_cat.update_layout(
-                **CD(), height=220, barmode="overlay",
-                xaxis={**gX(), "title": "Composite Score", "range": [0, 1.15]},
+                **CD(), height=200, showlegend=False,
+                xaxis={**gX(), "title": "Composite Score", "range": [0, 1.2]},
                 yaxis={**gY(), "showgrid": False},
-                legend={**leg(), "orientation": "h", "y": -0.32},
-                title=dict(text="Best Carrier per Category (composite score · days · cost)",
+                title=dict(text="Best Carrier per Category — composite score (speed + cost + returns)",
                            font=dict(size=11, color="#64748b")),
             )
             st.plotly_chart(fig_cat, use_container_width=True, key="cat_carrier_bar")
