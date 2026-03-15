@@ -1289,6 +1289,7 @@ def page_inventory() -> None:
     low_days      = inv[inv["Status"] == "🟡 Low"]["Days_of_Stock"]
     low_days      = low_days[low_days < 999]
     avg_low_days  = f"{low_days.mean():.0f}d avg" if len(low_days) > 0 else "—"
+    sec("Inventory Summary")
     c1, c2, c3, c4, c5 = st.columns(5)
     kpi(c1, "Total SKUs",                   len(inv),                  "sky",   "active SKUs")
     kpi(c2, "🔴 Critical SKUs",             n_crit,                    "coral", f"stock ≤ safety stock · {avg_crit_days}")
@@ -1335,7 +1336,7 @@ def page_inventory() -> None:
                     "Stock: %{x}<br>ROP: %{y}<br>"
                     f"{n_future}M Demand: %{{customdata[3]:,}} units<br>"
                     "Stock Covers: %{customdata[4]:.0f}% of demand<br>"
-                    "Produce: <b>%{customdata[2]} units</b>"
+                    "Produce: <b>%{customdata[2]} units</b><extra></extra>"
                 ),
             ))
         fig_sc.update_layout(
@@ -1399,6 +1400,7 @@ def page_production() -> None:
     total_safety_stock  = int(inv_for_kpi["SS"].sum())
     scheduled_total_all = int(plan["Production"].sum())
     peak = agg.loc[agg["Production"].idxmax(), "Month_dt"]
+    sec("Production Summary")
     c1, c2, c3, c4, c5 = st.columns(5)
     kpi(c1, "Scheduled Production",        f"{scheduled_total_all:,}",    "amber", f"cap ×{cap:.1f} · {n_future}M")
     kpi(c2, f"{n_future}M Forecast Demand",f"{total_demand_6m_inv:,}",    "sky",   "what customers will order")
@@ -1477,8 +1479,7 @@ def page_production() -> None:
                                  legend={**leg(), "orientation": "h", "y": -0.32})
             st.plotly_chart(fig_bu, use_container_width=True, key="pq_cat_bar")
     sp()
-    st.markdown("<div style='font-size:22px;font-weight:900;color:black;letter-spacing:-.02em'>Fulfillment & Routing Plan</div>",
-                unsafe_allow_html=True)
+    sec("Fulfillment & Routing Plan")
     if sku_plan.empty:
         banner("✅ All SKUs are adequately stocked — no production orders needed.", "mint")
         return
@@ -1546,6 +1547,7 @@ def page_logistics() -> None:
     on_time_pct  = (del_df["Delivery_Days"] <= 3).mean() * 100
     avg_cost_ord = del_df["Shipping_Cost_INR"].mean()
     ret_rate     = df["Return_Flag"].mean() * 100
+    sec("Logistics Summary")
     k1, k2, k3, k4, k5 = st.columns(5)
     kpi(k1, "Total Shipping Spend", f"₹{total_spend:,.0f}",  "sky",   "all delivered orders")
     kpi(k2, "Avg Delivery Days",    f"{avg_days:.1f}d",       "mint",  "across all carriers")
