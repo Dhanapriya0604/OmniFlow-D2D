@@ -396,18 +396,7 @@ def ensemble_chart(res: dict, chart_key: str, height: int = 300, title: str = ""
         title=dict(text=title, font=dict(color="#64748b", size=11)))
     return fig
 
-def model_grade(nrmse: float, r2: float) -> tuple:
-    acc = max(0.0, round((1 - nrmse) * 100, 1))
-    if   nrmse < 0.10 and r2 >= 0.95: g, l, icon = "A+", "Excellent", "✅"
-    elif nrmse < 0.15 and r2 >= 0.90: g, l, icon = "A",  "Very Good", "✅"
-    elif nrmse < 0.20 and r2 >= 0.85: g, l, icon = "B+", "Good",      "🟦"
-    elif nrmse < 0.25 and r2 >= 0.75: g, l, icon = "B",  "Acceptable","⚠️"
-    elif nrmse < 0.35 and r2 >= 0.60: g, l, icon = "C",  "Weak",      "⚠️"
-    else:                              g, l, icon = "D",  "Poor",      "🔴"
-    return g, l, icon, acc
-
 def render_model_quality(res: dict) -> None:
-    g, l, icon, acc = model_grade(res["nrmse"], res["r2"])
     if "model_metrics" in res:
         st.markdown("""<div style='font-size:11px;font-weight:700;color:#4a5e7a;
             letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px'>
@@ -424,7 +413,6 @@ def render_model_quality(res: dict) -> None:
             if mname in mm:
                 m    = mm[mname]
                 _acc = max(0.0, round((1 - m["nrmse"]) * 100, 1))
-                _g, _l, _ico, _ = model_grade(m["nrmse"], m["r2"])
                 col.markdown(
                     f"""<div style='text-align:center;padding:10px;border-radius:10px;
                         border:1px solid #e5e7eb;background:white'>
@@ -433,7 +421,6 @@ def render_model_quality(res: dict) -> None:
                         <div style='font-size:18px;font-weight:800;color:{clr}'>{m["rmse"]:.1f}</div>
                         <div style='font-size:10px;color:#94a3b8'>NRMSE {m["nrmse"]*100:.1f}% · R² {m["r2"]:.3f}</div>
                         <div style='font-size:12px;font-weight:700;color:{clr};margin-top:4px'>Accuracy {_acc:.1f}%</div>
-                        <div style='font-size:10px;color:#94a3b8'>{_ico} {_g} {_l}</div>
                     </div>""", unsafe_allow_html=True)
         w = res.get("weights", {})
         if w:
@@ -446,27 +433,13 @@ def render_model_quality(res: dict) -> None:
                     <span class='model-pill pill-rf'>RF {w.get("RandomForest",0)/tot*100:.0f}%</span>
                     <span class='model-pill pill-gb'>GB {w.get("GradBoost",0)/tot*100:.0f}%</span>
                 </div>""", unsafe_allow_html=True)
+    acc = max(0.0, round((1 - res["nrmse"]) * 100, 1))
     c1, c2, c3, c4, c5 = st.columns(5)
     kpi(c1, "RMSE",     f"{res['rmse']:.1f}",        "sky",  "error metric")
     kpi(c2, "NRMSE",    f"{res['nrmse']*100:.1f}%",  "sky",  "normalised")
     kpi(c3, "MAE",      f"{res['mae']:.1f}",          "sky",  "mean abs err")
     kpi(c4, "R² Score", f"{res['r2']:.3f}",           "sky",  "fit quality")
     kpi(c5, "Accuracy", f"{acc:.1f}%",                "mint", "1 − NRMSE")
-    sp(0.5)
-    st.markdown(
-        f"""<div class='model-quality-card'>
-          <div style='display:flex;align-items:center;gap:12px;margin-bottom:10px'>
-            <div style='font-size:22px'>{icon}</div>
-            <div>
-              <div style='font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:#64748b;margin-bottom:3px'>Ensemble Quality Grade</div>
-              <div style='font-size:22px;font-weight:900'>{g} <span style='font-size:14px;font-weight:600;color:#475569'>{l}</span></div>
-            </div>
-            <div style='margin-left:auto;text-align:right'>
-              <div style='font-size:10px;color:#64748b'>Forecast Accuracy</div>
-              <div style='font-size:28px;font-weight:900;color:#1e3a8a'>{acc:.1f}%</div>
-            </div>
-          </div>
-        </div>""", unsafe_allow_html=True)
     sp(0.5)
 
 @st.cache_data
@@ -873,25 +846,13 @@ def render_carrier_scorecard(region_carrier_stats: pd.DataFrame, opt: pd.DataFra
             hovertemplate=f"<b>{carrier}</b><br>Region: %{{x}}<br>Score: %{{y:.3f}}<extra></extra>",
         ))
 
-    # Mark the best carrier per region with a gold star annotation
-    for _, row in opt.iterrows():
-        region  = row["Region"]
-        carrier = row["Best_Carrier"]
-        score   = row["Best_Score"]
-        x_idx   = regions.index(region)
-        fig.add_annotation(
-            x=region, y=score + 0.03,
-            text="★", showarrow=False,
-            font=dict(size=14, color="#f59e0b"),
-            xanchor="center",
-        )
-
     fig.update_layout(
         **CD(), height=340, barmode="group",
         xaxis={**gX(), "tickangle": -15},
         yaxis={**gY(), "title": "Composite Score (higher = better)", "range": [0, 1.25]},
         legend={**leg(), "orientation": "h", "y": -0.28, "x": 0.5, "xanchor": "center"},
-        title=dict(text="Carrier Composite Score by Region  (★ = recommended)", font=dict(size=11, color="#64748b")),
+        title=dict(text="Carrier Composite Score by Region  (recommended carrier shown in cards below)",
+                   font=dict(size=11, color="#64748b")),
     )
     st.plotly_chart(fig, use_container_width=True, key="carrier_scorecard_bar")
 
@@ -1162,21 +1123,132 @@ def page_demand() -> None:
         if r:
             proj_next[cat] = float(r["forecast"].sum())
     if 2024 in yr_rev.index and 2025 in yr_rev.index:
-        rows = []
-        for cat in yr_rev.columns:
-            r24 = yr_rev.loc[2024, cat]; r25 = yr_rev.loc[2025, cat]; rp = proj_next.get(cat, 0)
-            rows.append({
-                "Category":                  cat,
-                "2024 ₹M":                   round(r24 / 1e6, 1),
-                "2025 ₹M":                   round(r25 / 1e6, 1),
-                "YoY 24→25":                 f"{(r25-r24)/r24*100:+.1f}%" if r24 > 0 else "N/A",
-                f"Next {n_future}M Proj ₹M": round(rp / 1e6, 1),
-                "Projected Growth":          f"{(rp-r25)/r25*100:+.1f}%" if r25 > 0 else "N/A",
-            })
-        st.dataframe(
-            pd.DataFrame(rows).sort_values(f"Next {n_future}M Proj ₹M", ascending=False),
-            use_container_width=True, hide_index=True,
+        cats_sorted = sorted(yr_rev.columns,
+                             key=lambda c: yr_rev.loc[2025, c], reverse=True)
+        cat_colors  = {
+            "Electronics & Mobiles":  "#1e3a8a",
+            "Fashion & Apparel":      "#059669",
+            "Home & Kitchen":         "#d97706",
+            "Health & Personal Care": "#7c3aed",
+        }
+        # ── Left: grouped bar 2024 / 2025 / Projection ──────────────────
+        yoy_left, yoy_right = st.columns([3, 2], gap="large")
+        with yoy_left:
+            fig_yoy = go.Figure()
+            bar_labels = ["2024", "2025", f"Proj {n_future}M"]
+            bar_opacities = [0.45, 0.85, 1.0]
+            bar_patterns  = ["", "", "/"]
+            for ci, cat in enumerate(cats_sorted):
+                r24 = yr_rev.loc[2024, cat] / 1e6
+                r25 = yr_rev.loc[2025, cat] / 1e6
+                rp  = proj_next.get(cat, 0) / 1e6
+                clr = cat_colors.get(cat, COLORS[ci])
+                vals_bar = [r24, r25, rp]
+                for bi, (lbl, val, op) in enumerate(zip(bar_labels, vals_bar, bar_opacities)):
+                    fig_yoy.add_trace(go.Bar(
+                        name=f"{cat} · {lbl}",
+                        x=[cat],
+                        y=[val],
+                        marker=dict(
+                            color=clr,
+                            opacity=op,
+                            pattern=dict(shape="/" if lbl.startswith("Proj") else "", size=4,
+                                         fgcolor="rgba(255,255,255,0.4)") if lbl.startswith("Proj") else {},
+                            line=dict(color="rgba(0,0,0,0)"),
+                        ),
+                        legendgroup=lbl,
+                        legendgrouptitle=dict(text=lbl) if ci == 0 else None,
+                        showlegend=(ci == 0),
+                        text=f"₹{val:.1f}M",
+                        textposition="outside",
+                        textfont=dict(size=9, color="#334155"),
+                        hovertemplate=f"<b>{cat}</b><br>{lbl}: ₹{{y:.2f}}M<extra></extra>",
+                    ))
+            fig_yoy.update_layout(
+                **CD(), height=300, barmode="group",
+                xaxis={**gX(), "tickangle": -12},
+                yaxis={**gY(), "title": "Revenue ₹M"},
+                legend=dict(**leg(), orientation="h", y=-0.32, x=0.5, xanchor="center"),
+                title=dict(text="Revenue by Category — 2024 vs 2025 vs Projection",
+                           font=dict(size=11, color="#64748b")),
+            )
+            st.plotly_chart(fig_yoy, use_container_width=True, key="yoy_bar")
+
+        # ── Right: growth % horizontal bar ──────────────────────────────
+        with yoy_right:
+            growth_rows = []
+            for cat in cats_sorted:
+                r24 = yr_rev.loc[2024, cat]; r25 = yr_rev.loc[2025, cat]
+                rp  = proj_next.get(cat, 0)
+                g_hist = (r25 - r24) / r24 * 100 if r24 > 0 else 0
+                g_proj = (rp  - r25) / r25 * 100 if r25 > 0 else 0
+                growth_rows.append({"cat": cat, "hist": g_hist, "proj": g_proj})
+
+            fig_gr = go.Figure()
+            for ci, row in enumerate(growth_rows):
+                clr = cat_colors.get(row["cat"], COLORS[ci])
+                short = row["cat"].split(" & ")[0]
+                fig_gr.add_trace(go.Bar(
+                    name="YoY 24→25",
+                    y=[short],
+                    x=[row["hist"]],
+                    orientation="h",
+                    marker=dict(color=clr, opacity=0.6, line=dict(color="rgba(0,0,0,0)")),
+                    showlegend=(ci == 0),
+                    legendgroup="hist",
+                    text=f"{row['hist']:+.0f}%",
+                    textposition="outside",
+                    textfont=dict(size=9, color="#334155"),
+                    hovertemplate=f"<b>{row['cat']}</b><br>YoY 24→25: {{x:+.1f}}%<extra></extra>",
+                ))
+                fig_gr.add_trace(go.Bar(
+                    name=f"Proj {n_future}M growth",
+                    y=[short],
+                    x=[row["proj"]],
+                    orientation="h",
+                    marker=dict(color=clr, opacity=1.0, line=dict(color="rgba(0,0,0,0)")),
+                    showlegend=(ci == 0),
+                    legendgroup="proj",
+                    text=f"{row['proj']:+.0f}%",
+                    textposition="outside",
+                    textfont=dict(size=9, color="#334155"),
+                    hovertemplate=f"<b>{row['cat']}</b><br>Proj growth: {{x:+.1f}}%<extra></extra>",
+                ))
+            fig_gr.add_vline(x=0, line_dash="dash", line_color="rgba(0,0,0,0.2)", line_width=1)
+            fig_gr.update_layout(
+                **CD(), height=300, barmode="group",
+                xaxis={**gX(), "title": "Growth %"},
+                yaxis={**gY(), "showgrid": False},
+                legend=dict(**leg(), orientation="h", y=-0.32, x=0.5, xanchor="center"),
+                title=dict(text="Growth % — YoY & Projection",
+                           font=dict(size=11, color="#64748b")),
+            )
+            st.plotly_chart(fig_gr, use_container_width=True, key="yoy_growth")
+
+        # ── Monthly sparklines: area chart per category ──────────────────
+        sp(0.5)
+        ts_idx = _to_ts(cat_monthly.index)
+        fig_spark = go.Figure()
+        for ci, cat in enumerate(cats_sorted):
+            clr   = cat_colors.get(cat, COLORS[ci])
+            vals  = cat_monthly[cat].values / 1e6
+            short = cat.split(" & ")[0]
+            fig_spark.add_trace(go.Scatter(
+                x=ts_idx, y=vals, name=short,
+                line=dict(color=clr, width=2),
+                fill="tozeroy",
+                fillcolor=f"rgba{tuple(list(int(clr.lstrip('#')[i:i+2], 16) for i in (0,2,4)) + [0.08])}",
+                hovertemplate=f"<b>{cat}</b><br>%{{x|%b %Y}}: ₹%{{y:.2f}}M<extra></extra>",
+            ))
+        fig_spark.update_layout(
+            **CD(), height=200,
+            xaxis={**gX(), "tickangle": -20},
+            yaxis={**gY(), "title": "₹M / month"},
+            legend={**leg(), "orientation": "h", "y": -0.38, "x": 0.5, "xanchor": "center"},
+            title=dict(text="Monthly Revenue Trend by Category",
+                       font=dict(size=11, color="#64748b")),
         )
+        st.plotly_chart(fig_spark, use_container_width=True, key="monthly_sparklines")
 
 
 def page_inventory() -> None:
@@ -1556,10 +1628,45 @@ def page_logistics() -> None:
             result["Fastest Cost ₹"] = result["Fastest Cost ₹"].round(1)
             result["Planned Units"]  = result["Planned Units"].fillna(0).astype(int)
             result["Warehouse"]      = result["Warehouse"].fillna("—")
-            result = result[["Category", "Warehouse", "Planned Units",
-                              "Best Overall", "Overall Days", "Overall Cost ₹", "Overall Score",
-                              "Fastest (Urgent)", "Fastest Days", "Fastest Cost ₹"]]
-            st.dataframe(result, use_container_width=True, hide_index=True)
+            # ── Visual: composite score + fastest carrier per category ──
+            carrier_colors_cat = {
+                "BlueDart": "#1565C0", "Delhivery": "#2E7D32", "DTDC": "#E65100",
+                "Ecom Express": "#6A1B9A", "XpressBees": "#00695C",
+            }
+            fig_cat = go.Figure()
+            for _, row in result.iterrows():
+                best_clr  = carrier_colors_cat.get(row["Best Overall"], "#888")
+                fast_clr  = carrier_colors_cat.get(row["Fastest (Urgent)"], "#888")
+                cat_short = row["Category"].split(" & ")[0]
+                fig_cat.add_trace(go.Bar(
+                    name="Best Overall",
+                    y=[cat_short],
+                    x=[row["Overall Score"]],
+                    orientation="h",
+                    marker=dict(color=best_clr, opacity=0.85, line=dict(color="rgba(0,0,0,0)")),
+                    showlegend=(_ == result.index[0]),
+                    legendgroup="best",
+                    text=f"{row['Best Overall']} · {row['Overall Days']}d · ₹{row['Overall Cost ₹']:.0f}",
+                    textposition="inside",
+                    textfont=dict(size=9, color="white"),
+                    hovertemplate=(
+                        f"<b>{row['Category']}</b><br>"
+                        f"Best Overall: {row['Best Overall']}<br>"
+                        f"Score: {row['Overall Score']:.3f}<br>"
+                        f"Days: {row['Overall Days']}d · Cost: ₹{row['Overall Cost ₹']:.0f}<br>"
+                        f"Planned Units: {row['Planned Units']:,} → {row['Warehouse']}<extra></extra>"
+                    ),
+                ))
+            fig_cat.add_vline(x=0.5, line_dash="dot", line_color="rgba(0,0,0,0.15)", line_width=1)
+            fig_cat.update_layout(
+                **CD(), height=220, barmode="overlay",
+                xaxis={**gX(), "title": "Composite Score", "range": [0, 1.15]},
+                yaxis={**gY(), "showgrid": False},
+                legend={**leg(), "orientation": "h", "y": -0.32},
+                title=dict(text="Best Carrier per Category (composite score · days · cost)",
+                           font=dict(size=11, color="#64748b")),
+            )
+            st.plotly_chart(fig_cat, use_container_width=True, key="cat_carrier_bar")
             banner(
                 "📦 <b>Best Overall</b> = best composite score (speed + cost + returns) — for normal shipments. "
                 "⚡ <b>Fastest (Urgent)</b> = lowest delivery days — for 🔴 Critical or 🟠 High urgency SKUs.",
@@ -1656,25 +1763,50 @@ def page_logistics() -> None:
         sec("Carrier Recommendations by Region")
         render_carrier_scorecard(region_carrier_stats, opt)
         sp(0.5)
-        tb4_col, _ = st.columns([1, 1])
-        with tb4_col:
+        del_chart_l, del_chart_r = st.columns(2, gap="large")
+        with del_chart_l:
             sec("Delay Rate by Carrier")
             del_df_t2 = del_df.copy()
             delay_thr_t2 = st.session_state.get("log_thr", DEFAULT_DELAY_THR)
             del_df_t2["Delayed"] = del_df_t2["Delivery_Days"] > delay_thr_t2
-            cd = del_df_t2.groupby("Courier_Partner").agg(T=("Order_ID", "count"), D=("Delayed", "sum")).reset_index()
+            cd = del_df_t2.groupby("Courier_Partner").agg(T=("Order_ID","count"), D=("Delayed","sum")).reset_index()
             cd["Rate"] = (cd["D"] / cd["T"] * 100).round(1)
+            cd = cd.sort_values("Rate", ascending=True)
             carrier_colors_del = {"BlueDart": "#1565C0", "Delhivery": "#2E7D32", "DTDC": "#E65100",
                                   "Ecom Express": "#6A1B9A", "XpressBees": "#00695C"}
             fig_cd = go.Figure(go.Bar(
-                x=cd["Courier_Partner"], y=cd["Rate"],
+                y=cd["Courier_Partner"], x=cd["Rate"],
+                orientation="h",
                 marker=dict(
                     color=[carrier_colors_del.get(c, "#888") for c in cd["Courier_Partner"]],
-                    opacity=0.85, line=dict(color="rgba(0,0,0,0)")),
-                text=[f"{v}%" for v in cd["Rate"]], textposition="outside",
+                    opacity=0.88, line=dict(color="rgba(0,0,0,0)")),
+                text=[f"{v}%" for v in cd["Rate"]],
+                textposition="outside",
                 textfont=dict(color="#334155")))
-            fig_cd.update_layout(**CD(), height=240, xaxis=gX(), yaxis={**gY(), "title": f"Delay Rate % (>{delay_thr_t2}d)"})
+            fig_cd.add_vline(x=10, line_dash="dash", line_color="#22c55e",
+                             annotation_text=" 10% target", annotation_font=dict(color="#22c55e", size=9))
+            fig_cd.update_layout(**CD(), height=240, xaxis={**gX(), "title": f"Delay Rate % (>{delay_thr_t2}d)"},
+                                 yaxis={**gY(), "showgrid": False})
             st.plotly_chart(fig_cd, use_container_width=True, key="log_delay_carrier")
+        with del_chart_r:
+            sec("Return Rate by Carrier")
+            ret_carr = df.groupby("Courier_Partner")["Return_Flag"].mean().reset_index()
+            ret_carr["Rate"] = (ret_carr["Return_Flag"] * 100).round(1)
+            ret_carr = ret_carr.sort_values("Rate", ascending=True)
+            fig_ret = go.Figure(go.Bar(
+                y=ret_carr["Courier_Partner"], x=ret_carr["Rate"],
+                orientation="h",
+                marker=dict(
+                    color=[carrier_colors_del.get(c, "#888") for c in ret_carr["Courier_Partner"]],
+                    opacity=0.88, line=dict(color="rgba(0,0,0,0)")),
+                text=[f"{v}%" for v in ret_carr["Rate"]],
+                textposition="outside",
+                textfont=dict(color="#334155")))
+            fig_ret.add_vline(x=10, line_dash="dash", line_color="#22c55e",
+                              annotation_text=" 10% target", annotation_font=dict(color="#22c55e", size=9))
+            fig_ret.update_layout(**CD(), height=240, xaxis={**gX(), "title": "Return Rate %"},
+                                  yaxis={**gY(), "showgrid": False})
+            st.plotly_chart(fig_ret, use_container_width=True, key="log_return_carrier")
 
     with t3:
         if fwd_plan.empty:
