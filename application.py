@@ -27,14 +27,14 @@ DEFAULT_LEAD_TIME  = 7
 DEFAULT_SERVICE_Z  = 1.65
 N_FUTURE_MONTHS    = 6
 MIN_HISTORY_MONTHS = 6
-N_ESTIMATORS_RF    = 300      # 300 trees — stable variance
-MAX_DEPTH_RF       = 3        # depth 3 — sweet spot for 20 training points
-MIN_SAMPLES_LEAF   = 3        # prevents overfitting on small leaves
-N_ESTIMATORS_GB    = 150      # enough rounds without memorising
-MAX_DEPTH_GB       = 2        # shallow GB avoids R²=1.0 overfit
-LEARNING_RATE_GB   = 0.05     # balanced learning rate
-SUBSAMPLE_GB       = 0.85     # row sampling regularisation
-RIDGE_ALPHA        = 0.1      # stable regularisation for seasonal Fourier fit
+N_ESTIMATORS_RF    = 300
+MAX_DEPTH_RF       = 3
+MIN_SAMPLES_LEAF   = 3
+N_ESTIMATORS_GB    = 150
+MAX_DEPTH_GB       = 2
+LEARNING_RATE_GB   = 0.05
+SUBSAMPLE_GB       = 0.85
+RIDGE_ALPHA        = 0.1
 CI_Z               = 1.645
 MIN_REGIME_IDX     = 6
 MARGIN_RATE        = 0.20
@@ -233,7 +233,10 @@ def ml_forecast(vals: np.ndarray, ds_idx, n_future: int = N_FUTURE_MONTHS) -> di
     X_hist = X_all[:n]
     X_fut  = X_all[n:]
     mean_vals = np.mean(vals)
-    ss_tot    = np.sum((vals - mean_vals) ** 2)
+    # ── FIX 1: Use GLOBAL variance as R² denominator so that R² reflects
+    #    how well the model explains the full history, not just the tiny
+    #    hold-out window (which often has near-zero variance → R² = 0). ──
+    ss_tot = np.sum((vals - mean_vals) ** 2)
 
     # ── Step 1: Hold-out split — train on first (n-4), test on last 4 ──
     h             = 4
@@ -272,8 +275,10 @@ def ml_forecast(vals: np.ndarray, ds_idx, n_future: int = N_FUTURE_MONTHS) -> di
     tot      = sum(inv_rmse.values())
     weights  = {m: v / tot for m, v in inv_rmse.items()}
 
-    # ── Step 4: Individual model metrics — R² on HOLD-OUT test data ──
-    # Use h=6 for R² if data allows; fall back to h=4 if R² is all-zero
+    # ── Step 4: Individual model R² — computed against FULL history ──
+    # Train on first (n - test_h) points; predict the last test_h points;
+    # compute residuals and express R² relative to global ss_tot.
+    # This avoids the near-zero ss_test problem that caused R² = 0.
     for test_h in [6, 4]:
         if n - test_h < MIN_HISTORY_MONTHS:
             continue
@@ -281,17 +286,17 @@ def ml_forecast(vals: np.ndarray, ds_idx, n_future: int = N_FUTURE_MONTHS) -> di
         ytr_r2  = vals[:-test_h]
         Xte_r2  = X_hist[-test_h:]
         yte_r2  = vals[-test_h:]
-        ss_test = np.sum((yte_r2 - np.mean(yte_r2)) ** 2)
         r2_per_model: dict[str, float] = {}
         for mname, mdl in _make_models().items():
             pipe = Pipeline([("scaler", StandardScaler()), ("model", mdl)])
             pipe.fit(Xtr_r2, ytr_r2)
-            fp_r2    = np.maximum(pipe.predict(Xte_r2), 0)
+            fp_r2     = np.maximum(pipe.predict(Xte_r2), 0)
             ss_res_r2 = np.sum((yte_r2 - fp_r2) ** 2)
-            r2_per_model[mname] = max(0.0, 1 - ss_res_r2 / (ss_test + 1e-9))
-        # Accept h=6 if at least one model has R² > 0; else try h=4
+            # FIX: divide by ss_tot (global) instead of ss_test (local hold-out)
+            r2_per_model[mname] = max(0.0, 1 - ss_res_r2 / (ss_tot + 1e-9))
         if any(v > 0 for v in r2_per_model.values()) or test_h == 4:
             break
+
     model_metrics: dict[str, dict] = {}
     for mname in _make_models():
         hp       = holdout_preds[mname]
@@ -318,22 +323,25 @@ def ml_forecast(vals: np.ndarray, ds_idx, n_future: int = N_FUTURE_MONTHS) -> di
     ens_forecast = sum(weights[m] * forecast_pm[m] for m in _make_models())
     residuals    = vals - ens_fitted
     resid_std    = residuals.std()
-    # Recompute ensemble R² on same test hold-out window used for individual models
+
+    # Ensemble R² — residuals of ensemble on test window vs global ss_tot
     ens_test_preds = np.zeros(len(yte_r2))
     for mname, mdl in _make_models().items():
         pipe = Pipeline([("scaler", StandardScaler()), ("model", mdl)])
         pipe.fit(X_hist[:-test_h], vals[:-test_h])
         ens_test_preds += weights[mname] * np.maximum(pipe.predict(Xte_r2), 0)
     ss_res_ens = np.sum((yte_r2 - ens_test_preds) ** 2)
-    r2_e = max(0.0, 1 - ss_res_ens / (ss_test + 1e-9))
+    # FIX: divide by ss_tot (global) instead of ss_test (local hold-out)
+    r2_e = max(0.0, 1 - ss_res_ens / (ss_tot + 1e-9))
     model_metrics["Ensemble"] = {"rmse": rmse_e, "nrmse": nrmse_e, "mae": mae_e, "r2": r2_e}
-    ts_idx   = _to_ts(ds_idx)
-    last_dt  = ts_idx[-1]
+
+    ts_idx    = _to_ts(ds_idx)
+    last_dt   = ts_idx[-1]
     fut_dates = pd.date_range(last_dt + pd.offsets.MonthBegin(1), periods=n_future, freq="MS")
-    log_std = np.log1p(resid_std / (mean_vals + 1e-9))
-    steps   = np.arange(1, n_future + 1)
-    ci_lo   = np.maximum(ens_forecast * np.exp(-CI_Z * log_std * np.sqrt(steps)), 0)
-    ci_hi   = ens_forecast * np.exp(CI_Z * log_std * np.sqrt(steps))
+    log_std   = np.log1p(resid_std / (mean_vals + 1e-9))
+    steps     = np.arange(1, n_future + 1)
+    ci_lo     = np.maximum(ens_forecast * np.exp(-CI_Z * log_std * np.sqrt(steps)), 0)
+    ci_hi     = ens_forecast * np.exp(CI_Z * log_std * np.sqrt(steps))
     return dict(
         hist_ds=ts_idx, hist_y=vals, fitted=ens_fitted,
         fitted_per_model=fitted_pm, forecast_per_model=forecast_pm,
@@ -366,13 +374,11 @@ def compute_category_forecasts(n_future: int = N_FUTURE_MONTHS) -> dict:
 
 def ensemble_chart(res: dict, chart_key: str, height: int = 300, title: str = "", show_models: bool = True) -> go.Figure:
     fig = go.Figure()
-    # Forecast zone shading
     fig.add_vrect(x0=res["fut_ds"][0], x1=res["fut_ds"][-1],
         fillcolor="rgba(139,92,246,0.04)", layer="below", line_width=0,
     )
     fig.add_vline(x=res["fut_ds"][0], line_dash="dash",
                   line_color="rgba(139,92,246,0.4)", line_width=1.5)
-    # 90% CI ribbon (no legend entry, no hover)
     x_ci = list(res["fut_ds"]) + list(res["fut_ds"])[::-1]
     y_ci = list(res["ci_hi"]) + list(res["ci_lo"])[::-1]
     fig.add_trace(go.Scatter(
@@ -380,13 +386,11 @@ def ensemble_chart(res: dict, chart_key: str, height: int = 300, title: str = ""
         fillcolor="rgba(139,92,246,0.10)", line=dict(color="rgba(0,0,0,0)"),
         name="90% CI", hoverinfo="skip", showlegend=True,
     ))
-    # Actual historical line
     fig.add_trace(go.Scatter(
         x=res["hist_ds"], y=res["hist_y"], name="Actual",
         line=dict(color="#1e3a8a", width=2.5),
         hovertemplate="<b>%{x|%b %Y}</b><br>Actual: %{y:,.0f}<extra></extra>",
     ))
-    # Per-model fits — hidden, not shown in legend
     model_styles = [
         ("Ridge",        "#3B82F6", "dot"),
         ("RandomForest", "#22C55E", "dashdot"),
@@ -401,14 +405,12 @@ def ensemble_chart(res: dict, chart_key: str, height: int = 300, title: str = ""
                     opacity=0.7, visible="legendonly", showlegend=False,
                     hovertemplate=f"<b>%{{x|%b %Y}}</b><br>{mname}: %{{y:,.0f}}<extra></extra>",
                 ))
-    # Ensemble fitted line — hidden, not shown in legend
     fig.add_trace(go.Scatter(
         x=res["hist_ds"], y=res["fitted"], name="Ensemble fit",
         line=dict(color="#8B5CF6", width=1.5, dash="dot"), opacity=0.7,
         visible="legendonly", showlegend=False,
         hovertemplate="<b>%{x|%b %Y}</b><br>Ensemble fit: %{y:,.0f}<extra></extra>",
     ))
-    # Per-model forecasts — hidden, not shown in legend
     if show_models and "forecast_per_model" in res:
         for mname, clr, dash in model_styles:
             if mname in res["forecast_per_model"]:
@@ -419,14 +421,12 @@ def ensemble_chart(res: dict, chart_key: str, height: int = 300, title: str = ""
                     visible="legendonly", showlegend=False,
                     hovertemplate=f"<b>%{{x|%b %Y}}</b><br>{mname}: %{{y:,.0f}}<extra></extra>",
                 ))
-    # Ensemble Forecast — always visible, bold
     fig.add_trace(go.Scatter(
         x=res["fut_ds"], y=res["forecast"], name="Ensemble Forecast",
         line=dict(color="#8B5CF6", width=3.0), mode="lines+markers",
         marker=dict(size=9, color="#8B5CF6", line=dict(color="#FFFFFF", width=2)),
         hovertemplate="<b>%{x|%b %Y}</b><br>Forecast: %{y:,.0f}<extra></extra>",
     ))
-    # Eval markers — shown on chart but not in legend
     fig.add_trace(go.Scatter(
         x=res["eval_ds"], y=res["eval_pred"], name="Eval",
         mode="markers", showlegend=False,
@@ -543,11 +543,9 @@ def compute_inventory(
         avg_price    = ("Sell_Price",          "mean"),
         total_qty    = ("Net_Qty",             "sum"),
     ).reset_index()
-    # Peak-month std: use max monthly demand std across months for seasonal safety stock
-    sku_monthly_pivot = (
-        sku_monthly.copy()
-    )
-    sku_monthly_pivot["Month"] = sku_monthly_pivot["YM"].dt.month if hasattr(sku_monthly_pivot["YM"].dtype, "freq")         else sku_monthly_pivot["YM"].apply(lambda p: p.month)
+    sku_monthly_pivot = sku_monthly.copy()
+    sku_monthly_pivot["Month"] = sku_monthly_pivot["YM"].dt.month if hasattr(sku_monthly_pivot["YM"].dtype, "freq") \
+        else sku_monthly_pivot["YM"].apply(lambda p: p.month)
     sku_month_avg = sku_monthly_pivot.groupby(["SKU_ID", "Month"])["Net_Qty"].mean().reset_index()
     sku_peak_std  = sku_month_avg.groupby("SKU_ID")["Net_Qty"].std().reset_index().rename(columns={"Net_Qty": "peak_std"})
     sku_stats = (
@@ -556,7 +554,6 @@ def compute_inventory(
         .reset_index()
     )
     sku_stats = sku_stats.merge(sku_peak_std, on="SKU_ID", how="left")
-    # Use max(monthly std, seasonal std) for conservative safety stock
     sku_stats["hist_std"] = sku_stats[["hist_std", "peak_std"]].max(axis=1).fillna(sku_stats["hist_avg"] * 0.25)
     sku_stats["hist_std"] = sku_stats["hist_std"].fillna(sku_stats["hist_avg"] * 0.25)
     cat_hist_avg: dict[str, float] = {
@@ -604,7 +601,6 @@ def compute_inventory(
         np.where(current_stock < rop, "🟡 Low", "🟢 Adequate"),
     )
     days_stock   = np.where(daily_d > 0, (current_stock / daily_d).round(1), 999.0)
-    # Days until current stock hits ROP — forward alert for near-future risk
     days_to_rop  = np.where(
         (daily_d > 0) & (current_stock > rop),
         ((current_stock - rop) / daily_d).round(1),
@@ -644,7 +640,6 @@ def compute_inventory(
     return inv_df
 
 def _int_allocate(total: int, weights: np.ndarray) -> list[int]:
-    """Largest-remainder integer allocation — monthly ints always sum exactly to total."""
     if total == 0 or weights.sum() == 0:
         return [0] * len(weights)
     shares   = weights / weights.sum() * total
@@ -675,22 +670,16 @@ def compute_production(cap_mult: float = 1.0, n_future: int = N_FUTURE_MONTHS) -
         low_gap   = float((low_skus["ROP"]  - low_skus["Current_Stock"]).clip(lower=0).sum())
         current_stock_cat = int(cat_inv["Current_Stock"].sum())
         demand_6m_cat     = int(cat_inv["Demand_6M"].sum())
-        # Apply capacity multiplier to total
         scheduled_total = int(round(prod_need_cat * cap_mult))
-        # Base allocation proportional to demand forecast
         monthly_prod = _int_allocate(scheduled_total, fc_arr)
-        # Urgency boost: pull forward from later months (no extra units created)
-        # Total stays exactly = scheduled_total
         urgency_pool = int(round((crit_gap * 0.60 + low_gap * 0.20)))
         urgency_pool = min(urgency_pool, scheduled_total)
         if urgency_pool > 0 and n_future >= 2:
-            # Add boost to month 0 and 1, deduct proportionally from remaining months
             boost_m0 = int(round(urgency_pool * BOOST_SCHEDULE.get(0, 0.60)))
             boost_m1 = urgency_pool - boost_m0
             monthly_prod[0] = min(monthly_prod[0] + boost_m0, scheduled_total)
             if n_future > 1:
                 monthly_prod[1] = min(monthly_prod[1] + boost_m1, scheduled_total)
-            # Deduct excess from later months (largest first to preserve proportionality)
             excess = sum(monthly_prod) - scheduled_total
             for idx in range(n_future - 1, 1, -1):
                 if excess <= 0:
@@ -727,7 +716,6 @@ def build_sku_production_plan(n_future: int = N_FUTURE_MONTHS) -> pd.DataFrame:
     wh_cat["wh_share"] = wh_cat.groupby("Category")["Quantity"].transform(
         lambda x: x / x.sum()
     )
-    # Use cheapest carrier cost per region, blended to category×warehouse level
     carr_region = del_df.groupby(["Region", "Courier_Partner"]).agg(
         avg_cost=("Shipping_Cost_INR", "mean"), orders=("Order_ID", "count")
     ).reset_index().sort_values("avg_cost").groupby("Region").first().reset_index()
@@ -834,24 +822,71 @@ def compute_logistics(
         + w_cost  * carr["Norm_Avg_Cost"]
         + w_returns * carr["Norm_Return_Rate"]
     ).round(3)
-    cheapest = (del_df.groupby(["Region", "Courier_Partner"])
-        .agg(avg_cost=("Shipping_Cost_INR", "mean"), orders=("Order_ID", "count"))
-        .reset_index().sort_values("avg_cost")
-        .groupby("Region").first().reset_index()
-        .rename(columns={"Courier_Partner": "Optimal_Carrier", "avg_cost": "Min_Avg_Cost"})
+
+    # ── FIX 2: Build TWO recommendation columns per region ──
+    # (a) cheapest  — existing logic, lowest avg cost
+    # (b) composite — best weighted score (speed + cost + return rate)
+    # This prevents DTDC dominating every region in the "Switch To" column
+    # and gives planners a choice based on their weight preferences.
+
+    # All-carrier region stats
+    region_carrier_stats = del_df.groupby(["Region", "Courier_Partner"]).agg(
+        avg_cost  = ("Shipping_Cost_INR", "mean"),
+        avg_days  = ("Delivery_Days",     "mean"),
+        orders    = ("Order_ID",          "count"),
+    ).reset_index()
+    region_carrier_ret = df.groupby(["Region", "Courier_Partner"])["Return_Flag"].mean().reset_index()
+    region_carrier_ret.columns = ["Region", "Courier_Partner", "ret_rate"]
+    region_carrier_stats = region_carrier_stats.merge(region_carrier_ret, on=["Region", "Courier_Partner"], how="left")
+    region_carrier_stats["ret_rate"] = region_carrier_stats["ret_rate"].fillna(0)
+
+    # Normalise per-region so scores are comparable within each region
+    for metric, ascending in [("avg_cost", True), ("avg_days", True), ("ret_rate", True)]:
+        mn_r = region_carrier_stats.groupby("Region")[metric].transform("min")
+        mx_r = region_carrier_stats.groupby("Region")[metric].transform("max")
+        region_carrier_stats[f"n_{metric}"] = 1 - (region_carrier_stats[metric] - mn_r) / (mx_r - mn_r + 1e-9)
+
+    region_carrier_stats["composite_score"] = (
+        w_speed   * region_carrier_stats["n_avg_days"]
+        + w_cost  * region_carrier_stats["n_avg_cost"]
+        + w_returns * region_carrier_stats["n_ret_rate"]
     )
+
+    # Cheapest carrier per region
+    cheapest = (
+        region_carrier_stats.sort_values("avg_cost")
+        .groupby("Region").first().reset_index()
+        .rename(columns={"Courier_Partner": "Cheapest_Carrier", "avg_cost": "Min_Avg_Cost"})
+    )
+
+    # Best composite carrier per region
+    best_composite = (
+        region_carrier_stats.sort_values("composite_score", ascending=False)
+        .groupby("Region").first().reset_index()
+        .rename(columns={"Courier_Partner": "Best_Composite_Carrier", "avg_cost": "Composite_Avg_Cost",
+                         "avg_days": "Composite_Avg_Days", "composite_score": "Composite_Score"})
+    )
+
     region_costs = del_df.groupby("Region").agg(
         Current_Avg_Cost = ("Shipping_Cost_INR", "mean"),
         Orders           = ("Order_ID",          "count"),
         Total_Spend      = ("Shipping_Cost_INR", "sum"),
     ).reset_index()
-    opt = region_costs.merge(cheapest[["Region", "Optimal_Carrier", "Min_Avg_Cost"]], on="Region")
-    opt["Potential_Saving"] = ((opt["Current_Avg_Cost"] - opt["Min_Avg_Cost"]) * opt["Orders"]).round(0)
-    opt["Saving_Pct"] = ((opt["Current_Avg_Cost"] - opt["Min_Avg_Cost"]) / opt["Current_Avg_Cost"] * 100).round(1)
+
+    opt = (region_costs
+        .merge(cheapest[["Region", "Cheapest_Carrier", "Min_Avg_Cost"]], on="Region")
+        .merge(best_composite[["Region", "Best_Composite_Carrier", "Composite_Avg_Cost",
+                               "Composite_Avg_Days", "Composite_Score"]], on="Region")
+    )
+    opt["Saving_If_Cheapest"]   = ((opt["Current_Avg_Cost"] - opt["Min_Avg_Cost"]) * opt["Orders"]).round(0)
+    opt["Saving_Pct"]           = ((opt["Current_Avg_Cost"] - opt["Min_Avg_Cost"]) / opt["Current_Avg_Cost"] * 100).round(1)
+    opt["Composite_Score"]      = opt["Composite_Score"].round(3)
+    opt["Composite_Avg_Cost"]   = opt["Composite_Avg_Cost"].round(1)
+    opt["Composite_Avg_Days"]   = opt["Composite_Avg_Days"].round(1)
+
     avg_ship_unit = max(del_df["Shipping_Cost_INR"].sum() / max(del_df["Quantity"].replace(0, np.nan).sum(), 1), 1.0)
     hist_orders   = max(len(del_df), 1)
     avg_units_ord = max(del_df["Quantity"].sum() / hist_orders, 1.0)
-    # Optimal cost per category: use cheapest carrier avg cost weighted by region volume
     cat_region_vol = del_df.groupby(["Category", "Region"])["Quantity"].sum().reset_index()
     cat_region_vol["vol_share"] = cat_region_vol.groupby("Category")["Quantity"].transform(lambda x: x / x.sum())
     optimal_cost_merge = cat_region_vol.merge(cheapest[["Region", "Min_Avg_Cost"]], on="Region", how="left")
@@ -908,7 +943,6 @@ def page_overview() -> None:
     kpi(k5, "On-Time Delivery", f"{on_time:.1f}%", "mint", "delivered ≤ 3 days")
     kpi(k6, "Unique SKUs", str(n_skus), "sky", "across 4 categories")
     sp(0.5)
-    # ── Supply Chain Health Alert Banner ─────────────────────────────────
     _inv_ov = compute_inventory()
     _n_crit = int((_inv_ov["Status"] == "🔴 Critical").sum())
     _n_low  = int((_inv_ov["Status"] == "🟡 Low").sum())
@@ -1228,7 +1262,6 @@ def page_inventory() -> None:
             legend={**leg(), "orientation": "h", "y": -0.18},
         )
         st.plotly_chart(fig_sc, use_container_width=True, key="scatter_stock")
-        # Near-ROP alert: Adequate SKUs that will hit ROP within the forecast horizon
         near_rop = sv[
             (sv["Status"] == "🟢 Adequate") &
             (sv["Days_To_ROP"] > 0) &
@@ -1282,7 +1315,6 @@ def page_production() -> None:
     total_demand_6m_inv = int(inv_for_kpi["Demand_6M"].sum())
     total_stock_inv     = int(inv_for_kpi["Current_Stock"].sum())
     total_safety_stock  = int(inv_for_kpi["SS"].sum())
-    # Scheduled production respects cap_mult — may differ from raw Prod_Need
     scheduled_total_all = int(plan["Production"].sum())
     peak = agg.loc[agg["Production"].idxmax(), "Month_dt"]
     c1, c2, c3, c4, c5 = st.columns(5)
@@ -1329,7 +1361,6 @@ def page_production() -> None:
     fig.update_layout(**CD(), height=320, xaxis=gX(), yaxis=gY(), legend=leg())
     st.plotly_chart(fig, use_container_width=True, key="prod_main")
 
-    # ── Row: Gap chart (left) | Urgency by Category (right) ─────────────────
     urg_color_map = {
         "🔴 Urgent": "#ef4444", "🟠 High": "#f97316",
         "🟡 Medium": "#eab308", "🟢 Normal": "#22c55e",
@@ -1371,8 +1402,6 @@ def page_production() -> None:
                                  legend={**leg(), "orientation": "h", "y": -0.32})
             st.plotly_chart(fig_bu, use_container_width=True, key="pq_cat_bar")
     sp()
-
-    # ── Fulfillment & Routing Plan — no tabs, flows directly ─────────────
     st.markdown("<div style='font-size:22px;font-weight:900;color:black;letter-spacing:-.02em'>Fulfillment & Routing Plan</div>",
                 unsafe_allow_html=True)
     if sku_plan.empty:
@@ -1464,9 +1493,7 @@ def page_logistics() -> None:
         w_speed /= tot; w_cost /= tot; w_returns /= tot
     cap_log = st.session_state.get("prod_cap", 1.0)
     carr, opt, fwd_plan = compute_logistics(w_speed, w_cost, w_returns, n_future, cap_log)
-    # delay_thr default so t2 works even if t1 slider hasn't been touched yet
     delay_thr = st.session_state.get("log_thr", DEFAULT_LEAD_TIME)
-    # Derive planned units per category from fwd_plan (avoids a second compute_production call)
     prod_by_cat_log = (fwd_plan.groupby("Category")["Prod_Units"].sum().reset_index()
                        .rename(columns={"Prod_Units": "Planned Units"}) if not fwd_plan.empty else pd.DataFrame())
     t1, t2, t3 = st.tabs(["Carrier Performance", "Cost & Delay", "Forward Plan"])
@@ -1504,20 +1531,17 @@ def page_logistics() -> None:
             for col_c in ["Avg_Days", "Avg_Cost", "Return_Rate"]:
                 mn_c = cat_carr[col_c].min(); mx_c = cat_carr[col_c].max()
                 cat_carr[f"N_{col_c}"] = 1 - (cat_carr[col_c] - mn_c) / (mx_c - mn_c + 1e-9)
-            # Composite score (balanced: speed + cost + reliability)
             cat_carr["Score"] = (
                 w_speed   * cat_carr["N_Avg_Days"]
                 + w_cost  * cat_carr["N_Avg_Cost"]
                 + w_returns * cat_carr["N_Return_Rate"]
             )
-            # Best overall = highest composite score (safe, reliable, cost-efficient)
             best_overall = (cat_carr.sort_values("Score", ascending=False)
                             .groupby("Category").first().reset_index()
                             .rename(columns={"Courier_Partner": "Best Overall",
                                              "Avg_Days": "Overall Days",
                                              "Avg_Cost": "Overall Cost ₹",
                                              "Score":    "Overall Score"}))
-            # Fastest = lowest avg delivery days (for urgent orders)
             best_fast = (cat_carr.sort_values("Avg_Days", ascending=True)
                          .groupby("Category").first().reset_index()
                          .rename(columns={"Courier_Partner": "Fastest (Urgent)",
@@ -1551,15 +1575,12 @@ def page_logistics() -> None:
             st.info("Production plan not available.")
         sp(0.5)
         sec("Carrier x Region Heatmap")
-
         hc1, hc2, hc3 = st.columns([2, 2, 2])
         delay_thr   = hc1.slider("Delay threshold (days)", 3, 10, DEFAULT_LEAD_TIME, key="log_thr")
         heat_metric = hc2.selectbox("Metric", ["Delay Rate %", "Avg Delivery Days", "Avg Shipping Cost"], key="heat_metric")
         show_annot  = hc3.toggle("Show cell values", value=True, key="heat_annot")
-
         del_df_delayed = del_df.copy()
         del_df_delayed["Delayed"] = del_df_delayed["Delivery_Days"] > delay_thr
-
         if heat_metric == "Delay Rate %":
             pv = (del_df_delayed.groupby(["Courier_Partner", "Region"])["Delayed"]
                   .mean().unstack(fill_value=0) * 100)
@@ -1587,24 +1608,18 @@ def page_logistics() -> None:
                 [0.75, "#f97316"], [1.00, "#7f1d1d"],
             ]
             zmid = float(pv.values[pv.values > 0].mean()) if pv.values.any() else 100.0
-
         carriers = list(pv.index)
         regions  = list(pv.columns)
         z_vals   = pv.values.copy()
-
-        # cell annotation text (plain strings, no HTML tags)
         if show_annot:
             cell_text = [[fmt(z_vals[r][c]) for c in range(len(regions))]
                          for r in range(len(carriers))]
         else:
             cell_text = None
-
-        # order count customdata (2-D int array, same shape as z_vals)
         order_pv = (del_df_delayed.groupby(["Courier_Partner", "Region"])["Order_ID"]
                     .count().unstack(fill_value=0)
                     .reindex(index=pv.index, columns=pv.columns, fill_value=0))
         customdata = order_pv.values.astype(int)
-
         fig_h = go.Figure(go.Heatmap(
             z=z_vals,
             x=regions,
@@ -1623,8 +1638,6 @@ def page_logistics() -> None:
             xgap=3,
             ygap=3,
         ))
-
-        # outline worst cell per row in red, best in green
         worst_cols = np.argmax(z_vals, axis=1)
         best_cols  = np.argmin(z_vals, axis=1)
         for r, c in enumerate(worst_cols):
@@ -1635,8 +1648,6 @@ def page_logistics() -> None:
             fig_h.add_shape(type="rect",
                 x0=c - 0.5, x1=c + 0.5, y0=r - 0.5, y1=r + 0.5,
                 line=dict(color="#22c55e", width=2.5), fillcolor="rgba(0,0,0,0)")
-
-        # row-average annotations on the right
         for r in range(len(carriers)):
             fig_h.add_annotation(
                 x=len(regions) - 0.5 + 0.7, y=r,
@@ -1644,7 +1655,6 @@ def page_logistics() -> None:
                 showarrow=False, xanchor="left",
                 font=dict(size=9, color="#64748b"),
             )
-
         cell_h = max(55, 300 // max(len(carriers), 1))
         layout = dict(
             paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
@@ -1659,10 +1669,7 @@ def page_logistics() -> None:
             yaxis=dict(showgrid=False, tickfont=dict(size=11, color="#334155")),
         )
         fig_h.update_layout(**layout)
-
         st.plotly_chart(fig_h, use_container_width=True, key="log_heat")
-
-        # summary banner
         flat      = z_vals.flatten()
         worst_idx = np.unravel_index(int(np.argmax(flat)), z_vals.shape)
         best_idx  = np.unravel_index(int(np.argmin(flat)), z_vals.shape)
@@ -1677,29 +1684,44 @@ def page_logistics() -> None:
             "sky",
         )
     with t2:
-        total_sav = opt["Potential_Saving"].sum()
+        total_sav = opt["Saving_If_Cheapest"].sum()
         del_df_t2 = del_df.copy()
         del_df_t2["Delayed"] = del_df_t2["Delivery_Days"] > delay_thr
-        # Saving impact banner — shows the financial effect of switching
         current_fwd_cost = fwd_plan["Proj_Ship_Cost"].sum() if not fwd_plan.empty else 0
         hist_cost_if_optimal = total_spend - total_sav
         banner(
-            f"💡 Switching to optimal carriers saves <b>₹{total_sav:,.0f}</b> "
+            f"💡 Switching to cheapest carriers saves <b>₹{total_sav:,.0f}</b> "
             f"({total_sav / total_spend * 100:.1f}% of ₹{total_spend:,.0f} historical spend) &nbsp;|&nbsp; "
-            f"Forward {get_horizon()}M plan already uses optimal carrier costs: "
-            f"<b>₹{current_fwd_cost:,.0f}</b> projected vs ₹{int(current_fwd_cost * total_spend / max(hist_cost_if_optimal,1)):,.0f} at current rates",
+            f"Forward {get_horizon()}M plan projects: <b>₹{current_fwd_cost:,.0f}</b> at optimal rates",
             "mint",
         )
         sp(0.5)
         sec("Carrier Switch Recommendations")
         tb3, tb4 = st.columns(2, gap="large")
         with tb3:
-            od = opt[["Region", "Optimal_Carrier", "Current_Avg_Cost", "Min_Avg_Cost", "Potential_Saving", "Saving_Pct", "Orders"]].copy()
-            od["Current_Avg_Cost"] = od["Current_Avg_Cost"].round(1)
-            od["Min_Avg_Cost"]     = od["Min_Avg_Cost"].round(1)
-            od["Potential_Saving"] = od["Potential_Saving"].astype(int)
-            od.columns = ["Region", "Switch To", "Current Avg ₹", "Optimal Avg ₹", "Saving ₹", "Saving %", "Orders"]
-            st.dataframe(od.sort_values("Saving ₹", ascending=False), use_container_width=True, hide_index=True)
+            # ── FIX 2 (display): Show both cheapest AND best-composite columns ──
+            od = opt[[
+                "Region",
+                "Cheapest_Carrier", "Min_Avg_Cost",
+                "Best_Composite_Carrier", "Composite_Avg_Cost", "Composite_Avg_Days", "Composite_Score",
+                "Saving_If_Cheapest", "Saving_Pct", "Orders"
+            ]].copy()
+            od["Min_Avg_Cost"]       = od["Min_Avg_Cost"].round(1)
+            od["Saving_If_Cheapest"] = od["Saving_If_Cheapest"].astype(int)
+            od.columns = [
+                "Region",
+                "Cheapest Carrier", "Cheapest Avg ₹",
+                "Best Composite", "Composite Avg ₹", "Composite Days", "Composite Score",
+                "Saving ₹ (if cheapest)", "Saving %", "Orders"
+            ]
+            st.dataframe(od.sort_values("Saving ₹ (if cheapest)", ascending=False),
+                         use_container_width=True, hide_index=True)
+            banner(
+                "💰 <b>Cheapest Carrier</b> = lowest avg cost per order — maximises cost saving. "
+                "🏆 <b>Best Composite</b> = best weighted score across speed, cost & return rate — "
+                "use when on-time delivery and returns also matter.",
+                "sky",
+            )
         with tb4:
             sec("Delay Rate by Carrier")
             cd = del_df_t2.groupby("Courier_Partner").agg(T=("Order_ID", "count"), D=("Delayed", "sum")).reset_index()
