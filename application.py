@@ -1055,10 +1055,12 @@ def page_demand() -> None:
         fig_acc = go.Figure()
         fig_acc.add_trace(go.Bar(
             name="R² Score", x=labels, y=r2_vals,
-            marker=dict(color=clrs, opacity=0.88, line=dict(color="rgba(0,0,0,0)")),
-            text=[f"{v:.3f}" for v in r2_vals], textposition="outside",
-            textfont=dict(color="#334155", size=10),
+            marker=dict(color=clrs, opacity=0.85, line=dict(color="rgba(0,0,0,0)")),
+            text=[f"{v:.3f}" for v in r2_vals],
+            textposition="outside",
+            textfont=dict(color="#334155", size=11),
             yaxis="y1",
+            width=0.45,
         ))
         fig_acc.add_trace(go.Scatter(
             name="NRMSE %", x=labels, y=nrmse_vals,
@@ -1069,21 +1071,22 @@ def page_demand() -> None:
             textposition="top center", textfont=dict(size=9, color="#EF4444"),
             yaxis="y2",
         ))
-        # Target reference lines
         fig_acc.add_hline(y=0.9, line_dash="dash", line_color="#22C55E", line_width=1.2,
                           annotation_text=" R²≥0.90", annotation_font=dict(color="#22C55E", size=9),
                           annotation_position="right")
         fig_acc.update_layout(
-            **CD(), height=260,
-            xaxis=gX(),
-            yaxis=dict(**gY(), title="R² Score", range=[0, 1.3]),
+            **CD(), height=300,
+            bargap=0.35,
+            xaxis={**gX(), "tickfont": dict(size=12)},
+            yaxis=dict(**gY(), title="R² Score",
+                       range=[0, max(r2_vals) * 1.28]),
             yaxis2=dict(overlaying="y", side="right", showgrid=False,
                         title="NRMSE %", tickcolor="#EF4444",
-                        range=[0, max(nrmse_vals) * 1.6],
+                        range=[0, max(nrmse_vals) * 2.2],
                         tickfont=dict(color="#EF4444")),
-            legend=dict(**leg(), orientation="h", y=-0.22, x=0.5, xanchor="center"),
-            title=dict(text="R² Score (bars, left) vs NRMSE % (line, right) — Ensemble target: R²≥0.90 · NRMSE<15%",
-                       font=dict(size=10, color="#64748b")),
+            legend=dict(**leg(), orientation="h", y=-0.18, x=0.5, xanchor="center"),
+            title=dict(text="R² Score (bars, left axis) · NRMSE % (line, right axis)",
+                       font=dict(size=11, color="#64748b")),
         )
         st.plotly_chart(fig_acc, use_container_width=True, key="d_acc_merged")
     sp()
@@ -1709,11 +1712,16 @@ def page_logistics() -> None:
             st.info("Production plan not available.")
         sp(0.5)
         sec("Carrier x Region Heatmap")
-        hc1, hc2, hc3 = st.columns([2, 2, 2])
-        # FIX-3: Default delay threshold = 3 days (matches on-time KPI, not lead time of 7)
+        hc1, hc2 = st.columns([2, 4])
         delay_thr   = hc1.slider("Delay threshold (days)", 1, 10, DEFAULT_DELAY_THR, key="log_thr")
-        heat_metric = hc2.selectbox("Metric", ["Delay Rate %", "Avg Delivery Days", "Avg Shipping Cost"], key="heat_metric")
-        show_annot  = hc3.toggle("Show cell values", value=True, key="heat_annot")
+        with hc2:
+            st.markdown("<div style='font-size:11px;color:#64748b;margin-bottom:4px'>Metric</div>",
+                        unsafe_allow_html=True)
+            heat_metric = st.radio(
+                "Metric", ["Delay Rate %", "Avg Delivery Days", "Avg Shipping Cost"],
+                horizontal=True, label_visibility="collapsed", key="heat_metric",
+            )
+        show_annot = st.toggle("Show cell values", value=True, key="heat_annot")
         del_df_d    = del_df.copy()
         del_df_d["Delayed"] = del_df_d["Delivery_Days"] > delay_thr
         if heat_metric == "Delay Rate %":
