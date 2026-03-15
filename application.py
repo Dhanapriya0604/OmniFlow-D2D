@@ -1183,9 +1183,10 @@ def page_demand() -> None:
             textposition="outside", textfont=dict(size=12, color="#0f172a", family="Inter,sans-serif"),
             hovertemplate=f"<b>%{{x}}</b><br>Proj {n_future}M: ₹%{{y:.2f}}M<extra></extra>",
         ))
+        _yoy_cd = CD()
+        _yoy_cd["margin"] = dict(l=30, r=30, t=50, b=60)
         fig_yoy.update_layout(
-            **CD(), height=340, barmode="group",
-            margin=dict(l=30, r=30, t=50, b=60),
+            **_yoy_cd, height=340, barmode="group",
             xaxis={**gX(), "tickangle": 0, "tickfont": dict(size=13, color="#0f172a")},
             yaxis={**gY(), "title": "Revenue ₹M", "titlefont": dict(size=11)},
             legend=dict(**leg(), orientation="h", y=-0.18, x=0.5, xanchor="center"),
