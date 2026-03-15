@@ -40,9 +40,12 @@ MIN_REGIME_IDX     = 6
 MARGIN_RATE        = 0.20
 DEMAND_PEAK_WEIGHT = 0.30
 BOOST_SCHEDULE     = {0: 0.60, 1: 0.40}
-DEFAULT_W_SPEED   = 0.40
-DEFAULT_W_COST    = 0.35
-DEFAULT_W_RETURNS = 0.25
+DEFAULT_W_SPEED    = 0.40
+DEFAULT_W_COST     = 0.35
+DEFAULT_W_RETURNS  = 0.25
+# FIX-3: Default delay threshold changed from 7 to 3 days
+# Avg delivery is 2.2d; using 7 made 96.9% of orders appear "on-time" = useless heatmap
+DEFAULT_DELAY_THR  = 3
 
 def get_horizon() -> int:
     return st.session_state.get("global_horizon", N_FUTURE_MONTHS)
@@ -71,24 +74,18 @@ def inject_css() -> None:
     .banner-coral{background:linear-gradient(135deg,#fff1f2,#ffffff);border:1px solid #fecaca;border-left:4px solid #ef4444;font-weight:600;}
     .banner-mint{background:#ecfdf5;border:1px solid #34d399;}
     .banner-sky{background:#eff6ff;border:1px solid #93c5fd;}
-    .sku-alert-card{border-radius:12px;padding:12px 14px;margin-bottom:8px;border:1px solid #e5e7eb;transition:all .2s;cursor:default;}
-    .sku-alert-card:hover{transform:translateX(3px);}
-    .sku-critical{background:linear-gradient(135deg,#fef2f2,#fff);border-left:4px solid #ef4444;}
-    .sku-low{background:linear-gradient(135deg,#fffbeb,#fff);border-left:4px solid #f59e0b;}
-    .sku-ok{background:linear-gradient(135deg,#f0fdf4,#fff);border-left:4px solid #22c55e;}
     .model-pill{display:inline-block;padding:3px 9px;font-size:10px;font-weight:700;border-radius:20px;margin-right:5px;margin-bottom:3px;}
     .pill-ridge{background:#eff6ff;color:#1d4ed8}
     .pill-rf{background:#f0fdf4;color:#15803d}
     .pill-gb{background:#fef9c3;color:#a16207}
     .pill-ensemble{background:#fdf4ff;color:#7e22ce}
     .about-section{background:white;border:1px solid #e5e7eb;border-radius:16px;padding:22px 26px;margin-bottom:18px;box-shadow:0 6px 20px rgba(0,0,0,0.06);}
-    .pipeline-box{background:white;border:1px solid #c7d7fd;border-radius:14px;padding:18px 22px;text-align:center;min-width:105px;font-weight:700;font-size:12px;font-family:'DM Mono',monospace;color:#0f172a;}
-    .pipeline-sub{font-size:9.5px;font-weight:400;color:#64748b;margin-top:3px;display:block;}
-    .alert-item{border-radius:9px;padding:9px 12px;margin-bottom:7px;border:1px solid #e5e7eb;}
-    .alert-critical{background:#fef2f2;}
-    .alert-warn{background:#fff7ed;}
     .model-quality-card{background:white;border-radius:14px;padding:18px;border:1px solid #e5e7eb;box-shadow:0 4px 16px rgba(0,0,0,0.07);}
-    .ensemble-card{background:linear-gradient(135deg,#f8faff,#ffffff);border-radius:14px;padding:16px;border:1px solid #c7d7fd;box-shadow:0 4px 16px rgba(30,58,138,0.08);margin-bottom:12px;}
+    .carrier-card{background:white;border-radius:12px;padding:14px 16px;border:1px solid #e5e7eb;
+        box-shadow:0 3px 12px rgba(0,0,0,0.06);transition:all .2s;}
+    .carrier-card:hover{transform:translateY(-2px);box-shadow:0 6px 18px rgba(0,0,0,0.10);}
+    .carrier-badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;
+        letter-spacing:.04em;text-transform:uppercase;}
     .stTabs [data-baseweb="tab"]{background:#f1f5f9;border-radius:10px;padding:9px 16px;font-weight:600;color:#475569;font-size:13px;}
     .stTabs [aria-selected="true"]{background:#e0e7ff;color:#1e3a8a;box-shadow:0 4px 14px rgba(30,58,138,0.18);}
     .block-container{padding-top:1.8rem;padding-bottom:2rem;}
@@ -115,18 +112,10 @@ def gX() -> dict:
     return dict(showgrid=False, zeroline=False, tickcolor="#64748b")
 
 def leg() -> dict:
-    return dict(
-        bgcolor="rgba(255,255,255,0.95)", bordercolor="#E0E0E0",
-        borderwidth=1, font=dict(color="#334155", size=10),
-    )
+    return dict(bgcolor="rgba(255,255,255,0.95)", bordercolor="#E0E0E0", borderwidth=1, font=dict(color="#334155", size=10))
 
 def kpi(col, label: str, value, cls: str = "sky", sub: str = "") -> None:
-    color_map = {
-        "coral": "#dc2626",
-        "sky":   "#1e3a8a",
-        "mint":  "#059669",
-        "amber": "#d97706",
-    }
+    color_map = {"coral": "#dc2626", "sky": "#1e3a8a", "mint": "#059669", "amber": "#d97706"}
     color = color_map.get(cls, "#7c3aed")
     col.markdown(
         f"""<div class='metric-card'>
@@ -177,21 +166,14 @@ def _make_models() -> dict:
     return {
         "Ridge": Ridge(alpha=RIDGE_ALPHA, fit_intercept=True),
         "RandomForest": RandomForestRegressor(
-            n_estimators=N_ESTIMATORS_RF,
-            max_depth=MAX_DEPTH_RF,
-            min_samples_leaf=MIN_SAMPLES_LEAF,
-            max_features=0.75,
-            bootstrap=True,
-            random_state=42,
+            n_estimators=N_ESTIMATORS_RF, max_depth=MAX_DEPTH_RF,
+            min_samples_leaf=MIN_SAMPLES_LEAF, max_features=0.75,
+            bootstrap=True, random_state=42,
         ),
         "GradBoost": GradientBoostingRegressor(
-            n_estimators=N_ESTIMATORS_GB,
-            max_depth=MAX_DEPTH_GB,
-            learning_rate=LEARNING_RATE_GB,
-            subsample=SUBSAMPLE_GB,
-            min_samples_leaf=3,
-            max_features=0.75,
-            random_state=42,
+            n_estimators=N_ESTIMATORS_GB, max_depth=MAX_DEPTH_GB,
+            learning_rate=LEARNING_RATE_GB, subsample=SUBSAMPLE_GB,
+            min_samples_leaf=3, max_features=0.75, random_state=42,
         )
     }
 
@@ -233,25 +215,21 @@ def ml_forecast(vals: np.ndarray, ds_idx, n_future: int = N_FUTURE_MONTHS) -> di
     X_hist = X_all[:n]
     X_fut  = X_all[n:]
     mean_vals = np.mean(vals)
-    # ── FIX 1: Use GLOBAL variance as R² denominator so that R² reflects
-    #    how well the model explains the full history, not just the tiny
-    #    hold-out window (which often has near-zero variance → R² = 0). ──
+    # FIX-1: ss_tot uses GLOBAL variance so R² reflects full history fit,
+    # not the tiny holdout window (which had near-zero variance → R² = 0)
     ss_tot = np.sum((vals - mean_vals) ** 2)
 
-    # ── Step 1: Hold-out split — train on first (n-4), test on last 4 ──
     h             = 4
     Xtr_h, ytr_h  = X_hist[:-h], vals[:-h]
     Xte_h, yte_h  = X_hist[-h:], vals[-h:]
     mean_holdout  = float(np.mean(yte_h)) if np.mean(yte_h) > 0 else 1.0
 
-    # ── Step 2: Train each model on (n-4) pts → predict hold-out 4 pts ──
     holdout_preds: dict[str, np.ndarray] = {}
     for mname, mdl in _make_models().items():
         pipe = Pipeline([("scaler", StandardScaler()), ("model", mdl)])
         pipe.fit(Xtr_h, ytr_h)
         holdout_preds[mname] = np.maximum(pipe.predict(Xte_h), 0)
 
-    # ── Step 3: CV folds on (n-4) data → inverse-RMSE weights ──
     n_tr      = len(ytr_h)
     n_folds   = min(3, n_tr // 6)
     fold_size = 2
@@ -275,43 +253,37 @@ def ml_forecast(vals: np.ndarray, ds_idx, n_future: int = N_FUTURE_MONTHS) -> di
     tot      = sum(inv_rmse.values())
     weights  = {m: v / tot for m, v in inv_rmse.items()}
 
-    # ── Step 4: Individual model R² — computed against FULL history ──
-    # Train on first (n - test_h) points; predict the last test_h points;
-    # compute residuals and express R² relative to global ss_tot.
-    # This avoids the near-zero ss_test problem that caused R² = 0.
+    # R² measured against global ss_tot (not local holdout variance)
     for test_h in [6, 4]:
         if n - test_h < MIN_HISTORY_MONTHS:
             continue
-        Xtr_r2  = X_hist[:-test_h]
-        ytr_r2  = vals[:-test_h]
-        Xte_r2  = X_hist[-test_h:]
-        yte_r2  = vals[-test_h:]
+        Xtr_r2 = X_hist[:-test_h]
+        ytr_r2 = vals[:-test_h]
+        Xte_r2 = X_hist[-test_h:]
+        yte_r2 = vals[-test_h:]
         r2_per_model: dict[str, float] = {}
         for mname, mdl in _make_models().items():
             pipe = Pipeline([("scaler", StandardScaler()), ("model", mdl)])
             pipe.fit(Xtr_r2, ytr_r2)
             fp_r2     = np.maximum(pipe.predict(Xte_r2), 0)
             ss_res_r2 = np.sum((yte_r2 - fp_r2) ** 2)
-            # FIX: divide by ss_tot (global) instead of ss_test (local hold-out)
             r2_per_model[mname] = max(0.0, 1 - ss_res_r2 / (ss_tot + 1e-9))
         if any(v > 0 for v in r2_per_model.values()) or test_h == 4:
             break
 
     model_metrics: dict[str, dict] = {}
     for mname in _make_models():
-        hp       = holdout_preds[mname]
-        rmse_m   = float(np.sqrt(mean_squared_error(yte_h, hp)))
-        nrmse_m  = rmse_m / mean_holdout
-        mae_m    = float(mean_absolute_error(yte_h, hp))
+        hp      = holdout_preds[mname]
+        rmse_m  = float(np.sqrt(mean_squared_error(yte_h, hp)))
+        nrmse_m = rmse_m / mean_holdout
+        mae_m   = float(mean_absolute_error(yte_h, hp))
         model_metrics[mname] = {"rmse": rmse_m, "nrmse": nrmse_m, "mae": mae_m, "r2": r2_per_model.get(mname, 0.0)}
 
-    # ── Step 5: Ensemble hold-out prediction ──
     ypred_eval = sum(weights[m] * holdout_preds[m] for m in _make_models())
     rmse_e     = float(np.sqrt(mean_squared_error(yte_h, ypred_eval)))
     nrmse_e    = rmse_e / mean_holdout
     mae_e      = float(mean_absolute_error(yte_h, ypred_eval))
 
-    # ── Step 6: Full retrain on ALL n points → final fitted + forecast ──
     fitted_pm:   dict[str, np.ndarray] = {}
     forecast_pm: dict[str, np.ndarray] = {}
     for mname, mdl in _make_models().items():
@@ -324,14 +296,12 @@ def ml_forecast(vals: np.ndarray, ds_idx, n_future: int = N_FUTURE_MONTHS) -> di
     residuals    = vals - ens_fitted
     resid_std    = residuals.std()
 
-    # Ensemble R² — residuals of ensemble on test window vs global ss_tot
     ens_test_preds = np.zeros(len(yte_r2))
     for mname, mdl in _make_models().items():
         pipe = Pipeline([("scaler", StandardScaler()), ("model", mdl)])
         pipe.fit(X_hist[:-test_h], vals[:-test_h])
         ens_test_preds += weights[mname] * np.maximum(pipe.predict(Xte_r2), 0)
     ss_res_ens = np.sum((yte_r2 - ens_test_preds) ** 2)
-    # FIX: divide by ss_tot (global) instead of ss_test (local hold-out)
     r2_e = max(0.0, 1 - ss_res_ens / (ss_tot + 1e-9))
     model_metrics["Ensemble"] = {"rmse": rmse_e, "nrmse": nrmse_e, "mae": mae_e, "r2": r2_e}
 
@@ -375,26 +345,21 @@ def compute_category_forecasts(n_future: int = N_FUTURE_MONTHS) -> dict:
 def ensemble_chart(res: dict, chart_key: str, height: int = 300, title: str = "", show_models: bool = True) -> go.Figure:
     fig = go.Figure()
     fig.add_vrect(x0=res["fut_ds"][0], x1=res["fut_ds"][-1],
-        fillcolor="rgba(139,92,246,0.04)", layer="below", line_width=0,
-    )
+        fillcolor="rgba(139,92,246,0.04)", layer="below", line_width=0)
     fig.add_vline(x=res["fut_ds"][0], line_dash="dash",
                   line_color="rgba(139,92,246,0.4)", line_width=1.5)
     x_ci = list(res["fut_ds"]) + list(res["fut_ds"])[::-1]
     y_ci = list(res["ci_hi"]) + list(res["ci_lo"])[::-1]
-    fig.add_trace(go.Scatter(
-        x=x_ci, y=y_ci, fill="toself",
+    fig.add_trace(go.Scatter(x=x_ci, y=y_ci, fill="toself",
         fillcolor="rgba(139,92,246,0.10)", line=dict(color="rgba(0,0,0,0)"),
-        name="90% CI", hoverinfo="skip", showlegend=True,
-    ))
-    fig.add_trace(go.Scatter(
-        x=res["hist_ds"], y=res["hist_y"], name="Actual",
+        name="90% CI", hoverinfo="skip", showlegend=True))
+    fig.add_trace(go.Scatter(x=res["hist_ds"], y=res["hist_y"], name="Actual",
         line=dict(color="#1e3a8a", width=2.5),
-        hovertemplate="<b>%{x|%b %Y}</b><br>Actual: %{y:,.0f}<extra></extra>",
-    ))
+        hovertemplate="<b>%{x|%b %Y}</b><br>Actual: %{y:,.0f}<extra></extra>"))
     model_styles = [
-        ("Ridge",        "#3B82F6", "dot"),
+        ("Ridge", "#3B82F6", "dot"),
         ("RandomForest", "#22C55E", "dashdot"),
-        ("GradBoost",    "#F59E0B", "longdash"),
+        ("GradBoost", "#F59E0B", "longdash"),
     ]
     if show_models and "fitted_per_model" in res:
         for mname, clr, dash in model_styles:
@@ -403,14 +368,11 @@ def ensemble_chart(res: dict, chart_key: str, height: int = 300, title: str = ""
                     x=res["hist_ds"], y=res["fitted_per_model"][mname],
                     name=f"{mname} fit", line=dict(color=clr, width=1.2, dash=dash),
                     opacity=0.7, visible="legendonly", showlegend=False,
-                    hovertemplate=f"<b>%{{x|%b %Y}}</b><br>{mname}: %{{y:,.0f}}<extra></extra>",
-                ))
-    fig.add_trace(go.Scatter(
-        x=res["hist_ds"], y=res["fitted"], name="Ensemble fit",
+                    hovertemplate=f"<b>%{{x|%b %Y}}</b><br>{mname}: %{{y:,.0f}}<extra></extra>"))
+    fig.add_trace(go.Scatter(x=res["hist_ds"], y=res["fitted"], name="Ensemble fit",
         line=dict(color="#8B5CF6", width=1.5, dash="dot"), opacity=0.7,
         visible="legendonly", showlegend=False,
-        hovertemplate="<b>%{x|%b %Y}</b><br>Ensemble fit: %{y:,.0f}<extra></extra>",
-    ))
+        hovertemplate="<b>%{x|%b %Y}</b><br>Ensemble fit: %{y:,.0f}<extra></extra>"))
     if show_models and "forecast_per_model" in res:
         for mname, clr, dash in model_styles:
             if mname in res["forecast_per_model"]:
@@ -419,26 +381,19 @@ def ensemble_chart(res: dict, chart_key: str, height: int = 300, title: str = ""
                     name=f"{mname} forecast", line=dict(color=clr, width=1.6, dash=dash),
                     mode="lines+markers", marker=dict(size=5, color=clr),
                     visible="legendonly", showlegend=False,
-                    hovertemplate=f"<b>%{{x|%b %Y}}</b><br>{mname}: %{{y:,.0f}}<extra></extra>",
-                ))
-    fig.add_trace(go.Scatter(
-        x=res["fut_ds"], y=res["forecast"], name="Ensemble Forecast",
+                    hovertemplate=f"<b>%{{x|%b %Y}}</b><br>{mname}: %{{y:,.0f}}<extra></extra>"))
+    fig.add_trace(go.Scatter(x=res["fut_ds"], y=res["forecast"], name="Ensemble Forecast",
         line=dict(color="#8B5CF6", width=3.0), mode="lines+markers",
         marker=dict(size=9, color="#8B5CF6", line=dict(color="#FFFFFF", width=2)),
-        hovertemplate="<b>%{x|%b %Y}</b><br>Forecast: %{y:,.0f}<extra></extra>",
-    ))
-    fig.add_trace(go.Scatter(
-        x=res["eval_ds"], y=res["eval_pred"], name="Eval",
+        hovertemplate="<b>%{x|%b %Y}</b><br>Forecast: %{y:,.0f}<extra></extra>"))
+    fig.add_trace(go.Scatter(x=res["eval_ds"], y=res["eval_pred"], name="Eval",
         mode="markers", showlegend=False,
         marker=dict(size=10, color="#EF4444", symbol="x-thin",
                     line=dict(color="#EF4444", width=2.5)),
-        hovertemplate="<b>%{x|%b %Y}</b><br>Eval: %{y:,.0f}<extra></extra>",
-    ))
-    fig.update_layout(
-        **CD(), height=height, xaxis=gX(), yaxis=gY(),
+        hovertemplate="<b>%{x|%b %Y}</b><br>Eval: %{y:,.0f}<extra></extra>"))
+    fig.update_layout(**CD(), height=height, xaxis=gX(), yaxis=gY(),
         legend={**leg(), "traceorder": "normal"},
-        title=dict(text=title, font=dict(color="#64748b", size=11)),
-    )
+        title=dict(text=title, font=dict(color="#64748b", size=11)))
     return fig
 
 def model_grade(nrmse: float, r2: float) -> tuple:
@@ -479,8 +434,7 @@ def render_model_quality(res: dict) -> None:
                         <div style='font-size:10px;color:#94a3b8'>NRMSE {m["nrmse"]*100:.1f}% · R² {m["r2"]:.3f}</div>
                         <div style='font-size:12px;font-weight:700;color:{clr};margin-top:4px'>Accuracy {_acc:.1f}%</div>
                         <div style='font-size:10px;color:#94a3b8'>{_ico} {_g} {_l}</div>
-                    </div>""", unsafe_allow_html=True,
-                )
+                    </div>""", unsafe_allow_html=True)
         w = res.get("weights", {})
         if w:
             tot = sum(w.values())
@@ -491,14 +445,13 @@ def render_model_quality(res: dict) -> None:
                     <span class='model-pill pill-ridge'>Ridge {w.get("Ridge",0)/tot*100:.0f}%</span>
                     <span class='model-pill pill-rf'>RF {w.get("RandomForest",0)/tot*100:.0f}%</span>
                     <span class='model-pill pill-gb'>GB {w.get("GradBoost",0)/tot*100:.0f}%</span>
-                </div>""", unsafe_allow_html=True,
-            )
+                </div>""", unsafe_allow_html=True)
     c1, c2, c3, c4, c5 = st.columns(5)
-    kpi(c1, "RMSE",     f"{res['rmse']:.1f}",         "sky",  "error metric")
-    kpi(c2, "NRMSE",    f"{res['nrmse']*100:.1f}%",   "sky",  "normalised")
-    kpi(c3, "MAE",      f"{res['mae']:.1f}",           "sky",  "mean abs err")
-    kpi(c4, "R² Score", f"{res['r2']:.3f}",            "sky",  "fit quality")
-    kpi(c5, "Accuracy", f"{acc:.1f}%",                 "mint", "1 − NRMSE")
+    kpi(c1, "RMSE",     f"{res['rmse']:.1f}",        "sky",  "error metric")
+    kpi(c2, "NRMSE",    f"{res['nrmse']*100:.1f}%",  "sky",  "normalised")
+    kpi(c3, "MAE",      f"{res['mae']:.1f}",          "sky",  "mean abs err")
+    kpi(c4, "R² Score", f"{res['r2']:.3f}",           "sky",  "fit quality")
+    kpi(c5, "Accuracy", f"{acc:.1f}%",                "mint", "1 − NRMSE")
     sp(0.5)
     st.markdown(
         f"""<div class='model-quality-card'>
@@ -513,8 +466,7 @@ def render_model_quality(res: dict) -> None:
               <div style='font-size:28px;font-weight:900;color:#1e3a8a'>{acc:.1f}%</div>
             </div>
           </div>
-        </div>""", unsafe_allow_html=True,
-    )
+        </div>""", unsafe_allow_html=True)
     sp(0.5)
 
 @st.cache_data
@@ -525,12 +477,12 @@ def compute_inventory(
     z:          float = DEFAULT_SERVICE_Z,
     n_future:   int   = N_FUTURE_MONTHS,
 ) -> pd.DataFrame:
-    df          = load_data()
-    ops         = get_ops(df).copy()
-    ops["YM"]   = ops["Order_Date"].dt.to_period("M")
-    del_ops     = get_delivered(df)
-    cat_fcs     = compute_category_forecasts(n_future)
-    lt_std_map  = del_ops.groupby("Category")["Delivery_Days"].std().fillna(1.0).to_dict()
+    df         = load_data()
+    ops        = get_ops(df).copy()
+    ops["YM"]  = ops["Order_Date"].dt.to_period("M")
+    del_ops    = get_delivered(df)
+    cat_fcs    = compute_category_forecasts(n_future)
+    lt_std_map = del_ops.groupby("Category")["Delivery_Days"].std().fillna(1.0).to_dict()
     sku_monthly = (
         ops.groupby(["SKU_ID", "YM"])["Net_Qty"].sum().reset_index().sort_values(["SKU_ID", "YM"])
     )
@@ -544,8 +496,7 @@ def compute_inventory(
         total_qty    = ("Net_Qty",             "sum"),
     ).reset_index()
     sku_monthly_pivot = sku_monthly.copy()
-    sku_monthly_pivot["Month"] = sku_monthly_pivot["YM"].dt.month if hasattr(sku_monthly_pivot["YM"].dtype, "freq") \
-        else sku_monthly_pivot["YM"].apply(lambda p: p.month)
+    sku_monthly_pivot["Month"] = sku_monthly_pivot["YM"].apply(lambda p: p.month)
     sku_month_avg = sku_monthly_pivot.groupby(["SKU_ID", "Month"])["Net_Qty"].mean().reset_index()
     sku_peak_std  = sku_month_avg.groupby("SKU_ID")["Net_Qty"].std().reset_index().rename(columns={"Net_Qty": "peak_std"})
     sku_stats = (
@@ -556,24 +507,19 @@ def compute_inventory(
     sku_stats = sku_stats.merge(sku_peak_std, on="SKU_ID", how="left")
     sku_stats["hist_std"] = sku_stats[["hist_std", "peak_std"]].max(axis=1).fillna(sku_stats["hist_avg"] * 0.25)
     sku_stats["hist_std"] = sku_stats["hist_std"].fillna(sku_stats["hist_avg"] * 0.25)
-    cat_hist_avg: dict[str, float] = {
-        cat: info["hist_avg"] for cat, info in cat_fcs.items()
-    }
+    cat_hist_avg: dict[str, float] = {cat: info["hist_avg"] for cat, info in cat_fcs.items()}
     sku_snapshot = sku_snapshot.merge(sku_stats, on="SKU_ID", how="left")
-    sku_snapshot["hist_avg"]  = sku_snapshot["hist_avg"].fillna(0)
-    sku_snapshot["hist_std"]  = sku_snapshot["hist_std"].fillna(0)
-    sku_snapshot["peak_d"]    = sku_snapshot["peak_d"].fillna(0)
+    sku_snapshot["hist_avg"] = sku_snapshot["hist_avg"].fillna(0)
+    sku_snapshot["hist_std"] = sku_snapshot["hist_std"].fillna(0)
+    sku_snapshot["peak_d"]   = sku_snapshot["peak_d"].fillna(0)
     def _sku_forecast(row):
-        cat = row["Category"]
+        cat   = row["Category"]
         h_avg = row["hist_avg"]
         if cat in cat_fcs and cat_hist_avg.get(cat, 0) > 0:
             share = h_avg / cat_hist_avg[cat]
             fc    = cat_fcs[cat]
-            return (
-                fc["mean"] * share,
-                [v * share for v in fc["monthly"]],
-                fc["mean"] * share * 0.70 + row["peak_d"] * DEMAND_PEAK_WEIGHT,
-            )
+            return (fc["mean"] * share, [v * share for v in fc["monthly"]],
+                    fc["mean"] * share * 0.70 + row["peak_d"] * DEMAND_PEAK_WEIGHT)
         return h_avg, [h_avg] * n_future, h_avg * 0.60 + row["peak_d"] * 0.40
     demand_cols = sku_snapshot.apply(_sku_forecast, axis=1, result_type="expand")
     demand_cols.columns = ["avg_d", "fc_next6", "econ_d"]
@@ -595,22 +541,17 @@ def compute_inventory(
     replenishment_need = np.maximum(rop + eoq - current_stock, 0)
     prod_need = np.maximum(demand_driven_need, replenishment_need)
     demand_cover_pct = np.where(
-        demand_6m > 0, np.minimum(current_stock / demand_6m.values * 100, 100).round(1), 100.0,
-    )
+        demand_6m > 0, np.minimum(current_stock / demand_6m.values * 100, 100).round(1), 100.0)
     status = np.where(current_stock <= ss, "🔴 Critical",
-        np.where(current_stock < rop, "🟡 Low", "🟢 Adequate"),
-    )
-    days_stock   = np.where(daily_d > 0, (current_stock / daily_d).round(1), 999.0)
-    days_to_rop  = np.where(
+        np.where(current_stock < rop, "🟡 Low", "🟢 Adequate"))
+    days_stock  = np.where(daily_d > 0, (current_stock / daily_d).round(1), 999.0)
+    days_to_rop = np.where(
         (daily_d > 0) & (current_stock > rop),
-        ((current_stock - rop) / daily_d).round(1),
-        0.0,
-    )
-    units_below  = np.maximum(ss - current_stock, 0)
+        ((current_stock - rop) / daily_d).round(1), 0.0)
+    units_below   = np.maximum(ss - current_stock, 0)
     daily_margin  = daily_d * uc * MARGIN_RATE
     stockout_cost = np.where(status == "🔴 Critical",
-        np.round(units_below * uc * MARGIN_RATE + daily_margin * lead_time, 0), 0.0,
-    )
+        np.round(units_below * uc * MARGIN_RATE + daily_margin * lead_time, 0), 0.0)
     inv_df = pd.DataFrame({
         "SKU_ID":          sku_snapshot["SKU_ID"],
         "Product_Name":    sku_snapshot["Product_Name"],
@@ -642,11 +583,11 @@ def compute_inventory(
 def _int_allocate(total: int, weights: np.ndarray) -> list[int]:
     if total == 0 or weights.sum() == 0:
         return [0] * len(weights)
-    shares   = weights / weights.sum() * total
-    floored  = np.floor(shares).astype(int)
+    shares     = weights / weights.sum() * total
+    floored    = np.floor(shares).astype(int)
     remainders = shares - floored
-    deficit  = total - floored.sum()
-    top_idx  = np.argsort(remainders)[::-1][:deficit]
+    deficit    = total - floored.sum()
+    top_idx    = np.argsort(remainders)[::-1][:deficit]
     floored[top_idx] += 1
     return floored.tolist()
 
@@ -656,22 +597,22 @@ def compute_production(cap_mult: float = 1.0, n_future: int = N_FUTURE_MONTHS) -
     cat_fcs = compute_category_forecasts(n_future)
     rows = []
     for cat, fc_info in cat_fcs.items():
-        fc_arr = np.array(fc_info["monthly"])
-        ci_lo  = np.array(fc_info["ci_lo"])
-        ci_hi  = np.array(fc_info["ci_hi"])
-        fut_ds = fc_info["fut_ds"]
+        fc_arr  = np.array(fc_info["monthly"])
+        ci_lo   = np.array(fc_info["ci_lo"])
+        ci_hi   = np.array(fc_info["ci_hi"])
+        fut_ds  = fc_info["fut_ds"]
         cat_inv = inv[inv["Category"] == cat]
         if cat_inv.empty:
             continue
-        prod_need_cat = int(cat_inv["Prod_Need"].sum())
-        crit_skus = cat_inv[cat_inv["Status"] == "🔴 Critical"]
-        low_skus  = cat_inv[cat_inv["Status"] == "🟡 Low"]
-        crit_gap  = float((crit_skus["ROP"] - crit_skus["Current_Stock"]).clip(lower=0).sum())
-        low_gap   = float((low_skus["ROP"]  - low_skus["Current_Stock"]).clip(lower=0).sum())
+        prod_need_cat     = int(cat_inv["Prod_Need"].sum())
+        crit_skus         = cat_inv[cat_inv["Status"] == "🔴 Critical"]
+        low_skus          = cat_inv[cat_inv["Status"] == "🟡 Low"]
+        crit_gap          = float((crit_skus["ROP"] - crit_skus["Current_Stock"]).clip(lower=0).sum())
+        low_gap           = float((low_skus["ROP"]  - low_skus["Current_Stock"]).clip(lower=0).sum())
         current_stock_cat = int(cat_inv["Current_Stock"].sum())
         demand_6m_cat     = int(cat_inv["Demand_6M"].sum())
-        scheduled_total = int(round(prod_need_cat * cap_mult))
-        monthly_prod = _int_allocate(scheduled_total, fc_arr)
+        scheduled_total   = int(round(prod_need_cat * cap_mult))
+        monthly_prod      = _int_allocate(scheduled_total, fc_arr)
         urgency_pool = int(round((crit_gap * 0.60 + low_gap * 0.20)))
         urgency_pool = min(urgency_pool, scheduled_total)
         if urgency_pool > 0 and n_future >= 2:
@@ -712,10 +653,8 @@ def build_sku_production_plan(n_future: int = N_FUTURE_MONTHS) -> pd.DataFrame:
     df     = load_data()
     del_df = get_delivered(df)
     inv    = compute_inventory(n_future=n_future)
-    wh_cat = (del_df.groupby(["Category", "Warehouse"])["Quantity"].sum().reset_index())
-    wh_cat["wh_share"] = wh_cat.groupby("Category")["Quantity"].transform(
-        lambda x: x / x.sum()
-    )
+    wh_cat = del_df.groupby(["Category", "Warehouse"])["Quantity"].sum().reset_index()
+    wh_cat["wh_share"] = wh_cat.groupby("Category")["Quantity"].transform(lambda x: x / x.sum())
     carr_region = del_df.groupby(["Region", "Courier_Partner"]).agg(
         avg_cost=("Shipping_Cost_INR", "mean"), orders=("Order_ID", "count")
     ).reset_index().sort_values("avg_cost").groupby("Region").first().reset_index()
@@ -728,37 +667,35 @@ def build_sku_production_plan(n_future: int = N_FUTURE_MONTHS) -> pd.DataFrame:
         .reset_index().rename(columns={0: "opt_cost", "Warehouse": "Target_Warehouse"})
     )
     avg_ship = (del_df.groupby(["Category", "Warehouse"]).agg(avg_cost=("Shipping_Cost_INR", "mean"))
-        .reset_index().rename(columns={"Warehouse": "Target_Warehouse"})
-    )
+        .reset_index().rename(columns={"Warehouse": "Target_Warehouse"}))
     avg_ship = avg_ship.merge(wh_opt_cost, on="Target_Warehouse", how="left")
     avg_ship["avg_cost"] = avg_ship["opt_cost"].fillna(avg_ship["avg_cost"])
     avg_ship = avg_ship[["Category", "Target_Warehouse", "avg_cost"]]
     needs = inv[inv["Prod_Need"] > 0].copy()
     abc_weight = {"A": 3, "B": 2, "C": 1}
-    needs["ABC_Priority"] = needs["ABC"].map(abc_weight)
-    needs["Daily_Demand"] = (needs["Monthly_Avg"] / 30).clip(lower=0.01)
-    needs["Days_Left"]    = (needs["Current_Stock"] / needs["Daily_Demand"]).round(1).clip(upper=999)
+    needs["ABC_Priority"]   = needs["ABC"].map(abc_weight)
+    needs["Daily_Demand"]   = (needs["Monthly_Avg"] / 30).clip(lower=0.01)
+    needs["Days_Left"]      = (needs["Current_Stock"] / needs["Daily_Demand"]).round(1).clip(upper=999)
     needs["Priority_Score"] = (
         needs["ABC_Priority"] * 3
         + needs["Stockout_Cost"] / 1000
         + (needs["ROP"] - needs["Current_Stock"]).clip(lower=0)
     )
     def _urgency(row):
-        if row["Status"] == "🔴 Critical":   return "🔴 Urgent"
-        if row["Days_Left"] <= 14:            return "🟠 High"
-        if row["Days_Left"] <= 30:            return "🟡 Medium"
+        if row["Status"] == "🔴 Critical": return "🔴 Urgent"
+        if row["Days_Left"] <= 14:         return "🟠 High"
+        if row["Days_Left"] <= 30:         return "🟡 Medium"
         return "🟢 Normal"
     needs["Urgency"] = needs.apply(_urgency, axis=1)
     wh_assignments = []
     for cat, grp in needs.groupby("Category"):
-        cat_wh = (
-            wh_cat[wh_cat["Category"] == cat].sort_values("wh_share", ascending=False).reset_index(drop=True)
-        )
-        warehouses = cat_wh["Warehouse"].tolist()
-        shares     = cat_wh["wh_share"].values
+        cat_wh = (wh_cat[wh_cat["Category"] == cat]
+                  .sort_values("wh_share", ascending=False).reset_index(drop=True))
+        warehouses  = cat_wh["Warehouse"].tolist()
+        shares      = cat_wh["wh_share"].values
         skus_sorted = grp.sort_values(["ABC_Priority", "Priority_Score"], ascending=[False, False])
-        n = len(skus_sorted)
-        cumulative = np.round(np.cumsum(shares) * n).astype(int).clip(0, n)
+        n           = len(skus_sorted)
+        cumulative  = np.round(np.cumsum(shares) * n).astype(int).clip(0, n)
         prev = 0
         slot_assignments: list[str] = []
         for cut, wh in zip(cumulative, warehouses):
@@ -770,13 +707,8 @@ def build_sku_production_plan(n_future: int = N_FUTURE_MONTHS) -> pd.DataFrame:
         for (idx, _), wh in zip(skus_sorted.iterrows(), slot_assignments):
             cat_share = float(
                 cat_wh.loc[cat_wh["Warehouse"] == wh, "wh_share"].values[0]
-                if wh in cat_wh["Warehouse"].values else shares[0]
-            )
-            wh_assignments.append({
-                "idx":              idx,
-                "Target_Warehouse": wh,
-                "WH_Share_Pct":     round(cat_share * 100, 1),
-            })
+                if wh in cat_wh["Warehouse"].values else shares[0])
+            wh_assignments.append({"idx": idx, "Target_Warehouse": wh, "WH_Share_Pct": round(cat_share * 100, 1)})
     wh_df = pd.DataFrame(wh_assignments).set_index("idx")
     needs = needs.join(wh_df[["Target_Warehouse", "WH_Share_Pct"]])
     needs["Target_Warehouse"] = needs["Target_Warehouse"].fillna("Central WH")
@@ -790,8 +722,7 @@ def build_sku_production_plan(n_future: int = N_FUTURE_MONTHS) -> pd.DataFrame:
     return needs[[
         "SKU_ID", "Product_Name", "Category", "ABC", "Urgency", "Prod_Need",
         "Current_Stock", "Demand_6M", "Demand_Cover_Pct", "Days_Left",
-        "Stockout_Cost", "Target_Warehouse", "WH_Share_Pct",
-        "Est_Ship_Cost", "Status",
+        "Stockout_Cost", "Target_Warehouse", "WH_Share_Pct", "Est_Ship_Cost", "Status",
     ]]
 
 @st.cache_data
@@ -805,6 +736,7 @@ def compute_logistics(
     df     = load_data()
     del_df = get_delivered(df)
     plan   = compute_production(cap_mult=cap_mult, n_future=n_future)
+
     carrier_returns = df.groupby("Courier_Partner")["Return_Flag"].mean().reset_index()
     carrier_returns.columns = ["Courier_Partner", "Return_Rate"]
     carr = del_df.groupby("Courier_Partner").agg(
@@ -823,77 +755,70 @@ def compute_logistics(
         + w_returns * carr["Norm_Return_Rate"]
     ).round(3)
 
-    # ── FIX 2: Build TWO recommendation columns per region ──
-    # (a) cheapest  — existing logic, lowest avg cost
-    # (b) composite — best weighted score (speed + cost + return rate)
-    # This prevents DTDC dominating every region in the "Switch To" column
-    # and gives planners a choice based on their weight preferences.
-
-    # All-carrier region stats
+    # FIX-2+4: Remove cheapest carrier. Keep only composite score.
+    # Normalise per-region so each region ranks its own carriers fairly.
     region_carrier_stats = del_df.groupby(["Region", "Courier_Partner"]).agg(
-        avg_cost  = ("Shipping_Cost_INR", "mean"),
-        avg_days  = ("Delivery_Days",     "mean"),
-        orders    = ("Order_ID",          "count"),
+        avg_cost = ("Shipping_Cost_INR", "mean"),
+        avg_days = ("Delivery_Days",     "mean"),
+        orders   = ("Order_ID",          "count"),
     ).reset_index()
     region_carrier_ret = df.groupby(["Region", "Courier_Partner"])["Return_Flag"].mean().reset_index()
     region_carrier_ret.columns = ["Region", "Courier_Partner", "ret_rate"]
-    region_carrier_stats = region_carrier_stats.merge(region_carrier_ret, on=["Region", "Courier_Partner"], how="left")
+    region_carrier_stats = region_carrier_stats.merge(
+        region_carrier_ret, on=["Region", "Courier_Partner"], how="left")
     region_carrier_stats["ret_rate"] = region_carrier_stats["ret_rate"].fillna(0)
-
-    # Normalise per-region so scores are comparable within each region
-    for metric, ascending in [("avg_cost", True), ("avg_days", True), ("ret_rate", True)]:
+    for metric in ["avg_cost", "avg_days", "ret_rate"]:
         mn_r = region_carrier_stats.groupby("Region")[metric].transform("min")
         mx_r = region_carrier_stats.groupby("Region")[metric].transform("max")
         region_carrier_stats[f"n_{metric}"] = 1 - (region_carrier_stats[metric] - mn_r) / (mx_r - mn_r + 1e-9)
-
     region_carrier_stats["composite_score"] = (
         w_speed   * region_carrier_stats["n_avg_days"]
         + w_cost  * region_carrier_stats["n_avg_cost"]
         + w_returns * region_carrier_stats["n_ret_rate"]
     )
+    # Store ALL carriers per region for the visual scorecard
+    region_carrier_stats["composite_score"] = region_carrier_stats["composite_score"].round(3)
 
-    # Cheapest carrier per region
-    cheapest = (
-        region_carrier_stats.sort_values("avg_cost")
-        .groupby("Region").first().reset_index()
-        .rename(columns={"Courier_Partner": "Cheapest_Carrier", "avg_cost": "Min_Avg_Cost"})
-    )
-
-    # Best composite carrier per region
+    # Best composite carrier per region (for headline recommendation)
     best_composite = (
         region_carrier_stats.sort_values("composite_score", ascending=False)
         .groupby("Region").first().reset_index()
-        .rename(columns={"Courier_Partner": "Best_Composite_Carrier", "avg_cost": "Composite_Avg_Cost",
-                         "avg_days": "Composite_Avg_Days", "composite_score": "Composite_Score"})
+        .rename(columns={
+            "Courier_Partner":  "Best_Carrier",
+            "avg_cost":         "Best_Avg_Cost",
+            "avg_days":         "Best_Avg_Days",
+            "ret_rate":         "Best_Ret_Rate",
+            "composite_score":  "Best_Score",
+        })
     )
 
+    # For cost-saving banner: use best composite carrier avg cost vs current
     region_costs = del_df.groupby("Region").agg(
         Current_Avg_Cost = ("Shipping_Cost_INR", "mean"),
         Orders           = ("Order_ID",          "count"),
         Total_Spend      = ("Shipping_Cost_INR", "sum"),
     ).reset_index()
-
-    opt = (region_costs
-        .merge(cheapest[["Region", "Cheapest_Carrier", "Min_Avg_Cost"]], on="Region")
-        .merge(best_composite[["Region", "Best_Composite_Carrier", "Composite_Avg_Cost",
-                               "Composite_Avg_Days", "Composite_Score"]], on="Region")
+    opt = region_costs.merge(
+        best_composite[["Region", "Best_Carrier", "Best_Avg_Cost", "Best_Avg_Days", "Best_Ret_Rate", "Best_Score"]],
+        on="Region"
     )
-    opt["Saving_If_Cheapest"]   = ((opt["Current_Avg_Cost"] - opt["Min_Avg_Cost"]) * opt["Orders"]).round(0)
-    opt["Saving_Pct"]           = ((opt["Current_Avg_Cost"] - opt["Min_Avg_Cost"]) / opt["Current_Avg_Cost"] * 100).round(1)
-    opt["Composite_Score"]      = opt["Composite_Score"].round(3)
-    opt["Composite_Avg_Cost"]   = opt["Composite_Avg_Cost"].round(1)
-    opt["Composite_Avg_Days"]   = opt["Composite_Avg_Days"].round(1)
+    opt["Saving_If_Best"] = ((opt["Current_Avg_Cost"] - opt["Best_Avg_Cost"]) * opt["Orders"]).round(0)
+    opt["Saving_Pct"]     = ((opt["Current_Avg_Cost"] - opt["Best_Avg_Cost"]) / opt["Current_Avg_Cost"] * 100).round(1)
+    opt["Best_Avg_Cost"]  = opt["Best_Avg_Cost"].round(1)
+    opt["Best_Avg_Days"]  = opt["Best_Avg_Days"].round(2)
+    opt["Best_Ret_Rate"]  = (opt["Best_Ret_Rate"] * 100).round(1)
 
     avg_ship_unit = max(del_df["Shipping_Cost_INR"].sum() / max(del_df["Quantity"].replace(0, np.nan).sum(), 1), 1.0)
-    hist_orders   = max(len(del_df), 1)
-    avg_units_ord = max(del_df["Quantity"].sum() / hist_orders, 1.0)
+    avg_units_ord = max(del_df["Quantity"].sum() / max(len(del_df), 1), 1.0)
+    # Use best composite carrier cost for forward projections
     cat_region_vol = del_df.groupby(["Category", "Region"])["Quantity"].sum().reset_index()
     cat_region_vol["vol_share"] = cat_region_vol.groupby("Category")["Quantity"].transform(lambda x: x / x.sum())
-    optimal_cost_merge = cat_region_vol.merge(cheapest[["Region", "Min_Avg_Cost"]], on="Region", how="left")
-    optimal_cost_merge["Min_Avg_Cost"] = optimal_cost_merge["Min_Avg_Cost"].fillna(avg_ship_unit)
+    optimal_cost_merge = cat_region_vol.merge(
+        best_composite[["Region", "Best_Avg_Cost"]], on="Region", how="left")
+    optimal_cost_merge["Best_Avg_Cost"] = optimal_cost_merge["Best_Avg_Cost"].fillna(avg_ship_unit)
     cat_optimal_cost = (
         optimal_cost_merge.groupby("Category")
-        .apply(lambda g: (g["vol_share"] * g["Min_Avg_Cost"]).sum())
+        .apply(lambda g: (g["vol_share"] * g["Best_Avg_Cost"]).sum())
         .to_dict()
     )
     fwd_rows = []
@@ -912,18 +837,119 @@ def compute_logistics(
                 "CI_Lo_Units":   int(row["CI_Lo"]),
                 "CI_Hi_Units":   int(row["CI_Hi"]),
             })
-    return carr, opt, pd.DataFrame(fwd_rows)
+    return carr, opt, pd.DataFrame(fwd_rows), region_carrier_stats
+
+# ── Visual: Carrier Region Scorecard ──────────────────────────────────────────
+def render_carrier_scorecard(region_carrier_stats: pd.DataFrame, opt: pd.DataFrame) -> None:
+    """
+    FIX-5: Replace noisy carrier switch table with a clear visual.
+    Shows a grouped bar chart: composite score per carrier per region,
+    + a highlighted recommendation scorecard below.
+    """
+    carrier_colors = {
+        "BlueDart":     "#1565C0",
+        "Delhivery":    "#2E7D32",
+        "DTDC":         "#E65100",
+        "Ecom Express": "#6A1B9A",
+        "XpressBees":   "#00695C",
+    }
+    carriers = sorted(region_carrier_stats["Courier_Partner"].unique())
+    regions  = sorted(region_carrier_stats["Region"].unique())
+
+    # Grouped bar: composite score by carrier x region
+    fig = go.Figure()
+    for carrier in carriers:
+        sub = region_carrier_stats[region_carrier_stats["Courier_Partner"] == carrier]
+        sub = sub.set_index("Region").reindex(regions)
+        clr = carrier_colors.get(carrier, "#888")
+        fig.add_trace(go.Bar(
+            name=carrier,
+            x=regions,
+            y=sub["composite_score"].values,
+            marker=dict(color=clr, opacity=0.88, line=dict(color="rgba(0,0,0,0)")),
+            text=[f"{v:.2f}" if not np.isnan(v) else "" for v in sub["composite_score"].fillna(0).values],
+            textposition="outside",
+            textfont=dict(size=8, color="#334155"),
+            hovertemplate=f"<b>{carrier}</b><br>Region: %{{x}}<br>Score: %{{y:.3f}}<extra></extra>",
+        ))
+
+    # Mark the best carrier per region with a gold star annotation
+    for _, row in opt.iterrows():
+        region  = row["Region"]
+        carrier = row["Best_Carrier"]
+        score   = row["Best_Score"]
+        x_idx   = regions.index(region)
+        fig.add_annotation(
+            x=region, y=score + 0.03,
+            text="★", showarrow=False,
+            font=dict(size=14, color="#f59e0b"),
+            xanchor="center",
+        )
+
+    fig.update_layout(
+        **CD(), height=340, barmode="group",
+        xaxis={**gX(), "tickangle": -15},
+        yaxis={**gY(), "title": "Composite Score (higher = better)", "range": [0, 1.25]},
+        legend={**leg(), "orientation": "h", "y": -0.28, "x": 0.5, "xanchor": "center"},
+        title=dict(text="Carrier Composite Score by Region  (★ = recommended)", font=dict(size=11, color="#64748b")),
+    )
+    st.plotly_chart(fig, use_container_width=True, key="carrier_scorecard_bar")
+
+    # Scorecard cards: one per region showing recommended carrier + key stats
+    sp(0.5)
+    st.markdown("""<div style='font-size:11px;font-weight:700;color:#4a5e7a;
+        letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px'>
+        Recommended Carrier per Region</div>""", unsafe_allow_html=True)
+
+    cols = st.columns(3)
+    for i, (_, row) in enumerate(opt.sort_values("Region").iterrows()):
+        col         = cols[i % 3]
+        carrier     = row["Best_Carrier"]
+        clr         = carrier_colors.get(carrier, "#7c3aed")
+        saving_sign = "+" if row["Saving_If_Best"] > 0 else ""
+        col.markdown(f"""
+        <div class='carrier-card'>
+          <div style='display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px'>
+            <div>
+              <div style='font-size:10px;color:#64748b;font-weight:600;letter-spacing:.06em;
+                   text-transform:uppercase'>{row["Region"]}</div>
+              <div style='font-size:16px;font-weight:900;color:{clr};margin-top:2px'>{carrier}</div>
+            </div>
+            <div style='background:{clr}18;border:1px solid {clr}44;border-radius:8px;
+                 padding:3px 8px;font-size:12px;font-weight:800;color:{clr}'>
+              {row["Best_Score"]:.2f}
+            </div>
+          </div>
+          <div style='display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;margin-top:6px'>
+            <div style='text-align:center;background:#f8fafc;border-radius:6px;padding:5px'>
+              <div style='font-size:9px;color:#94a3b8;text-transform:uppercase'>Speed</div>
+              <div style='font-size:13px;font-weight:800;color:#0f172a'>{row["Best_Avg_Days"]:.1f}d</div>
+            </div>
+            <div style='text-align:center;background:#f8fafc;border-radius:6px;padding:5px'>
+              <div style='font-size:9px;color:#94a3b8;text-transform:uppercase'>Cost</div>
+              <div style='font-size:13px;font-weight:800;color:#0f172a'>₹{row["Best_Avg_Cost"]:.0f}</div>
+            </div>
+            <div style='text-align:center;background:#f8fafc;border-radius:6px;padding:5px'>
+              <div style='font-size:9px;color:#94a3b8;text-transform:uppercase'>Returns</div>
+              <div style='font-size:13px;font-weight:800;color:#0f172a'>{row["Best_Ret_Rate"]:.1f}%</div>
+            </div>
+          </div>
+          <div style='margin-top:7px;font-size:10px;color:{"#059669" if row["Saving_If_Best"]>0 else "#64748b"}'>
+            {"💰 Saves ₹" + f"{abs(int(row['Saving_If_Best'])):,} vs current avg" if row["Saving_If_Best"] > 100 else "✓ Already optimal"}
+          </div>
+        </div>""", unsafe_allow_html=True)
+
 
 def page_overview() -> None:
-    df  = load_data()
-    ops = get_ops(df).copy()
+    df     = load_data()
+    ops    = get_ops(df).copy()
     del_df = get_delivered(df)
-    total_orders  = len(df)
-    total_rev     = ops["Net_Revenue"].sum()
-    avg_ov        = ops["Net_Revenue"].mean()
-    ret_rate      = df["Return_Flag"].mean() * 100
-    on_time       = (del_df["Delivery_Days"] <= 3).mean() * 100
-    n_skus        = df["SKU_ID"].nunique()
+    total_orders = len(df)
+    total_rev    = ops["Net_Revenue"].sum()
+    avg_ov       = ops["Net_Revenue"].mean()
+    ret_rate     = df["Return_Flag"].mean() * 100
+    on_time      = (del_df["Delivery_Days"] <= 3).mean() * 100
+    n_skus       = df["SKU_ID"].nunique()
     st.markdown("""
      <div style='background:linear-gradient(135deg,#0f172a,#1e3a8a,#2563eb);border-radius:18px;
          padding:30px 32px;margin-bottom:24px;'>
@@ -936,18 +962,18 @@ def page_overview() -> None:
      </div>""", unsafe_allow_html=True)
     sec("Dataset at a Glance")
     k1, k2, k3, k4, k5, k6 = st.columns(6)
-    kpi(k1, "Total Orders", f"{total_orders:,}", "sky",   "Jan 2024 – Dec 2025")
-    kpi(k2, "Net Revenue", f"₹{total_rev/1e7:.2f}Cr", "mint", "delivered + shipped")
-    kpi(k3, "Avg Order Value", f"₹{avg_ov:,.0f}",         "sky", "per active order")
-    kpi(k4, "Return Rate", f"{ret_rate:.1f}%", "coral", f"{df['Return_Flag'].sum()} orders")
-    kpi(k5, "On-Time Delivery", f"{on_time:.1f}%", "mint", "delivered ≤ 3 days")
-    kpi(k6, "Unique SKUs", str(n_skus), "sky", "across 4 categories")
+    kpi(k1, "Total Orders",     f"{total_orders:,}",          "sky",   "Jan 2024 – Dec 2025")
+    kpi(k2, "Net Revenue",      f"₹{total_rev/1e7:.2f}Cr",    "mint",  "delivered + shipped")
+    kpi(k3, "Avg Order Value",  f"₹{avg_ov:,.0f}",             "sky",   "per active order")
+    kpi(k4, "Return Rate",      f"{ret_rate:.1f}%",            "coral", f"{df['Return_Flag'].sum()} orders")
+    kpi(k5, "On-Time Delivery", f"{on_time:.1f}%",             "mint",  "delivered ≤ 3 days")
+    kpi(k6, "Unique SKUs",      str(n_skus),                   "sky",   "across 4 categories")
     sp(0.5)
-    _inv_ov = compute_inventory()
-    _n_crit = int((_inv_ov["Status"] == "🔴 Critical").sum())
-    _n_low  = int((_inv_ov["Status"] == "🟡 Low").sum())
+    _inv_ov        = compute_inventory()
+    _n_crit        = int((_inv_ov["Status"] == "🔴 Critical").sum())
+    _n_low         = int((_inv_ov["Status"] == "🟡 Low").sum())
     _stockout_risk = int(_inv_ov["Stockout_Cost"].sum())
-    _top_crit = _inv_ov[_inv_ov["Status"] == "🔴 Critical"].sort_values("Stockout_Cost", ascending=False)
+    _top_crit      = _inv_ov[_inv_ov["Status"] == "🔴 Critical"].sort_values("Stockout_Cost", ascending=False)
     if _n_crit > 0:
         _top_names = ", ".join(_top_crit["Product_Name"].str[:20].tolist()[:3])
         banner(
@@ -959,11 +985,7 @@ def page_overview() -> None:
             "coral",
         )
     elif _n_low > 0:
-        banner(
-            f"⚠️ <b>{_n_low} SKUs</b> are below reorder point — consider restocking soon. "
-            f"No critical stockouts currently.",
-            "amber",
-        )
+        banner(f"⚠️ <b>{_n_low} SKUs</b> below reorder point — consider restocking soon.", "amber")
     else:
         banner("✅ <b>All SKUs adequately stocked.</b> No immediate stockout risk.", "mint")
     sp(0.5)
@@ -1027,42 +1049,31 @@ def page_overview() -> None:
       <div class='card' style='border-top:3px solid #3b82f6'>
         <div style='font-size:11px;font-weight:800;color:#3b82f6;letter-spacing:.06em;text-transform:uppercase'>1 · Demand Forecasting</div>
         <div style='font-size:11px;font-weight:700;color:#0f172a;margin:6px 0 4px'><i>How much will sell?</i></div>
-        <div style='font-size:11.5px;color:#475569;line-height:1.7'>
-          Ridge + Random Forest + Gradient Boosting <b>ensemble</b> forecasts orders, quantity and revenue
-          for the selected horizon — by overall, category, region and sales channel. Outputs a 90% confidence interval.
-        </div>
+        <div style='font-size:11.5px;color:#475569;line-height:1.7'>Ridge + Random Forest + Gradient Boosting <b>ensemble</b> forecasts orders, quantity and revenue for the selected horizon. Outputs a 90% confidence interval.</div>
       </div>
       <div class='card' style='border-top:3px solid #f59e0b'>
         <div style='font-size:11px;font-weight:800;color:#f59e0b;letter-spacing:.06em;text-transform:uppercase'>2 · Inventory Optimisation</div>
         <div style='font-size:11px;font-weight:700;color:#0f172a;margin:6px 0 4px'><i>Which SKUs need restocking?</i></div>
-        <div style='font-size:11.5px;color:#475569;line-height:1.7'>
-          Wilson EOQ formula computes optimal order batch. Safety stock protects against demand variance.
-          ROP triggers reorder. SKUs are ABC-classified. Demand window matches selected forecast horizon.
-        </div>
+        <div style='font-size:11.5px;color:#475569;line-height:1.7'>Wilson EOQ formula computes optimal order batch. Safety stock protects against demand variance. ROP triggers reorder. SKUs are ABC-classified.</div>
       </div>
       <div class='card' style='border-top:3px solid #8b5cf6'>
         <div style='font-size:11px;font-weight:800;color:#8b5cf6;letter-spacing:.06em;text-transform:uppercase'>3 · Production Planning</div>
         <div style='font-size:11px;font-weight:700;color:#0f172a;margin:6px 0 4px'><i>How many units to make, when?</i></div>
-        <div style='font-size:11.5px;color:#475569;line-height:1.7'>
-          Monthly production targets derived from forecasted demand. Horizon matches global selection.
-          Critical/Low SKUs get urgency boosts into Month 1–2. SKUs are routed to warehouses proportionally.
-        </div>
+        <div style='font-size:11.5px;color:#475569;line-height:1.7'>Monthly production targets from forecasted demand. Critical/Low SKUs get urgency boosts into Month 1–2. SKUs are routed to warehouses proportionally.</div>
       </div>
       <div class='card' style='border-top:3px solid #059669'>
         <div style='font-size:11px;font-weight:800;color:#059669;letter-spacing:.06em;text-transform:uppercase'>4 · Logistics Optimisation</div>
         <div style='font-size:11px;font-weight:700;color:#0f172a;margin:6px 0 4px'><i>Which carrier, at what cost?</i></div>
-        <div style='font-size:11.5px;color:#475569;line-height:1.7'>
-          Carrier composite score = weighted(speed + cost + return rate). Identifies cheapest carrier
-          per region and projects forward shipping cost based on the production plan horizon.
-        </div>
+        <div style='font-size:11.5px;color:#475569;line-height:1.7'>Carrier composite score = weighted(speed + cost + return rate). Visual scorecard shows best carrier per region with key metrics at a glance.</div>
       </div>
     </div>
     </div>""", unsafe_allow_html=True)
 
+
 def page_demand() -> None:
     n_future = get_horizon()
-    df  = load_data()
-    ops = get_ops(df).copy()
+    df       = load_data()
+    ops      = get_ops(df).copy()
     ops["YM"] = ops["Order_Date"].dt.to_period("M")
     st.markdown("<div class='page-title'>Demand Forecasting</div>", unsafe_allow_html=True)
     horizon_badge(n_future)
@@ -1074,8 +1085,8 @@ def page_demand() -> None:
     sp()
     if res_ov and "model_metrics" in res_ov:
         sec("Model Accuracy Comparison")
-        mm     = res_ov["model_metrics"]
-        labels = [m for m in ["Ridge", "RandomForest", "GradBoost", "Ensemble"] if m in mm]
+        mm         = res_ov["model_metrics"]
+        labels     = [m for m in ["Ridge", "RandomForest", "GradBoost", "Ensemble"] if m in mm]
         r2_vals    = [mm[m]["r2"]          for m in labels]
         nrmse_vals = [mm[m]["nrmse"] * 100 for m in labels]
         clrs       = [MODEL_COLORS.get(m, "#888") for m in labels]
@@ -1124,10 +1135,10 @@ def page_demand() -> None:
         fig = ensemble_chart(res, chart_key=chart_key, height=310, title=title)
         st.plotly_chart(fig, use_container_width=True, key=chart_key)
         tbl = pd.DataFrame({
-            "Month":      [d.strftime("%b %Y") for d in res["fut_ds"]],
-            "Forecast":   res["forecast"].round(0).astype(int),
-            "Lower 90%":  res["ci_lo"].round(0).astype(int),
-            "Upper 90%":  res["ci_hi"].round(0).astype(int),
+            "Month":     [d.strftime("%b %Y") for d in res["fut_ds"]],
+            "Forecast":  res["forecast"].round(0).astype(int),
+            "Lower 90%": res["ci_lo"].round(0).astype(int),
+            "Upper 90%": res["ci_hi"].round(0).astype(int),
         })
         st.dataframe(tbl, use_container_width=True, hide_index=True)
     sec(f"Forecast Chart — {n_future}-Month Horizon")
@@ -1143,7 +1154,7 @@ def page_demand() -> None:
                 draw_with_table(get_series(ops[ops[grp] == val]), title=val, chart_key=f"d_bd_{i}")
     sp()
     sec("YoY Revenue Growth by Category")
-    yr_rev     = ops.groupby(["Year", "Category"])["Net_Revenue"].sum().unstack(fill_value=0)
+    yr_rev      = ops.groupby(["Year", "Category"])["Net_Revenue"].sum().unstack(fill_value=0)
     cat_monthly = ops.groupby(["YM", "Category"])["Net_Revenue"].sum().unstack(fill_value=0)
     proj_next: dict[str, float] = {}
     for cat in cat_monthly.columns:
@@ -1155,22 +1166,23 @@ def page_demand() -> None:
         for cat in yr_rev.columns:
             r24 = yr_rev.loc[2024, cat]; r25 = yr_rev.loc[2025, cat]; rp = proj_next.get(cat, 0)
             rows.append({
-                "Category":              cat,
-                "2024 ₹M":               round(r24 / 1e6, 1),
-                "2025 ₹M":               round(r25 / 1e6, 1),
-                "YoY 24→25":             f"{(r25-r24)/r24*100:+.1f}%" if r24 > 0 else "N/A",
+                "Category":                  cat,
+                "2024 ₹M":                   round(r24 / 1e6, 1),
+                "2025 ₹M":                   round(r25 / 1e6, 1),
+                "YoY 24→25":                 f"{(r25-r24)/r24*100:+.1f}%" if r24 > 0 else "N/A",
                 f"Next {n_future}M Proj ₹M": round(rp / 1e6, 1),
-                "Projected Growth":      f"{(rp-r25)/r25*100:+.1f}%" if r25 > 0 else "N/A",
+                "Projected Growth":          f"{(rp-r25)/r25*100:+.1f}%" if r25 > 0 else "N/A",
             })
         st.dataframe(
             pd.DataFrame(rows).sort_values(f"Next {n_future}M Proj ₹M", ascending=False),
             use_container_width=True, hide_index=True,
         )
 
+
 def page_inventory() -> None:
     n_future = get_horizon()
-    df  = load_data()
-    ops = get_ops(df).copy()
+    df       = load_data()
+    ops      = get_ops(df).copy()
     ops["YM"] = ops["Order_Date"].dt.to_period("M")
     st.markdown("<div class='page-title'>Inventory Optimization</div>", unsafe_allow_html=True)
     horizon_badge(n_future)
@@ -1193,18 +1205,18 @@ def page_inventory() -> None:
     fc_start = (ops_ym + 1).to_timestamp().strftime("%b %Y")
     fc_end   = (ops_ym + n_future).to_timestamp().strftime("%b %Y")
     fc_range = f"{fc_start} – {fc_end}"
-    crit_days = inv[inv["Status"] == "🔴 Critical"]["Days_of_Stock"]
-    crit_days = crit_days[crit_days < 999]
+    crit_days    = inv[inv["Status"] == "🔴 Critical"]["Days_of_Stock"]
+    crit_days    = crit_days[crit_days < 999]
     avg_crit_days = f"{crit_days.mean():.0f}d avg" if len(crit_days) > 0 else "—"
-    low_days  = inv[inv["Status"] == "🟡 Low"]["Days_of_Stock"]
-    low_days  = low_days[low_days < 999]
-    avg_low_days = f"{low_days.mean():.0f}d avg" if len(low_days) > 0 else "—"
+    low_days      = inv[inv["Status"] == "🟡 Low"]["Days_of_Stock"]
+    low_days      = low_days[low_days < 999]
+    avg_low_days  = f"{low_days.mean():.0f}d avg" if len(low_days) > 0 else "—"
     c1, c2, c3, c4, c5 = st.columns(5)
-    kpi(c1, "Total SKUs",          len(inv),                  "sky",   "active SKUs")
-    kpi(c2, "🔴 Critical SKUs",    n_crit,                    "coral", f"stock ≤ safety stock · {avg_crit_days}")
-    kpi(c3, "🟡 Low Stock",        n_low,                     "amber", f"stock < reorder point · {avg_low_days}")
-    kpi(c4, f"{n_future}M Forecast Demand", f"{total_demand_6m:,}", "sky", f"units · {fc_range}")
-    kpi(c5, "Units to Produce",    f"{total_prod_need:,}",    "mint",  f"to meet demand by {fc_end}")
+    kpi(c1, "Total SKUs",                   len(inv),                  "sky",   "active SKUs")
+    kpi(c2, "🔴 Critical SKUs",             n_crit,                    "coral", f"stock ≤ safety stock · {avg_crit_days}")
+    kpi(c3, "🟡 Low Stock",                 n_low,                     "amber", f"stock < reorder point · {avg_low_days}")
+    kpi(c4, f"{n_future}M Forecast Demand", f"{total_demand_6m:,}",    "sky",   f"units · {fc_range}")
+    kpi(c5, "Units to Produce",             f"{total_prod_need:,}",    "mint",  f"to meet demand by {fc_end}")
     sp()
     sec("Stock Position")
     sc1, sc2, sc3 = st.columns([2, 2, 1])
@@ -1212,24 +1224,21 @@ def page_inventory() -> None:
                              default=sorted(inv["Category"].unique()), key="al_cat")
     stat_f = sc2.multiselect("Status", ["🔴 Critical", "🟡 Low", "🟢 Adequate"],
                              default=["🔴 Critical", "🟡 Low", "🟢 Adequate"], key="al_stat")
-    abc_f = sc3.multiselect("ABC", ["A", "B", "C"], default=["A", "B", "C"], key="al_abc")
-    sv = inv[ inv["Category"].isin(cat_f) & inv["Status"].isin(stat_f) & inv["ABC"].isin(abc_f)].copy()
+    abc_f  = sc3.multiselect("ABC", ["A", "B", "C"], default=["A", "B", "C"], key="al_abc")
+    sv = inv[inv["Category"].isin(cat_f) & inv["Status"].isin(stat_f) & inv["ABC"].isin(abc_f)].copy()
     if sv.empty:
         banner("✅ No SKUs match selected filters.", "mint")
     else:
         STATUS_CLR = {
-            "🔴 Critical":    "#ef4444",
-            "🟡 Low":         "#f59e0b",
-            "🟢 Adequate":    "#22c55e",
-            "🟢 Overstocked": "#06b6d4",
+            "🔴 Critical": "#ef4444", "🟡 Low": "#f59e0b",
+            "🟢 Adequate": "#22c55e", "🟢 Overstocked": "#06b6d4",
         }
         fig_sc = go.Figure()
         ax_max = max(sv["Current_Stock"].max(), sv["ROP"].max()) * 1.1
         fig_sc.add_trace(go.Scatter(
             x=[0, ax_max], y=[0, ax_max], mode="lines",
             line=dict(color="rgba(100,116,139,0.25)", width=1.5, dash="dash"),
-            name="Stock = ROP", hoverinfo="skip",
-        ))
+            name="Stock = ROP", hoverinfo="skip"))
         fig_sc.add_vrect(x0=0, x1=sv["ROP"].mean(), fillcolor="rgba(239,68,68,0.04)", layer="below", line_width=0)
         for status, clr in STATUS_CLR.items():
             grp = sv[sv["Status"] == status]
@@ -1239,17 +1248,13 @@ def page_inventory() -> None:
             fig_sc.add_trace(go.Scatter(
                 x=grp["Current_Stock"], y=grp["ROP"],
                 mode="markers", name=status,
-                marker=dict(
-                    size=bubble_sz, color=clr, opacity=0.82,
-                    line=dict(color="#FFFFFF", width=1.5),
-                    sizemode="area", sizeref=2.0 * 60 / (40.0 ** 2), sizemin=6,
-                ),
+                marker=dict(size=bubble_sz, color=clr, opacity=0.82,
+                            line=dict(color="#FFFFFF", width=1.5),
+                            sizemode="area", sizeref=2.0 * 60 / (40.0 ** 2), sizemin=6),
                 customdata=grp[["Product_Name", "SKU_ID", "Prod_Need", "Demand_6M", "Demand_Cover_Pct"]].values,
                 hovertemplate=(
-                    "<b>%{customdata[0]}</b><br>"
-                    "SKU: %{customdata[1]}<br>"
-                    "Stock: %{x}<br>"
-                    "ROP: %{y}<br>"
+                    "<b>%{customdata[0]}</b><br>SKU: %{customdata[1]}<br>"
+                    "Stock: %{x}<br>ROP: %{y}<br>"
                     f"{n_future}M Demand: %{{customdata[3]:,}} units<br>"
                     "Stock Covers: %{customdata[4]:.0f}% of demand<br>"
                     "Produce: <b>%{customdata[2]} units</b>"
@@ -1259,8 +1264,7 @@ def page_inventory() -> None:
             **CD(), height=400,
             xaxis={**gX(), "title": "Current Stock (units)"},
             yaxis={**gY(), "title": "Reorder Point (units)"},
-            legend={**leg(), "orientation": "h", "y": -0.18},
-        )
+            legend={**leg(), "orientation": "h", "y": -0.18})
         st.plotly_chart(fig_sc, use_container_width=True, key="scatter_stock")
         near_rop = sv[
             (sv["Status"] == "🟢 Adequate") &
@@ -1294,24 +1298,24 @@ def page_inventory() -> None:
             for c in ["Stock", f"{n_future}M Demand", "ROP", "EOQ", "Safety Stock", "Units to Produce"]:
                 tbl[c] = tbl[c].astype(int)
             tbl["Days to ROP"] = tbl["Days to ROP"].apply(lambda x: f"{int(x)}d" if x > 0 else "—")
-            tbl["Covers %"] = tbl["Covers %"].apply(lambda x: f"{x:.0f}%")
+            tbl["Covers %"]    = tbl["Covers %"].apply(lambda x: f"{x:.0f}%")
             st.dataframe(tbl, use_container_width=True, hide_index=True, height=340)
+
 
 def page_production() -> None:
     n_future = get_horizon()
-    df  = load_data()
-    ops = get_ops(df).copy()
+    df       = load_data()
+    ops      = get_ops(df).copy()
     ops["YM"] = ops["Order_Date"].dt.to_period("M")
     st.markdown("<div class='page-title'>Production Planning</div>", unsafe_allow_html=True)
     horizon_badge(n_future)
-    cap = st.slider("Capacity Multiplier", 0.5, 2.0, 1.0, 0.1, key="prod_cap")
+    cap  = st.slider("Capacity Multiplier", 0.5, 2.0, 1.0, 0.1, key="prod_cap")
     plan = compute_production(cap, n_future)
     if plan.empty:
         st.warning("Insufficient data.")
         return
     agg = plan.groupby("Month_dt")[["Production", "Demand_Forecast", "Crit_Boost", "Low_Boost"]].sum().reset_index()
     inv_for_kpi         = compute_inventory(n_future=n_future)
-    total_prod_need_inv = int(inv_for_kpi["Prod_Need"].sum())
     total_demand_6m_inv = int(inv_for_kpi["Demand_6M"].sum())
     total_stock_inv     = int(inv_for_kpi["Current_Stock"].sum())
     total_safety_stock  = int(inv_for_kpi["SS"].sum())
@@ -1322,7 +1326,7 @@ def page_production() -> None:
     kpi(c2, f"{n_future}M Forecast Demand",f"{total_demand_6m_inv:,}",    "sky",   "what customers will order")
     kpi(c3, "Current Stock",               f"{total_stock_inv:,}",        "sky",   "on hand across all SKUs")
     kpi(c4, "Safety Stock Added",          f"{total_safety_stock:,}",     "mint",  "buffer against demand variance")
-    kpi(c5, "Peak Month", peak.strftime("%b %Y"), "coral", "highest production volume")
+    kpi(c5, "Peak Month",                  peak.strftime("%b %Y"),        "coral", "highest production volume")
     sp()
     sec(f"Production Target vs Ensemble Demand Forecast — {n_future}-Month Horizon")
     hist_qty       = ops.groupby("YM")["Net_Qty"].sum().rename("v")
@@ -1332,31 +1336,26 @@ def page_production() -> None:
     fig = go.Figure()
     fig.add_trace(go.Scatter(
         x=hist_ts, y=hist_qty.values, name="Historical Demand",
-        fill="tozeroy", fillcolor="rgba(74,94,122,0.10)", line=dict(color="#4a5e7a", width=2),
-    ))
+        fill="tozeroy", fillcolor="rgba(74,94,122,0.10)", line=dict(color="#4a5e7a", width=2)))
     if res_hist:
         fig.add_trace(go.Scatter(
             x=res_hist["hist_ds"], y=res_hist["fitted"], name="Ensemble Fit",
-            line=dict(color="#8B5CF6", width=1.5, dash="dot"), opacity=0.6,
-        ))
+            line=dict(color="#8B5CF6", width=1.5, dash="dot"), opacity=0.6))
     fig.add_trace(go.Bar(
         x=agg["Month_dt"], y=agg["Production"], name="Production Target",
         marker=dict(color="#8B5CF6", opacity=0.85, line=dict(color="rgba(0,0,0,0)")),
         text=[f"{int(v):,}" for v in agg["Production"]],
-        textposition="inside", textfont=dict(color="white", size=9),
-    ))
+        textposition="inside", textfont=dict(color="white", size=9)))
     fig.add_trace(go.Scatter(
         x=agg["Month_dt"], y=agg["Demand_Forecast"], name="Ensemble Demand Forecast",
         mode="lines+markers", line=dict(color="#F59E0B", width=2.5),
-        marker=dict(size=8, color="#F59E0B", line=dict(color="#FFFFFF", width=2)),
-    ))
+        marker=dict(size=8, color="#F59E0B", line=dict(color="#FFFFFF", width=2))))
     if res_hist:
         x_ci = list(res_hist["fut_ds"]) + list(res_hist["fut_ds"])[::-1]
         y_ci = list(res_hist["ci_hi"])  + list(res_hist["ci_lo"])[::-1]
         fig.add_trace(go.Scatter(
             x=x_ci, y=y_ci, fill="toself",
-            fillcolor="rgba(139,92,246,0.07)", line=dict(color="rgba(0,0,0,0)"), name="90% CI",
-        ))
+            fillcolor="rgba(139,92,246,0.07)", line=dict(color="rgba(0,0,0,0)"), name="90% CI"))
     fig.add_vline(x=forecast_start, line_dash="dash", line_color="rgba(139,92,246,0.5)", line_width=2)
     fig.update_layout(**CD(), height=320, xaxis=gX(), yaxis=gY(), legend=leg())
     st.plotly_chart(fig, use_container_width=True, key="prod_main")
@@ -1375,8 +1374,7 @@ def page_production() -> None:
             marker=dict(color=["#22C55E" if g >= 0 else "#EF4444" for g in agg["Gap"]],
                         line=dict(color="rgba(0,0,0,0)")),
             text=[f"{g:+.0f}" for g in agg["Gap"]], textposition="outside",
-            textfont=dict(color="#334155"),
-        ))
+            textfont=dict(color="#334155")))
         fig3.add_hline(y=0, line_dash="dash", line_color="rgba(0,0,0,0.2)")
         fig3.update_layout(**CD(), height=270, xaxis=gX(),
                            yaxis={**gY(), "title": "Units Surplus / Deficit"})
@@ -1394,8 +1392,7 @@ def page_production() -> None:
                     name=urg, x=sub["Category"], y=sub["Prod_Need"],
                     marker=dict(color=clr, line=dict(color="rgba(0,0,0,0)")),
                     text=sub["Prod_Need"].astype(int),
-                    textposition="inside", textfont=dict(color="white", size=9),
-                ))
+                    textposition="inside", textfont=dict(color="white", size=9)))
             fig_bu.update_layout(**CD(), height=270, barmode="stack",
                                  xaxis={**gX(), "tickangle": -10},
                                  yaxis={**gY(), "title": "Units to Produce"},
@@ -1412,43 +1409,37 @@ def page_production() -> None:
     total_ship    = sku_plan["Est_Ship_Cost"].sum()
     stockout_risk = sku_plan["Stockout_Cost"].sum()
     k1, k2, k3, k4 = st.columns(4)
-    kpi(k1, "🔴 Urgent SKUs",      n_urgent,                "coral", "stock ≤ safety stock")
-    kpi(k2, "🟠 High SKUs",        n_high,                  "amber", "≤14 days stock left")
-    kpi(k3, "Est. Ship Cost",      f"₹{total_ship:,.0f}",  "sky",   "to target warehouses")
-    kpi(k4, "Stockout Risk",       f"₹{stockout_risk:,.0f}","coral", "if not restocked")
+    kpi(k1, "🔴 Urgent SKUs",  n_urgent,                "coral", "stock ≤ safety stock")
+    kpi(k2, "🟠 High SKUs",    n_high,                  "amber", "≤14 days stock left")
+    kpi(k3, "Est. Ship Cost",  f"₹{total_ship:,.0f}",  "sky",   "to target warehouses")
+    kpi(k4, "Stockout Risk",   f"₹{stockout_risk:,.0f}","coral", "if not restocked")
     sp(0.5)
     sec("Warehouse Stock Needs & Routing Plan")
     wh_dist = (sku_plan.groupby("Target_Warehouse")
         .agg(SKUs=("SKU_ID", "count"), Units=("Prod_Need", "sum"))
-        .reset_index().sort_values("Units", ascending=False)
-    )
-    n_warehouses = len(wh_dist)
-    wh_colors = ["#1e3a8a", "#2563eb", "#3b82f6", "#60a5fa", "#93c5fd",
-                 "#059669", "#10b981", "#34d399"][:n_warehouses]
-    fig_wh_dist = go.Figure()
-    fig_wh_dist.add_trace(go.Bar(
+        .reset_index().sort_values("Units", ascending=False))
+    n_wh = len(wh_dist)
+    wh_colors = ["#1e3a8a", "#2563eb", "#3b82f6", "#60a5fa"][:n_wh]
+    fig_wh = go.Figure()
+    fig_wh.add_trace(go.Bar(
         x=wh_dist["Target_Warehouse"], y=wh_dist["Units"],
         name="Units", marker=dict(color=wh_colors, line=dict(color="rgba(0,0,0,0)")),
         text=[f"{int(v):,}" for v in wh_dist["Units"]], textposition="outside",
-        textfont=dict(color="#334155"),
-    ))
-    fig_wh_dist.add_trace(go.Scatter(
+        textfont=dict(color="#334155")))
+    fig_wh.add_trace(go.Scatter(
         x=wh_dist["Target_Warehouse"], y=wh_dist["SKUs"],
         name="SKU count", yaxis="y2", mode="markers+text",
         marker=dict(size=14, color="#f59e0b", line=dict(color="#fff", width=2)),
         text=[f"{v} SKUs" for v in wh_dist["SKUs"]],
-        textposition="top center", textfont=dict(size=9, color="#d97706"),
-    ))
-    fig_wh_dist.update_layout(
-        **CD(), height=240, barmode="relative",
-        xaxis=gX(),
+        textposition="top center", textfont=dict(size=9, color="#d97706")))
+    fig_wh.update_layout(
+        **CD(), height=240, barmode="relative", xaxis=gX(),
         yaxis={**gY(), "title": "Units to Receive"},
-        yaxis2=dict(overlaying="y", side="right", showgrid=False,
-                    title="SKU Count", tickcolor="#d97706", range=[0, wh_dist["SKUs"].max() * 3]),
+        yaxis2=dict(overlaying="y", side="right", showgrid=False, title="SKU Count",
+                    tickcolor="#d97706", range=[0, wh_dist["SKUs"].max() * 3]),
         legend={**leg(), "orientation": "h", "y": -0.28},
-        title=dict(text=f"Inbound units split across {n_warehouses} warehouse(s)", font=dict(size=11, color="#64748b")),
-    )
-    st.plotly_chart(fig_wh_dist, use_container_width=True, key="wh_dist_bar")
+        title=dict(text=f"Inbound units split across {n_wh} warehouse(s)", font=dict(size=11, color="#64748b")))
+    st.plotly_chart(fig_wh, use_container_width=True, key="wh_dist_bar")
     sp(0.5)
     sec("Detailed Shipment Routing Plan")
     routing_tbl = sku_plan[[
@@ -1466,10 +1457,10 @@ def page_production() -> None:
 
 def page_logistics() -> None:
     n_future = get_horizon()
-    df     = load_data()
-    ops    = get_ops(df).copy()
+    df       = load_data()
+    ops      = get_ops(df).copy()
     ops["YM"] = ops["Order_Date"].dt.to_period("M")
-    del_df = get_delivered(df)
+    del_df   = get_delivered(df)
     st.markdown("<div class='page-title'>Logistics Optimization</div>", unsafe_allow_html=True)
     horizon_badge(n_future)
     total_spend  = del_df["Shipping_Cost_INR"].sum()
@@ -1492,31 +1483,34 @@ def page_logistics() -> None:
         tot = w_speed + w_cost + w_returns
         w_speed /= tot; w_cost /= tot; w_returns /= tot
     cap_log = st.session_state.get("prod_cap", 1.0)
-    carr, opt, fwd_plan = compute_logistics(w_speed, w_cost, w_returns, n_future, cap_log)
-    delay_thr = st.session_state.get("log_thr", DEFAULT_LEAD_TIME)
+    carr, opt, fwd_plan, region_carrier_stats = compute_logistics(
+        w_speed, w_cost, w_returns, n_future, cap_log)
     prod_by_cat_log = (fwd_plan.groupby("Category")["Prod_Units"].sum().reset_index()
                        .rename(columns={"Prod_Units": "Planned Units"}) if not fwd_plan.empty else pd.DataFrame())
-    t1, t2, t3 = st.tabs(["Carrier Performance", "Cost & Delay", "Forward Plan"])
+
+    t1, t2, t3 = st.tabs(["Carrier Performance", "Cost & Recommendations", "Forward Plan"])
+
     with t1:
         sec("Speed vs Cost — Carrier Scorecard")
+        carrier_colors_list = ["#1565C0", "#2E7D32", "#E65100", "#6A1B9A", "#00695C"]
         fig = go.Figure()
         for i, (_, r) in enumerate(carr.iterrows()):
             fig.add_trace(go.Scatter(
                 x=[r["Avg_Days"]], y=[r["Avg_Cost"]], mode="markers+text",
-                marker=dict(size=max(r["Orders"] / 50, 14), color=COLORS[i],
+                marker=dict(size=max(r["Orders"] / 50, 14), color=carrier_colors_list[i % 5],
                             opacity=0.88, line=dict(color="#FFFFFF", width=2)),
                 text=[r["Courier_Partner"]], textposition="top center",
                 name=r["Courier_Partner"],
                 hovertemplate=(
                     f"<b>{r['Courier_Partner']}</b><br>Orders: {r['Orders']}<br>"
                     f"Avg Days: {r['Avg_Days']:.1f}<br>Avg Cost: ₹{r['Avg_Cost']:.0f}<br>"
-                    f"Score: {r['Perf_Score']:.3f}<extra></extra>"
-                ),
-            ))
+                    f"Composite Score: {r['Perf_Score']:.3f}<extra></extra>"
+                )))
         fig.update_layout(**CD(), height=270, showlegend=False,
-                          xaxis={**gX(), "title": "Avg Delivery Days  (lower = faster)", "rangemode": "normal"},
-                          yaxis={**gY(), "title": "Avg Shipping Cost INR  (lower = cheaper)", "rangemode": "normal"})
+                          xaxis={**gX(), "title": "Avg Delivery Days  (lower = faster)"},
+                          yaxis={**gY(), "title": "Avg Shipping Cost INR  (lower = cheaper)"})
         st.plotly_chart(fig, use_container_width=True, key="log_bubble")
+
         sec("Best Carrier per Category")
         if not prod_by_cat_log.empty:
             cat_carr = del_df.groupby(["Category", "Courier_Partner"]).agg(
@@ -1537,38 +1531,38 @@ def page_logistics() -> None:
                 + w_returns * cat_carr["N_Return_Rate"]
             )
             best_overall = (cat_carr.sort_values("Score", ascending=False)
-                            .groupby("Category").first().reset_index()
-                            .rename(columns={"Courier_Partner": "Best Overall",
-                                             "Avg_Days": "Overall Days",
-                                             "Avg_Cost": "Overall Cost ₹",
-                                             "Score":    "Overall Score"}))
+                .groupby("Category").first().reset_index()
+                .rename(columns={"Courier_Partner": "Best Overall",
+                                 "Avg_Days": "Overall Days",
+                                 "Avg_Cost": "Overall Cost ₹",
+                                 "Score":    "Overall Score"}))
             best_fast = (cat_carr.sort_values("Avg_Days", ascending=True)
-                         .groupby("Category").first().reset_index()
-                         .rename(columns={"Courier_Partner": "Fastest (Urgent)",
-                                          "Avg_Days": "Fastest Days",
-                                          "Avg_Cost": "Fastest Cost ₹"}))
-            sku_pl = build_sku_production_plan(n_future)
+                .groupby("Category").first().reset_index()
+                .rename(columns={"Courier_Partner": "Fastest (Urgent)",
+                                 "Avg_Days": "Fastest Days",
+                                 "Avg_Cost": "Fastest Cost ₹"}))
+            sku_pl    = build_sku_production_plan(n_future)
             wh_by_cat = (sku_pl.groupby("Category")["Target_Warehouse"]
                          .agg(lambda x: x.value_counts().index[0]).reset_index()
                          .rename(columns={"Target_Warehouse": "Warehouse"}))
             result = (best_overall[["Category", "Best Overall", "Overall Days", "Overall Cost ₹", "Overall Score"]]
-                      .merge(best_fast[["Category", "Fastest (Urgent)", "Fastest Days", "Fastest Cost ₹"]], on="Category")
-                      .merge(prod_by_cat_log, on="Category", how="left")
-                      .merge(wh_by_cat, on="Category", how="left"))
-            result["Overall Days"]    = result["Overall Days"].round(1)
-            result["Overall Cost ₹"]  = result["Overall Cost ₹"].round(1)
-            result["Overall Score"]   = result["Overall Score"].round(3)
-            result["Fastest Days"]    = result["Fastest Days"].round(1)
-            result["Fastest Cost ₹"]  = result["Fastest Cost ₹"].round(1)
-            result["Planned Units"]   = result["Planned Units"].fillna(0).astype(int)
-            result["Warehouse"]       = result["Warehouse"].fillna("—")
+                .merge(best_fast[["Category", "Fastest (Urgent)", "Fastest Days", "Fastest Cost ₹"]], on="Category")
+                .merge(prod_by_cat_log, on="Category", how="left")
+                .merge(wh_by_cat, on="Category", how="left"))
+            result["Overall Days"]   = result["Overall Days"].round(1)
+            result["Overall Cost ₹"] = result["Overall Cost ₹"].round(1)
+            result["Overall Score"]  = result["Overall Score"].round(3)
+            result["Fastest Days"]   = result["Fastest Days"].round(1)
+            result["Fastest Cost ₹"] = result["Fastest Cost ₹"].round(1)
+            result["Planned Units"]  = result["Planned Units"].fillna(0).astype(int)
+            result["Warehouse"]      = result["Warehouse"].fillna("—")
             result = result[["Category", "Warehouse", "Planned Units",
                               "Best Overall", "Overall Days", "Overall Cost ₹", "Overall Score",
                               "Fastest (Urgent)", "Fastest Days", "Fastest Cost ₹"]]
             st.dataframe(result, use_container_width=True, hide_index=True)
             banner(
-                "📦 <b>Best Overall</b> = lowest composite score (speed + cost + return rate) — use for normal shipments. "
-                "⚡ <b>Fastest (Urgent)</b> = lowest avg delivery days — use when SKU is 🔴 Critical or 🟠 High urgency.",
+                "📦 <b>Best Overall</b> = best composite score (speed + cost + returns) — for normal shipments. "
+                "⚡ <b>Fastest (Urgent)</b> = lowest delivery days — for 🔴 Critical or 🟠 High urgency SKUs.",
                 "sky",
             )
         else:
@@ -1576,174 +1570,118 @@ def page_logistics() -> None:
         sp(0.5)
         sec("Carrier x Region Heatmap")
         hc1, hc2, hc3 = st.columns([2, 2, 2])
-        delay_thr   = hc1.slider("Delay threshold (days)", 3, 10, DEFAULT_LEAD_TIME, key="log_thr")
+        # FIX-3: Default delay threshold = 3 days (matches on-time KPI, not lead time of 7)
+        delay_thr   = hc1.slider("Delay threshold (days)", 1, 10, DEFAULT_DELAY_THR, key="log_thr")
         heat_metric = hc2.selectbox("Metric", ["Delay Rate %", "Avg Delivery Days", "Avg Shipping Cost"], key="heat_metric")
         show_annot  = hc3.toggle("Show cell values", value=True, key="heat_annot")
-        del_df_delayed = del_df.copy()
-        del_df_delayed["Delayed"] = del_df_delayed["Delivery_Days"] > delay_thr
+        del_df_d    = del_df.copy()
+        del_df_d["Delayed"] = del_df_d["Delivery_Days"] > delay_thr
         if heat_metric == "Delay Rate %":
-            pv = (del_df_delayed.groupby(["Courier_Partner", "Region"])["Delayed"]
+            pv = (del_df_d.groupby(["Courier_Partner", "Region"])["Delayed"]
                   .mean().unstack(fill_value=0) * 100)
             def fmt(v): return f"{v:.1f}%"
-            colorscale = [
-                [0.00, "#166534"], [0.25, "#16a34a"], [0.50, "#eab308"],
-                [0.75, "#f97316"], [1.00, "#7f1d1d"],
-            ]
-            zmid = 25.0
+            colorscale = [[0.00,"#166534"],[0.25,"#16a34a"],[0.50,"#eab308"],[0.75,"#f97316"],[1.00,"#7f1d1d"]]
         elif heat_metric == "Avg Delivery Days":
-            pv = (del_df_delayed.groupby(["Courier_Partner", "Region"])["Delivery_Days"]
+            pv = (del_df_d.groupby(["Courier_Partner", "Region"])["Delivery_Days"]
                   .mean().unstack(fill_value=0))
             def fmt(v): return f"{v:.1f}d"
-            colorscale = [
-                [0.00, "#166534"], [0.25, "#16a34a"], [0.50, "#eab308"],
-                [0.75, "#f97316"], [1.00, "#7f1d1d"],
-            ]
-            zmid = float(pv.values[pv.values > 0].mean()) if pv.values.any() else 3.0
+            colorscale = [[0.00,"#166534"],[0.25,"#16a34a"],[0.50,"#eab308"],[0.75,"#f97316"],[1.00,"#7f1d1d"]]
         else:
-            pv = (del_df_delayed.groupby(["Courier_Partner", "Region"])["Shipping_Cost_INR"]
+            pv = (del_df_d.groupby(["Courier_Partner", "Region"])["Shipping_Cost_INR"]
                   .mean().unstack(fill_value=0))
-            def fmt(v): return f"Rs{v:.0f}"
-            colorscale = [
-                [0.00, "#166534"], [0.25, "#16a34a"], [0.50, "#eab308"],
-                [0.75, "#f97316"], [1.00, "#7f1d1d"],
-            ]
-            zmid = float(pv.values[pv.values > 0].mean()) if pv.values.any() else 100.0
+            def fmt(v): return f"₹{v:.0f}"
+            colorscale = [[0.00,"#166534"],[0.25,"#16a34a"],[0.50,"#eab308"],[0.75,"#f97316"],[1.00,"#7f1d1d"]]
         carriers = list(pv.index)
         regions  = list(pv.columns)
         z_vals   = pv.values.copy()
-        if show_annot:
-            cell_text = [[fmt(z_vals[r][c]) for c in range(len(regions))]
-                         for r in range(len(carriers))]
-        else:
-            cell_text = None
-        order_pv = (del_df_delayed.groupby(["Courier_Partner", "Region"])["Order_ID"]
-                    .count().unstack(fill_value=0)
-                    .reindex(index=pv.index, columns=pv.columns, fill_value=0))
-        customdata = order_pv.values.astype(int)
+        cell_text = [[fmt(z_vals[r][c]) for c in range(len(regions))] for r in range(len(carriers))] if show_annot else None
+        order_pv  = (del_df_d.groupby(["Courier_Partner", "Region"])["Order_ID"]
+                     .count().unstack(fill_value=0)
+                     .reindex(index=pv.index, columns=pv.columns, fill_value=0))
         fig_h = go.Figure(go.Heatmap(
-            z=z_vals,
-            x=regions,
-            y=carriers,
-            colorscale=colorscale,
-            text=cell_text,
-            texttemplate="%{text}" if show_annot else "",
+            z=z_vals, x=regions, y=carriers, colorscale=colorscale,
+            text=cell_text, texttemplate="%{text}" if show_annot else "",
             textfont=dict(size=10, color="white"),
-            customdata=customdata,
+            customdata=order_pv.values.astype(int),
             hovertemplate="<b>%{y} to %{x}</b><br>Value: %{z:.1f}<br>Orders: %{customdata}<extra></extra>",
-            colorbar=dict(
-                tickfont=dict(color="#64748b", size=9),
-                thickness=12,
-                len=0.85,
-            ),
-            xgap=3,
-            ygap=3,
+            colorbar=dict(tickfont=dict(color="#64748b", size=9), thickness=12, len=0.85),
+            xgap=3, ygap=3,
         ))
-        worst_cols = np.argmax(z_vals, axis=1)
-        best_cols  = np.argmin(z_vals, axis=1)
-        for r, c in enumerate(worst_cols):
-            fig_h.add_shape(type="rect",
-                x0=c - 0.5, x1=c + 0.5, y0=r - 0.5, y1=r + 0.5,
+        for r, c in enumerate(np.argmax(z_vals, axis=1)):
+            fig_h.add_shape(type="rect", x0=c-.5, x1=c+.5, y0=r-.5, y1=r+.5,
                 line=dict(color="#ef4444", width=2.5), fillcolor="rgba(0,0,0,0)")
-        for r, c in enumerate(best_cols):
-            fig_h.add_shape(type="rect",
-                x0=c - 0.5, x1=c + 0.5, y0=r - 0.5, y1=r + 0.5,
+        for r, c in enumerate(np.argmin(z_vals, axis=1)):
+            fig_h.add_shape(type="rect", x0=c-.5, x1=c+.5, y0=r-.5, y1=r+.5,
                 line=dict(color="#22c55e", width=2.5), fillcolor="rgba(0,0,0,0)")
         for r in range(len(carriers)):
-            fig_h.add_annotation(
-                x=len(regions) - 0.5 + 0.7, y=r,
+            fig_h.add_annotation(x=len(regions)-.5+.7, y=r,
                 text=f"avg {fmt(float(np.mean(z_vals[r])))}",
-                showarrow=False, xanchor="left",
-                font=dict(size=9, color="#64748b"),
-            )
+                showarrow=False, xanchor="left", font=dict(size=9, color="#64748b"))
         cell_h = max(55, 300 // max(len(carriers), 1))
-        layout = dict(
+        fig_h.update_layout(
             paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
             font=dict(color="#334155", family="Inter,sans-serif", size=11),
-            height=cell_h * len(carriers) + 80,
-            margin=dict(l=30, r=120, t=44, b=40),
-            title=dict(
-                text=f"{heat_metric} by Carrier x Region  |  threshold >{delay_thr}d",
-                font=dict(size=11, color="#64748b"),
-            ),
+            height=cell_h * len(carriers) + 80, margin=dict(l=30, r=120, t=44, b=40),
+            title=dict(text=f"{heat_metric} by Carrier × Region  |  threshold >{delay_thr}d",
+                       font=dict(size=11, color="#64748b")),
             xaxis=dict(showgrid=False, tickangle=-20, tickfont=dict(size=11, color="#334155")),
             yaxis=dict(showgrid=False, tickfont=dict(size=11, color="#334155")),
         )
-        fig_h.update_layout(**layout)
         st.plotly_chart(fig_h, use_container_width=True, key="log_heat")
         flat      = z_vals.flatten()
         worst_idx = np.unravel_index(int(np.argmax(flat)), z_vals.shape)
         best_idx  = np.unravel_index(int(np.argmin(flat)), z_vals.shape)
         banner(
-            f"Worst lane: <b>{carriers[worst_idx[0]]} to {regions[worst_idx[1]]}</b>"
+            f"Worst lane: <b>{carriers[worst_idx[0]]} → {regions[worst_idx[1]]}</b>"
             f" ({fmt(float(flat[np.argmax(flat)]))})"
             f" &nbsp;|&nbsp; "
-            f"Best lane: <b>{carriers[best_idx[0]]} to {regions[best_idx[1]]}</b>"
+            f"Best lane: <b>{carriers[best_idx[0]]} → {regions[best_idx[1]]}</b>"
             f" ({fmt(float(flat[np.argmin(flat)]))})"
             f" &nbsp;|&nbsp; "
             f"Overall avg: <b>{fmt(float(np.mean(flat)))}</b>",
             "sky",
         )
+
     with t2:
-        total_sav = opt["Saving_If_Cheapest"].sum()
-        del_df_t2 = del_df.copy()
-        del_df_t2["Delayed"] = del_df_t2["Delivery_Days"] > delay_thr
+        # FIX-4+5: Remove cheapest carrier table. Replace with composite visual scorecard.
+        total_sav        = opt["Saving_If_Best"].sum()
         current_fwd_cost = fwd_plan["Proj_Ship_Cost"].sum() if not fwd_plan.empty else 0
-        hist_cost_if_optimal = total_spend - total_sav
         banner(
-            f"💡 Switching to cheapest carriers saves <b>₹{total_sav:,.0f}</b> "
+            f"🏆 Switching to best composite carriers saves up to <b>₹{total_sav:,.0f}</b> "
             f"({total_sav / total_spend * 100:.1f}% of ₹{total_spend:,.0f} historical spend) &nbsp;|&nbsp; "
-            f"Forward {get_horizon()}M plan projects: <b>₹{current_fwd_cost:,.0f}</b> at optimal rates",
+            f"Forward {get_horizon()}M projected shipping: <b>₹{current_fwd_cost:,.0f}</b> at composite-optimal rates",
             "mint",
         )
         sp(0.5)
-        sec("Carrier Switch Recommendations")
-        tb3, tb4 = st.columns(2, gap="large")
-        with tb3:
-            # ── FIX 2 (display): Show both cheapest AND best-composite columns ──
-            od = opt[[
-                "Region",
-                "Cheapest_Carrier", "Min_Avg_Cost",
-                "Best_Composite_Carrier", "Composite_Avg_Cost", "Composite_Avg_Days", "Composite_Score",
-                "Saving_If_Cheapest", "Saving_Pct", "Orders"
-            ]].copy()
-            od["Min_Avg_Cost"]       = od["Min_Avg_Cost"].round(1)
-            od["Saving_If_Cheapest"] = od["Saving_If_Cheapest"].astype(int)
-            od.columns = [
-                "Region",
-                "Cheapest Carrier", "Cheapest Avg ₹",
-                "Best Composite", "Composite Avg ₹", "Composite Days", "Composite Score",
-                "Saving ₹ (if cheapest)", "Saving %", "Orders"
-            ]
-            st.dataframe(od.sort_values("Saving ₹ (if cheapest)", ascending=False),
-                         use_container_width=True, hide_index=True)
-            banner(
-                "💰 <b>Cheapest Carrier</b> = lowest avg cost per order — maximises cost saving. "
-                "🏆 <b>Best Composite</b> = best weighted score across speed, cost & return rate — "
-                "use when on-time delivery and returns also matter.",
-                "sky",
-            )
-        with tb4:
+        sec("Carrier Recommendations by Region")
+        render_carrier_scorecard(region_carrier_stats, opt)
+        sp(0.5)
+        tb4_col, _ = st.columns([1, 1])
+        with tb4_col:
             sec("Delay Rate by Carrier")
+            del_df_t2 = del_df.copy()
+            delay_thr_t2 = st.session_state.get("log_thr", DEFAULT_DELAY_THR)
+            del_df_t2["Delayed"] = del_df_t2["Delivery_Days"] > delay_thr_t2
             cd = del_df_t2.groupby("Courier_Partner").agg(T=("Order_ID", "count"), D=("Delayed", "sum")).reset_index()
             cd["Rate"] = (cd["D"] / cd["T"] * 100).round(1)
+            carrier_colors_del = {"BlueDart": "#1565C0", "Delhivery": "#2E7D32", "DTDC": "#E65100",
+                                  "Ecom Express": "#6A1B9A", "XpressBees": "#00695C"}
             fig_cd = go.Figure(go.Bar(
                 x=cd["Courier_Partner"], y=cd["Rate"],
                 marker=dict(
-                    color=["#EF4444" if v > 35 else "#F59E0B" if v > 20 else "#22C55E" for v in cd["Rate"]],
-                    line=dict(color="rgba(0,0,0,0)"),
-                ),
+                    color=[carrier_colors_del.get(c, "#888") for c in cd["Courier_Partner"]],
+                    opacity=0.85, line=dict(color="rgba(0,0,0,0)")),
                 text=[f"{v}%" for v in cd["Rate"]], textposition="outside",
-                textfont=dict(color="#334155"),
-            ))
-            fig_cd.update_layout(**CD(), height=240, xaxis=gX(), yaxis={**gY(), "title": "Delay Rate %"})
+                textfont=dict(color="#334155")))
+            fig_cd.update_layout(**CD(), height=240, xaxis=gX(), yaxis={**gY(), "title": f"Delay Rate % (>{delay_thr_t2}d)"})
             st.plotly_chart(fig_cd, use_container_width=True, key="log_delay_carrier")
+
     with t3:
         if fwd_plan.empty:
             st.info("No forward plan available — production plan has no actionable SKUs.")
         else:
             fwd_agg = (
-                fwd_plan.groupby("Month_dt")
-                .agg(
+                fwd_plan.groupby("Month_dt").agg(
                     Month           = ("Month",         "first"),
                     Total_Units     = ("Prod_Units",     "sum"),
                     Total_Orders    = ("Proj_Orders",    "sum"),
@@ -1755,7 +1693,7 @@ def page_logistics() -> None:
             fc1, fc2, fc3 = st.columns(3)
             kpi(fc1, f"{n_future}M Planned Units", f"{fwd_agg['Total_Units'].sum():,}",         "sky",   "from production plan")
             kpi(fc2, f"{n_future}M Est. Orders",   f"{fwd_agg['Total_Orders'].sum():,}",        "sky",   "projected shipments")
-            kpi(fc3, f"{n_future}M Ship Cost",     f"₹{fwd_agg['Total_Ship_Cost'].sum():,.0f}", "amber", "at current avg rate")
+            kpi(fc3, f"{n_future}M Ship Cost",     f"₹{fwd_agg['Total_Ship_Cost'].sum():,.0f}", "amber", "composite-optimal rates")
             sp(0.5)
             tc1, tc2 = st.columns([3, 2], gap="large")
             with tc1:
@@ -1766,74 +1704,59 @@ def page_logistics() -> None:
                 fig_fwd.add_trace(go.Scatter(
                     x=x_ci, y=y_ci, fill="toself",
                     fillcolor="rgba(59,130,246,0.08)",
-                    line=dict(color="rgba(0,0,0,0)"), name="Demand 90% CI", hoverinfo="skip",
-                ))
+                    line=dict(color="rgba(0,0,0,0)"), name="Demand 90% CI", hoverinfo="skip"))
                 fig_fwd.add_trace(go.Bar(
                     x=fwd_agg["Month_dt"], y=fwd_agg["Total_Units"],
                     name="Planned Units",
                     marker=dict(color="#3B82F6", opacity=0.85, line=dict(color="rgba(0,0,0,0)")),
                     text=[f"{int(v):,}" for v in fwd_agg["Total_Units"]],
                     textposition="inside", textfont=dict(color="white", size=9),
-                    hovertemplate="<b>%{x|%b %Y}</b><br>Units: %{y:,}<extra></extra>",
-                ))
+                    hovertemplate="<b>%{x|%b %Y}</b><br>Units: %{y:,}<extra></extra>"))
                 fig_fwd.update_layout(
                     **CD(), height=260, barmode="overlay", xaxis=gX(),
                     yaxis={**gY(), "title": "Units"},
-                    legend={**leg(), "orientation": "h", "y": -0.28},
-                )
+                    legend={**leg(), "orientation": "h", "y": -0.28})
                 st.plotly_chart(fig_fwd, use_container_width=True, key="fwd_units")
             with tc2:
                 sec("Category Breakdown")
-                cat_fwd = (
-                    fwd_plan.groupby("Category")
-                    .agg(Units=("Prod_Units", "sum"), Orders=("Proj_Orders", "sum"), Cost=("Proj_Ship_Cost", "sum"))
-                    .reset_index().sort_values("Units", ascending=False)
-                )
+                cat_fwd = (fwd_plan.groupby("Category")
+                    .agg(Units=("Prod_Units","sum"), Orders=("Proj_Orders","sum"), Cost=("Proj_Ship_Cost","sum"))
+                    .reset_index().sort_values("Units", ascending=False))
                 cat_fwd.columns = ["Category", "Units", "Est. Orders", "Ship Cost ₹"]
-                _tbl_h = min(len(cat_fwd) * 35 + 38, 250)
-                st.dataframe(cat_fwd, use_container_width=True, hide_index=True, height=_tbl_h)
+                st.dataframe(cat_fwd, use_container_width=True, hide_index=True,
+                             height=min(len(cat_fwd) * 35 + 38, 250))
             sec("Projected Shipping Cost")
             fig_cost2 = go.Figure(go.Scatter(
                 x=fwd_agg["Month_dt"], y=fwd_agg["Total_Ship_Cost"],
                 mode="lines+markers", line=dict(color="#8B5CF6", width=2.5),
                 marker=dict(size=8, color="#8B5CF6", line=dict(color="#FFFFFF", width=2)),
                 fill="tozeroy", fillcolor="rgba(139,92,246,0.07)",
-                hovertemplate="<b>%{x|%b %Y}</b><br>₹%{y:,.0f}<extra></extra>",
-            ))
-            fig_cost2.update_layout(
-                **CD(), height=200,
-                xaxis={**gX(), "tickangle": 0},
-                yaxis={**gY(), "title": "₹"},
-            )
+                hovertemplate="<b>%{x|%b %Y}</b><br>₹%{y:,.0f}<extra></extra>"))
+            fig_cost2.update_layout(**CD(), height=200,
+                xaxis={**gX(), "tickangle": 0}, yaxis={**gY(), "title": "₹"})
             st.plotly_chart(fig_cost2, use_container_width=True, key="fwd_cost")
             sp(0.5)
             sec("Inbound Plan per Warehouse")
-            sku_plan_log = build_sku_production_plan(n_future)
-            avg_ship_unit_log = max(
-                del_df["Shipping_Cost_INR"].sum() / max(del_df["Quantity"].replace(0, np.nan).sum(), 1), 1.0
-            )
-            avg_units_ord_log = max(del_df["Quantity"].sum() / max(len(del_df), 1), 1.0)
+            sku_plan_log      = build_sku_production_plan(n_future)
+            avg_ship_unit_log = max(del_df["Shipping_Cost_INR"].sum() / max(del_df["Quantity"].replace(0,np.nan).sum(),1), 1.0)
             wh_prod = sku_plan_log.groupby("Target_Warehouse")["Prod_Need"].sum().reset_index()
             wh_prod.columns = ["Warehouse", "Total_Units"]
             wh_total_units = wh_prod["Total_Units"].sum()
             inb_rows = []
             for _, frow in fwd_plan.iterrows():
                 for _, wrow in wh_prod.iterrows():
-                    wh_share_pct = wrow["Total_Units"] / wh_total_units if wh_total_units > 0 else 0
-                    units = round(frow["Prod_Units"] * wh_share_pct)
+                    wh_share = wrow["Total_Units"] / wh_total_units if wh_total_units > 0 else 0
+                    units    = round(frow["Prod_Units"] * wh_share)
                     inb_rows.append({
-                        "Month":    frow["Month"],
-                        "Month_dt": frow["Month_dt"],
+                        "Month": frow["Month"], "Month_dt": frow["Month_dt"],
                         "Warehouse": wrow["Warehouse"],
-                        "Inbound_Units":  units,
+                        "Inbound_Units": units,
                         "Proj_Ship_Cost": round(units * avg_ship_unit_log),
                     })
-            inb_agg = (
-                pd.DataFrame(inb_rows)
+            inb_agg = (pd.DataFrame(inb_rows)
                 .groupby(["Month_dt", "Month", "Warehouse"])
-                .agg(Inbound_Units=("Inbound_Units", "sum"), Proj_Ship_Cost=("Proj_Ship_Cost", "sum"))
-                .reset_index().sort_values(["Month_dt", "Warehouse"])
-            )
+                .agg(Inbound_Units=("Inbound_Units","sum"), Proj_Ship_Cost=("Proj_Ship_Cost","sum"))
+                .reset_index().sort_values(["Month_dt", "Warehouse"]))
             fig_inb = go.Figure()
             for i, wh in enumerate(sorted(inb_agg["Warehouse"].unique())):
                 wdf = inb_agg[inb_agg["Warehouse"] == wh]
@@ -1841,12 +1764,12 @@ def page_logistics() -> None:
                     x=wdf["Month"], y=wdf["Inbound_Units"], name=wh,
                     marker=dict(color=COLORS[i % len(COLORS)], line=dict(color="rgba(0,0,0,0)")),
                     text=[f"{int(v):,}" for v in wdf["Inbound_Units"]],
-                    textposition="outside", textfont=dict(color="#334155", size=8),
-                ))
+                    textposition="outside", textfont=dict(color="#334155", size=8)))
             fig_inb.update_layout(**CD(), height=250, barmode="group",
-                                  xaxis={**gX(), "tickangle": -25},
-                                  yaxis={**gY(), "title": "Planned Inbound Units"}, legend=leg())
+                xaxis={**gX(), "tickangle": -25},
+                yaxis={**gY(), "title": "Planned Inbound Units"}, legend=leg())
             st.plotly_chart(fig_inb, use_container_width=True, key="wh_inbound")
+
 
 def main() -> None:
     inject_css()
