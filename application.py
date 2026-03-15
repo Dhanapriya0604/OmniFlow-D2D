@@ -1051,44 +1051,53 @@ def page_demand() -> None:
         r2_vals    = [mm[m]["r2"]          for m in labels]
         nrmse_vals = [mm[m]["nrmse"] * 100 for m in labels]
         clrs       = [MODEL_COLORS.get(m, "#888") for m in labels]
-        # ── Single merged chart: R² bars (left y) + NRMSE line (right y) ──
-        fig_acc = go.Figure()
-        fig_acc.add_trace(go.Bar(
-            name="R² Score", x=labels, y=r2_vals,
-            marker=dict(color=clrs, opacity=0.85, line=dict(color="rgba(0,0,0,0)")),
-            text=[f"{v:.3f}" for v in r2_vals],
-            textposition="outside",
-            textfont=dict(color="#334155", size=11),
-            yaxis="y1",
-            width=0.45,
-        ))
-        fig_acc.add_trace(go.Scatter(
-            name="NRMSE %", x=labels, y=nrmse_vals,
-            mode="lines+markers+text",
-            line=dict(color="#EF4444", width=2.5, dash="dot"),
-            marker=dict(size=10, color="#EF4444", line=dict(color="#fff", width=2)),
-            text=[f"{v:.1f}%" for v in nrmse_vals],
-            textposition="top center", textfont=dict(size=9, color="#EF4444"),
-            yaxis="y2",
-        ))
-        fig_acc.add_hline(y=0.9, line_dash="dash", line_color="#22C55E", line_width=1.2,
-                          annotation_text=" R²≥0.90", annotation_font=dict(color="#22C55E", size=9),
-                          annotation_position="right")
-        fig_acc.update_layout(
-            **CD(), height=300,
-            bargap=0.35,
-            xaxis={**gX(), "tickfont": dict(size=12)},
-            yaxis=dict(**gY(), title="R² Score",
-                       range=[0, max(r2_vals) * 1.28]),
-            yaxis2=dict(overlaying="y", side="right", showgrid=False,
-                        title="NRMSE %", tickcolor="#EF4444",
-                        range=[0, max(nrmse_vals) * 2.2],
-                        tickfont=dict(color="#EF4444")),
-            legend=dict(**leg(), orientation="h", y=-0.18, x=0.5, xanchor="center"),
-            title=dict(text="R² Score (bars, left axis) · NRMSE % (line, right axis)",
-                       font=dict(size=11, color="#64748b")),
-        )
-        st.plotly_chart(fig_acc, use_container_width=True, key="d_acc_merged")
+        # ── Two side-by-side bar charts: R² (left) + NRMSE (right) ──────
+        bc1, bc2 = st.columns(2, gap="large")
+        with bc1:
+            fig_r2 = go.Figure(go.Bar(
+                x=labels, y=r2_vals,
+                marker=dict(color=clrs, opacity=0.88, line=dict(color="rgba(0,0,0,0)")),
+                text=[f"{v:.3f}" for v in r2_vals],
+                textposition="outside",
+                textfont=dict(color="#334155", size=11),
+            ))
+            fig_r2.add_hline(y=0.9, line_dash="dash", line_color="#22C55E", line_width=1.5,
+                             annotation_text=" R²≥0.90",
+                             annotation_font=dict(color="#22C55E", size=9),
+                             annotation_position="right")
+            fig_r2.update_layout(
+                **CD(), height=270,
+                xaxis={**gX(), "tickfont": dict(size=12)},
+                yaxis={**gY(), "title": "R² Score",
+                       "range": [0, max(r2_vals) * 1.22]},
+                title=dict(text="R² Score — higher is better",
+                           font=dict(size=11, color="#64748b")),
+                showlegend=False,
+            )
+            st.plotly_chart(fig_r2, use_container_width=True, key="d_r2")
+
+        with bc2:
+            fig_nrmse = go.Figure(go.Bar(
+                x=labels, y=nrmse_vals,
+                marker=dict(color=clrs, opacity=0.88, line=dict(color="rgba(0,0,0,0)")),
+                text=[f"{v:.1f}%" for v in nrmse_vals],
+                textposition="outside",
+                textfont=dict(color="#334155", size=11),
+            ))
+            fig_nrmse.add_hline(y=15, line_dash="dash", line_color="#22C55E", line_width=1.5,
+                                annotation_text=" NRMSE<15%",
+                                annotation_font=dict(color="#22C55E", size=9),
+                                annotation_position="right")
+            fig_nrmse.update_layout(
+                **CD(), height=270,
+                xaxis={**gX(), "tickfont": dict(size=12)},
+                yaxis={**gY(), "title": "NRMSE %",
+                       "range": [0, max(nrmse_vals) * 1.30]},
+                title=dict(text="NRMSE % — lower is better",
+                           font=dict(size=11, color="#64748b")),
+                showlegend=False,
+            )
+            st.plotly_chart(fig_nrmse, use_container_width=True, key="d_nrmse")
     sp()
     c1, c2 = st.columns([2, 2])
     metric_opt = c1.selectbox("Metric", ["Orders", "Quantity", "Net Revenue"], key="d_metric")
