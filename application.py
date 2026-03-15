@@ -1297,67 +1297,35 @@ def page_inventory() -> None:
     kpi(c4, f"{n_future}M Forecast Demand", f"{total_demand_6m:,}",    "sky",   f"units · {fc_range}")
     kpi(c5, "Units to Produce",             f"{total_prod_need:,}",    "mint",  f"to meet demand by {fc_end}")
     sp()
-    # ── Row: Category Stock Health (left) + ABC × Status (right) ────────
+    # ── Category Stock Health — full width ──────────────────────────────
     sec("Stock Health Overview")
-    sh_left, sh_right = st.columns(2, gap="large")
-
-    with sh_left:
-        # Category stock health — stacked horizontal bar
-        cat_health = (inv.groupby(["Category","Status"])
-                      .size().unstack(fill_value=0).reset_index())
-        # Ensure all status columns present
-        for col in ["🔴 Critical","🟡 Low","🟢 Adequate"]:
-            if col not in cat_health.columns:
-                cat_health[col] = 0
-        cat_health["short"] = cat_health["Category"].str.split(" & ").str[0]
-        cat_health["total"] = cat_health[["🔴 Critical","🟡 Low","🟢 Adequate"]].sum(axis=1)
-        cat_health = cat_health.sort_values("total", ascending=True)
-        fig_sh = go.Figure()
-        for status, clr in [("🔴 Critical","#ef4444"),("🟡 Low","#f59e0b"),("🟢 Adequate","#22c55e")]:
-            fig_sh.add_trace(go.Bar(
-                name=status, y=cat_health["short"], x=cat_health[status],
-                orientation="h",
-                marker=dict(color=clr, opacity=0.88, line=dict(color="rgba(0,0,0,0)")),
-                text=cat_health[status].apply(lambda v: str(int(v)) if v > 0 else ""),
-                textposition="inside", textfont=dict(color="white", size=10),
-                hovertemplate=f"<b>%{{y}}</b><br>{status}: %{{x}} SKUs<extra></extra>",
-            ))
-        fig_sh.update_layout(
-            **CD(), height=220, barmode="stack",
-            xaxis={**gX(), "title": "Number of SKUs"},
-            yaxis={**gY(), "showgrid": False},
-            legend=dict(**leg(), orientation="h", y=-0.28, x=0.5, xanchor="center"),
-            title=dict(text="SKU Count by Category & Stock Status",
-                       font=dict(size=11, color="#64748b")),
-        )
-        st.plotly_chart(fig_sh, use_container_width=True, key="inv_cat_health")
-
-    with sh_right:
-        # ABC × Status grouped bar — shows revenue risk
-        abc_status = (inv.groupby(["ABC","Status"])
-                      .size().unstack(fill_value=0).reset_index())
-        for col in ["🔴 Critical","🟡 Low","🟢 Adequate"]:
-            if col not in abc_status.columns:
-                abc_status[col] = 0
-        fig_abc = go.Figure()
-        for status, clr in [("🔴 Critical","#ef4444"),("🟡 Low","#f59e0b"),("🟢 Adequate","#22c55e")]:
-            fig_abc.add_trace(go.Bar(
-                name=status, x=abc_status["ABC"], y=abc_status[status],
-                marker=dict(color=clr, opacity=0.88, line=dict(color="rgba(0,0,0,0)")),
-                text=abc_status[status].apply(lambda v: str(int(v)) if v > 0 else ""),
-                textposition="inside", textfont=dict(color="white", size=10),
-                hovertemplate=f"<b>Class %{{x}}</b><br>{status}: %{{y}} SKUs<extra></extra>",
-            ))
-        fig_abc.update_layout(
-            **CD(), height=220, barmode="stack",
-            xaxis={**gX(), "title": "ABC Class  (A = top 70% revenue)", "tickfont": dict(size=13)},
-            yaxis={**gY(), "title": "Number of SKUs"},
-            legend=dict(**leg(), orientation="h", y=-0.28, x=0.5, xanchor="center"),
-            title=dict(text="Stock Status by ABC Class — Revenue Risk",
-                       font=dict(size=11, color="#64748b")),
-        )
-        st.plotly_chart(fig_abc, use_container_width=True, key="inv_abc_status")
-
+    cat_health = (inv.groupby(["Category","Status"])
+                  .size().unstack(fill_value=0).reset_index())
+    for col in ["🔴 Critical","🟡 Low","🟢 Adequate"]:
+        if col not in cat_health.columns:
+            cat_health[col] = 0
+    cat_health["short"] = cat_health["Category"].str.split(" & ").str[0]
+    cat_health["total"] = cat_health[["🔴 Critical","🟡 Low","🟢 Adequate"]].sum(axis=1)
+    cat_health = cat_health.sort_values("total", ascending=True)
+    fig_sh = go.Figure()
+    for status, clr in [("🔴 Critical","#ef4444"),("🟡 Low","#f59e0b"),("🟢 Adequate","#22c55e")]:
+        fig_sh.add_trace(go.Bar(
+            name=status, y=cat_health["short"], x=cat_health[status],
+            orientation="h",
+            marker=dict(color=clr, opacity=0.88, line=dict(color="rgba(0,0,0,0)")),
+            text=cat_health[status].apply(lambda v: str(int(v)) if v > 0 else ""),
+            textposition="inside", textfont=dict(color="white", size=11),
+            hovertemplate=f"<b>%{{y}}</b><br>{status}: %{{x}} SKUs<extra></extra>",
+        ))
+    fig_sh.update_layout(
+        **CD(), height=200, barmode="stack",
+        xaxis={**gX(), "title": "Number of SKUs"},
+        yaxis={**gY(), "showgrid": False, "tickfont": dict(size=13)},
+        legend=dict(**leg(), orientation="h", y=-0.30, x=0.5, xanchor="center"),
+        title=dict(text="SKU Stock Status by Category",
+                   font=dict(size=11, color="#64748b")),
+    )
+    st.plotly_chart(fig_sh, use_container_width=True, key="inv_cat_health")
     sp()
     sec("Stock Position")
     sc1, sc2, sc3 = st.columns([2, 2, 1])
