@@ -43,8 +43,6 @@ BOOST_SCHEDULE     = {0: 0.60, 1: 0.40}
 DEFAULT_W_SPEED    = 0.40
 DEFAULT_W_COST     = 0.35
 DEFAULT_W_RETURNS  = 0.25
-# FIX-3: Default delay threshold changed from 7 to 3 days
-# Avg delivery is 2.2d; using 7 made 96.9% of orders appear "on-time" = useless heatmap
 DEFAULT_DELAY_THR  = 3
 
 def get_horizon() -> int:
@@ -215,8 +213,6 @@ def ml_forecast(vals: np.ndarray, ds_idx, n_future: int = N_FUTURE_MONTHS) -> di
     X_hist = X_all[:n]
     X_fut  = X_all[n:]
     mean_vals = np.mean(vals)
-    # FIX-1: ss_tot uses GLOBAL variance so R² reflects full history fit,
-    # not the tiny holdout window (which had near-zero variance → R² = 0)
     ss_tot = np.sum((vals - mean_vals) ** 2)
 
     h             = 4
@@ -253,7 +249,6 @@ def ml_forecast(vals: np.ndarray, ds_idx, n_future: int = N_FUTURE_MONTHS) -> di
     tot      = sum(inv_rmse.values())
     weights  = {m: v / tot for m, v in inv_rmse.items()}
 
-    # R² measured against global ss_tot (not local holdout variance)
     for test_h in [6, 4]:
         if n - test_h < MIN_HISTORY_MONTHS:
             continue
@@ -728,8 +723,6 @@ def compute_logistics(
         + w_returns * carr["Norm_Return_Rate"]
     ).round(3)
 
-    # FIX-2+4: Remove cheapest carrier. Keep only composite score.
-    # Normalise per-region so each region ranks its own carriers fairly.
     region_carrier_stats = del_df.groupby(["Region", "Courier_Partner"]).agg(
         avg_cost = ("Shipping_Cost_INR", "mean"),
         avg_days = ("Delivery_Days",     "mean"),
@@ -749,10 +742,7 @@ def compute_logistics(
         + w_cost  * region_carrier_stats["n_avg_cost"]
         + w_returns * region_carrier_stats["n_ret_rate"]
     )
-    # Store ALL carriers per region for the visual scorecard
     region_carrier_stats["composite_score"] = region_carrier_stats["composite_score"].round(3)
-
-    # Best composite carrier per region (for headline recommendation)
     best_composite = (
         region_carrier_stats.sort_values("composite_score", ascending=False)
         .groupby("Region").first().reset_index()
@@ -764,8 +754,6 @@ def compute_logistics(
             "composite_score":  "Best_Score",
         })
     )
-
-    # For cost-saving banner: use best composite carrier avg cost vs current
     region_costs = del_df.groupby("Region").agg(
         Current_Avg_Cost = ("Shipping_Cost_INR", "mean"),
         Orders           = ("Order_ID",          "count"),
@@ -783,7 +771,6 @@ def compute_logistics(
 
     avg_ship_unit = max(del_df["Shipping_Cost_INR"].sum() / max(del_df["Quantity"].replace(0, np.nan).sum(), 1), 1.0)
     avg_units_ord = max(del_df["Quantity"].sum() / max(len(del_df), 1), 1.0)
-    # Use best composite carrier cost for forward projections
     cat_region_vol = del_df.groupby(["Category", "Region"])["Quantity"].sum().reset_index()
     cat_region_vol["vol_share"] = cat_region_vol.groupby("Category")["Quantity"].transform(lambda x: x / x.sum())
     optimal_cost_merge = cat_region_vol.merge(
@@ -812,13 +799,7 @@ def compute_logistics(
             })
     return carr, opt, pd.DataFrame(fwd_rows), region_carrier_stats
 
-# ── Visual: Carrier Region Scorecard ──────────────────────────────────────────
 def render_carrier_scorecard(region_carrier_stats: pd.DataFrame, opt: pd.DataFrame) -> None:
-    """
-    FIX-5: Replace noisy carrier switch table with a clear visual.
-    Shows a grouped bar chart: composite score per carrier per region,
-    + a highlighted recommendation scorecard below.
-    """
     carrier_colors = {
         "BlueDart":     "#1565C0",
         "Delhivery":    "#2E7D32",
@@ -828,8 +809,6 @@ def render_carrier_scorecard(region_carrier_stats: pd.DataFrame, opt: pd.DataFra
     }
     carriers = sorted(region_carrier_stats["Courier_Partner"].unique())
     regions  = sorted(region_carrier_stats["Region"].unique())
-
-    # Grouped bar: composite score by carrier x region
     fig = go.Figure()
     for carrier in carriers:
         sub = region_carrier_stats[region_carrier_stats["Courier_Partner"] == carrier]
@@ -855,8 +834,6 @@ def render_carrier_scorecard(region_carrier_stats: pd.DataFrame, opt: pd.DataFra
                    font=dict(size=11, color="#64748b")),
     )
     st.plotly_chart(fig, use_container_width=True, key="carrier_scorecard_bar")
-
-    # Scorecard cards: one per region showing recommended carrier + key stats
     sp(0.5)
     st.markdown("""<div style='font-size:11px;font-weight:700;color:#4a5e7a;
         letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px'>
@@ -899,7 +876,6 @@ def render_carrier_scorecard(region_carrier_stats: pd.DataFrame, opt: pd.DataFra
             {"💰 Saves ₹" + f"{abs(int(row['Saving_If_Best'])):,} vs current avg" if row["Saving_If_Best"] > 100 else "✓ Already optimal"}
           </div>
         </div>""", unsafe_allow_html=True)
-
 
 def page_overview() -> None:
     df     = load_data()
@@ -1030,7 +1006,6 @@ def page_overview() -> None:
     </div>
     </div>""", unsafe_allow_html=True)
 
-
 def page_demand() -> None:
     n_future = get_horizon()
     df       = load_data()
@@ -1051,7 +1026,6 @@ def page_demand() -> None:
         r2_vals    = [mm[m]["r2"]          for m in labels]
         nrmse_vals = [mm[m]["nrmse"] * 100 for m in labels]
         clrs       = [MODEL_COLORS.get(m, "#888") for m in labels]
-        # ── Single merged chart: R² bars (left y) + NRMSE line (right y) ──
         fig_acc = go.Figure()
         fig_acc.add_trace(go.Bar(
             name="R² Score", x=labels, y=r2_vals,
@@ -1152,14 +1126,10 @@ def page_demand() -> None:
         rp_vals  = [proj_next.get(c, 0) / 1e6  for c in cats_sorted]
         x_labels = [cat_short.get(c, c) for c in cats_sorted]
         bar_clrs = [cat_colors.get(c, "#888") for c in cats_sorted]
-
-        # pre-compute growth values
         g_hist = [(yr_rev.loc[2025,c]-yr_rev.loc[2024,c])/yr_rev.loc[2024,c]*100
                   if yr_rev.loc[2024,c]>0 else 0 for c in cats_sorted]
         g_proj = [(proj_next.get(c,0)-yr_rev.loc[2025,c])/yr_rev.loc[2025,c]*100
                   if yr_rev.loc[2025,c]>0 else 0 for c in cats_sorted]
-
-        # ── Row 1: Revenue grouped bar (full width) ──────────────────────
         fig_yoy = go.Figure()
         fig_yoy.add_trace(go.Bar(
             name="2024", x=x_labels, y=r24_vals,
@@ -1199,7 +1169,6 @@ def page_demand() -> None:
         st.plotly_chart(fig_yoy, use_container_width=True, key="yoy_bar")
 
         sp(0.5)
-        # ── Row 2: Monthly trend (left, wide) + Growth % vertical (right) ──
         row2_left, row2_right = st.columns([3, 2], gap="large")
 
         with row2_left:
@@ -1230,7 +1199,6 @@ def page_demand() -> None:
             st.plotly_chart(fig_spark, use_container_width=True, key="monthly_sparklines")
 
         with row2_right:
-            # Vertical grouped bar: YoY growth % + Projected growth %
             fig_gr = go.Figure()
             fig_gr.add_trace(go.Bar(
                 name="YoY 24→25", x=x_labels, y=g_hist,
@@ -1258,7 +1226,6 @@ def page_demand() -> None:
                            font=dict(size=11, color="#64748b")),
             )
             st.plotly_chart(fig_gr, use_container_width=True, key="yoy_growth")
-
 
 def page_inventory() -> None:
     n_future = get_horizon()
@@ -1300,7 +1267,6 @@ def page_inventory() -> None:
     kpi(c4, f"{n_future}M Forecast Demand", f"{total_demand_6m:,}",    "sky",   f"units · {fc_range}")
     kpi(c5, "Units to Produce",             f"{total_prod_need:,}",    "mint",  f"to meet demand by {fc_end}")
     sp()
-    # ── Category Stock Health — full width ──────────────────────────────
     sec("Stock Health Overview")
     cat_health = (inv.groupby(["Category","Status"])
                   .size().unstack(fill_value=0).reset_index())
@@ -1413,7 +1379,6 @@ def page_inventory() -> None:
             tbl["Covers %"]    = tbl["Covers %"].apply(lambda x: f"{x:.0f}%")
             st.dataframe(tbl, use_container_width=True, hide_index=True, height=340)
 
-
 def page_production() -> None:
     n_future = get_horizon()
     df       = load_data()
@@ -1472,7 +1437,6 @@ def page_production() -> None:
     fig.add_vline(x=forecast_start, line_dash="dash", line_color="rgba(139,92,246,0.5)", line_width=2)
     fig.update_layout(**CD(), height=320, xaxis=gX(), yaxis=gY(), legend=leg())
     st.plotly_chart(fig, use_container_width=True, key="prod_main")
-
     urg_color_map = {
         "🔴 Urgent": "#ef4444", "🟠 High": "#f97316",
         "🟡 Medium": "#eab308", "🟢 Normal": "#22c55e",
@@ -1565,7 +1529,6 @@ def page_production() -> None:
                            "Units", "Days Left", "Ship Cost", "% of WH Inbound"]
     st.dataframe(routing_tbl.sort_values(["Warehouse", "Urgency"]),
                  use_container_width=True, hide_index=True, height=380)
-
 
 def page_logistics() -> None:
     n_future = get_horizon()
@@ -1669,7 +1632,6 @@ def page_logistics() -> None:
             result["Fastest Cost ₹"] = result["Fastest Cost ₹"].round(1)
             result["Planned Units"]  = result["Planned Units"].fillna(0).astype(int)
             result["Warehouse"]      = result["Warehouse"].fillna("—")
-            # ── Visual: composite score + fastest carrier per category ──
             carrier_colors_cat = {
                 "BlueDart": "#1565C0", "Delhivery": "#2E7D32", "DTDC": "#E65100",
                 "Ecom Express": "#6A1B9A", "XpressBees": "#00695C",
@@ -1791,7 +1753,6 @@ def page_logistics() -> None:
         )
 
     with t2:
-        # FIX-4+5: Remove cheapest carrier table. Replace with composite visual scorecard.
         total_sav        = opt["Saving_If_Best"].sum()
         current_fwd_cost = fwd_plan["Proj_Ship_Cost"].sum() if not fwd_plan.empty else 0
         banner(
@@ -1942,7 +1903,6 @@ def page_logistics() -> None:
                 xaxis={**gX(), "tickangle": -25},
                 yaxis={**gY(), "title": "Planned Inbound Units"}, legend=leg())
             st.plotly_chart(fig_inb, use_container_width=True, key="wh_inbound")
-
 
 def main() -> None:
     inject_css()
