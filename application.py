@@ -500,8 +500,6 @@ def compute_inventory(
     lt_std    = sku_snapshot["Category"].map(lt_std_map).fillna(1.0)
     ss = np.maximum((z * np.sqrt(lead_time * daily_std ** 2 + daily_d ** 2 * lt_std ** 2)).astype(int), 0)
     computed_rop = np.maximum((daily_d * lead_time + ss).astype(int), 1)
-    # FIX #3 (report issue): dataset_rop is a source field used as a floor for computed ROP.
-    # The computed ROP is always at least as large as the dataset value.
     rop          = np.maximum(sku_snapshot["dataset_rop"].astype(int), computed_rop)
     current_stock = sku_snapshot["actual_stock"].astype(int)
     demand_6m = sku_snapshot["fc_next6"].apply(
@@ -583,32 +581,21 @@ def compute_production(cap_mult: float = 1.0, n_future: int = N_FUTURE_MONTHS) -
         demand_6m_cat     = int(cat_inv["Demand_6M"].sum())
         scheduled_total   = int(round(prod_need_cat * cap_mult))
         monthly_prod      = _int_allocate(scheduled_total, fc_arr)
-
-        # FIX #2: Urgency boost — pull-forward without inflating the total.
-        # We redistribute within monthly_prod rather than adding on top, so
-        # sum(monthly_prod) always equals scheduled_total.
         urgency_pool = int(round((crit_gap * 0.60 + low_gap * 0.20)))
         urgency_pool = min(urgency_pool, scheduled_total)
         if urgency_pool > 0 and n_future >= 2:
             boost_m0 = int(round(urgency_pool * BOOST_SCHEDULE.get(0, 0.60)))
             boost_m1 = urgency_pool - boost_m0
-            # Deduct from later months FIRST, then apply boosts to months 0 & 1.
-            # This ensures sum(monthly_prod) remains == scheduled_total.
-            remaining_boost = boost_m0 + boost_m1
-            for idx in range(n_future - 1, 1, -1):
-                if remaining_boost <= 0:
-                    break
-                deduct = min(monthly_prod[idx], remaining_boost)
-                monthly_prod[idx] -= deduct
-                remaining_boost   -= deduct
-            # Apply boosts only up to what was actually freed from later months
-            freed = (boost_m0 + boost_m1) - remaining_boost
-            actual_boost_m0 = min(boost_m0, freed)
-            actual_boost_m1 = min(boost_m1, freed - actual_boost_m0)
-            monthly_prod[0] += actual_boost_m0
+            monthly_prod[0] = min(monthly_prod[0] + boost_m0, scheduled_total)
             if n_future > 1:
-                monthly_prod[1] += actual_boost_m1
-
+                monthly_prod[1] = min(monthly_prod[1] + boost_m1, scheduled_total)
+            excess = sum(monthly_prod) - scheduled_total
+            for idx in range(n_future - 1, 1, -1):
+                if excess <= 0:
+                    break
+                deduct = min(monthly_prod[idx], excess)
+                monthly_prod[idx] -= deduct
+                excess -= deduct
         for i, (dt, fc) in enumerate(zip(fut_ds, fc_arr)):
             bf         = BOOST_SCHEDULE.get(i, 0.0)
             crit_boost = int(round(crit_gap * bf))
@@ -689,25 +676,21 @@ def build_sku_production_plan(n_future: int = N_FUTURE_MONTHS) -> pd.DataFrame:
             cat_share = float(
                 cat_wh.loc[cat_wh["Warehouse"] == wh, "wh_share"].values[0]
                 if wh in cat_wh["Warehouse"].values else shares[0])
-            wh_assignments.append({"idx": idx, "Target_Warehouse": wh, "WH_Cat_Share_Pct": round(cat_share * 100, 1)})
+            wh_assignments.append({"idx": idx, "Target_Warehouse": wh, "WH_Share_Pct": round(cat_share * 100, 1)})
     wh_df = pd.DataFrame(wh_assignments).set_index("idx")
-    needs = needs.join(wh_df[["Target_Warehouse", "WH_Cat_Share_Pct"]])
-    needs["Target_Warehouse"]  = needs["Target_Warehouse"].fillna("Central WH")
-    needs["WH_Cat_Share_Pct"]  = needs["WH_Cat_Share_Pct"].fillna(100.0)
+    needs = needs.join(wh_df[["Target_Warehouse", "WH_Share_Pct"]])
+    needs["Target_Warehouse"] = needs["Target_Warehouse"].fillna("Central WH")
+    needs["WH_Share_Pct"]     = needs["WH_Share_Pct"].fillna(100.0)
     needs = needs.merge(avg_ship, on=["Category", "Target_Warehouse"], how="left")
     needs["avg_cost"]      = needs["avg_cost"].fillna(del_df["Shipping_Cost_INR"].mean())
     needs["Est_Ship_Cost"] = (needs["Prod_Need"] * needs["avg_cost"]).round(0)
-
-    # FIX #3: Compute WH_Share_Pct as each SKU's share of its warehouse's total inbound —
-    # kept as a separate column from WH_Cat_Share_Pct (category-level warehouse share).
     wh_total = needs.groupby("Target_Warehouse")["Prod_Need"].transform("sum")
-    needs["WH_Inbound_Share_Pct"] = (needs["Prod_Need"] / wh_total.clip(lower=1) * 100).round(1)
-
+    needs["WH_Share_Pct"] = (needs["Prod_Need"] / wh_total.clip(lower=1) * 100).round(1)
     needs = needs.sort_values(["Priority_Score", "Days_Left"], ascending=[False, True]).reset_index(drop=True)
     return needs[[
         "SKU_ID", "Product_Name", "Category", "ABC", "Urgency", "Prod_Need",
         "Current_Stock", "Demand_6M", "Demand_Cover_Pct", "Days_Left",
-        "Stockout_Cost", "Target_Warehouse", "WH_Inbound_Share_Pct", "Est_Ship_Cost", "Status",
+        "Stockout_Cost", "Target_Warehouse", "WH_Share_Pct", "Est_Ship_Cost", "Status",
     ]]
 
 @st.cache_data
@@ -803,8 +786,6 @@ def compute_logistics(
         for _, row in plan.iterrows():
             prod_units = int(row["Production"])
             cat        = row["Category"]
-            # FIX #4: Use per-category optimal carrier cost (already computed above),
-            # consistent with the forward plan KPI — not the blended historical average.
             opt_cost   = cat_optimal_cost.get(cat, avg_ship_unit)
             fwd_rows.append({
                 "Month_dt":      row["Month_dt"],
@@ -863,6 +844,7 @@ def render_carrier_scorecard(region_carrier_stats: pd.DataFrame, opt: pd.DataFra
         col         = cols[i % 3]
         carrier     = row["Best_Carrier"]
         clr         = carrier_colors.get(carrier, "#7c3aed")
+        saving_sign = "+" if row["Saving_If_Best"] > 0 else ""
         col.markdown(f"""
         <div class='carrier-card'>
           <div style='display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px'>
@@ -902,6 +884,7 @@ def page_overview() -> None:
     total_orders = len(df)
     total_rev    = ops["Net_Revenue"].sum()
     avg_ov       = ops["Net_Revenue"].mean()
+    ret_rate     = df["Return_Flag"].mean() * 100
     on_time      = (del_df["Delivery_Days"] <= 3).mean() * 100
     n_skus       = df["SKU_ID"].nunique()
     st.markdown("""
@@ -1415,19 +1398,13 @@ def page_production() -> None:
     total_safety_stock  = int(inv_for_kpi["SS"].sum())
     scheduled_total_all = int(plan["Production"].sum())
     peak = agg.loc[agg["Production"].idxmax(), "Month_dt"]
-    gap  = scheduled_total_all - total_demand_6m_inv
-
     sec("Production Summary")
     c1, c2, c3, c4, c5 = st.columns(5)
-    kpi(c1, "Scheduled Production", f"{scheduled_total_all:,}", "amber", f"cap ×{cap:.1f} · {n_future}M")
-    # FIX #1: Gap KPI — colour coral when negative (underproduction = stockout risk),
-    # sky when zero or positive (demand met). Label clarified to show sign meaning.
-    gap_cls   = "coral" if gap < 0 else "mint"
-    gap_sub   = "⚠ stockout risk" if gap < 0 else "demand met" if gap == 0 else "surplus vs forecast"
-    kpi(c2, "Production Gap", f"{gap:+,}", gap_cls, gap_sub)
-    kpi(c3, "Current Stock",         f"{total_stock_inv:,}",   "sky",   "on hand across all SKUs")
-    kpi(c4, "Safety Stock Added",    f"{total_safety_stock:,}","mint",  "buffer against demand variance")
-    kpi(c5, "Peak Month",            peak.strftime("%b %Y"),   "coral", "highest production volume")
+    kpi(c1, "Scheduled Production",        f"{scheduled_total_all:,}",    "amber", f"cap ×{cap:.1f} · {n_future}M")
+    kpi(c2, "Production Gap",             f"{scheduled_total_all - total_demand_6m_inv:+,}", "sky" if scheduled_total_all >= total_demand_6m_inv else "coral", "vs forecast demand")
+    kpi(c3, "Current Stock",               f"{total_stock_inv:,}",        "sky",   "on hand across all SKUs")
+    kpi(c4, "Safety Stock Added",          f"{total_safety_stock:,}",     "mint",  "buffer against demand variance")
+    kpi(c5, "Peak Month",                  peak.strftime("%b %Y"),        "coral", "highest production volume")
     sp()
     sec(f"Production Target vs Ensemble Demand Forecast — {n_future}-Month Horizon")
     hist_qty       = ops.groupby("YM")["Net_Qty"].sum().rename("v")
@@ -1541,15 +1518,13 @@ def page_production() -> None:
     st.plotly_chart(fig_wh, use_container_width=True, key="wh_dist_bar")
     sp(0.5)
     sec("Detailed Shipment Routing Plan")
-    # FIX #3: Column renamed to WH_Inbound_Share_Pct to accurately reflect
-    # each SKU's share of its warehouse's total inbound units.
     routing_tbl = sku_plan[[
         "Target_Warehouse", "SKU_ID", "Product_Name", "Category", "ABC", "Urgency",
-        "Prod_Need", "Days_Left", "Est_Ship_Cost", "WH_Inbound_Share_Pct",
+        "Prod_Need", "Days_Left", "Est_Ship_Cost", "WH_Share_Pct",
     ]].copy()
-    routing_tbl["Days_Left"]           = routing_tbl["Days_Left"].apply(lambda x: f"{int(x)}d" if x < 999 else "∞")
-    routing_tbl["Est_Ship_Cost"]       = routing_tbl["Est_Ship_Cost"].apply(lambda x: f"₹{int(x):,}")
-    routing_tbl["WH_Inbound_Share_Pct"]= routing_tbl["WH_Inbound_Share_Pct"].apply(lambda x: f"{x:.0f}%")
+    routing_tbl["Days_Left"]     = routing_tbl["Days_Left"].apply(lambda x: f"{int(x)}d" if x < 999 else "∞")
+    routing_tbl["Est_Ship_Cost"] = routing_tbl["Est_Ship_Cost"].apply(lambda x: f"₹{int(x):,}")
+    routing_tbl["WH_Share_Pct"]  = routing_tbl["WH_Share_Pct"].apply(lambda x: f"{x:.0f}%")
     routing_tbl.columns = ["Warehouse", "SKU", "Product", "Category", "ABC", "Urgency",
                            "Units", "Days Left", "Ship Cost", "% of WH Inbound"]
     st.dataframe(routing_tbl.sort_values(["Warehouse", "Urgency"]),
@@ -1581,22 +1556,9 @@ def page_logistics() -> None:
         w_speed   = wc1.slider("Speed weight %",   10, 70, int(DEFAULT_W_SPEED   * 100)) / 100
         w_cost    = wc2.slider("Cost weight %",    10, 70, int(DEFAULT_W_COST    * 100)) / 100
         w_returns = wc3.slider("Returns weight %", 10, 70, int(DEFAULT_W_RETURNS * 100)) / 100
-        # FIX #9: Weights are always re-normalised so they sum to 1.0 regardless
-        # of what combination the user selects (e.g. 70/70/70 → 33/33/33).
         tot = w_speed + w_cost + w_returns
         w_speed /= tot; w_cost /= tot; w_returns /= tot
-        st.caption(
-            f"Normalised weights applied: Speed {w_speed*100:.0f}% · "
-            f"Cost {w_cost*100:.0f}% · Returns {w_returns*100:.0f}%"
-        )
-    # FIX #5: Read cap_mult explicitly from sidebar slider value rather than
-    # silently defaulting to 1.0 when Production page hasn't been visited.
     cap_log = st.session_state.get("prod_cap", 1.0)
-    if "prod_cap" not in st.session_state:
-        st.info(
-            "ℹ️ Production capacity multiplier is using default (×1.0). "
-            "Visit **Production Planning** to adjust it."
-        )
     carr, opt, fwd_plan, region_carrier_stats = compute_logistics(
         w_speed, w_cost, w_returns, n_future, cap_log)
     prod_by_cat_log = (fwd_plan.groupby("Category")["Prod_Units"].sum().reset_index()
@@ -1765,13 +1727,6 @@ def page_logistics() -> None:
             fig_h.add_annotation(x=len(regions)-.5+.7, y=r,
                 text=f"avg {fmt(float(np.mean(z_vals[r])))}",
                 showarrow=False, xanchor="left", font=dict(size=9, color="#64748b"))
-        # FIX #6: Banner uses order-volume-weighted average instead of unweighted cell mean.
-        flat      = z_vals.flatten()
-        worst_idx = np.unravel_index(int(np.argmax(flat)), z_vals.shape)
-        best_idx  = np.unravel_index(int(np.argmin(flat)), z_vals.shape)
-        order_flat   = order_pv.values.flatten().astype(float)
-        total_orders_hm = order_flat.sum()
-        weighted_avg = float(np.dot(flat, order_flat) / total_orders_hm) if total_orders_hm > 0 else float(np.mean(flat))
         cell_h = max(55, 300 // max(len(carriers), 1))
         fig_h.update_layout(
             paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
@@ -1783,6 +1738,9 @@ def page_logistics() -> None:
             yaxis=dict(showgrid=False, tickfont=dict(size=11, color="#334155")),
         )
         st.plotly_chart(fig_h, use_container_width=True, key="log_heat")
+        flat      = z_vals.flatten()
+        worst_idx = np.unravel_index(int(np.argmax(flat)), z_vals.shape)
+        best_idx  = np.unravel_index(int(np.argmin(flat)), z_vals.shape)
         banner(
             f"Worst lane: <b>{carriers[worst_idx[0]]} → {regions[worst_idx[1]]}</b>"
             f" ({fmt(float(flat[np.argmax(flat)]))})"
@@ -1790,7 +1748,7 @@ def page_logistics() -> None:
             f"Best lane: <b>{carriers[best_idx[0]]} → {regions[best_idx[1]]}</b>"
             f" ({fmt(float(flat[np.argmin(flat)]))})"
             f" &nbsp;|&nbsp; "
-            f"Volume-weighted avg: <b>{fmt(weighted_avg)}</b>",
+            f"Overall avg: <b>{fmt(float(np.mean(flat)))}</b>",
             "sky",
         )
 
@@ -1914,27 +1872,12 @@ def page_logistics() -> None:
             sp(0.5)
             sec("Inbound Plan per Warehouse")
             sku_plan_log      = build_sku_production_plan(n_future)
-            # FIX #4: Use optimal carrier cost per unit (consistent with forward plan KPI)
-            # rather than blended historical average.
             avg_ship_unit_log = max(del_df["Shipping_Cost_INR"].sum() / max(del_df["Quantity"].replace(0,np.nan).sum(),1), 1.0)
-            cat_region_vol_log = del_df.groupby(["Category", "Region"])["Quantity"].sum().reset_index()
-            cat_region_vol_log["vol_share"] = cat_region_vol_log.groupby("Category")["Quantity"].transform(lambda x: x / x.sum())
-            best_comp_log = carr.rename(columns={"Avg_Cost": "Best_Avg_Cost", "Courier_Partner": "tmp"})
-            # Re-use already-computed cat_optimal_cost from compute_logistics via fwd_plan
-            cat_opt_cost_log: dict[str, float] = {}
-            if not fwd_plan.empty:
-                for cat in fwd_plan["Category"].unique():
-                    cat_rows = fwd_plan[fwd_plan["Category"] == cat]
-                    units    = cat_rows["Prod_Units"].sum()
-                    cost     = cat_rows["Proj_Ship_Cost"].sum()
-                    cat_opt_cost_log[cat] = cost / units if units > 0 else avg_ship_unit_log
             wh_prod = sku_plan_log.groupby("Target_Warehouse")["Prod_Need"].sum().reset_index()
             wh_prod.columns = ["Warehouse", "Total_Units"]
             wh_total_units = wh_prod["Total_Units"].sum()
             inb_rows = []
             for _, frow in fwd_plan.iterrows():
-                cat      = frow["Category"]
-                opt_cost = cat_opt_cost_log.get(cat, avg_ship_unit_log)
                 for _, wrow in wh_prod.iterrows():
                     wh_share = wrow["Total_Units"] / wh_total_units if wh_total_units > 0 else 0
                     units    = round(frow["Prod_Units"] * wh_share)
@@ -1942,7 +1885,7 @@ def page_logistics() -> None:
                         "Month": frow["Month"], "Month_dt": frow["Month_dt"],
                         "Warehouse": wrow["Warehouse"],
                         "Inbound_Units": units,
-                        "Proj_Ship_Cost": round(units * opt_cost),
+                        "Proj_Ship_Cost": round(units * avg_ship_unit_log),
                     })
             inb_agg = (pd.DataFrame(inb_rows)
                 .groupby(["Month_dt", "Month", "Warehouse"])
