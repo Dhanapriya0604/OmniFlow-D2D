@@ -1099,74 +1099,106 @@ def page_demand() -> None:
             with tab:
                 draw_with_table(get_series(ops[ops[grp] == val]), title=val, chart_key=f"d_bd_{i}")
     sp()
+    <!-- REPLACE the entire "sec("YoY Revenue Growth by Category")" block in page_demand() with the code below -->
+
     sec("YoY Revenue Growth by Category")
-    yr_rev      = ops.groupby(["Year", "Category"])["Net_Revenue"].sum().unstack(fill_value=0)
+    yr_rev = ops.groupby(["Year", "Category"])["Net_Revenue"].sum().unstack(fill_value=0)
     cat_monthly = ops.groupby(["YM", "Category"])["Net_Revenue"].sum().unstack(fill_value=0)
     proj_next: dict[str, float] = {}
     for cat in cat_monthly.columns:
         r = ml_forecast(cat_monthly[cat].values.astype(float), cat_monthly.index, n_future)
         if r:
             proj_next[cat] = float(r["forecast"].sum())
+    
     if 2024 in yr_rev.index and 2025 in yr_rev.index:
         cats_sorted = sorted(yr_rev.columns, key=lambda c: yr_rev.loc[2025, c], reverse=True)
-        cat_colors  = {
-            "Electronics & Mobiles":  "#1e3a8a",
-            "Fashion & Apparel":      "#059669",
-            "Home & Kitchen":         "#d97706",
+        cat_colors = {
+            "Electronics & Mobiles": "#1e3a8a",
+            "Fashion & Apparel": "#059669",
+            "Home & Kitchen": "#d97706",
             "Health & Personal Care": "#7c3aed",
         }
         cat_short = {
-            "Electronics & Mobiles":  "Electronics",
-            "Fashion & Apparel":      "Fashion",
-            "Home & Kitchen":         "Home",
+            "Electronics & Mobiles": "Electronics",
+            "Fashion & Apparel": "Fashion",
+            "Home & Kitchen": "Home",
             "Health & Personal Care": "Health",
         }
+    
         r24_vals = [yr_rev.loc[2024, c] / 1e6 for c in cats_sorted]
         r25_vals = [yr_rev.loc[2025, c] / 1e6 for c in cats_sorted]
-        rp_vals  = [proj_next.get(c, 0) / 1e6  for c in cats_sorted]
-        x_labels = [cat_short.get(c, c) for c in cats_sorted]
-        bar_clrs = [cat_colors.get(c, "#888") for c in cats_sorted]
-        g_hist = [(yr_rev.loc[2025,c]-yr_rev.loc[2024,c])/yr_rev.loc[2024,c]*100
-                  if yr_rev.loc[2024,c]>0 else 0 for c in cats_sorted]
-        g_proj = [(proj_next.get(c,0)-yr_rev.loc[2025,c])/yr_rev.loc[2025,c]*100
-                  if yr_rev.loc[2025,c]>0 else 0 for c in cats_sorted]
-        fig_yoy = go.Figure()
-        fig_yoy.add_trace(go.Bar(
-            name="2024", x=x_labels, y=r24_vals,
-            marker=dict(color=bar_clrs, opacity=0.28, line=dict(color="rgba(0,0,0,0)")),
-            text=[f"₹{v:.1f}M" for v in r24_vals],
-            textposition="outside", textfont=dict(size=11, color="#64748b", family="Inter,sans-serif"),
-            hovertemplate="<b>%{x}</b><br>2024: ₹%{y:.2f}M<extra></extra>",
-        ))
-        fig_yoy.add_trace(go.Bar(
-            name="2025", x=x_labels, y=r25_vals,
-            marker=dict(color=bar_clrs, opacity=0.82, line=dict(color="rgba(0,0,0,0)")),
-            text=[f"₹{v:.1f}M" for v in r25_vals],
-            textposition="outside", textfont=dict(size=12, color="#0f172a", family="Inter,sans-serif"),
-            hovertemplate="<b>%{x}</b><br>2025: ₹%{y:.2f}M<extra></extra>",
-        ))
-        fig_yoy.add_trace(go.Bar(
-            name=f"Proj {n_future}M", x=x_labels, y=rp_vals,
-            marker=dict(
-                color=bar_clrs, opacity=0.95,
-                pattern=dict(shape="/", size=4, fgcolor="rgba(255,255,255,0.4)"),
-                line=dict(color="rgba(0,0,0,0)"),
-            ),
-            text=[f"₹{v:.1f}M" for v in rp_vals],
-            textposition="outside", textfont=dict(size=12, color="#0f172a", family="Inter,sans-serif"),
-            hovertemplate=f"<b>%{{x}}</b><br>Proj {n_future}M: ₹%{{y:.2f}}M<extra></extra>",
-        ))
-        _yoy_cd = CD()
-        _yoy_cd["margin"] = dict(l=30, r=30, t=50, b=60)
-        fig_yoy.update_layout(
-            **_yoy_cd, height=340, barmode="group",
-            xaxis={**gX(), "tickangle": 0, "tickfont": dict(size=13, color="#0f172a")},
-            yaxis={**gY(), "title": dict(text="Revenue ₹M", font=dict(size=11))},
-            legend=dict(**leg(), orientation="h", y=-0.18, x=0.5, xanchor="center"),
-            title=dict(text="Revenue by Category — 2024 vs 2025 vs Projection",
-                       font=dict(size=11, color="#64748b")),
-        )
-        st.plotly_chart(fig_yoy, use_container_width=True, key="yoy_bar")
+        rp_vals  = [proj_next.get(c, 0) / 1e6 for c in cats_sorted]
+    
+        total_24  = sum(r24_vals)
+        total_25  = sum(r25_vals)
+        total_proj = sum(rp_vals)
+    
+        if total_24 > 0 and total_25 > 0 and total_proj > 0:
+            share24  = [v / total_24 * 100 for v in r24_vals]
+            share25  = [v / total_25 * 100 for v in r25_vals]
+            share_proj = [v / total_proj * 100 for v in rp_vals]
+    
+            periods = ["2024", "2025", f"Proj {n_future}M"]
+            bar_clrs = [cat_colors.get(c, "#888") for c in cats_sorted]
+    
+            # === 100% STACKED BAR (INTERVIEW-READY) ===
+            fig_yoy = go.Figure()
+            for i, cat in enumerate(cats_sorted):
+                short_name = cat_short.get(cat, cat)
+                clr = bar_clrs[i]
+                fig_yoy.add_trace(go.Bar(
+                    name=short_name,
+                    x=periods,
+                    y=[share24[i], share25[i], share_proj[i]],
+                    marker=dict(
+                        color=clr,
+                        opacity=0.92,
+                        line=dict(color="rgba(255,255,255,0.4)", width=1)
+                    ),
+                    text=[f"{share24[i]:.0f}%", f"{share25[i]:.0f}%", f"{share_proj[i]:.0f}%"],
+                    textposition="inside",
+                    textfont=dict(size=11, color="white", family="Inter,sans-serif"),
+                    hovertemplate=(
+                        f"<b>{short_name}</b><br>"
+                        "%{x}: %{y:.1f}%<extra></extra>"
+                    ),
+                ))
+    
+            # Auto-detect dominant category (largest share increase 2024→2025 or 2025→Proj)
+            delta_25 = [share25[i] - share24[i] for i in range(len(cats_sorted))]
+            delta_proj = [share_proj[i] - share25[i] for i in range(len(cats_sorted))]
+            max_delta_idx = np.argmax(delta_25) if max(delta_25) > max(delta_proj, default=0) else np.argmax(delta_proj)
+            dominant_cat = cat_short.get(cats_sorted[max_delta_idx], cats_sorted[max_delta_idx])
+            dom_increase = max(delta_25 + delta_proj)
+    
+            fig_yoy.update_layout(
+                **CD(), height=340, barmode="stack",
+                xaxis={**gX(), "tickangle": 0, "tickfont": dict(size=13, color="#0f172a")},
+                yaxis={**gY(), "title": "Revenue Share %", "range": [0, 105], "ticksuffix": "%"},
+                legend=dict(**leg(), orientation="h", y=-0.18, x=0.5, xanchor="center", title="Category"),
+                title=dict(
+                    text="100% Stacked Category Revenue Share — 2024 vs 2025 vs Projection",
+                    font=dict(size=11, color="#64748b")
+                ),
+                margin=dict(l=30, r=30, t=50, b=70),
+            )
+    
+            st.plotly_chart(fig_yoy, use_container_width=True, key="yoy_stacked_100pct")
+    
+            # === AUTOMATIC DOMINANCE HIGHLIGHT (exactly as requested) ===
+            banner(
+                f"📈 <b>Dominant Category Shift:</b> "
+                f"<b>{dominant_cat}</b> → {share24[max_delta_idx]:.0f}% (2024) "
+                f"→ <b>{share25[max_delta_idx]:.0f}%</b> (2025) "
+                f"<span style='color:#059669;font-weight:800'>↑ {dom_increase:+.1f}pp dominance increase</span> "
+                f"→ projected <b>{share_proj[max_delta_idx]:.0f}%</b> in next {n_future} months",
+                "mint" if dom_increase > 0 else "amber"
+            )
+    
+        else:
+            st.info("Insufficient revenue data for share calculation.")
+    else:
+        st.info("2024/2025 data not available for YoY comparison.")
 
         sp(0.5)
         row2_left, row2_right = st.columns([3, 2], gap="large")
