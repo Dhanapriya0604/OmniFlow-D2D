@@ -1099,7 +1099,6 @@ def page_demand() -> None:
             with tab:
                 draw_with_table(get_series(ops[ops[grp] == val]), title=val, chart_key=f"d_bd_{i}")
     sp()
-    <!-- REPLACE the entire "sec("YoY Revenue Growth by Category")" block in page_demand() with the code below -->
 
     sec("YoY Revenue Growth by Category")
     yr_rev = ops.groupby(["Year", "Category"])["Net_Revenue"].sum().unstack(fill_value=0)
