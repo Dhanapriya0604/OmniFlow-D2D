@@ -1132,15 +1132,15 @@ def page_demand() -> None:
         total_25  = sum(r25_vals)
         total_proj = sum(rp_vals)
     
+        # === 100% STACKED BAR (interview-perfect) ===
         if total_24 > 0 and total_25 > 0 and total_proj > 0:
-            share24  = [v / total_24 * 100 for v in r24_vals]
-            share25  = [v / total_25 * 100 for v in r25_vals]
+            share24    = [v / total_24 * 100 for v in r24_vals]
+            share25    = [v / total_25 * 100 for v in r25_vals]
             share_proj = [v / total_proj * 100 for v in rp_vals]
     
             periods = ["2024", "2025", f"Proj {n_future}M"]
             bar_clrs = [cat_colors.get(c, "#888") for c in cats_sorted]
     
-            # === 100% STACKED BAR (INTERVIEW-READY) ===
             fig_yoy = go.Figure()
             for i, cat in enumerate(cats_sorted):
                 short_name = cat_short.get(cat, cat)
@@ -1157,21 +1157,26 @@ def page_demand() -> None:
                     text=[f"{share24[i]:.0f}%", f"{share25[i]:.0f}%", f"{share_proj[i]:.0f}%"],
                     textposition="inside",
                     textfont=dict(size=11, color="white", family="Inter,sans-serif"),
-                    hovertemplate=(
-                        f"<b>{short_name}</b><br>"
-                        "%{x}: %{y:.1f}%<extra></extra>"
-                    ),
+                    hovertemplate=f"<b>{short_name}</b><br>%{{x}}: %{{y:.1f}}%<extra></extra>",
                 ))
     
-            # Auto-detect dominant category (largest share increase 2024→2025 or 2025→Proj)
-            delta_25 = [share25[i] - share24[i] for i in range(len(cats_sorted))]
+            # Auto-detect dominant category (largest share jump)
+            delta_25  = [share25[i] - share24[i] for i in range(len(cats_sorted))]
             delta_proj = [share_proj[i] - share25[i] for i in range(len(cats_sorted))]
-            max_delta_idx = np.argmax(delta_25) if max(delta_25) > max(delta_proj, default=0) else np.argmax(delta_proj)
+            max_d25 = max(delta_25) if delta_25 else 0
+            max_dproj = max(delta_proj) if delta_proj else 0
+            max_delta_idx = np.argmax(delta_25) if max_d25 > max_dproj else np.argmax(delta_proj)
             dominant_cat = cat_short.get(cats_sorted[max_delta_idx], cats_sorted[max_delta_idx])
             dom_increase = max(delta_25 + delta_proj)
     
+            # Safe layout (avoids margin duplicate error)
+            _yoy_cd = CD().copy()
+            _yoy_cd["margin"] = dict(l=30, r=30, t=50, b=70)
+    
             fig_yoy.update_layout(
-                **CD(), height=340, barmode="stack",
+                **_yoy_cd,
+                height=340,
+                barmode="stack",
                 xaxis={**gX(), "tickangle": 0, "tickfont": dict(size=13, color="#0f172a")},
                 yaxis={**gY(), "title": "Revenue Share %", "range": [0, 105], "ticksuffix": "%"},
                 legend=dict(**leg(), orientation="h", y=-0.18, x=0.5, xanchor="center", title="Category"),
@@ -1179,12 +1184,11 @@ def page_demand() -> None:
                     text="100% Stacked Category Revenue Share — 2024 vs 2025 vs Projection",
                     font=dict(size=11, color="#64748b")
                 ),
-                margin=dict(l=30, r=30, t=50, b=70),
             )
     
             st.plotly_chart(fig_yoy, use_container_width=True, key="yoy_stacked_100pct")
     
-            # === AUTOMATIC DOMINANCE HIGHLIGHT (exactly as requested) ===
+            # === Automatic dominance highlight (exactly as you asked) ===
             banner(
                 f"📈 <b>Dominant Category Shift:</b> "
                 f"<b>{dominant_cat}</b> → {share24[max_delta_idx]:.0f}% (2024) "
@@ -1194,11 +1198,77 @@ def page_demand() -> None:
                 "mint" if dom_increase > 0 else "amber"
             )
     
+            sp(0.5)
+    
+            # ─────────────────────────────────────────────────────────────
+            # KEEP YOUR ORIGINAL GROWTH % CHART + SPARKLINES (unchanged)
+            # ─────────────────────────────────────────────────────────────
+            row2_left, row2_right = st.columns([3, 2], gap="large")
+            with row2_left:
+                ts_idx = _to_ts(cat_monthly.index)
+                fig_spark = go.Figure()
+                for ci, cat in enumerate(cats_sorted):
+                    clr = cat_colors.get(cat, COLORS[ci])
+                    vals = cat_monthly[cat].values / 1e6
+                    short = cat_short.get(cat, cat)
+                    r_c = int(clr.lstrip('#')[0:2], 16)
+                    g_c = int(clr.lstrip('#')[2:4], 16)
+                    b_c = int(clr.lstrip('#')[4:6], 16)
+                    fig_spark.add_trace(go.Scatter(
+                        x=ts_idx, y=vals, name=short,
+                        line=dict(color=clr, width=2),
+                        fill="tozeroy",
+                        fillcolor=f"rgba({r_c},{g_c},{b_c},0.07)",
+                        hovertemplate=f"<b>{cat}</b><br>%{{x|%b %Y}}: ₹%{{y:.2f}}M<extra></extra>",
+                    ))
+                fig_spark.update_layout(
+                    **CD(), height=280,
+                    xaxis={**gX(), "tickangle": -20},
+                    yaxis={**gY(), "title": "₹M / month"},
+                    legend=dict(**leg(), orientation="h", y=-0.36, x=0.5, xanchor="center"),
+                    title=dict(text="Monthly Revenue Trend by Category",
+                               font=dict(size=11, color="#64748b")),
+                )
+                st.plotly_chart(fig_spark, use_container_width=True, key="monthly_sparklines")
+    
+            with row2_right:
+                g_hist = [(yr_rev.loc[2025,c]-yr_rev.loc[2024,c])/yr_rev.loc[2024,c]*100
+                          if yr_rev.loc[2024,c]>0 else 0 for c in cats_sorted]
+                g_proj = [(proj_next.get(c,0)-yr_rev.loc[2025,c])/yr_rev.loc[2025,c]*100
+                          if yr_rev.loc[2025,c]>0 else 0 for c in cats_sorted]
+                x_labels = [cat_short.get(c, c) for c in cats_sorted]
+                fig_gr = go.Figure()
+                fig_gr.add_trace(go.Bar(
+                    name="YoY 24→25", x=x_labels, y=g_hist,
+                    marker=dict(color=bar_clrs, opacity=0.45, line=dict(color="rgba(0,0,0,0)")),
+                    text=[f"{v:+.0f}%" for v in g_hist],
+                    textposition="outside",
+                    textfont=dict(size=11, color="#475569", family="Inter,sans-serif"),
+                    hovertemplate="<b>%{x}</b><br>YoY 24→25: %{y:+.1f}%<extra></extra>",
+                ))
+                fig_gr.add_trace(go.Bar(
+                    name="Proj vs 2025", x=x_labels, y=g_proj,
+                    marker=dict(color=bar_clrs, opacity=0.90, line=dict(color="rgba(0,0,0,0)")),
+                    text=[f"{v:+.0f}%" for v in g_proj],
+                    textposition="outside",
+                    textfont=dict(size=11, color="#0f172a", family="Inter,sans-serif"),
+                    hovertemplate="<b>%{x}</b><br>Proj growth: %{y:+.1f}%<extra></extra>",
+                ))
+                fig_gr.add_hline(y=0, line_dash="solid", line_color="rgba(0,0,0,0.12)", line_width=1)
+                fig_gr.update_layout(
+                    **CD(), height=280, barmode="group",
+                    xaxis={**gX(), "tickangle": 0, "tickfont": dict(size=12, color="#0f172a")},
+                    yaxis={**gY(), "title": dict(text="Growth %", font=dict(size=11))},
+                    legend=dict(**leg(), orientation="h", y=-0.36, x=0.5, xanchor="center"),
+                    title=dict(text="Growth % — YoY & Projection",
+                               font=dict(size=11, color="#64748b")),
+                )
+                st.plotly_chart(fig_gr, use_container_width=True, key="yoy_growth")
+    
         else:
             st.info("Insufficient revenue data for share calculation.")
     else:
         st.info("2024/2025 data not available for YoY comparison.")
-
         sp(0.5)
         row2_left, row2_right = st.columns([3, 2], gap="large")
 
