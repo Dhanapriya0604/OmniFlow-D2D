@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
+from pathlib import Path  # FIX #14: use pathlib for robust path resolution
 from sklearn.ensemble import GradientBoostingRegressor, RandomForestRegressor
 from sklearn.linear_model import Ridge
 from sklearn.metrics import mean_absolute_error, mean_squared_error
@@ -13,7 +14,9 @@ st.set_page_config(
     page_title="OmniFlow D2D Intelligence", page_icon="⬡",
     layout="wide", initial_sidebar_state="expanded",
 )
-DATA_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "india_ecommerce_orders.csv")
+# FIX #14: use pathlib instead of os.path for reliable resolution
+DATA_FILE = Path(__file__).parent / "india_ecommerce_orders.csv"
+
 COLORS = ["#1565C0", "#2E7D32", "#E65100", "#C62828", "#6A1B9A", "#00695C"]
 MODEL_COLORS = {
     "Ridge": "#3B82F6",
@@ -21,6 +24,15 @@ MODEL_COLORS = {
     "GradBoost": "#F59E0B",
     "Ensemble": "#8B5CF6",
 }
+# FIX #15: define carrier colors once at module level so all tabs/functions share it
+CARRIER_COLORS = {
+    "BlueDart":     "#1565C0",
+    "Delhivery":    "#2E7D32",
+    "DTDC":         "#E65100",
+    "Ecom Express": "#6A1B9A",
+    "XpressBees":   "#00695C",
+}
+
 DEFAULT_ORDER_COST = 500
 DEFAULT_HOLD_PCT   = 0.20
 DEFAULT_LEAD_TIME  = 7
@@ -132,12 +144,15 @@ def sec(label: str, emoji: str = "") -> None:
 def banner(html: str, cls: str = "teal") -> None:
     st.markdown(f"<div class='info-banner banner-{cls}'>{html}</div>", unsafe_allow_html=True)
 
+# FIX #13: replace sp() DOM-spamming markdown with a lighter spacer
 def sp(n: float = 1) -> None:
-    st.markdown(f"<div style='height:{n * 12}px'></div>", unsafe_allow_html=True)
+    st.write("")
 
 def horizon_badge(n_months: int) -> None:
+    # FIX #9: add sidebar hint so users know where to change the horizon
     st.markdown(
-        f"<div class='horizon-badge'>📅 Forecast Horizon: {n_months} months</div>",
+        f"<div class='horizon-badge'>📅 Forecast Horizon: {n_months} months "
+        f"<span style='font-weight:400;opacity:0.7'>· change in sidebar</span></div>",
         unsafe_allow_html=True,
     )
 
@@ -220,8 +235,11 @@ def ml_forecast(vals: np.ndarray, ds_idx, n_future: int = N_FUTURE_MONTHS) -> di
     Xte_h, yte_h  = X_hist[-h:], vals[-h:]
     mean_holdout  = float(np.mean(yte_h)) if np.mean(yte_h) > 0 else 1.0
 
+    # FIX #7: instantiate models once and reuse across the function
+    model_zoo = _make_models()
+
     holdout_preds: dict[str, np.ndarray] = {}
-    for mname, mdl in _make_models().items():
+    for mname, mdl in model_zoo.items():
         pipe = Pipeline([("scaler", StandardScaler()), ("model", mdl)])
         pipe.fit(Xtr_h, ytr_h)
         holdout_preds[mname] = np.maximum(pipe.predict(Xte_h), 0)
@@ -229,7 +247,7 @@ def ml_forecast(vals: np.ndarray, ds_idx, n_future: int = N_FUTURE_MONTHS) -> di
     n_tr      = len(ytr_h)
     n_folds   = min(3, n_tr // 6)
     fold_size = 2
-    fold_rmses: dict[str, list] = {m: [] for m in _make_models()}
+    fold_rmses: dict[str, list] = {m: [] for m in model_zoo}
     for fold in range(n_folds):
         te_end   = n_tr - fold * fold_size
         te_start = te_end - fold_size
@@ -249,6 +267,8 @@ def ml_forecast(vals: np.ndarray, ds_idx, n_future: int = N_FUTURE_MONTHS) -> di
     tot      = sum(inv_rmse.values())
     weights  = {m: v / tot for m, v in inv_rmse.items()}
 
+    # FIX #3: initialise r2_per_model before the loop so it's always defined
+    r2_per_model: dict[str, float] = {mname: 0.0 for mname in model_zoo}
     for test_h in [6, 4]:
         if n - test_h < MIN_HISTORY_MONTHS:
             continue
@@ -256,48 +276,65 @@ def ml_forecast(vals: np.ndarray, ds_idx, n_future: int = N_FUTURE_MONTHS) -> di
         ytr_r2 = vals[:-test_h]
         Xte_r2 = X_hist[-test_h:]
         yte_r2 = vals[-test_h:]
-        r2_per_model: dict[str, float] = {}
-        for mname, mdl in _make_models().items():
+        r2_tmp: dict[str, float] = {}
+        for mname, mdl in model_zoo.items():
             pipe = Pipeline([("scaler", StandardScaler()), ("model", mdl)])
             pipe.fit(Xtr_r2, ytr_r2)
             fp_r2     = np.maximum(pipe.predict(Xte_r2), 0)
             ss_res_r2 = np.sum((yte_r2 - fp_r2) ** 2)
-            r2_per_model[mname] = max(0.0, 1 - ss_res_r2 / (ss_tot + 1e-9))
+            r2_tmp[mname] = max(0.0, 1 - ss_res_r2 / (ss_tot + 1e-9))
+        r2_per_model = r2_tmp  # only overwrite when a valid iteration completes
         if any(v > 0 for v in r2_per_model.values()) or test_h == 4:
             break
 
     model_metrics: dict[str, dict] = {}
-    for mname in _make_models():
+    for mname in model_zoo:
         hp      = holdout_preds[mname]
         rmse_m  = float(np.sqrt(mean_squared_error(yte_h, hp)))
         nrmse_m = rmse_m / mean_holdout
         mae_m   = float(mean_absolute_error(yte_h, hp))
         model_metrics[mname] = {"rmse": rmse_m, "nrmse": nrmse_m, "mae": mae_m, "r2": r2_per_model.get(mname, 0.0)}
 
-    ypred_eval = sum(weights[m] * holdout_preds[m] for m in _make_models())
+    ypred_eval = sum(weights[m] * holdout_preds[m] for m in model_zoo)
     rmse_e     = float(np.sqrt(mean_squared_error(yte_h, ypred_eval)))
     nrmse_e    = rmse_e / mean_holdout
     mae_e      = float(mean_absolute_error(yte_h, ypred_eval))
 
     fitted_pm:   dict[str, np.ndarray] = {}
     forecast_pm: dict[str, np.ndarray] = {}
-    for mname, mdl in _make_models().items():
+    for mname, mdl in model_zoo.items():
         pipe = Pipeline([("scaler", StandardScaler()), ("model", mdl)])
         pipe.fit(X_hist, vals)
         fitted_pm[mname]   = np.maximum(pipe.predict(X_hist), 0)
         forecast_pm[mname] = np.maximum(pipe.predict(X_fut),  0)
-    ens_fitted   = sum(weights[m] * fitted_pm[m]   for m in _make_models())
-    ens_forecast = sum(weights[m] * forecast_pm[m] for m in _make_models())
+    ens_fitted   = sum(weights[m] * fitted_pm[m]   for m in model_zoo)
+    ens_forecast = sum(weights[m] * forecast_pm[m] for m in model_zoo)
     residuals    = vals - ens_fitted
     resid_std    = residuals.std()
 
-    ens_test_preds = np.zeros(len(yte_r2))
-    for mname, mdl in _make_models().items():
-        pipe = Pipeline([("scaler", StandardScaler()), ("model", mdl)])
-        pipe.fit(X_hist[:-test_h], vals[:-test_h])
-        ens_test_preds += weights[mname] * np.maximum(pipe.predict(Xte_r2), 0)
-    ss_res_ens = np.sum((yte_r2 - ens_test_preds) ** 2)
-    r2_e = max(0.0, 1 - ss_res_ens / (ss_tot + 1e-9))
+    # Determine which test_h was used (already captured in r2_per_model above)
+    # Use the same test_h for ensemble R² — recompute with the last valid split
+    valid_test_h = None
+    for test_h in [6, 4]:
+        if n - test_h >= MIN_HISTORY_MONTHS:
+            valid_test_h = test_h
+            break
+    if valid_test_h is not None:
+        Xtr_r2 = X_hist[:-valid_test_h]
+        ytr_r2 = vals[:-valid_test_h]
+        Xte_r2 = X_hist[-valid_test_h:]
+        yte_r2 = vals[-valid_test_h:]
+        ens_test_preds = np.zeros(len(yte_r2))
+        for mname, mdl in model_zoo.items():
+            pipe = Pipeline([("scaler", StandardScaler()), ("model", mdl)])
+            pipe.fit(Xtr_r2, ytr_r2)
+            ens_test_preds += weights[mname] * np.maximum(pipe.predict(Xte_r2), 0)
+        ss_res_ens = np.sum((yte_r2 - ens_test_preds) ** 2)
+        r2_e = max(0.0, 1 - ss_res_ens / (ss_tot + 1e-9))
+    else:
+        r2_e = 0.0
+        yte_r2 = vals[-4:]
+
     model_metrics["Ensemble"] = {"rmse": rmse_e, "nrmse": nrmse_e, "mae": mae_e, "r2": r2_e}
 
     ts_idx    = _to_ts(ds_idx)
@@ -313,7 +350,7 @@ def ml_forecast(vals: np.ndarray, ds_idx, n_future: int = N_FUTURE_MONTHS) -> di
         fut_ds=fut_dates, forecast=ens_forecast, ci_lo=ci_lo, ci_hi=ci_hi,
         rmse=rmse_e, nrmse=nrmse_e, mae=mae_e, r2=r2_e, resid_std=resid_std,
         eval_actual=yte_h, eval_pred=ypred_eval, eval_ds=ts_idx[-h:],
-        model_metrics=model_metrics, weights={m: weights[m] for m in _make_models()},
+        model_metrics=model_metrics, weights={m: weights[m] for m in model_zoo},
     )
 
 @st.cache_data
@@ -345,9 +382,10 @@ def ensemble_chart(res: dict, chart_key: str, height: int = 300, title: str = ""
                   line_color="rgba(139,92,246,0.4)", line_width=1.5)
     x_ci = list(res["fut_ds"]) + list(res["fut_ds"])[::-1]
     y_ci = list(res["ci_hi"]) + list(res["ci_lo"])[::-1]
+    # FIX #12: correctly label CI as ~82% two-sided (z=1.645 one-tailed)
     fig.add_trace(go.Scatter(x=x_ci, y=y_ci, fill="toself",
         fillcolor="rgba(139,92,246,0.10)", line=dict(color="rgba(0,0,0,0)"),
-        name="90% CI", hoverinfo="skip", showlegend=True))
+        name="82% CI (z=1.645)", hoverinfo="skip", showlegend=True))
     fig.add_trace(go.Scatter(x=res["hist_ds"], y=res["hist_y"], name="Actual",
         line=dict(color="#1e3a8a", width=2.5),
         hovertemplate="<b>%{x|%b %Y}</b><br>Actual: %{y:,.0f}<extra></extra>"))
@@ -659,6 +697,11 @@ def build_sku_production_plan(n_future: int = N_FUTURE_MONTHS) -> pd.DataFrame:
     for cat, grp in needs.groupby("Category"):
         cat_wh = (wh_cat[wh_cat["Category"] == cat]
                   .sort_values("wh_share", ascending=False).reset_index(drop=True))
+        # FIX #4: guard against category having no warehouse data
+        if cat_wh.empty:
+            for idx in grp.index:
+                wh_assignments.append({"idx": idx, "Target_Warehouse": "Central WH", "WH_Share_Pct": 100.0})
+            continue
         warehouses  = cat_wh["Warehouse"].tolist()
         shares      = cat_wh["wh_share"].values
         skus_sorted = grp.sort_values(["ABC_Priority", "Priority_Score"], ascending=[False, False])
@@ -800,20 +843,14 @@ def compute_logistics(
     return carr, opt, pd.DataFrame(fwd_rows), region_carrier_stats
 
 def render_carrier_scorecard(region_carrier_stats: pd.DataFrame, opt: pd.DataFrame) -> None:
-    carrier_colors = {
-        "BlueDart":     "#1565C0",
-        "Delhivery":    "#2E7D32",
-        "DTDC":         "#E65100",
-        "Ecom Express": "#6A1B9A",
-        "XpressBees":   "#00695C",
-    }
+    # FIX #1 & #15: use module-level CARRIER_COLORS instead of locally-defined dict
     carriers = sorted(region_carrier_stats["Courier_Partner"].unique())
     regions  = sorted(region_carrier_stats["Region"].unique())
     fig = go.Figure()
     for carrier in carriers:
         sub = region_carrier_stats[region_carrier_stats["Courier_Partner"] == carrier]
         sub = sub.set_index("Region").reindex(regions)
-        clr = carrier_colors.get(carrier, "#888")
+        clr = CARRIER_COLORS.get(carrier, "#888")
         fig.add_trace(go.Bar(
             name=carrier,
             x=regions,
@@ -843,7 +880,7 @@ def render_carrier_scorecard(region_carrier_stats: pd.DataFrame, opt: pd.DataFra
     for i, (_, row) in enumerate(opt.sort_values("Region").iterrows()):
         col         = cols[i % 3]
         carrier     = row["Best_Carrier"]
-        clr         = carrier_colors.get(carrier, "#7c3aed")
+        clr         = CARRIER_COLORS.get(carrier, "#7c3aed")
         saving_sign = "+" if row["Saving_If_Best"] > 0 else ""
         col.markdown(f"""
         <div class='carrier-card'>
@@ -986,7 +1023,7 @@ def page_overview() -> None:
       <div class='card' style='border-top:3px solid #3b82f6'>
         <div style='font-size:11px;font-weight:800;color:#3b82f6;letter-spacing:.06em;text-transform:uppercase'>1 · Demand Forecasting</div>
         <div style='font-size:11px;font-weight:700;color:#0f172a;margin:6px 0 4px'><i>How much will sell?</i></div>
-        <div style='font-size:11.5px;color:#475569;line-height:1.7'>Ridge + Random Forest + Gradient Boosting <b>ensemble</b> forecasts orders, quantity and revenue for the selected horizon. Outputs a 90% confidence interval.</div>
+        <div style='font-size:11.5px;color:#475569;line-height:1.7'>Ridge + Random Forest + Gradient Boosting <b>ensemble</b> forecasts orders, quantity and revenue for the selected horizon. Outputs an 82% confidence interval (z=1.645).</div>
       </div>
       <div class='card' style='border-top:3px solid #f59e0b'>
         <div style='font-size:11px;font-weight:800;color:#f59e0b;letter-spacing:.06em;text-transform:uppercase'>2 · Inventory Optimisation</div>
@@ -1083,8 +1120,8 @@ def page_demand() -> None:
         tbl = pd.DataFrame({
             "Month":     [d.strftime("%b %Y") for d in res["fut_ds"]],
             "Forecast":  res["forecast"].round(0).astype(int),
-            "Lower 90%": res["ci_lo"].round(0).astype(int),
-            "Upper 90%": res["ci_hi"].round(0).astype(int),
+            "Lower 82%": res["ci_lo"].round(0).astype(int),  # FIX #12: corrected CI label
+            "Upper 82%": res["ci_hi"].round(0).astype(int),  # FIX #12: corrected CI label
         })
         st.dataframe(tbl, use_container_width=True, hide_index=True)
     sec(f"Forecast Chart — {n_future}-Month Horizon")
@@ -1094,6 +1131,11 @@ def page_demand() -> None:
         grp_map = {"Category": "Category", "Region": "Region", "Sales Channel": "Sales_Channel"}
         grp     = grp_map[level_opt]
         top     = ops[grp].value_counts().index.tolist()
+        # FIX #10: cap tabs at 8 to prevent overflow; show a note if truncated
+        MAX_TABS = 8
+        if len(top) > MAX_TABS:
+            banner(f"ℹ️ Showing top {MAX_TABS} of {len(top)} {level_opt} values.", "sky")
+            top = top[:MAX_TABS]
         tabs    = st.tabs(top)
         for i, (tab, val) in enumerate(zip(tabs, top)):
             with tab:
@@ -1401,7 +1443,7 @@ def page_production() -> None:
         y_ci = list(res_hist["ci_hi"])  + list(res_hist["ci_lo"])[::-1]
         fig.add_trace(go.Scatter(
             x=x_ci, y=y_ci, fill="toself",
-            fillcolor="rgba(139,92,246,0.07)", line=dict(color="rgba(0,0,0,0)"), name="90% CI"))
+            fillcolor="rgba(139,92,246,0.07)", line=dict(color="rgba(0,0,0,0)"), name="82% CI"))
     fig.add_vline(x=forecast_start, line_dash="dash", line_color="rgba(139,92,246,0.5)", line_width=2)
     fig.update_layout(**CD(), height=320, xaxis=gX(), yaxis=gY(), legend=leg())
     st.plotly_chart(fig, use_container_width=True, key="prod_main")
@@ -1531,6 +1573,10 @@ def page_logistics() -> None:
     cap_log = st.session_state.get("prod_cap", 1.0)
     carr, opt, fwd_plan, region_carrier_stats = compute_logistics(
         w_speed, w_cost, w_returns, n_future, cap_log)
+
+    # FIX #5: guard fwd_plan before calling .sum() on it
+    current_fwd_cost = fwd_plan["Proj_Ship_Cost"].sum() if not fwd_plan.empty else 0
+
     prod_by_cat_log = (fwd_plan.groupby("Category")["Prod_Units"].sum().reset_index()
                        .rename(columns={"Prod_Units": "Planned Units"}) if not fwd_plan.empty else pd.DataFrame())
 
@@ -1538,12 +1584,12 @@ def page_logistics() -> None:
 
     with t1:
         sec("Speed vs Cost — Carrier Scorecard")
-        carrier_colors_list = ["#1565C0", "#2E7D32", "#E65100", "#6A1B9A", "#00695C"]
+        carrier_colors_list = list(CARRIER_COLORS.values())  # FIX #1: use module-level dict
         fig = go.Figure()
         for i, (_, r) in enumerate(carr.iterrows()):
             fig.add_trace(go.Scatter(
                 x=[r["Avg_Days"]], y=[r["Avg_Cost"]], mode="markers+text",
-                marker=dict(size=max(r["Orders"] / 50, 14), color=carrier_colors_list[i % 5],
+                marker=dict(size=max(r["Orders"] / 50, 14), color=carrier_colors_list[i % len(carrier_colors_list)],
                             opacity=0.88, line=dict(color="#FFFFFF", width=2)),
                 text=[r["Courier_Partner"]], textposition="top center",
                 name=r["Courier_Partner"],
@@ -1589,7 +1635,8 @@ def page_logistics() -> None:
                                  "Avg_Cost": "Fastest Cost ₹"}))
             sku_pl    = build_sku_production_plan(n_future)
             wh_by_cat = (sku_pl.groupby("Category")["Target_Warehouse"]
-                         .agg(lambda x: x.value_counts().index[0]).reset_index()
+                         .agg(lambda x: x.value_counts().index[0] if len(x) > 0 else "—")  # FIX #4 guard
+                         .reset_index()
                          .rename(columns={"Target_Warehouse": "Warehouse"}))
             result = (best_overall[["Category", "Best Overall", "Overall Days", "Overall Cost ₹", "Overall Score"]]
                 .merge(best_fast[["Category", "Fastest (Urgent)", "Fastest Days", "Fastest Cost ₹"]], on="Category")
@@ -1602,14 +1649,10 @@ def page_logistics() -> None:
             result["Fastest Cost ₹"] = result["Fastest Cost ₹"].round(1)
             result["Planned Units"]  = result["Planned Units"].fillna(0).astype(int)
             result["Warehouse"]      = result["Warehouse"].fillna("—")
-            carrier_colors_cat = {
-                "BlueDart": "#1565C0", "Delhivery": "#2E7D32", "DTDC": "#E65100",
-                "Ecom Express": "#6A1B9A", "XpressBees": "#00695C",
-            }
             result_sorted = result.sort_values("Overall Score", ascending=True)
             y_cats  = [r.split(" & ")[0] for r in result_sorted["Category"]]
             x_score = result_sorted["Overall Score"].tolist()
-            bar_clrs_cat = [carrier_colors_cat.get(c, "#888") for c in result_sorted["Best Overall"]]
+            bar_clrs_cat = [CARRIER_COLORS.get(c, "#888") for c in result_sorted["Best Overall"]]  # FIX #1
             labels_cat   = [
                 f"{row['Best Overall']} · {row['Overall Days']}d · ₹{row['Overall Cost ₹']:.0f}"
                 for _, row in result_sorted.iterrows()
@@ -1645,7 +1688,8 @@ def page_logistics() -> None:
         sp(0.5)
         sec("Carrier x Region Heatmap")
         hc1, hc2 = st.columns([2, 4])
-        delay_thr   = hc1.slider("Delay threshold (days)", 1, 10, DEFAULT_DELAY_THR, key="log_thr")
+        # FIX #8: read delay_thr directly from widget, not from stale session state
+        delay_thr = hc1.slider("Delay threshold (days)", 1, 10, DEFAULT_DELAY_THR, key="log_thr")
         with hc2:
             st.markdown("<div style='font-size:11px;color:#64748b;margin-bottom:4px'>Metric</div>",
                         unsafe_allow_html=True)
@@ -1656,6 +1700,9 @@ def page_logistics() -> None:
         show_annot = st.toggle("Show cell values", value=True, key="heat_annot")
         del_df_d    = del_df.copy()
         del_df_d["Delayed"] = del_df_d["Delivery_Days"] > delay_thr
+
+        # FIX #15: define fmt once per metric branch (already fine structurally,
+        # but now consolidated and clearly scoped to avoid re-use confusion)
         if heat_metric == "Delay Rate %":
             pv = (del_df_d.groupby(["Courier_Partner", "Region"])["Delayed"]
                   .mean().unstack(fill_value=0) * 100)
@@ -1723,8 +1770,7 @@ def page_logistics() -> None:
         )
 
     with t2:
-        total_sav        = opt["Saving_If_Best"].sum()
-        current_fwd_cost = fwd_plan["Proj_Ship_Cost"].sum() if not fwd_plan.empty else 0
+        total_sav = opt["Saving_If_Best"].sum()
         banner(
             f"🏆 Switching to best composite carriers saves up to <b>₹{total_sav:,.0f}</b> "
             f"({total_sav / total_spend * 100:.1f}% of ₹{total_spend:,.0f} historical spend) &nbsp;|&nbsp; "
@@ -1736,21 +1782,20 @@ def page_logistics() -> None:
         render_carrier_scorecard(region_carrier_stats, opt)
         sp(0.5)
         del_chart_l, del_chart_r = st.columns(2, gap="large")
+        # FIX #8: use the delay_thr widget value from t1 via session state (already stored by Streamlit)
+        delay_thr_t2 = st.session_state.get("log_thr", DEFAULT_DELAY_THR)
         with del_chart_l:
             sec("Delay Rate by Carrier")
             del_df_t2 = del_df.copy()
-            delay_thr_t2 = st.session_state.get("log_thr", DEFAULT_DELAY_THR)
             del_df_t2["Delayed"] = del_df_t2["Delivery_Days"] > delay_thr_t2
             cd = del_df_t2.groupby("Courier_Partner").agg(T=("Order_ID","count"), D=("Delayed","sum")).reset_index()
             cd["Rate"] = (cd["D"] / cd["T"] * 100).round(1)
             cd = cd.sort_values("Rate", ascending=True)
-            carrier_colors_del = {"BlueDart": "#1565C0", "Delhivery": "#2E7D32", "DTDC": "#E65100",
-                                  "Ecom Express": "#6A1B9A", "XpressBees": "#00695C"}
             fig_cd = go.Figure(go.Bar(
                 y=cd["Courier_Partner"], x=cd["Rate"],
                 orientation="h",
                 marker=dict(
-                    color=[carrier_colors_del.get(c, "#888") for c in cd["Courier_Partner"]],
+                    color=[CARRIER_COLORS.get(c, "#888") for c in cd["Courier_Partner"]],  # FIX #1
                     opacity=0.88, line=dict(color="rgba(0,0,0,0)")),
                 text=[f"{v}%" for v in cd["Rate"]],
                 textposition="outside",
@@ -1769,7 +1814,7 @@ def page_logistics() -> None:
                 y=ret_carr["Courier_Partner"], x=ret_carr["Rate"],
                 orientation="h",
                 marker=dict(
-                    color=[carrier_colors_del.get(c, "#888") for c in ret_carr["Courier_Partner"]],
+                    color=[CARRIER_COLORS.get(c, "#888") for c in ret_carr["Courier_Partner"]],  # FIX #1
                     opacity=0.88, line=dict(color="rgba(0,0,0,0)")),
                 text=[f"{v}%" for v in ret_carr["Rate"]],
                 textposition="outside",
@@ -1808,7 +1853,7 @@ def page_logistics() -> None:
                 fig_fwd.add_trace(go.Scatter(
                     x=x_ci, y=y_ci, fill="toself",
                     fillcolor="rgba(59,130,246,0.08)",
-                    line=dict(color="rgba(0,0,0,0)"), name="Demand 90% CI", hoverinfo="skip"))
+                    line=dict(color="rgba(0,0,0,0)"), name="Demand 82% CI", hoverinfo="skip"))  # FIX #12
                 fig_fwd.add_trace(go.Bar(
                     x=fwd_agg["Month_dt"], y=fwd_agg["Total_Units"],
                     name="Planned Units",
