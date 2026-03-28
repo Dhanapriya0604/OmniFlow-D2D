@@ -316,6 +316,18 @@ def ml_forecast(vals: np.ndarray, ds_idx, n_future: int = N_FUTURE_MONTHS) -> di
         model_metrics=model_metrics, weights={m: weights[m] for m in _make_models()},
     )
 
+def compute_growth_corrected(cat_series, forecast_vals):
+    if len(cat_series) < 24:
+        return 0, 0, 0, 0, 0  # or handle gracefully
+
+    val_2025 = np.mean(cat_series[-12:])
+    val_2024 = np.mean(cat_series[-24:-12])
+    forecast_mean = np.mean(forecast_vals)
+
+    yoy = ((val_2025 - val_2024) / (val_2024 + 1e-9)) * 100
+    proj = ((forecast_mean - val_2025) / (val_2025 + 1e-9)) * 100
+
+    return yoy, proj, val_2024, val_2025, forecast_mean
 @st.cache_data
 def compute_category_forecasts(n_future: int = N_FUTURE_MONTHS) -> dict:
     df  = load_data()
