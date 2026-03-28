@@ -1200,29 +1200,40 @@ def page_demand() -> None:
 
         with row2_right:
             fig_gr = go.Figure()
-            fig_gr.add_trace(go.Bar(
-                name="YoY 24→25", x=x_labels, y=g_hist,
-                marker=dict(color=bar_clrs, opacity=0.45, line=dict(color="rgba(0,0,0,0)")),
-                text=[f"{v:+.0f}%" for v in g_hist],
-                textposition="outside",
-                textfont=dict(size=11, color="#475569", family="Inter,sans-serif"),
-                hovertemplate="<b>%{x}</b><br>YoY 24→25: %{y:+.1f}%<extra></extra>",
-            ))
-            fig_gr.add_trace(go.Bar(
-                name="Proj vs 2025", x=x_labels, y=g_proj,
-                marker=dict(color=bar_clrs, opacity=0.90, line=dict(color="rgba(0,0,0,0)")),
-                text=[f"{v:+.0f}%" for v in g_proj],
-                textposition="outside",
-                textfont=dict(size=11, color="#0f172a", family="Inter,sans-serif"),
-                hovertemplate="<b>%{x}</b><br>Proj growth: %{y:+.1f}%<extra></extra>",
-            ))
+            for cat in cats_sorted:
+                short = cat_short.get(cat, cat)
+                clr   = cat_colors.get(cat, "#888")
+                i     = cats_sorted.index(cat)
+                fig_gr.add_trace(go.Bar(
+                    name=short,
+                    x=["2024", "2025", f"Proj {n_future}M"],
+                    y=[
+                        yr_rev.loc[2024, cat] / 1e6,
+                        yr_rev.loc[2025, cat] / 1e6,
+                        proj_next.get(cat, 0) / 1e6,
+                    ],
+                    marker=dict(color=clr, opacity=0.88, line=dict(color="rgba(0,0,0,0)")),
+                    text=[
+                        f"₹{yr_rev.loc[2024, cat]/1e6:.1f}M",
+                        f"₹{yr_rev.loc[2025, cat]/1e6:.1f}M",
+                        f"₹{proj_next.get(cat,0)/1e6:.1f}M",
+                    ],
+                    textposition="inside",
+                    textfont=dict(size=9, color="white"),
+                    insidetextanchor="middle",
+                    hovertemplate=(
+                        f"<b>{cat}</b><br>"
+                        "%{x}<br>"
+                        "₹%{y:.2f}M<extra></extra>"
+                    ),
+                ))
             fig_gr.add_hline(y=0, line_dash="solid", line_color="rgba(0,0,0,0.12)", line_width=1)
             fig_gr.update_layout(
-                **CD(), height=280, barmode="group",
+                **CD(), height=280, barmode="stack",
                 xaxis={**gX(), "tickangle": 0, "tickfont": dict(size=12, color="#0f172a")},
-                yaxis={**gY(), "title": dict(text="Growth %", font=dict(size=11))},
+                yaxis={**gY(), "title": dict(text="Revenue ₹M", font=dict(size=11))},
                 legend=dict(**leg(), orientation="h", y=-0.36, x=0.5, xanchor="center"),
-                title=dict(text="Growth % — YoY & Projection",
+                title=dict(text="Revenue by Category — 2024 vs 2025 vs Projection (stacked)",
                            font=dict(size=11, color="#64748b")),
             )
             st.plotly_chart(fig_gr, use_container_width=True, key="yoy_growth")
