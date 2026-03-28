@@ -1102,50 +1102,50 @@ def page_demand() -> None:
     sec("YoY Revenue Growth by Category")
     yr_rev      = ops.groupby(["Year", "Category"])["Net_Revenue"].sum().unstack(fill_value=0)
     cat_monthly = ops.groupby(["YM", "Category"])["Net_Revenue"].sum().unstack(fill_value=0)
-    # ===== NEW: Correct 3-bar + normalized growth =====
-    
-    def normalize_growth(val):
-        return max(0, min(val, 100))
-    
-    def compute_values_and_growth(cat_series, forecast_vals):
-        if len(cat_series) < 24:
-            return None
-    
-        val_2025 = np.mean(cat_series[-12:])
-        val_2024 = np.mean(cat_series[-24:-12])
-        forecast_mean = np.mean(forecast_vals)
-    
-        yoy = ((val_2025 - val_2024) / (val_2024 + 1e-9)) * 100
-        proj = ((forecast_mean - val_2025) / (val_2025 + 1e-9)) * 100
-    
-        yoy = normalize_growth(yoy)
-        proj = normalize_growth(proj)
-    
-        return val_2024, val_2025, forecast_mean, yoy, proj
-    
-    
+    # ===== Growth Calculation =====
+
     categories = []
     vals_2024_list = []
     vals_2025_list = []
     forecast_list = []
-    yoy_list = []
-    proj_list = []
+    
+    yoy_raw_list = []
+    proj_raw_list = []
     
     for cat in cat_monthly.columns:
         vals = cat_monthly[cat].values.astype(float)
         res = ml_forecast(vals, cat_monthly.index, n_future)
     
-        if res:
-            out = compute_values_and_growth(vals, res["forecast"])
-            if out:
-                v24, v25, fmean, yoy, proj = out
+        if res and len(vals) >= 24:
+            val_2025 = np.mean(vals[-12:])
+            val_2024 = np.mean(vals[-24:-12])
+            forecast_mean = np.mean(res["forecast"])
     
-                categories.append(cat)
-                vals_2024_list.append(round(v24, 0))
-                vals_2025_list.append(round(v25, 0))
-                forecast_list.append(round(fmean, 0))
-                yoy_list.append(round(yoy, 1))
-                proj_list.append(round(proj, 1))
+            yoy = ((val_2025 - val_2024) / (val_2024 + 1e-9)) * 100
+            proj = ((forecast_mean - val_2025) / (val_2025 + 1e-9)) * 100
+    
+            categories.append(cat)
+            vals_2024_list.append(val_2024)
+            vals_2025_list.append(val_2025)
+            forecast_list.append(forecast_mean)
+    
+            yoy_raw_list.append(yoy)
+            proj_raw_list.append(proj)
+    yoy_raw_list = []
+    proj_raw_list = []
+    # ===== NEW: Correct 3-bar + normalized growth =====
+    
+    def normalize_pair(yoy_vals, proj_vals):
+        combined = yoy_vals + proj_vals
+        max_val = max(combined) if max(combined) != 0 else 1
+    
+        yoy_norm = [(v / max_val) * 100 for v in yoy_vals]
+        proj_norm = [(v / max_val) * 100 for v in proj_vals]
+    
+        return yoy_norm, proj_norm
+    
+    yoy_list, proj_list = normalize_pair(yoy_raw_list, proj_raw_list)
+    
     proj_next: dict[str, float] = {}
     for cat in cat_monthly.columns:
         r = ml_forecast(cat_monthly[cat].values.astype(float), cat_monthly.index, n_future)
@@ -1251,7 +1251,7 @@ def page_demand() -> None:
             
             fig1.update_layout(
                 barmode='group',
-                title="Category-wise Demand (2024 vs 2025 vs Forecast)"
+                title="Category Demand (2024 vs 2025 vs Forecast)"
             )
             
             st.plotly_chart(fig1, use_container_width=True)
@@ -1261,7 +1261,7 @@ def page_demand() -> None:
                 name="YoY Growth %",
                 x=categories,
                 y=yoy_list,
-                text=[f"{v}%" for v in yoy_list],
+                text=[f"{v:.1f}%" for v in yoy_list],
                 textposition="outside"
             ))
             
@@ -1269,7 +1269,7 @@ def page_demand() -> None:
                 name="Forecast Growth %",
                 x=categories,
                 y=proj_list,
-                text=[f"{v}%" for v in proj_list],
+                text=[f"{v:.1f}%" for v in proj_list],
                 textposition="outside"
             ))
             
