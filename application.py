@@ -1518,6 +1518,8 @@ def page_logistics() -> None:
     kpi(k3, "On-Time Rate",         f"{on_time_pct:.1f}%",   "mint",  "delivered ≤ 3 days")
     kpi(k4, "Avg Cost / Order",     f"₹{avg_cost_ord:.0f}",  "sky",   "per shipment")
     kpi(k5, "Return Rate",          f"{ret_rate:.1f}%",       "coral", "of all orders")
+    if "prod_cap" not in st.session_state:
+       banner("ℹ️ Production capacity not set — using default multiplier ×1.0", "sky")
     sp(0.5)
     with st.expander("Carrier Scoring Weights", expanded=False):
         wc1, wc2, wc3 = st.columns(3)
