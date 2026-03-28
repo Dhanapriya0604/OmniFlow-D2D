@@ -1102,50 +1102,6 @@ def page_demand() -> None:
     sec("YoY Revenue Growth by Category")
     yr_rev      = ops.groupby(["Year", "Category"])["Net_Revenue"].sum().unstack(fill_value=0)
     cat_monthly = ops.groupby(["YM", "Category"])["Net_Revenue"].sum().unstack(fill_value=0)
-    # ===== Growth Calculation =====
-
-    categories = []
-    vals_2024_list = []
-    vals_2025_list = []
-    forecast_list = []
-    
-    yoy_raw_list = []
-    proj_raw_list = []
-    
-    for cat in cat_monthly.columns:
-        vals = cat_monthly[cat].values.astype(float)
-        res = ml_forecast(vals, cat_monthly.index, n_future)
-    
-        if res and len(vals) >= 24:
-            val_2025 = np.mean(vals[-12:])
-            val_2024 = np.mean(vals[-24:-12])
-            forecast_mean = np.mean(res["forecast"])
-    
-            yoy = ((val_2025 - val_2024) / (val_2024 + 1e-9)) * 100
-            proj = ((forecast_mean - val_2025) / (val_2025 + 1e-9)) * 100
-    
-            categories.append(cat)
-            vals_2024_list.append(val_2024)
-            vals_2025_list.append(val_2025)
-            forecast_list.append(forecast_mean)
-    
-            yoy_raw_list.append(yoy)
-            proj_raw_list.append(proj)
-    yoy_raw_list = []
-    proj_raw_list = []
-    # ===== NEW: Correct 3-bar + normalized growth =====
-    
-    def normalize_pair(yoy_vals, proj_vals):
-        combined = yoy_vals + proj_vals
-        max_val = max(combined) if max(combined) != 0 else 1
-    
-        yoy_norm = [(v / max_val) * 100 for v in yoy_vals]
-        proj_norm = [(v / max_val) * 100 for v in proj_vals]
-    
-        return yoy_norm, proj_norm
-    
-    yoy_list, proj_list = normalize_pair(yoy_raw_list, proj_raw_list)
-    
     proj_next: dict[str, float] = {}
     for cat in cat_monthly.columns:
         r = ml_forecast(cat_monthly[cat].values.astype(float), cat_monthly.index, n_future)
@@ -1213,72 +1169,31 @@ def page_demand() -> None:
         st.plotly_chart(fig_yoy, use_container_width=True, key="yoy_bar")
 
         sp(0.5)
-        row2_left, row2_right = st.columns([3, 2], gap="large")
-
-        with row2_left:
-            ts_idx = _to_ts(cat_monthly.index)
-            fig_spark = go.Figure()
-            for ci, cat in enumerate(cats_sorted):
-                clr   = cat_colors.get(cat, COLORS[ci])
-                vals  = cat_monthly[cat].values / 1e6
-                short = cat_short.get(cat, cat)
-                r_c = int(clr.lstrip('#')[0:2], 16)
-                g_c = int(clr.lstrip('#')[2:4], 16)
-                b_c = int(clr.lstrip('#')[4:6], 16)
-                fig_spark.add_trace(go.Scatter(
-                    x=ts_idx, y=vals, name=short,
-                    line=dict(color=clr, width=2),
-                    fill="tozeroy",
-                    fillcolor=f"rgba({r_c},{g_c},{b_c},0.07)",
-                    hovertemplate=f"<b>{cat}</b><br>%{{x|%b %Y}}: ₹%{{y:.2f}}M<extra></extra>",
-                ))
-            fig_spark.update_layout(
-                **CD(), height=280,
-                xaxis={**gX(), "tickangle": -20},
-                yaxis={**gY(), "title": "₹M / month"},
-                legend=dict(**leg(), orientation="h", y=-0.36, x=0.5, xanchor="center"),
-                title=dict(text="Monthly Revenue Trend by Category",
-                           font=dict(size=11, color="#64748b")),
-            )
-            st.plotly_chart(fig_spark, use_container_width=True, key="monthly_sparklines")
-
-        with row2_right:
-            fig1 = go.Figure()
-
-            fig1.add_trace(go.Bar(name="2024", x=categories, y=vals_2024_list))
-            fig1.add_trace(go.Bar(name="2025", x=categories, y=vals_2025_list))
-            fig1.add_trace(go.Bar(name="Forecast", x=categories, y=forecast_list))
-            
-            fig1.update_layout(
-                barmode='group',
-                title="Category Demand (2024 vs 2025 vs Forecast)"
-            )
-            
-            st.plotly_chart(fig1, use_container_width=True)
-            fig2 = go.Figure()
-
-            fig2.add_trace(go.Bar(
-                name="YoY Growth %",
-                x=categories,
-                y=yoy_list,
-                text=[f"{v:.1f}%" for v in yoy_list],
-                textposition="outside"
+        ts_idx = _to_ts(cat_monthly.index)
+        fig_spark = go.Figure()
+        for ci, cat in enumerate(cats_sorted):
+            clr   = cat_colors.get(cat, COLORS[ci])
+            vals  = cat_monthly[cat].values / 1e6
+            short = cat_short.get(cat, cat)
+            r_c = int(clr.lstrip('#')[0:2], 16)
+            g_c = int(clr.lstrip('#')[2:4], 16)
+            b_c = int(clr.lstrip('#')[4:6], 16)
+            fig_spark.add_trace(go.Scatter(
+                x=ts_idx, y=vals, name=short,
+                line=dict(color=clr, width=2),
+                fill="tozeroy",
+                fillcolor=f"rgba({r_c},{g_c},{b_c},0.07)",
+                hovertemplate=f"<b>{cat}</b><br>%{{x|%b %Y}}: ₹%{{y:.2f}}M<extra></extra>",
             ))
-            
-            fig2.add_trace(go.Bar(
-                name="Forecast Growth %",
-                x=categories,
-                y=proj_list,
-                text=[f"{v:.1f}%" for v in proj_list],
-                textposition="outside"
-            ))
-            
-            fig2.update_layout(
-                barmode='group',
-                title="Normalized Growth % (0–100 Scale)"
-            )
-            
-            st.plotly_chart(fig2, use_container_width=True)
+        fig_spark.update_layout(
+            **CD(), height=300,
+            xaxis={**gX(), "tickangle": -20},
+            yaxis={**gY(), "title": "₹M / month"},
+            legend=dict(**leg(), orientation="h", y=-0.18, x=0.5, xanchor="center"),
+            title=dict(text="Monthly Revenue Trend by Category",
+                       font=dict(size=11, color="#64748b")),
+        )
+        st.plotly_chart(fig_spark, use_container_width=True, key="monthly_sparklines")
 
 def page_inventory() -> None:
     n_future = get_horizon()
