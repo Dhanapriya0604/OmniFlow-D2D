@@ -316,18 +316,6 @@ def ml_forecast(vals: np.ndarray, ds_idx, n_future: int = N_FUTURE_MONTHS) -> di
         model_metrics=model_metrics, weights={m: weights[m] for m in _make_models()},
     )
 
-def compute_growth_corrected(cat_series, forecast_vals):
-    if len(cat_series) < 24:
-        return 0, 0, 0, 0, 0  # or handle gracefully
-
-    val_2025 = np.mean(cat_series[-12:])
-    val_2024 = np.mean(cat_series[-24:-12])
-    forecast_mean = np.mean(forecast_vals)
-
-    yoy = ((val_2025 - val_2024) / (val_2024 + 1e-9)) * 100
-    proj = ((forecast_mean - val_2025) / (val_2025 + 1e-9)) * 100
-
-    return yoy, proj, val_2024, val_2025, forecast_mean
 @st.cache_data
 def compute_category_forecasts(n_future: int = N_FUTURE_MONTHS) -> dict:
     df  = load_data()
@@ -1114,26 +1102,50 @@ def page_demand() -> None:
     sec("YoY Revenue Growth by Category")
     yr_rev      = ops.groupby(["Year", "Category"])["Net_Revenue"].sum().unstack(fill_value=0)
     cat_monthly = ops.groupby(["YM", "Category"])["Net_Revenue"].sum().unstack(fill_value=0)
+    # ===== NEW: Correct 3-bar + normalized growth =====
+    
+    def normalize_growth(val):
+        return max(0, min(val, 100))
+    
+    def compute_values_and_growth(cat_series, forecast_vals):
+        if len(cat_series) < 24:
+            return None
+    
+        val_2025 = np.mean(cat_series[-12:])
+        val_2024 = np.mean(cat_series[-24:-12])
+        forecast_mean = np.mean(forecast_vals)
+    
+        yoy = ((val_2025 - val_2024) / (val_2024 + 1e-9)) * 100
+        proj = ((forecast_mean - val_2025) / (val_2025 + 1e-9)) * 100
+    
+        yoy = normalize_growth(yoy)
+        proj = normalize_growth(proj)
+    
+        return val_2024, val_2025, forecast_mean, yoy, proj
+    
+    
     categories = []
-    yoy_list = []
-    proj_list = []
     vals_2024_list = []
     vals_2025_list = []
     forecast_list = []
+    yoy_list = []
+    proj_list = []
     
     for cat in cat_monthly.columns:
         vals = cat_monthly[cat].values.astype(float)
         res = ml_forecast(vals, cat_monthly.index, n_future)
     
         if res:
-            yoy, proj, v24, v25, fmean = compute_growth_corrected(vals, res["forecast"])
+            out = compute_values_and_growth(vals, res["forecast"])
+            if out:
+                v24, v25, fmean, yoy, proj = out
     
-            categories.append(cat)
-            yoy_list.append(round(yoy, 1))
-            proj_list.append(round(proj, 1))
-            vals_2024_list.append(round(v24, 0))
-            vals_2025_list.append(round(v25, 0))
-            forecast_list.append(round(fmean, 0))
+                categories.append(cat)
+                vals_2024_list.append(round(v24, 0))
+                vals_2025_list.append(round(v25, 0))
+                forecast_list.append(round(fmean, 0))
+                yoy_list.append(round(yoy, 1))
+                proj_list.append(round(proj, 1))
     proj_next: dict[str, float] = {}
     for cat in cat_monthly.columns:
         r = ml_forecast(cat_monthly[cat].values.astype(float), cat_monthly.index, n_future)
@@ -1231,10 +1243,22 @@ def page_demand() -> None:
             st.plotly_chart(fig_spark, use_container_width=True, key="monthly_sparklines")
 
         with row2_right:
+            fig1 = go.Figure()
+
+            fig1.add_trace(go.Bar(name="2024", x=categories, y=vals_2024_list))
+            fig1.add_trace(go.Bar(name="2025", x=categories, y=vals_2025_list))
+            fig1.add_trace(go.Bar(name="Forecast", x=categories, y=forecast_list))
+            
+            fig1.update_layout(
+                barmode='group',
+                title="Category-wise Demand (2024 vs 2025 vs Forecast)"
+            )
+            
+            st.plotly_chart(fig1, use_container_width=True)
             fig2 = go.Figure()
 
             fig2.add_trace(go.Bar(
-                name="YoY %",
+                name="YoY Growth %",
                 x=categories,
                 y=yoy_list,
                 text=[f"{v}%" for v in yoy_list],
@@ -1242,7 +1266,7 @@ def page_demand() -> None:
             ))
             
             fig2.add_trace(go.Bar(
-                name="Forecast %",
+                name="Forecast Growth %",
                 x=categories,
                 y=proj_list,
                 text=[f"{v}%" for v in proj_list],
@@ -1251,7 +1275,7 @@ def page_demand() -> None:
             
             fig2.update_layout(
                 barmode='group',
-                title="Growth % (Corrected & Comparable)"
+                title="Normalized Growth % (0–100 Scale)"
             )
             
             st.plotly_chart(fig2, use_container_width=True)
