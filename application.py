@@ -894,7 +894,7 @@ def page_overview() -> None:
            text-transform:uppercase;line-height:1.1'>OmniFlow D2D Intelligence</div>
       <div style='font-size:11px;font-family:DM Mono,monospace;color:#93c5fd;letter-spacing:.14em;
            text-transform:uppercase;margin-top:6px;margin-bottom:4px'>
-        AI Driven Demand to Delivery Optimization System
+        AI Driven Demand to Delivery Intelligence System
       </div>
      </div>""", unsafe_allow_html=True)
     sec("Dataset at a Glance")
