@@ -137,7 +137,7 @@ def sp(n: float = 1) -> None:
 
 def horizon_badge(n_months: int) -> None:
     st.markdown(
-        f"<div class='horizon-badge'>📅 Forecast Horizon: {n_months} months</div>",
+        f"<div class='horizon-badge'>Forecast Horizon: {n_months} months</div>",
         unsafe_allow_html=True,
     )
 
