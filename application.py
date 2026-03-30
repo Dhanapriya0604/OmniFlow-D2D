@@ -1879,11 +1879,11 @@ def main() -> None:
     st.sidebar.markdown("""<div style='padding:16px 0 10px'>
       <div style='font-size:28px;font-weight:900;letter-spacing:-.03em;text-transform:uppercase;
            background:linear-gradient(135deg,#f5a623,#ff6b6b,#2ed8c3);
-           -webkit-background-clip:text;-webkit-text-fill-color:transparent'>OmniFlow D2D</div>
+           -webkit-background-clip:text;-webkit-text-fill-color:transparent'>OmniFlow D2D Intelligence</div>
     </div>""", unsafe_allow_html=True)
     st.sidebar.markdown(
         "<div style='font-size:10px;font-weight:700;color:#4a5e7a;letter-spacing:.1em;"
-        "text-transform:uppercase;font-family:DM Mono;margin-bottom:4px'>📅 Forecast Horizon</div>",
+        "text-transform:uppercase;font-family:DM Mono;margin-bottom:4px'>Forecast Horizon</div>",
         unsafe_allow_html=True,
     )
     horizon_val = st.sidebar.select_slider(
@@ -1896,7 +1896,7 @@ def main() -> None:
     )
     st.sidebar.markdown(
         f"<div style='font-size:10px;color:#64748b;font-family:DM Mono;margin-top:2px;"
-        f"margin-bottom:12px'>→ All modules use <b style='color:#1e3a8a'>{horizon_val}M</b> window</div>",
+        f"margin-bottom:12px'>All modules use <b style='color:#1e3a8a'>{horizon_val}M</b> window</div>",
         unsafe_allow_html=True,
     )
     st.sidebar.markdown(
