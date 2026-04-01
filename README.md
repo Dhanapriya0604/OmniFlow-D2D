@@ -1,6 +1,6 @@
-# OmniFlow D2D Intelligence Platform
+# OmniFlow D2D Intelligence 
 
-AI-powered supply chain analytics for India D2D e-commerce.
+AI Driven Demand to Delivery Intelligence System.
 
 ## 📁 Project Structure
 ```
@@ -16,7 +16,7 @@ omniflow_app/
     ├── inventory.py                # EOQ + Safety Stock optimisation
     ├── production.py               # Production planning
     ├── logistics.py                # Carrier, delay, warehouse analytics
-    └── chatbot.py                  # AI decision chatbot (Claude API)
+                  
 ```
 
 ## 🚀 Setup
@@ -46,13 +46,3 @@ The app will open at http://localhost:8501
 | Inventory Optimization | EOQ, Safety Stock, Reorder Points | Demand forecast |
 | Production Planning | Monthly production targets + gap analysis | Demand + Inventory |
 | Logistics Intelligence | Carrier perf, delay hotspots, warehouse forecast | Raw data + Demand |
-| Decision Chatbot | Claude-powered Q&A with live SC context | All modules |
-
-## 🤖 Chatbot Notes
-The chatbot uses the Anthropic Claude API via the claude.ai environment proxy.
-It automatically builds a live context snapshot from all 5,200 orders + forecasts.
-
-## 🎨 Design
-- Dark theme: deep navy (#0a0e1a) with cyan (#00e5ff) and violet (#7c3aed) accents
-- Fonts: Syne (headers) + DM Sans (body)
-- All charts: Plotly with transparent backgrounds
