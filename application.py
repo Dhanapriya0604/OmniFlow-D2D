@@ -45,6 +45,25 @@ DEFAULT_W_COST     = 0.35
 DEFAULT_W_RETURNS  = 0.25
 DEFAULT_DELAY_THR  = 3
 
+# ── UPGRADE 1: Dynamic holding cost tiers based on unit price ──────────────
+# Instead of a single fixed hold_pct for all SKUs, we derive holding cost
+# as a function of the product's unit price band. Higher-value products
+# incur proportionally higher holding costs (storage, insurance, opportunity).
+def dynamic_holding_cost(unit_price: float) -> float:
+    """
+    Returns annualised holding cost rate for a given unit price.
+    Premium items (>₹5000) carry 25% — more storage/insurance risk.
+    Mid-range (₹1000–₹5000) carry 20% (market standard).
+    Budget items (<₹1000) carry 15% — lower risk, faster turnover.
+    """
+    if unit_price >= 5000:
+        return 0.25
+    elif unit_price >= 1000:
+        return 0.20
+    else:
+        return 0.15
+
+
 def get_horizon() -> int:
     return st.session_state.get("global_horizon", N_FUTURE_MONTHS)
 
@@ -72,6 +91,7 @@ def inject_css() -> None:
     .banner-coral{background:linear-gradient(135deg,#fff1f2,#ffffff);border:1px solid #fecaca;border-left:4px solid #ef4444;font-weight:600;}
     .banner-mint{background:#ecfdf5;border:1px solid #34d399;}
     .banner-sky{background:#eff6ff;border:1px solid #93c5fd;}
+    .banner-purple{background:#fdf4ff;border:1px solid #d8b4fe;border-left:4px solid #8b5cf6;font-weight:600;}
     .model-pill{display:inline-block;padding:3px 9px;font-size:10px;font-weight:700;border-radius:20px;margin-right:5px;margin-bottom:3px;}
     .pill-ridge{background:#eff6ff;color:#1d4ed8}
     .pill-rf{background:#f0fdf4;color:#15803d}
@@ -84,6 +104,8 @@ def inject_css() -> None:
     .carrier-card:hover{transform:translateY(-2px);box-shadow:0 6px 18px rgba(0,0,0,0.10);}
     .carrier-badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;
         letter-spacing:.04em;text-transform:uppercase;}
+    .rec-card{background:white;border-radius:12px;padding:14px 16px;border:1px solid #e5e7eb;
+        border-left:4px solid #8b5cf6;box-shadow:0 3px 12px rgba(0,0,0,0.06);margin-bottom:8px;}
     .stTabs [data-baseweb="tab"]{background:#f1f5f9;border-radius:10px;padding:9px 16px;font-weight:600;color:#475569;font-size:13px;}
     .stTabs [aria-selected="true"]{background:#e0e7ff;color:#1e3a8a;box-shadow:0 4px 14px rgba(30,58,138,0.18);}
     .block-container{padding-top:1.8rem;padding-bottom:2rem;}
@@ -113,7 +135,7 @@ def leg() -> dict:
     return dict(bgcolor="rgba(255,255,255,0.95)", bordercolor="#E0E0E0", borderwidth=1, font=dict(color="#334155", size=10))
 
 def kpi(col, label: str, value, cls: str = "sky", sub: str = "") -> None:
-    color_map = {"coral": "#dc2626", "sky": "#1e3a8a", "mint": "#059669", "amber": "#d97706"}
+    color_map = {"coral": "#dc2626", "sky": "#1e3a8a", "mint": "#059669", "amber": "#d97706", "purple": "#7c3aed"}
     color = color_map.get(cls, "#7c3aed")
     col.markdown(
         f"""<div class='metric-card'>
@@ -137,7 +159,7 @@ def sp(n: float = 1) -> None:
 
 def horizon_badge(n_months: int) -> None:
     st.markdown(
-        f"<div class='horizon-badge'>Forecast Horizon: {n_months} months</div>",
+        f"<div class='horizon-badge'>📅 Forecast Horizon: {n_months} months</div>",
         unsafe_allow_html=True,
     )
 
@@ -437,6 +459,17 @@ def render_model_quality(res: dict) -> None:
     kpi(c5, "Accuracy", f"{acc:.1f}%",                "mint", "1 − NRMSE")
     sp(0.5)
 
+# ── UPGRADE 2: compute_inventory now uses dynamic holding cost per SKU ────────
+# Key change: hold_pct argument becomes the *default* fallback only.
+# Per-SKU holding cost is derived from unit price via dynamic_holding_cost().
+# This makes EOQ more realistic — a ₹500 item and ₹15,000 item no longer
+# share the same holding cost rate, which was the original static assumption.
+#
+# We also compute and return total system cost components:
+#   total_ordering_cost  = (annual_demand / EOQ) * order_cost
+#   total_holding_cost   = (EOQ / 2) * unit_price * hold_rate
+#   total_stockout_cost  = already existed (Stockout_Cost column)
+#   Total_Inventory_Cost = ordering + holding (stockout shown separately)
 @st.cache_data
 def compute_inventory(
     order_cost: float = DEFAULT_ORDER_COST,
@@ -492,9 +525,21 @@ def compute_inventory(
     demand_cols = sku_snapshot.apply(_sku_forecast, axis=1, result_type="expand")
     demand_cols.columns = ["avg_d", "fc_next6", "econ_d"]
     sku_snapshot = pd.concat([sku_snapshot, demand_cols], axis=1)
+
     uc        = sku_snapshot["avg_price"].clip(lower=1.0)
     ann_d     = sku_snapshot["econ_d"] * 12
-    eoq = np.maximum(np.where(ann_d > 0, np.sqrt(2 * ann_d * order_cost / (uc * hold_pct)), 0), 1).astype(int)
+
+    # UPGRADE 2a: Per-SKU dynamic holding cost rate
+    dyn_hold = uc.apply(dynamic_holding_cost)   # Series, one rate per SKU
+
+    # UPGRADE 2b: EOQ uses per-SKU holding cost (was fixed hold_pct for all)
+    eoq = np.maximum(
+        np.where(ann_d > 0,
+                 np.sqrt(2 * ann_d * order_cost / (uc * dyn_hold)),
+                 0),
+        1
+    ).astype(int)
+
     daily_d   = sku_snapshot["avg_d"] / 30.0
     daily_std = sku_snapshot["hist_std"] / np.sqrt(30)
     lt_std    = sku_snapshot["Category"].map(lt_std_map).fillna(1.0)
@@ -520,25 +565,38 @@ def compute_inventory(
     daily_margin  = daily_d * uc * MARGIN_RATE
     stockout_cost = np.where(status == "🔴 Critical",
         np.round(units_below * uc * MARGIN_RATE + daily_margin * lead_time, 0), 0.0)
+
+    # UPGRADE 2c: Explicit total cost components per SKU
+    # Ordering cost  = number of orders per year × cost per order
+    # Holding cost   = average cycle stock × unit cost × holding rate
+    annual_orders   = np.where(eoq > 0, ann_d / eoq, 0)
+    ordering_cost_y = np.round(annual_orders * order_cost, 0)
+    holding_cost_y  = np.round((eoq / 2.0) * uc * dyn_hold, 0)
+    total_inv_cost  = ordering_cost_y + holding_cost_y   # classic EOQ total cost
+
     inv_df = pd.DataFrame({
-        "SKU_ID":          sku_snapshot["SKU_ID"],
-        "Product_Name":    sku_snapshot["Product_Name"],
-        "Category":        sku_snapshot["Category"],
-        "Monthly_Avg":     sku_snapshot["hist_avg"].round(1),
-        "Forecast_Next6":  sku_snapshot["fc_next6"],
-        "Demand_6M":       demand_6m,
-        "Demand_Cover_Pct":demand_cover_pct,
-        "EOQ":             eoq,
-        "SS":              ss,
-        "ROP":             rop,
-        "Current_Stock":   current_stock,
-        "Days_of_Stock":   days_stock,
-        "Days_To_ROP":     days_to_rop,
-        "Status":          status,
-        "Unit_Price":      uc.round(0),
-        "Stockout_Cost":   stockout_cost,
-        "Prod_Need":       prod_need,
-        "Total_Revenue":   (sku_snapshot["total_qty"] * uc).round(0),
+        "SKU_ID":           sku_snapshot["SKU_ID"],
+        "Product_Name":     sku_snapshot["Product_Name"],
+        "Category":         sku_snapshot["Category"],
+        "Monthly_Avg":      sku_snapshot["hist_avg"].round(1),
+        "Forecast_Next6":   sku_snapshot["fc_next6"],
+        "Demand_6M":        demand_6m,
+        "Demand_Cover_Pct": demand_cover_pct,
+        "EOQ":              eoq,
+        "SS":               ss,
+        "ROP":              rop,
+        "Current_Stock":    current_stock,
+        "Days_of_Stock":    days_stock,
+        "Days_To_ROP":      days_to_rop,
+        "Status":           status,
+        "Unit_Price":       uc.round(0),
+        "Hold_Rate_Pct":    (dyn_hold * 100).round(0),   # NEW: visible dynamic rate
+        "Ordering_Cost_Y":  ordering_cost_y,              # NEW: annual ordering cost
+        "Holding_Cost_Y":   holding_cost_y,               # NEW: annual holding cost
+        "Total_Inv_Cost_Y": total_inv_cost,               # NEW: total EOQ cost
+        "Stockout_Cost":    stockout_cost,
+        "Prod_Need":        prod_need,
+        "Total_Revenue":    (sku_snapshot["total_qty"] * uc).round(0),
     })
     inv_df = inv_df[inv_df["Monthly_Avg"] > 0].reset_index(drop=True)
     if inv_df.empty:
@@ -799,6 +857,133 @@ def compute_logistics(
             })
     return carr, opt, pd.DataFrame(fwd_rows), region_carrier_stats
 
+
+# ── UPGRADE 3: Decision Recommendations Engine ────────────────────────────────
+# Generates plain-English, data-driven action recommendations across all modules.
+# Rules are threshold-based but grounded in the actual computed values, so they
+# update automatically whenever data or parameters change.
+def generate_recommendations(inv: pd.DataFrame, plan: pd.DataFrame,
+                              opt: pd.DataFrame, fwd: pd.DataFrame) -> list[dict]:
+    recs = []
+
+    # ── Inventory recommendations ──────────────────────────────────────────
+    crit = inv[inv["Status"] == "🔴 Critical"].sort_values("Stockout_Cost", ascending=False)
+    if not crit.empty:
+        top3 = ", ".join(crit["Product_Name"].str[:20].tolist()[:3])
+        recs.append({
+            "icon": "🚨", "priority": "Critical",
+            "module": "Inventory",
+            "action": f"Immediately restock {len(crit)} critical SKUs",
+            "detail": f"Top items: {top3}. Combined stockout risk: ₹{int(crit['Stockout_Cost'].sum()):,}",
+            "color": "#ef4444",
+        })
+
+    # Overstock alert: adequate SKUs with >3× ROP current stock (holding cost waste)
+    overstock = inv[
+        (inv["Status"] == "🟢 Adequate") &
+        (inv["Current_Stock"] > inv["ROP"] * 3) &
+        (inv["Monthly_Avg"] > 0)
+    ]
+    if not overstock.empty:
+        excess_holding = (overstock["Holding_Cost_Y"] * 0.5).sum()
+        recs.append({
+            "icon": "📦", "priority": "Medium",
+            "module": "Inventory",
+            "action": f"Reduce production for {len(overstock)} overstocked SKUs",
+            "detail": f"Current stock >3× ROP. Potential holding cost saving: ₹{int(excess_holding):,}/yr",
+            "color": "#d97706",
+        })
+
+    # High-cost SKUs with suboptimal EOQ (ordering cost dominates)
+    costly_ordering = inv[
+        (inv["Ordering_Cost_Y"] > inv["Holding_Cost_Y"] * 1.5) &
+        (inv["Demand_6M"] > 10)
+    ]
+    if not costly_ordering.empty:
+        recs.append({
+            "icon": "📉", "priority": "Medium",
+            "module": "Inventory",
+            "action": f"Increase order batch size for {len(costly_ordering)} SKUs",
+            "detail": f"Ordering cost significantly exceeds holding cost — larger EOQ batches will reduce total cost",
+            "color": "#d97706",
+        })
+
+    # ── Production recommendations ─────────────────────────────────────────
+    if not plan.empty:
+        agg = plan.groupby("Month_dt")[["Production", "Demand_Forecast"]].sum()
+        surplus_months = (agg["Production"] > agg["Demand_Forecast"] * 1.15).sum()
+        if surplus_months >= 2:
+            avg_surplus = (agg["Production"] - agg["Demand_Forecast"]).clip(lower=0).mean()
+            recs.append({
+                "icon": "⚙️", "priority": "Medium",
+                "module": "Production",
+                "action": f"Reduce capacity multiplier — {surplus_months} months show >15% surplus",
+                "detail": f"Average monthly surplus: {int(avg_surplus):,} units. Lowers holding cost.",
+                "color": "#d97706",
+            })
+        deficit_months = (agg["Production"] < agg["Demand_Forecast"] * 0.9).sum()
+        if deficit_months >= 1:
+            recs.append({
+                "icon": "⬆️", "priority": "High",
+                "module": "Production",
+                "action": f"Increase production — {deficit_months} month(s) below 90% of forecast demand",
+                "detail": "Risk of stockout if demand materialises at forecast level",
+                "color": "#ef4444",
+            })
+
+    # ── Logistics recommendations ──────────────────────────────────────────
+    if not opt.empty:
+        switch_regions = opt[opt["Saving_If_Best"] > 1000].sort_values("Saving_If_Best", ascending=False)
+        for _, row in switch_regions.head(3).iterrows():
+            recs.append({
+                "icon": "🚚", "priority": "High",
+                "module": "Logistics",
+                "action": f"Switch to {row['Best_Carrier']} in {row['Region']}",
+                "detail": f"Saves ₹{int(row['Saving_If_Best']):,} vs current avg (score {row['Best_Score']:.2f})",
+                "color": "#1e3a8a",
+            })
+
+    if not fwd.empty:
+        total_fwd = fwd["Proj_Ship_Cost"].sum()
+        if total_fwd > 500000:
+            recs.append({
+                "icon": "💰", "priority": "Medium",
+                "module": "Logistics",
+                "action": "Negotiate volume discount with top carriers",
+                "detail": f"Forward {len(fwd['Month'].unique())}-month projected spend: ₹{int(total_fwd):,}",
+                "color": "#059669",
+            })
+
+    # Sort: Critical first, then High, then Medium
+    priority_order = {"Critical": 0, "High": 1, "Medium": 2}
+    recs.sort(key=lambda r: priority_order.get(r["priority"], 3))
+    return recs
+
+
+def render_recommendations(recs: list[dict]) -> None:
+    if not recs:
+        banner("✅ No high-priority actions needed at current settings.", "mint")
+        return
+    priority_colors = {"Critical": "#ef4444", "High": "#f97316", "Medium": "#d97706"}
+    for r in recs:
+        pclr = priority_colors.get(r["priority"], "#64748b")
+        st.markdown(f"""
+        <div class='rec-card'>
+          <div style='display:flex;align-items:flex-start;gap:10px'>
+            <div style='font-size:22px'>{r["icon"]}</div>
+            <div style='flex:1'>
+              <div style='display:flex;gap:8px;align-items:center;margin-bottom:4px'>
+                <span style='font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;
+                  background:{pclr}18;color:{pclr};border:1px solid {pclr}44'>{r["priority"]}</span>
+                <span style='font-size:10px;color:#94a3b8;font-weight:600'>{r["module"]}</span>
+              </div>
+              <div style='font-size:13px;font-weight:800;color:#0f172a'>{r["action"]}</div>
+              <div style='font-size:11px;color:#64748b;margin-top:3px'>{r["detail"]}</div>
+            </div>
+          </div>
+        </div>""", unsafe_allow_html=True)
+
+
 def render_carrier_scorecard(region_carrier_stats: pd.DataFrame, opt: pd.DataFrame) -> None:
     carrier_colors = {
         "BlueDart":     "#1565C0",
@@ -824,7 +1009,6 @@ def render_carrier_scorecard(region_carrier_stats: pd.DataFrame, opt: pd.DataFra
             textfont=dict(size=8, color="#334155"),
             hovertemplate=f"<b>{carrier}</b><br>Region: %{{x}}<br>Score: %{{y:.3f}}<extra></extra>",
         ))
-
     fig.update_layout(
         **CD(), height=340, barmode="group",
         xaxis={**gX(), "tickangle": -15},
@@ -844,7 +1028,6 @@ def render_carrier_scorecard(region_carrier_stats: pd.DataFrame, opt: pd.DataFra
         col         = cols[i % 3]
         carrier     = row["Best_Carrier"]
         clr         = carrier_colors.get(carrier, "#7c3aed")
-        saving_sign = "+" if row["Saving_If_Best"] > 0 else ""
         col.markdown(f"""
         <div class='carrier-card'>
           <div style='display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px'>
@@ -894,7 +1077,7 @@ def page_overview() -> None:
            text-transform:uppercase;line-height:1.1'>OmniFlow D2D Intelligence</div>
       <div style='font-size:11px;font-family:DM Mono,monospace;color:#93c5fd;letter-spacing:.14em;
            text-transform:uppercase;margin-top:6px;margin-bottom:4px'>
-        AI Driven Demand to Delivery Intelligence System
+        AI Driven Demand to Delivery Optimization System
       </div>
      </div>""", unsafe_allow_html=True)
     sec("Dataset at a Glance")
@@ -902,7 +1085,7 @@ def page_overview() -> None:
     kpi(k1, "Total Orders",     f"{total_orders:,}",          "sky",   "Jan 2024 – Dec 2025")
     kpi(k2, "Net Revenue",      f"₹{total_rev/1e7:.2f}Cr",    "mint",  "delivered + shipped")
     kpi(k3, "Avg Order Value",  f"₹{avg_ov:,.0f}",             "sky",   "per active order")
-    kpi(k4, "Avg Delivery",     f"{(del_df['Delivery_Days'].mean()):.1f}d","sky", f"avg across all carriers")
+    kpi(k4, "Avg Delivery",     f"{(del_df['Delivery_Days'].mean()):.1f}d","sky", "avg across all carriers")
     kpi(k5, "On-Time Delivery", f"{on_time:.1f}%",             "mint",  "delivered ≤ 3 days")
     kpi(k6, "Unique SKUs",      str(n_skus),                   "sky",   "across 4 categories")
     sp(0.5)
@@ -910,6 +1093,7 @@ def page_overview() -> None:
     _n_crit        = int((_inv_ov["Status"] == "🔴 Critical").sum())
     _n_low         = int((_inv_ov["Status"] == "🟡 Low").sum())
     _stockout_risk = int(_inv_ov["Stockout_Cost"].sum())
+    _total_inv_cost= int(_inv_ov["Total_Inv_Cost_Y"].sum())
     _top_crit      = _inv_ov[_inv_ov["Status"] == "🔴 Critical"].sort_values("Stockout_Cost", ascending=False)
     if _n_crit > 0:
         _top_names = ", ".join(_top_crit["Product_Name"].str[:20].tolist()[:3])
@@ -918,14 +1102,25 @@ def page_overview() -> None:
             f"<b>{_n_crit} Critical SKUs</b> at or below safety stock &nbsp;|&nbsp; "
             f"<b>{_n_low} Low Stock SKUs</b> below reorder point &nbsp;|&nbsp; "
             f"Stockout Risk: <b>₹{_stockout_risk:,}</b> &nbsp;|&nbsp; "
+            f"Annual Inventory Cost: <b>₹{_total_inv_cost:,}</b> &nbsp;|&nbsp; "
             f"Most urgent: <b>{_top_names}</b> → Go to <i>Production Planning</i>",
             "coral",
         )
     elif _n_low > 0:
-        banner(f"⚠️ <b>{_n_low} SKUs</b> below reorder point — consider restocking soon.", "amber")
+        banner(f"⚠️ <b>{_n_low} SKUs</b> below reorder point — consider restocking soon. "
+               f"Annual inventory cost: ₹{_total_inv_cost:,}", "amber")
     else:
-        banner("✅ <b>All SKUs adequately stocked.</b> No immediate stockout risk.", "mint")
+        banner(f"✅ <b>All SKUs adequately stocked.</b> Annual inventory carrying cost: ₹{_total_inv_cost:,}", "mint")
     sp(0.5)
+
+    # ── UPGRADE 3: Recommendations panel on Overview ──────────────────────
+    sec("🎯 Decision Recommendations", "")
+    _plan_ov = compute_production(n_future=get_horizon())
+    _, _opt_ov, _fwd_ov, _ = compute_logistics(n_future=get_horizon())
+    _recs = generate_recommendations(_inv_ov, _plan_ov, _opt_ov, _fwd_ov)
+    render_recommendations(_recs)
+    sp(0.5)
+
     st.markdown("""
     <div class='about-section'>
     <div style='font-size:16px;font-weight:900;margin-bottom:14px'>Dataset Scope</div>
@@ -991,7 +1186,7 @@ def page_overview() -> None:
       <div class='card' style='border-top:3px solid #f59e0b'>
         <div style='font-size:11px;font-weight:800;color:#f59e0b;letter-spacing:.06em;text-transform:uppercase'>2 · Inventory Optimisation</div>
         <div style='font-size:11px;font-weight:700;color:#0f172a;margin:6px 0 4px'><i>Which SKUs need restocking?</i></div>
-        <div style='font-size:11.5px;color:#475569;line-height:1.7'>Wilson EOQ formula computes optimal order batch. Safety stock protects against demand variance. ROP triggers reorder. SKUs are ABC-classified.</div>
+        <div style='font-size:11.5px;color:#475569;line-height:1.7'>Wilson EOQ with <b>dynamic per-SKU holding cost</b> computes optimal order batch. Safety stock protects against demand variance. ROP triggers reorder. Total inventory cost minimized.</div>
       </div>
       <div class='card' style='border-top:3px solid #8b5cf6'>
         <div style='font-size:11px;font-weight:800;color:#8b5cf6;letter-spacing:.06em;text-transform:uppercase'>3 · Production Planning</div>
@@ -1001,7 +1196,7 @@ def page_overview() -> None:
       <div class='card' style='border-top:3px solid #059669'>
         <div style='font-size:11px;font-weight:800;color:#059669;letter-spacing:.06em;text-transform:uppercase'>4 · Logistics Optimisation</div>
         <div style='font-size:11px;font-weight:700;color:#0f172a;margin:6px 0 4px'><i>Which carrier, at what cost?</i></div>
-        <div style='font-size:11.5px;color:#475569;line-height:1.7'>Carrier composite score = weighted(speed + cost + return rate). Visual scorecard shows best carrier per region with key metrics at a glance.</div>
+        <div style='font-size:11.5px;color:#475569;line-height:1.7'>Carrier composite score = weighted(speed + cost + return rate). Visual scorecard shows best carrier per region. <b>Auto recommendations</b> flag switching opportunities.</div>
       </div>
     </div>
     </div>""", unsafe_allow_html=True)
@@ -1126,10 +1321,6 @@ def page_demand() -> None:
         rp_vals  = [proj_next.get(c, 0) / 1e6  for c in cats_sorted]
         x_labels = [cat_short.get(c, c) for c in cats_sorted]
         bar_clrs = [cat_colors.get(c, "#888") for c in cats_sorted]
-        g_hist = [(yr_rev.loc[2025,c]-yr_rev.loc[2024,c])/yr_rev.loc[2024,c]*100
-                  if yr_rev.loc[2024,c]>0 else 0 for c in cats_sorted]
-        g_proj = [(proj_next.get(c,0)-yr_rev.loc[2025,c])/yr_rev.loc[2025,c]*100
-                  if yr_rev.loc[2025,c]>0 else 0 for c in cats_sorted]
         fig_yoy = go.Figure()
         fig_yoy.add_trace(go.Bar(
             name="2024", x=x_labels, y=r24_vals,
@@ -1167,7 +1358,6 @@ def page_demand() -> None:
                        font=dict(size=11, color="#64748b")),
         )
         st.plotly_chart(fig_yoy, use_container_width=True, key="yoy_bar")
-
         sp(0.5)
         ts_idx = _to_ts(cat_monthly.index)
         fig_spark = go.Figure()
@@ -1205,10 +1395,16 @@ def page_inventory() -> None:
     with st.expander("Parameters", expanded=False):
         p1, p2, p3, p4 = st.columns(4)
         order_cost = p1.number_input("Order Cost", 100, 5000, DEFAULT_ORDER_COST, 50)
-        hold_pct   = p2.slider("Holding Cost %", 5, 40, int(DEFAULT_HOLD_PCT * 100)) / 100
+        hold_pct   = p2.slider("Holding Cost % (fallback)", 5, 40, int(DEFAULT_HOLD_PCT * 100)) / 100
         lead_time  = p3.slider("Lead Time days", 1, 30, DEFAULT_LEAD_TIME)
         svc        = p4.selectbox("Service Level", ["90% (z=1.28)", "95% (z=1.65)", "99% (z=2.33)"], index=1)
         z          = {"90% (z=1.28)": 1.28, "95% (z=1.65)": 1.65, "99% (z=2.33)": 2.33}[svc]
+    banner(
+        "💡 <b>Dynamic EOQ active:</b> Holding cost rate is derived per-SKU from unit price "
+        "(Budget &lt;₹1K → 15% · Mid ₹1K–₹5K → 20% · Premium &gt;₹5K → 25%) "
+        "— makes EOQ more realistic than a single fixed rate.",
+        "sky"
+    )
     inv = compute_inventory(order_cost, hold_pct, lead_time, z, n_future)
     if inv.empty:
         st.warning("No inventory data.")
@@ -1217,6 +1413,9 @@ def page_inventory() -> None:
     n_low           = (inv["Status"] == "🟡 Low").sum()
     total_prod_need = int(inv["Prod_Need"].sum())
     total_demand_6m = int(inv["Demand_6M"].sum())
+    total_ord_cost  = int(inv["Ordering_Cost_Y"].sum())
+    total_hld_cost  = int(inv["Holding_Cost_Y"].sum())
+    total_inv_cost  = int(inv["Total_Inv_Cost_Y"].sum())
     ops_ym   = ops["YM"].max()
     fc_start = (ops_ym + 1).to_timestamp().strftime("%b %Y")
     fc_end   = (ops_ym + n_future).to_timestamp().strftime("%b %Y")
@@ -1234,7 +1433,22 @@ def page_inventory() -> None:
     kpi(c3, "🟡 Low Stock",                 n_low,                     "amber", f"stock < reorder point · {avg_low_days}")
     kpi(c4, f"{n_future}M Forecast Demand", f"{total_demand_6m:,}",    "sky",   f"units · {fc_range}")
     kpi(c5, "Units to Produce",             f"{total_prod_need:,}",    "mint",  f"to meet demand by {fc_end}")
-    sp()
+    sp(0.5)
+
+    # ── UPGRADE 2d: Total cost breakdown KPIs ─────────────────────────────
+    sec("💰 Total Inventory Cost Breakdown (Annual)")
+    tc1, tc2, tc3 = st.columns(3)
+    kpi(tc1, "Annual Ordering Cost",  f"₹{total_ord_cost:,}",  "sky",    "# orders × cost per order")
+    kpi(tc2, "Annual Holding Cost",   f"₹{total_hld_cost:,}",  "amber",  "(EOQ/2) × price × hold rate")
+    kpi(tc3, "Total Inventory Cost",  f"₹{total_inv_cost:,}",  "purple", "ordering + holding (EOQ optimized)")
+    banner(
+        "📊 <b>Cost objective:</b> EOQ minimizes <i>Total Inventory Cost = Ordering Cost + Holding Cost</i>. "
+        f"At current settings: ordering ₹{total_ord_cost:,} + holding ₹{total_hld_cost:,} = "
+        f"<b>₹{total_inv_cost:,}/yr</b>. Adjust order cost or lead time above to see cost shift.",
+        "teal"
+    )
+    sp(0.5)
+
     sec("Stock Health Overview")
     cat_health = (inv.groupby(["Category","Status"])
                   .size().unstack(fill_value=0).reset_index())
@@ -1264,6 +1478,45 @@ def page_inventory() -> None:
     )
     st.plotly_chart(fig_sh, use_container_width=True, key="inv_cat_health")
     sp()
+
+    # ── UPGRADE 2e: Cost breakdown chart by category ──────────────────────
+    sec("Total Cost vs Stockout Risk by Category")
+    cat_cost = inv.groupby("Category").agg(
+        Ordering=("Ordering_Cost_Y", "sum"),
+        Holding=("Holding_Cost_Y", "sum"),
+        Stockout=("Stockout_Cost", "sum"),
+    ).reset_index()
+    cat_short_map = {
+        "Electronics & Mobiles": "Electronics",
+        "Fashion & Apparel": "Fashion",
+        "Home & Kitchen": "Home",
+        "Health & Personal Care": "Health",
+    }
+    cat_cost["Cat_Short"] = cat_cost["Category"].map(cat_short_map).fillna(cat_cost["Category"])
+    fig_cost = go.Figure()
+    fig_cost.add_trace(go.Bar(name="Ordering Cost", x=cat_cost["Cat_Short"], y=cat_cost["Ordering"],
+        marker=dict(color="#3b82f6", opacity=0.85), text=[f"₹{int(v):,}" for v in cat_cost["Ordering"]],
+        textposition="inside", textfont=dict(color="white", size=9)))
+    fig_cost.add_trace(go.Bar(name="Holding Cost", x=cat_cost["Cat_Short"], y=cat_cost["Holding"],
+        marker=dict(color="#f59e0b", opacity=0.85), text=[f"₹{int(v):,}" for v in cat_cost["Holding"]],
+        textposition="inside", textfont=dict(color="white", size=9)))
+    fig_cost.add_trace(go.Scatter(name="Stockout Risk", x=cat_cost["Cat_Short"], y=cat_cost["Stockout"],
+        mode="markers+text", yaxis="y2",
+        marker=dict(size=14, color="#ef4444", line=dict(color="#fff", width=2)),
+        text=[f"₹{int(v):,}" for v in cat_cost["Stockout"]],
+        textposition="top center", textfont=dict(size=9, color="#ef4444")))
+    fig_cost.update_layout(
+        **CD(), height=280, barmode="stack",
+        xaxis=gX(), yaxis={**gY(), "title": "Annual Cost ₹"},
+        yaxis2=dict(overlaying="y", side="right", showgrid=False, title="Stockout Risk ₹",
+                    tickcolor="#ef4444", tickfont=dict(color="#ef4444")),
+        legend=dict(**leg(), orientation="h", y=-0.22, x=0.5, xanchor="center"),
+        title=dict(text="Annual Ordering + Holding Cost vs Stockout Risk by Category",
+                   font=dict(size=11, color="#64748b")),
+    )
+    st.plotly_chart(fig_cost, use_container_width=True, key="inv_cost_bar")
+    sp()
+
     sec("Stock Position")
     sc1, sc2, sc3 = st.columns([2, 2, 1])
     cat_f  = sc1.multiselect("Category", sorted(inv["Category"].unique()),
@@ -1297,13 +1550,15 @@ def page_inventory() -> None:
                 marker=dict(size=bubble_sz, color=clr, opacity=0.82,
                             line=dict(color="#FFFFFF", width=1.5),
                             sizemode="area", sizeref=2.0 * 60 / (40.0 ** 2), sizemin=6),
-                customdata=grp[["Product_Name", "SKU_ID", "Prod_Need", "Demand_6M", "Demand_Cover_Pct"]].values,
+                customdata=grp[["Product_Name", "SKU_ID", "Prod_Need", "Demand_6M",
+                                "Demand_Cover_Pct", "Total_Inv_Cost_Y"]].values,
                 hovertemplate=(
                     "<b>%{customdata[0]}</b><br>SKU: %{customdata[1]}<br>"
                     "Stock: %{x}<br>ROP: %{y}<br>"
                     f"{n_future}M Demand: %{{customdata[3]:,}} units<br>"
                     "Stock Covers: %{customdata[4]:.0f}% of demand<br>"
-                    "Produce: <b>%{customdata[2]} units</b><extra></extra>"
+                    "Produce: <b>%{customdata[2]} units</b><br>"
+                    "Annual Inv Cost: ₹%{customdata[5]:,.0f}<extra></extra>"
                 ),
             ))
         fig_sc.update_layout(
@@ -1335,16 +1590,20 @@ def page_inventory() -> None:
                 "SKU_ID", "Product_Name", "Category", "ABC", "Status",
                 "Current_Stock", "Demand_6M", "Demand_Cover_Pct",
                 "ROP", "EOQ", "SS", "Days_To_ROP", "Prod_Need",
+                "Hold_Rate_Pct", "Ordering_Cost_Y", "Holding_Cost_Y", "Total_Inv_Cost_Y",
             ]].copy()
             tbl.columns = [
                 "SKU", "Product", "Category", "ABC", "Status",
                 "Stock", f"{n_future}M Demand", "Covers %",
                 "ROP", "EOQ", "Safety Stock", "Days to ROP", "Units to Produce",
+                "Hold Rate %", "Ord Cost ₹/yr", "Hold Cost ₹/yr", "Total Inv Cost ₹/yr",
             ]
-            for c in ["Stock", f"{n_future}M Demand", "ROP", "EOQ", "Safety Stock", "Units to Produce"]:
+            for c in ["Stock", f"{n_future}M Demand", "ROP", "EOQ", "Safety Stock",
+                      "Units to Produce", "Ord Cost ₹/yr", "Hold Cost ₹/yr", "Total Inv Cost ₹/yr"]:
                 tbl[c] = tbl[c].astype(int)
             tbl["Days to ROP"] = tbl["Days to ROP"].apply(lambda x: f"{int(x)}d" if x > 0 else "—")
             tbl["Covers %"]    = tbl["Covers %"].apply(lambda x: f"{x:.0f}%")
+            tbl["Hold Rate %"] = tbl["Hold Rate %"].apply(lambda x: f"{int(x)}%")
             st.dataframe(tbl, use_container_width=True, hide_index=True, height=340)
 
 def page_production() -> None:
@@ -1366,6 +1625,16 @@ def page_production() -> None:
     total_safety_stock  = int(inv_for_kpi["SS"].sum())
     scheduled_total_all = int(plan["Production"].sum())
     peak = agg.loc[agg["Production"].idxmax(), "Month_dt"]
+
+    # ── UPGRADE 3: Production recommendations ─────────────────────────────
+    _, _opt_p, _fwd_p, _ = compute_logistics(n_future=n_future, cap_mult=cap)
+    _recs_prod = generate_recommendations(inv_for_kpi, plan, _opt_p, _fwd_p)
+    _prod_recs = [r for r in _recs_prod if r["module"] == "Production"]
+    if _prod_recs:
+        sec("🎯 Production Recommendations")
+        render_recommendations(_prod_recs)
+        sp(0.5)
+
     sec("Production Summary")
     c1, c2, c3, c4, c5 = st.columns(5)
     kpi(c1, "Scheduled Production",        f"{scheduled_total_all:,}",    "amber", f"cap ×{cap:.1f} · {n_future}M")
@@ -1534,6 +1803,16 @@ def page_logistics() -> None:
     prod_by_cat_log = (fwd_plan.groupby("Category")["Prod_Units"].sum().reset_index()
                        .rename(columns={"Prod_Units": "Planned Units"}) if not fwd_plan.empty else pd.DataFrame())
 
+    # ── UPGRADE 3: Logistics recommendations ──────────────────────────────
+    _inv_log = compute_inventory(n_future=n_future)
+    _plan_log = compute_production(cap_mult=cap_log, n_future=n_future)
+    _recs_log = generate_recommendations(_inv_log, _plan_log, opt, fwd_plan)
+    _log_recs = [r for r in _recs_log if r["module"] == "Logistics"]
+    if _log_recs:
+        sec("🎯 Logistics Recommendations")
+        render_recommendations(_log_recs)
+        sp(0.5)
+
     t1, t2, t3 = st.tabs(["Carrier Performance", "Cost & Recommendations", "Forward Plan"])
 
     with t1:
@@ -1622,9 +1901,7 @@ def page_logistics() -> None:
                 text=labels_cat,
                 textposition="inside",
                 textfont=dict(size=9, color="white"),
-                hovertemplate=(
-                    "<b>%{y}</b><br>Score: %{x:.3f}<extra></extra>"
-                ),
+                hovertemplate="<b>%{y}</b><br>Score: %{x:.3f}<extra></extra>",
             ))
             fig_cat.add_vline(x=0.5, line_dash="dot", line_color="rgba(0,0,0,0.15)", line_width=1)
             fig_cat.update_layout(
@@ -1879,11 +2156,11 @@ def main() -> None:
     st.sidebar.markdown("""<div style='padding:16px 0 10px'>
       <div style='font-size:28px;font-weight:900;letter-spacing:-.03em;text-transform:uppercase;
            background:linear-gradient(135deg,#f5a623,#ff6b6b,#2ed8c3);
-           -webkit-background-clip:text;-webkit-text-fill-color:transparent'>OmniFlow D2D Intelligence</div>
+           -webkit-background-clip:text;-webkit-text-fill-color:transparent'>OmniFlow D2D</div>
     </div>""", unsafe_allow_html=True)
     st.sidebar.markdown(
         "<div style='font-size:10px;font-weight:700;color:#4a5e7a;letter-spacing:.1em;"
-        "text-transform:uppercase;font-family:DM Mono;margin-bottom:4px'>Forecast Horizon</div>",
+        "text-transform:uppercase;font-family:DM Mono;margin-bottom:4px'>📅 Forecast Horizon</div>",
         unsafe_allow_html=True,
     )
     horizon_val = st.sidebar.select_slider(
@@ -1896,7 +2173,7 @@ def main() -> None:
     )
     st.sidebar.markdown(
         f"<div style='font-size:10px;color:#64748b;font-family:DM Mono;margin-top:2px;"
-        f"margin-bottom:12px'>All modules use <b style='color:#1e3a8a'>{horizon_val}M</b> window</div>",
+        f"margin-bottom:12px'>→ All modules use <b style='color:#1e3a8a'>{horizon_val}M</b> window</div>",
         unsafe_allow_html=True,
     )
     st.sidebar.markdown(
