@@ -1369,7 +1369,11 @@ def page_production() -> None:
     sec("Production Summary")
     c1, c2, c3, c4, c5 = st.columns(5)
     kpi(c1, "Scheduled Production",        f"{scheduled_total_all:,}",    "amber", f"cap ×{cap:.1f} · {n_future}M")
-    kpi(c2, "Production Gap",             f"{scheduled_total_all - total_demand_6m_inv:+,}", "sky" if scheduled_total_all >= total_demand_6m_inv else "coral", "vs forecast demand")
+    gap = scheduled_total_all - total_demand_6m_inv
+    gap_label = "Production Surplus" if gap >= 0 else "Production Shortfall"
+    gap_cls   = "sky" if gap >= 0 else "coral"
+    gap_sub   = "above forecast demand" if gap >= 0 else "below forecast demand"
+    kpi(c2, gap_label, f"{abs(gap):,}", gap_cls, gap_sub)
     kpi(c3, "Current Stock",               f"{total_stock_inv:,}",        "sky",   "on hand across all SKUs")
     kpi(c4, "Safety Stock Added",          f"{total_safety_stock:,}",     "mint",  "buffer against demand variance")
     kpi(c5, "Peak Month",                  peak.strftime("%b %Y"),        "coral", "highest production volume")
