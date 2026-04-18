@@ -1171,6 +1171,16 @@ def page_demand() -> None:
         sp(0.5)
         ts_idx = _to_ts(cat_monthly.index)
         fig_spark = go.Figure()
+        # Forecast boundary vertical line
+        fig_spark.add_vline(
+            x=str(ts_idx[-1].date()),
+            line_dash="dash", line_color="rgba(139,92,246,0.45)", line_width=1.5,
+        )
+        fig_spark.add_vrect(
+            x0=str(ts_idx[-1].date()),
+            x1=str((ts_idx[-1] + pd.DateOffset(months=n_future)).date()),
+            fillcolor="rgba(139,92,246,0.03)", layer="below", line_width=0,
+        )
         for ci, cat in enumerate(cats_sorted):
             clr   = cat_colors.get(cat, COLORS[ci])
             vals  = cat_monthly[cat].values / 1e6
@@ -1178,23 +1188,65 @@ def page_demand() -> None:
             r_c = int(clr.lstrip('#')[0:2], 16)
             g_c = int(clr.lstrip('#')[2:4], 16)
             b_c = int(clr.lstrip('#')[4:6], 16)
+            # Historical trace with area fill
             fig_spark.add_trace(go.Scatter(
                 x=ts_idx, y=vals, name=short,
                 line=dict(color=clr, width=2),
                 fill="tozeroy",
                 fillcolor=f"rgba({r_c},{g_c},{b_c},0.07)",
+                legendgroup=cat,
                 hovertemplate=f"<b>{cat}</b><br>%{{x|%b %Y}}: ₹%{{y:.2f}}M<extra></extra>",
             ))
+            # Run forecast for this category's revenue series
+            r_cat = ml_forecast(
+                cat_monthly[cat].values.astype(float),
+                cat_monthly.index,
+                n_future,
+            )
+            if r_cat is not None:
+                fut_ds_cat = r_cat["fut_ds"]
+                fut_vals   = r_cat["forecast"] / 1e6
+                ci_lo_cat  = r_cat["ci_lo"] / 1e6
+                ci_hi_cat  = r_cat["ci_hi"] / 1e6
+                # CI band
+                x_ci_cat = list(fut_ds_cat) + list(fut_ds_cat)[::-1]
+                y_ci_cat = list(ci_hi_cat)  + list(ci_lo_cat)[::-1]
+                fig_spark.add_trace(go.Scatter(
+                    x=x_ci_cat, y=y_ci_cat, fill="toself",
+                    fillcolor=f"rgba({r_c},{g_c},{b_c},0.12)",
+                    line=dict(color="rgba(0,0,0,0)"),
+                    showlegend=False, legendgroup=cat, hoverinfo="skip",
+                ))
+                # Bridge: connect last historical point to first forecast point
+                fig_spark.add_trace(go.Scatter(
+                    x=[ts_idx[-1], fut_ds_cat[0]],
+                    y=[vals[-1], fut_vals[0]],
+                    line=dict(color=clr, width=2, dash="dot"),
+                    mode="lines", showlegend=False, legendgroup=cat,
+                    hoverinfo="skip",
+                ))
+                # Forecast line
+                fig_spark.add_trace(go.Scatter(
+                    x=fut_ds_cat, y=fut_vals,
+                    name=f"{short} (forecast)",
+                    line=dict(color=clr, width=2, dash="dot"),
+                    mode="lines+markers",
+                    marker=dict(size=5, color=clr, symbol="circle-open",
+                                line=dict(color=clr, width=1.8)),
+                    showlegend=False, legendgroup=cat,
+                    hovertemplate=f"<b>{cat} · Forecast</b><br>%{{x|%b %Y}}: ₹%{{y:.2f}}M<extra></extra>",
+                ))
         fig_spark.update_layout(
-            **CD(), height=300,
+            **CD(), height=340,
             xaxis={**gX(), "tickangle": -20},
             yaxis={**gY(), "title": "₹M / month"},
             legend=dict(**leg(), orientation="h", y=-0.18, x=0.5, xanchor="center"),
-            title=dict(text="Monthly Revenue Trend by Category",
-                       font=dict(size=11, color="#64748b")),
+            title=dict(
+                text=f"Monthly Revenue Trend by Category — Historical + {n_future}M Forecast (dashed · shaded CI)",
+                font=dict(size=11, color="#64748b"),
+            ),
         )
         st.plotly_chart(fig_spark, use_container_width=True, key="monthly_sparklines")
-
 def page_inventory() -> None:
     n_future = get_horizon()
     df       = load_data()
