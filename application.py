@@ -1170,7 +1170,6 @@ def page_demand() -> None:
 
         sp(0.5)
         ts_idx = _to_ts(cat_monthly.index)
-        # After fig_spark is built, add forecast traces
         fig_spark = go.Figure()
         for ci, cat in enumerate(cats_sorted):
             clr   = cat_colors.get(cat, COLORS[ci])
@@ -1179,70 +1178,23 @@ def page_demand() -> None:
             r_c = int(clr.lstrip('#')[0:2], 16)
             g_c = int(clr.lstrip('#')[2:4], 16)
             b_c = int(clr.lstrip('#')[4:6], 16)
-        
-            # Historical line (same as before)
             fig_spark.add_trace(go.Scatter(
                 x=ts_idx, y=vals, name=short,
                 line=dict(color=clr, width=2),
                 fill="tozeroy",
                 fillcolor=f"rgba({r_c},{g_c},{b_c},0.07)",
                 hovertemplate=f"<b>{cat}</b><br>%{{x|%b %Y}}: ₹%{{y:.2f}}M<extra></extra>",
-                legendgroup=short, showlegend=True,
             ))
-        
-            # Forecast traces
-            res_cat = ml_forecast(cat_monthly[cat].values.astype(float), cat_monthly.index, n_future)
-            if res_cat:
-                fc_vals  = res_cat["forecast"] / 1e6
-                ci_lo    = res_cat["ci_lo"] / 1e6
-                ci_hi    = res_cat["ci_hi"] / 1e6
-                fut_ds   = res_cat["fut_ds"]
-        
-                # CI band
-                x_ci = list(fut_ds) + list(fut_ds)[::-1]
-                y_ci = list(ci_hi)  + list(ci_lo)[::-1]
-                fig_spark.add_trace(go.Scatter(
-                    x=x_ci, y=y_ci, fill="toself",
-                    fillcolor=f"rgba({r_c},{g_c},{b_c},0.12)",
-                    line=dict(color="rgba(0,0,0,0)"),
-                    name=f"{short} 90% CI", hoverinfo="skip",
-                    legendgroup=short, showlegend=False,
-                ))
-        
-                # Forecast line (dashed)
-                fig_spark.add_trace(go.Scatter(
-                    x=fut_ds, y=fc_vals,
-                    name=f"{short} forecast",
-                    line=dict(color=clr, width=2, dash="dash"),
-                    mode="lines+markers",
-                    marker=dict(size=5, color=clr, line=dict(color="#FFFFFF", width=1.5)),
-                    hovertemplate=f"<b>{cat}</b><br>%{{x|%b %Y}} (forecast): ₹%{{y:.2f}}M<extra></extra>",
-                    legendgroup=short, showlegend=False,
-                ))
-        
-        # Forecast start vertical line
-        fc_start_dt = res_cat["fut_ds"][0]  # uses last cat's result, same date for all
-        fig_spark.add_vline(
-            x=fc_start_dt, line_dash="dash",
-            line_color="rgba(139,92,246,0.4)", line_width=1.5,
-            annotation_text="Forecast →",
-            annotation_font=dict(size=10, color="rgba(139,92,246,0.7)"),
-            annotation_position="top right",
-        )
-        fig_spark.add_vrect(
-            x0=fc_start_dt, x1=res_cat["fut_ds"][-1],
-            fillcolor="rgba(139,92,246,0.04)", layer="below", line_width=0,
-        )
-        
         fig_spark.update_layout(
             **CD(), height=300,
             xaxis={**gX(), "tickangle": -20},
             yaxis={**gY(), "title": "₹M / month"},
             legend=dict(**leg(), orientation="h", y=-0.18, x=0.5, xanchor="center"),
-            title=dict(text=f"Monthly Revenue Trend by Category — with {n_future}M Forecast",
+            title=dict(text="Monthly Revenue Trend by Category",
                        font=dict(size=11, color="#64748b")),
         )
         st.plotly_chart(fig_spark, use_container_width=True, key="monthly_sparklines")
+
 def page_inventory() -> None:
     n_future = get_horizon()
     df       = load_data()
