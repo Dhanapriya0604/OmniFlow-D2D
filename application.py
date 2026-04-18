@@ -1172,7 +1172,7 @@ def page_demand() -> None:
         ts_idx = _to_ts(cat_monthly.index)
         fig_spark = go.Figure()
         fig_spark.add_vline(
-            x=ts_idx[-1],
+            x=ts_idx[-1].isoformat(),
             line_dash="dash", line_color="rgba(139,92,246,0.45)", line_width=1.5,
             annotation_text=" Forecast →",
             annotation_font=dict(size=9, color="#8B5CF6"),
