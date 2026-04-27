@@ -13,7 +13,7 @@ st.set_page_config(
     page_title="OmniFlow D2D Intelligence", page_icon="⬡",
     layout="wide", initial_sidebar_state="expanded",
 )
-DATA_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "india_ecommerce_orders.csv")
+DATA_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "OmniFlow_D2D_India_Unified_5200")
 COLORS = ["#1565C0", "#2E7D32", "#E65100", "#C62828", "#6A1B9A", "#00695C"]
 MODEL_COLORS = {
     "Ridge": "#3B82F6",
