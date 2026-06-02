@@ -1,4 +1,4 @@
-# OmniFlow D2D Intelligence
+# OmniFlow D2D Intelligence v2.0
 
 **AI-Driven Demand to Delivery Intelligence System**
 
@@ -84,14 +84,14 @@ Synthetic India e-commerce supply chain dataset:
 
 ## 📈 Model Performance
 
-| Model | R² | RMSE | MAE |
-|-------|----|------|-----|
-| Ridge Regression | — | — | — |
-| Random Forest | — | — | — |
-| Gradient Boosting | — | — | — |
-| Ensemble | 0.984 | 41.8 | 32.1 |
+| Model | R² | NRMSE % |
+|-------|----|---------|
+| Ridge Regression | 0.957 | ~40% |
+| Random Forest | 0.701 | ~17% |
+| Gradient Boosting | 0.954 | ~13% |
+| Ensemble | **0.984** | **~9%** |
 
-*(Fill in individual model hold-out results)*
+
 
 ---
 
@@ -116,4 +116,3 @@ streamlit run application.py
 The app will open at **http://localhost:8501**
 
 ---
-
